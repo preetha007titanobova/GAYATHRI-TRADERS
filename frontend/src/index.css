@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    background-color: #d1e8e2; /* The specific pale-green/cyan legacy background */
+    color: #000000;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; /* Windows classic font */
+    overflow: hidden;
+  }
+}
+
+@layer components {
+  .legacy-input {
+    @apply bg-white border border-gray-400 shadow-inner px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500;
+  }
+  
+  .legacy-input:disabled {
+    @apply bg-gray-200 text-gray-600;
+  }
+
+  .legacy-button {
+    @apply bg-gray-200 border border-gray-400 hover:bg-gray-300 active:bg-gray-400 active:shadow-inner px-4 py-1 text-sm text-black flex items-center justify-center;
+  }
+
+  .legacy-label {
+    @apply text-sm font-semibold text-black;
+  }
+
+  .legacy-panel {
+    @apply border-2 border-t-white border-l-white border-b-gray-500 border-r-gray-500 bg-[#d1e8e2];
+  }
+  
+  .legacy-grid-header {
+    @apply bg-[#e0e0e0] border border-gray-400 p-1 text-center font-semibold text-sm;
+  }
+  
+  .legacy-grid-cell {
+    @apply border border-gray-300 p-1 text-sm bg-white;
+  }
+}
