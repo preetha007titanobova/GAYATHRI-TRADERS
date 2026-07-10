@@ -14,10 +14,7 @@ import SalesRegister from './pages/SalesRegister';
 import PurchaseBill from './pages/PurchaseBill';
 import PurReturn from './pages/PurReturn';
 import PurRegister from './pages/PurRegister';
-import CashBook from './pages/CashBook';
-import BankBook from './pages/BankBook';
-import JournalEntry from './pages/JournalEntry';
-import ChequePrinting from './pages/ChequePrinting';
+
 import StockStatus from './pages/StockStatus';
 import StockRegister from './pages/StockRegister';
 import ViewLedger from './pages/ViewLedger';
@@ -54,10 +51,7 @@ function App() {
           <Route path="pur-register" element={<PurRegister />} />
           
           {/* Accounts */}
-          <Route path="cash-book" element={<CashBook />} />
-          <Route path="bank-book" element={<BankBook />} />
-          <Route path="journal-entry" element={<JournalEntry />} />
-          <Route path="cheque-printing" element={<ChequePrinting />} />
+        
           
           {/* Stock */}
           <Route path="stock-status" element={<StockStatus />} />
