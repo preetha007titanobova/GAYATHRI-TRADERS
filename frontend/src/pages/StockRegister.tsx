@@ -2,6 +2,9 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import type { ToolbarActions } from '../components/Layout';
 import { Calendar, Package, FileText } from 'lucide-react';
+import Api from '../Api';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface StockMove {
   id: string;
@@ -42,7 +45,7 @@ const StockRegister = () => {
     const fetchItems = async () => {
       setLoadingItems(true);
       try {
-        const res = await fetch('http://localhost:5000/api/items/search?q=');
+        const res = await fetch(`${Api}/products/search?q=`);
         if (res.ok) {
           const data = await res.json();
           setItems(data);
@@ -65,7 +68,7 @@ const StockRegister = () => {
       if (!selectedItem) return;
       setLoadingLedger(true);
       try {
-        const res = await fetch(`http://localhost:5000/api/stock-ledger/${selectedItem}`);
+        const res = await fetch(`${Api}/sales/stock-ledger/${selectedItem}`);
         if (res.ok) {
           const data = await res.json();
           setMovements(data.movements || []);
@@ -82,6 +85,44 @@ const StockRegister = () => {
     };
     fetchLedger();
   }, [selectedItem]);
+
+  const downloadPDF = () => {
+    const doc = new jsPDF();
+    doc.setFontSize(16);
+    doc.setTextColor(43, 87, 154);
+    doc.text('Stock Register Report', 14, 15);
+    
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`Product: ${activeItem?.name || ''} | Period: ${fromDate} to ${toDate}`, 14, 22);
+    doc.text(`Opening Stock: ${ledgerRows.openingBalance} | Closing Stock: ${ledgerRows.closingBalance}`, 14, 27);
+
+    const headers = ["Date", "Vch Type", "Vch No.", "Particulars", "Inward Qty", "Outward Qty", "Running Bal."];
+    const rows = ledgerRows.rows.map(rec => {
+      const dateObj = new Date(rec.date);
+      const formattedDate = !isNaN(dateObj.getTime()) ? dateObj.toISOString().split('T')[0] : rec.date;
+      return [
+        formattedDate,
+        rec.vchType,
+        rec.vchNo,
+        rec.particulars,
+        rec.inward || '',
+        rec.outward || '',
+        rec.balance
+      ];
+    });
+
+    autoTable(doc, {
+      startY: 32,
+      head: [headers],
+      body: rows,
+      theme: 'grid',
+      headStyles: { fillColor: [43, 87, 154] },
+      styles: { fontSize: 8 },
+    });
+
+    doc.save(`Stock_Register_${activeItem?.name?.replace(/\s+/g, '_') || 'Report'}_${new Date().toISOString().split('T')[0]}.pdf`);
+  };
 
   useEffect(() => {
     setToolbarActions({
@@ -147,13 +188,18 @@ const StockRegister = () => {
           </div>
         </div>
 
-        <div className="flex items-center bg-[#f0f4f8] border border-[#d1d9e0] p-1.5 rounded-md">
-           <span className="font-bold text-[#2b579a] flex items-center text-sm mr-3 pl-2"><Calendar size={16} className="mr-1.5"/> Period:</span>
-           <div className="flex items-center space-x-2 bg-white px-2 py-1 rounded border border-gray-300 shadow-sm">
-             <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className="border-none bg-transparent text-sm text-gray-800 font-medium focus:outline-none focus:ring-0" />
-             <span className="text-gray-400 text-sm font-medium">to</span>
-             <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className="border-none bg-transparent text-sm text-gray-800 font-medium focus:outline-none focus:ring-0" />
-           </div>
+        <div className="flex items-center space-x-3">
+          <div className="flex items-center bg-[#f0f4f8] border border-[#d1d9e0] p-1.5 rounded-md">
+             <span className="font-bold text-[#2b579a] flex items-center text-sm mr-3 pl-2"><Calendar size={16} className="mr-1.5"/> Period:</span>
+             <div className="flex items-center space-x-2 bg-white px-2 py-1 rounded border border-gray-300 shadow-sm">
+               <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className="border-none bg-transparent text-sm text-gray-800 font-medium focus:outline-none focus:ring-0" />
+               <span className="text-gray-400 text-sm font-medium">to</span>
+               <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className="border-none bg-transparent text-sm text-gray-800 font-medium focus:outline-none focus:ring-0" />
+             </div>
+          </div>
+          <button onClick={downloadPDF} className="bg-emerald-600 text-white px-4 py-2 text-sm font-semibold rounded hover:bg-emerald-700 shadow border border-emerald-800 transition-colors">
+            Download PDF
+          </button>
         </div>
 
       </div>

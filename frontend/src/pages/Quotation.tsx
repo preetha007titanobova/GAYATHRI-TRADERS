@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
+import Api from '../Api';
 import { 
   FileText, Mail, RefreshCcw, Plus, Trash2, Calendar, 
   ChevronDown, ChevronUp, FileSignature, Loader2 
@@ -55,7 +56,7 @@ const Quotation = () => {
   // --- Fetch Initial Setup Parameters ---
   useEffect(() => {
     // Fetch Next Quotation Sequence
-    fetch('http://localhost:5000/api/quotations/next-sequence')
+    fetch(`${Api}/quotations/next-sequence`)
       .then(res => res.json())
       .then(data => {
         if (data.quoteNo) setQuoteNo(data.quoteNo);
@@ -63,7 +64,7 @@ const Quotation = () => {
       .catch(err => console.error("Sequence generator failed", err));
 
     // Fetch Products (Item Master mock/DB hook)
-    fetch('http://localhost:5000/api/items/search?q=')
+    fetch(`${Api}/products/search?q=`)
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) setAvailableProducts(data);
@@ -211,7 +212,7 @@ const Quotation = () => {
     setIsEmailing(true);
     
     try {
-      const response = await fetch('http://localhost:5000/api/quotations/send-email', {
+      const response = await fetch(`${Api}/quotations/send-email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

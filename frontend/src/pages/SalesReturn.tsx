@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext, useLocation, useNavigate } from 'react-router-dom';
 import { Search } from 'lucide-react';
+import Api from '../Api';
 
 interface ReturnGridRow {
   id: number;
@@ -18,7 +19,10 @@ interface ReturnGridRow {
 }
 
 const SalesReturn = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
   // Document State
+  const [editingReturnId, setEditingReturnId] = useState<string | null>(null);
   const [returnNo, setReturnNo] = useState('Loading...');
   const [returnDate, setReturnDate] = useState(new Date().toISOString().split('T')[0]);
   const [invoiceDetails, setInvoiceDetails] = useState<{invoiceNo: string, buyerName: string, eType: string} | null>(null);
@@ -44,12 +48,50 @@ const SalesReturn = () => {
   const { setToolbarActions, setGlobalNotification } = useOutletContext<{ setToolbarActions?: any, setGlobalNotification?: any }>() || {};
 
   useEffect(() => {
-    fetchNextSequence();
-  }, []);
+    const returnToEdit = location.state?.returnToEdit;
+    if (returnToEdit) {
+      setEditingReturnId(returnToEdit._id || returnToEdit.id);
+      setReturnNo(returnToEdit.returnNo);
+      setReturnDate(new Date(returnToEdit.returnDate).toISOString().split('T')[0]);
+      setReason(returnToEdit.reason || 'Damaged in Transit');
+      
+      // Fetch full details with items
+      fetch(`${Api}/sales/returns/${returnToEdit._id || returnToEdit.id}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data) {
+            setInvoiceDetails({
+              invoiceNo: data.originalInvoice || '',
+              buyerName: data.customerName || '',
+              eType: data.igstReturn > 0 ? 'Interstate' : 'Local'
+            });
+            if (Array.isArray(data.items)) {
+              setItemsToReturn(data.items.map((item: any, idx: number) => ({
+                id: idx + 1,
+                productId: item.productId || null,
+                itemCode: item.itemCode || '',
+                itemName: item.itemName || '',
+                invoicedQty: item.invoicedQty || item.returnQty, // fallback
+                returnQty: item.returnQty,
+                unitPrice: item.unitPrice,
+                taxableAmt: item.taxableAmt || (item.returnQty * item.unitPrice),
+                taxPercent: item.taxPercent || 18,
+                disposition: item.disposition || 'Return to Warehouse',
+                subtotal: item.subtotal,
+                _originalTaxable: item.taxableAmt || (item.returnQty * item.unitPrice)
+              })));
+            }
+          }
+        })
+        .catch(err => console.error("Failed to fetch return details:", err));
+    } else {
+      fetchNextSequence();
+    }
+  }, [location.state]);
 
   const fetchNextSequence = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/sales-returns/next-sequence');
+      const res = await fetch(`${Api}/sales/returns/next-sequence`);
       const data = await res.json();
       if (data.returnNo) setReturnNo(data.returnNo);
     } catch (err) {
@@ -97,7 +139,7 @@ const SalesReturn = () => {
 
   const handleSearchInvoice = async () => {
     try {
-      const res = await fetch(`http://localhost:5000/api/sales-bills/search?q=${searchQuery}`);
+      const res = await fetch(`${Api}/sales/bills/search?q=${searchQuery}`);
       const data = await res.json();
       setInvoiceSearchResults(data);
       setIsInvoiceSearchOpen(true);
@@ -108,7 +150,7 @@ const SalesReturn = () => {
 
   const loadInvoice = async (invNo: string) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/sales-bills/${invNo}`);
+      const res = await fetch(`${Api}/sales/bills/${invNo}`);
       const data = await res.json();
       
       setInvoiceDetails({
@@ -240,15 +282,21 @@ const SalesReturn = () => {
     };
 
     try {
-      const res = await fetch('http://localhost:5000/api/sales-returns', {
-        method: 'POST',
+      const url = editingReturnId ? `${Api}/sales/returns/${editingReturnId}` : `${Api}/sales/returns`;
+      const method = editingReturnId ? 'PUT' : 'POST';
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
       const data = await res.json();
       if (data.success) {
         if (setGlobalNotification) setGlobalNotification({msg: `Credit Note ${returnNo} saved successfully!`, type: 'success'});
-        setTimeout(() => window.location.reload(), 1500);
+        if (editingReturnId) {
+          setTimeout(() => navigate('/sales-register'), 1500);
+        } else {
+          setTimeout(() => window.location.reload(), 1500);
+        }
       } else {
         if (setGlobalNotification) setGlobalNotification({msg: "Error saving: " + data.error, type: 'error'});
       }

@@ -336,10 +336,6 @@ const Layout = () => {
                 { name: 'Purchase Bill', path: '/purchase-bill' },
                 { name: 'Pur. Return', path: '/pur-return' },
                 { name: 'Pur. Register', path: '/pur-register' },
-                { name: 'Cash Book', path: '/cash-book' },
-                { name: 'Bank Book', path: '/bank-book' },
-                { name: 'Journal Entry', path: '/journal-entry' },
-                { name: 'Cheque Printing', path: '/cheque-printing' },
                 { name: 'Stock Status', path: '/stock-status' },
                 { name: 'Stock Register', path: '/stock-register' },
                 { name: 'View Ledger', path: '/view-ledger' },
@@ -363,11 +359,11 @@ const Layout = () => {
               })}
             </ul>
           </div>
-          <div className="p-2 border-t border-gray-400 bg-gray-100">
+          {/* <div className="p-2 border-t border-gray-400 bg-gray-100">
             <button className="w-full bg-black text-white font-bold py-2 text-sm hover:bg-gray-800 shadow shadow-gray-500">
               Open Anydesk
             </button>
-          </div>
+          </div> */}
         </div>
       </div>
 

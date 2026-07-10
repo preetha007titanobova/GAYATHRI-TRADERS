@@ -3,6 +3,8 @@ import { useOutletContext } from 'react-router-dom';
 import type { ToolbarActions } from '../components/Layout';
 import { Search, Calendar, Filter, FileText, AlertCircle, Eye } from 'lucide-react';
 import Modal from '../components/Modal';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 // --- DATA STRUCTURES ---
 interface LineItem {
@@ -117,6 +119,41 @@ const PurRegister = () => {
     }
   };
 
+  const downloadPDF = () => {
+    const doc = new jsPDF();
+    doc.setFontSize(16);
+    doc.setTextColor(43, 87, 154);
+    doc.text('Purchase Register Report', 14, 15);
+    
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`Period: ${filters.fromDate} to ${filters.toDate} | Supplier: ${filters.supplier}`, 14, 22);
+
+    const headers = ["Vch No", "Inv No", "Date", "Supplier Name", "Taxable Amt", "CGST", "SGST", "IGST", "Net Payable"];
+    const rows = displayedData.map(rec => [
+      rec.voucherNo,
+      rec.supplierInvoiceNo || '-',
+      rec.date,
+      rec.supplierName,
+      `₹${rec.taxableAmt.toFixed(2)}`,
+      `₹${rec.cgst.toFixed(2)}`,
+      `₹${rec.sgst.toFixed(2)}`,
+      `₹${rec.igst.toFixed(2)}`,
+      `₹${rec.netPayable.toFixed(2)}`
+    ]);
+
+    autoTable(doc, {
+      startY: 26,
+      head: [headers],
+      body: rows,
+      theme: 'grid',
+      headStyles: { fillColor: [43, 87, 154] },
+      styles: { fontSize: 8 },
+    });
+
+    doc.save(`Purchase_Register_${new Date().toISOString().split('T')[0]}.pdf`);
+  };
+
   // Bind Print functionality to global toolbar
   useEffect(() => {
     setToolbarActions({
@@ -153,6 +190,7 @@ const PurRegister = () => {
             <button onClick={() => setQuickDate('Today')} className="text-xs bg-gray-100 hover:bg-gray-200 border border-gray-300 px-2 py-1 rounded">Today</button>
             <button onClick={() => setQuickDate('ThisMonth')} className="text-xs bg-gray-100 hover:bg-gray-200 border border-gray-300 px-2 py-1 rounded">This Month</button>
             <button onClick={() => setQuickDate('ThisFY')} className="text-xs bg-gray-100 hover:bg-gray-200 border border-gray-300 px-2 py-1 rounded">This FY</button>
+            <button onClick={downloadPDF} className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1 rounded shadow border border-emerald-800 transition-colors">Download PDF</button>
           </div>
         </div>
 

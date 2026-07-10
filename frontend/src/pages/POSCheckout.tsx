@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useOutletContext, useLocation } from 'react-router-dom';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useOutletContext, useLocation, useNavigate } from 'react-router-dom';
 import { Plus, Edit, Trash2, ArrowLeft, ArrowRight, Search, Printer, Mail, Paperclip, MessageSquare } from 'lucide-react';
 import { printReceipt } from '../utils/printReceipt';
+import Api from '../Api';
 
 // Types for our grid
 interface GridRow {
@@ -17,8 +18,10 @@ interface GridRow {
 }
 
 const POSCheckout = () => {
+  const navigate = useNavigate();
   const location = useLocation();
   const incomingPayload = location.state?.quotationPayload;
+  const [editingBillId, setEditingBillId] = useState<string | null>(null);
 
   // --- State for Document Input Panel ---
   const [invoiceNo, setInvoiceNo] = useState('Loading...'); // Fetched from backend
@@ -92,35 +95,76 @@ const POSCheckout = () => {
 
   useEffect(() => {
     // Fetch available products
-    fetch('http://localhost:5000/api/items/search')
+    fetch(`${Api}/products/search`)
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) setAvailableProducts(data);
       })
       .catch(err => console.error("Error fetching products:", err));
 
-    // Fetch next invoice number
-    fetch('http://localhost:5000/api/sales/next-invoice')
-      .then(res => res.json())
-      .then(data => {
-        if (data.invoiceNo) setInvoiceNo(data.invoiceNo);
-      })
-      .catch(err => console.error("Error fetching invoice no:", err));
-
     // Fetch available customers
-    fetch('http://localhost:5000/api/ledgers/search?group=Customers')
+    fetch(`${Api}/ledgers/search?group=Customers`)
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) setAvailableCustomers(data);
       })
       .catch(err => console.error("Error fetching customers:", err));
-  }, []);
+
+    const invoiceToEdit = location.state?.invoiceToEdit;
+    if (invoiceToEdit) {
+      setEditingBillId(invoiceToEdit._id || invoiceToEdit.id);
+      setInvoiceNo(invoiceToEdit.invoiceNo);
+      setInvDate(new Date(invoiceToEdit.invDate).toISOString().split('T')[0]);
+      setPayDays(invoiceToEdit.payDays || 0);
+      setBuyerName(invoiceToEdit.buyerName || 'CASH');
+      setSalesman(invoiceToEdit.salesman || '');
+      setPaymentMode(invoiceToEdit.paymentMode || 'Cash');
+      setAddress(invoiceToEdit.address || '');
+      setEType(invoiceToEdit.eType || 'Local');
+      setMobileNo(invoiceToEdit.mobileNo || '');
+      setGstNo(invoiceToEdit.gstNo || '');
+      setPrintIn(invoiceToEdit.printIn || 'Blank A4');
+      setInvoiceFormat(invoiceToEdit.invFormat || invoiceToEdit.invoiceFormat || 'GSTFormat Full Page');
+      
+      // Fetch full details with items
+      fetch(`${Api}/sales/bills/${invoiceToEdit.invoiceNo}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data && Array.isArray(data.items)) {
+            setGridData(data.items.map((item: any, idx: number) => ({
+              id: idx + 1,
+              itemName: item.itemName,
+              itemDesc: item.itemDesc || '',
+              qty: item.qty,
+              uom: item.uom || 'PCS',
+              rate: item.rate,
+              discPercent: item.discPercent || 0,
+              discAmt: item.discAmt || 0,
+              amount: item.amount
+            })));
+          }
+        })
+        .catch(err => console.error("Error fetching full bill details:", err));
+    } else {
+      // Fetch next invoice number
+      fetch(`${Api}/sales/next-invoice`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.invoiceNo) setInvoiceNo(data.invoiceNo);
+        })
+        .catch(err => console.error("Error fetching invoice no:", err));
+    }
+  }, [location.state]);
 
   useEffect(() => {
     if (isSearchModalOpen && searchInputRef.current) {
       searchInputRef.current.focus();
     }
   }, [isSearchModalOpen]);
+
+  const selectedCustomerObj = useMemo(() => {
+    return availableCustomers.find(c => c.accountName === buyerName);
+  }, [availableCustomers, buyerName]);
 
   const filteredProducts = availableProducts
     .filter(p => {
@@ -296,15 +340,21 @@ const POSCheckout = () => {
     };
 
     try {
-      const res = await fetch('http://localhost:5000/api/sales', {
-        method: 'POST',
+      const url = editingBillId ? `${Api}/sales/${editingBillId}` : `${Api}/sales`;
+      const method = editingBillId ? 'PUT' : 'POST';
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
       const data = await res.json();
       if (data.success) {
         if (setGlobalNotification) setGlobalNotification({msg: `Sales Bill ${invoiceNo} saved successfully!`, type: 'success'});
-        setTimeout(() => window.location.reload(), 1500);
+        if (editingBillId) {
+          setTimeout(() => navigate('/sales-register'), 1500);
+        } else {
+          setTimeout(() => window.location.reload(), 1500);
+        }
       } else {
         if (setGlobalNotification) {
           setGlobalNotification({msg: "Error saving: " + data.error, type: 'error'});
@@ -518,28 +568,12 @@ const POSCheckout = () => {
     }
   };
 
-  useEffect(() => {
-    // Fetch Next Invoice Number
-    fetch('http://localhost:5000/api/sales/next-invoice')
-      .then(res => res.json())
-      .then(data => {
-        if (data.invoiceNo) setInvoiceNo(data.invoiceNo);
-      })
-      .catch(err => console.error("Failed to fetch invoice number", err));
-
-    // Fetch all products for autocomplete
-    fetch('http://localhost:5000/api/items/search?q=')
-      .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data)) setAvailableProducts(data);
-      })
-      .catch(err => console.error("Failed to fetch products list", err));
-  }, []);
+  // Duplicate useEffect removed
 
   const handleItemBlur = async (id: number, itemName: string) => {
     if (!itemName.trim()) return;
     try {
-      const res = await fetch(`http://localhost:5000/api/items/search?q=${encodeURIComponent(itemName)}`);
+      const res = await fetch(`${Api}/products/search?q=${encodeURIComponent(itemName)}`);
       const products = await res.json();
       
       const product = products.find((p: any) => p.name.toLowerCase() === itemName.trim().toLowerCase()) || products[0];
@@ -602,7 +636,7 @@ const POSCheckout = () => {
         try {
           let product = availableProducts.find(p => p.barcode === barcode || p.itemCode === barcode);
           if (!product) {
-            const res = await fetch(`http://localhost:5000/api/items/search?q=${encodeURIComponent(barcode)}`);
+            const res = await fetch(`${Api}/products/search?q=${encodeURIComponent(barcode)}`);
             const data = await res.json();
             product = data.find((p: any) => p.barcode === barcode || p.itemCode === barcode);
           }
@@ -685,7 +719,7 @@ const POSCheckout = () => {
     try {
       let product = availableProducts.find(p => p.barcode === barcode || p.itemCode === barcode);
       if (!product) {
-        const res = await fetch(`http://localhost:5000/api/items/search?q=${encodeURIComponent(barcode)}`);
+        const res = await fetch(`${Api}/products/search?q=${encodeURIComponent(barcode)}`);
         const data = await res.json();
         product = data.find((p: any) => p.barcode === barcode || p.itemCode === barcode);
       }
@@ -796,6 +830,22 @@ const POSCheckout = () => {
           <label className="legacy-label text-right">Salesman</label>
           <input type="text" className="legacy-input col-span-2 bg-yellow-50 py-0.5" value={salesman} onChange={e => setSalesman(e.target.value)} placeholder="Billed By" />
       </div>
+
+      {/* Selected Customer Status Banner */}
+      {selectedCustomerObj && (
+        <div className="bg-[#e2f0d9] border border-[#a8d08d] mx-1 mt-1 p-1.5 px-3 flex items-center justify-between text-xs font-bold text-[#385623] shadow-sm rounded">
+          <div className="flex items-center space-x-1">
+            <span className="bg-[#385623] w-1.5 h-4 block"></span>
+            <span>CUSTOMER CREDIT STATUS ({selectedCustomerObj.ledgerCode}):</span>
+          </div>
+          <div className="flex space-x-6">
+            <div>Current Balance: <span className="font-mono text-[#c55a11]">₹{selectedCustomerObj.openingBalance?.toLocaleString() || 0} {selectedCustomerObj.drCr || 'Dr'}</span></div>
+            <div>Credit Limit: <span className="font-mono">₹{selectedCustomerObj.creditLimit?.toLocaleString() || 0}</span></div>
+            <div>Allowed Period: <span>{selectedCustomerObj.defaultCreditPeriod || 0} Days</span></div>
+            <div>GSTIN: <span>{selectedCustomerObj.gstNo || 'N/A'}</span></div>
+          </div>
+        </div>
+      )}
 
       {/* 3. Data Entry Grid */}
       <div className="flex-1 bg-white border border-gray-400 overflow-auto mx-1">

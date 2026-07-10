@@ -4,6 +4,7 @@ import type { ToolbarActions } from '../components/Layout';
 import { BarChart3, Calendar } from 'lucide-react';
 
 import { useNavigate } from 'react-router-dom';
+import Api from '../Api';
 
 const StatisticReport = () => {
   const navigate = useNavigate();
@@ -15,7 +16,7 @@ const StatisticReport = () => {
   const [stats, setStats] = useState<any[]>([]);
 
   React.useEffect(() => {
-    fetch('http://localhost:5000/api/statistics')
+    fetch(`${Api}/statistics`)
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) setStats(data);

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext, useLocation, useNavigate } from 'react-router-dom';
 import { Plus, Trash2, Search, Calendar, ChevronDown, ChevronUp } from 'lucide-react';
+import Api from '../Api';
 
 interface SalesOrderItemLine {
   lineId: string;
@@ -21,7 +22,10 @@ interface SalesOrderItemLine {
 }
 
 const SalesOrder = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
   const { setToolbarActions, setGlobalNotification } = useOutletContext<{ setToolbarActions?: any, setGlobalNotification?: any }>() || {};
+  const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
 
   // --- Left Pane State ---
   const [status, setStatus] = useState<'OPEN' | 'PENDING' | 'FULFILLED' | 'CANCELLED'>('OPEN');
@@ -49,23 +53,61 @@ const SalesOrder = () => {
 
   // Fetch initial data
   useEffect(() => {
-    fetch('http://localhost:5000/api/items/search?q=')
+    fetch(`${Api}/products/search?q=`)
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) setAvailableProducts(data);
       })
       .catch(err => console.error("Failed to fetch products", err));
 
-    fetch('http://localhost:5000/api/ledgers/search')
+    fetch(`${Api}/ledgers/search`)
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) setAvailableCustomers(data);
       })
       .catch(err => console.error("Failed to fetch customers", err));
 
-    // Initialize with one empty row
-    handleAddRow();
-  }, []);
+    const orderToEdit = location.state?.orderToEdit;
+    if (orderToEdit) {
+      setEditingOrderId(orderToEdit._id || orderToEdit.id);
+      setStatus(orderToEdit.status || 'OPEN');
+      setOrderNo(orderToEdit.orderNo);
+      setOrderDate(new Date(orderToEdit.orderDate).toISOString().split('T')[0]);
+      setCustomer(orderToEdit.customer || '');
+      setDeliveryDate(orderToEdit.deliveryDate ? new Date(orderToEdit.deliveryDate).toISOString().split('T')[0] : '');
+      setPaymentTerms(orderToEdit.paymentTerms || 'NET 30 DAYS');
+      setIsInterstate(orderToEdit.isInterstate || false);
+
+      // Fetch items of the order
+      fetch(`${Api}/sales/orders/${orderToEdit._id || orderToEdit.id}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data && Array.isArray(data.items)) {
+            setLineItems(data.items.map((item: any) => ({
+              lineId: item.lineId || String(Math.random()),
+              orderId: item.salesOrderId || '',
+              lineIndex: item.lineIndex || 0,
+              itemCode: item.itemCode || '',
+              itemDescription: item.itemDescription || '',
+              quantityOrdered: item.quantityOrdered || 0,
+              quantityFulfilled: item.quantityFulfilled || 0,
+              unitPrice: item.unitPrice || 0,
+              discountPercentage: item.discountPercentage || 0,
+              taxableAmount: item.taxableAmount || 0,
+              taxRatePercentage: item.taxRatePercentage || 18,
+              cgstAmount: item.cgstAmount || 0,
+              sgstAmount: item.sgstAmount || 0,
+              igstAmount: item.igstAmount || 0,
+              lineSubTotal: item.lineSubTotal || 0
+            })));
+          }
+        })
+        .catch(err => console.error("Failed to fetch order items:", err));
+    } else {
+      // Initialize with one empty row
+      handleAddRow();
+    }
+  }, [location.state]);
 
   // --- Math Matrix Engine ---
   useEffect(() => {
@@ -201,8 +243,11 @@ const SalesOrder = () => {
         items: validItems
       };
 
-      const res = await fetch('http://localhost:5000/api/sales-orders', {
-        method: 'POST',
+      const url = editingOrderId ? `${Api}/sales/orders/${editingOrderId}` : `${Api}/sales/orders`;
+      const method = editingOrderId ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
@@ -210,9 +255,12 @@ const SalesOrder = () => {
 
       if (data.success) {
         if (setGlobalNotification) {
-          setGlobalNotification({msg: "Sales Order Saved Successfully! (Stock Committed)", type: 'success'});
+          setGlobalNotification({msg: `Sales Order Saved Successfully! ${editingOrderId ? '' : '(Stock Committed)'}`, type: 'success'});
         }
         setStatus('PENDING'); // Lock the state
+        if (editingOrderId) {
+          setTimeout(() => navigate('/sales-register'), 1500);
+        }
       } else {
         if (setGlobalNotification) {
           setGlobalNotification({msg: "Failed to save: " + data.error, type: 'error'});

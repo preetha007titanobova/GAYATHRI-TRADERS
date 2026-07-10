@@ -2,19 +2,20 @@ import React, { useRef, useState } from 'react';
 import { Database, Download, Upload, AlertTriangle, FileText } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import Api from '../Api';
 
 const Backup = () => {
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleExportJSON = () => {
-    window.location.href = 'http://localhost:5000/api/backup/export';
+    window.location.href = `${Api}/backup/export`;
   };
 
   const handleExportPDF = async () => {
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:5000/api/backup/export');
+      const res = await fetch(`${Api}/backup/export`);
       const data = await res.json();
       
       const doc = new jsPDF();
@@ -85,7 +86,7 @@ const Backup = () => {
       const text = await file.text();
       const payload = JSON.parse(text);
 
-      const res = await fetch('http://localhost:5000/api/backup/restore', {
+      const res = await fetch(`${Api}/backup/restore`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)

@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import type { ToolbarActions } from '../components/Layout';
 import { PackageSearch, AlertTriangle, Search, Filter } from 'lucide-react';
+import Api from '../Api';
 
 interface StockItem {
   id?: string;
@@ -32,7 +33,7 @@ const StockStatus = () => {
   const fetchInventory = async () => {
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:5000/api/items/search?q=');
+      const res = await fetch(`${Api}/products/search?q=`);
       if (res.ok) {
         const data = await res.json();
         setInventory(data);
