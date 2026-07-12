@@ -43,6 +43,9 @@ model Product {
   committedStock Int      @default(0) // Sales Orders hold this stock
   categoryId    String?   @db.ObjectId
   category      Category? @relation(fields: [categoryId], references: [id])
+  department    String?
+  variety       String?
+  size          String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   salesItems    SalesItem[]

@@ -5,7 +5,14 @@ import { Product } from '../models/product.model';
 export const searchItems = async (q: string): Promise<any[]> => {
   return await prisma.product.findMany({
     where: {
-      name: { contains: q, mode: 'insensitive' } 
+      OR: [
+        { name: { contains: q, mode: 'insensitive' } },
+        { itemCode: { contains: q, mode: 'insensitive' } },
+        { barcode: { contains: q, mode: 'insensitive' } },
+        { variety: { contains: q, mode: 'insensitive' } },
+        { department: { contains: q, mode: 'insensitive' } },
+        { size: { contains: q, mode: 'insensitive' } }
+      ]
     },
     take: 100
   });
