@@ -34,6 +34,48 @@ const StockRegister = () => {
   
   const [fromDate, setFromDate] = useState('2026-04-01');
   const [toDate, setToDate] = useState('2027-03-31');
+  const [preset, setPreset] = useState('fin-year');
+
+  const handlePresetChange = (val: string) => {
+    setPreset(val);
+    const today = new Date();
+    const formatDate = (d: Date) => {
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    };
+
+    if (val === 'today') {
+      const dStr = formatDate(today);
+      setFromDate(dStr);
+      setToDate(dStr);
+    } else if (val === 'yesterday') {
+      const yesterday = new Date(today);
+      yesterday.setDate(today.getDate() - 1);
+      const dStr = formatDate(yesterday);
+      setFromDate(dStr);
+      setToDate(dStr);
+    } else if (val === 'this-week') {
+      const startOfWeek = new Date(today);
+      const day = today.getDay();
+      const diff = today.getDate() - day + (day === 0 ? -6 : 1);
+      startOfWeek.setDate(diff);
+      const endOfWeek = new Date(startOfWeek);
+      endOfWeek.setDate(startOfWeek.getDate() + 6);
+      setFromDate(formatDate(startOfWeek));
+      setToDate(formatDate(endOfWeek));
+    } else if (val === 'this-month') {
+      const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+      setFromDate(formatDate(startOfMonth));
+      setToDate(formatDate(endOfMonth));
+    } else if (val === 'fin-year') {
+      const year = today.getMonth() >= 3 ? today.getFullYear() : today.getFullYear() - 1;
+      setFromDate(`${year}-04-01`);
+      setToDate(`${year + 1}-03-31`);
+    }
+  };
 
   const [movements, setMovements] = useState<StockMove[]>([]);
   const [openingBalance, setOpeningBalance] = useState(0);
@@ -86,43 +128,40 @@ const StockRegister = () => {
     fetchLedger();
   }, [selectedItem]);
 
-  const downloadPDF = () => {
-    const doc = new jsPDF();
-    doc.setFontSize(16);
-    doc.setTextColor(43, 87, 154);
-    doc.text('Stock Register Report', 14, 15);
-    
-    doc.setFontSize(10);
-    doc.setTextColor(100);
-    doc.text(`Product: ${activeItem?.name || ''} | Period: ${fromDate} to ${toDate}`, 14, 22);
-    doc.text(`Opening Stock: ${ledgerRows.openingBalance} | Closing Stock: ${ledgerRows.closingBalance}`, 14, 27);
+const downloadPDF = async () => {
 
-    const headers = ["Date", "Vch Type", "Vch No.", "Particulars", "Inward Qty", "Outward Qty", "Running Bal."];
-    const rows = ledgerRows.rows.map(rec => {
-      const dateObj = new Date(rec.date);
-      const formattedDate = !isNaN(dateObj.getTime()) ? dateObj.toISOString().split('T')[0] : rec.date;
-      return [
-        formattedDate,
-        rec.vchType,
-        rec.vchNo,
-        rec.particulars,
-        rec.inward || '',
-        rec.outward || '',
-        rec.balance
-      ];
-    });
+  const response = await axios.get(
+    "http://localhost:5000/api/daily-stock-status/pdf",
+    {
+      responseType: "blob"
+    }
+  );
 
-    autoTable(doc, {
-      startY: 32,
-      head: [headers],
-      body: rows,
-      theme: 'grid',
-      headStyles: { fillColor: [43, 87, 154] },
-      styles: { fontSize: 8 },
-    });
+  const blob = new Blob(
+    [response.data],
+    {
+      type: "application/pdf"
+    }
+  );
 
-    doc.save(`Stock_Register_${activeItem?.name?.replace(/\s+/g, '_') || 'Report'}_${new Date().toISOString().split('T')[0]}.pdf`);
-  };
+  const url = window.URL.createObjectURL(blob);
+
+  const link = document.createElement("a");
+
+  link.href = url;
+
+  link.download = `Daily-Stock-Status-${new Date()
+    .toLocaleDateString("en-GB")
+    .replaceAll("/", "-")}.pdf`;
+
+  document.body.appendChild(link);
+
+  link.click();
+
+  document.body.removeChild(link);
+
+  window.URL.revokeObjectURL(url);
+};
 
   useEffect(() => {
     setToolbarActions({
@@ -190,16 +229,31 @@ const StockRegister = () => {
 
         <div className="flex items-center space-x-3">
           <div className="flex items-center bg-[#f0f4f8] border border-[#d1d9e0] p-1.5 rounded-md">
-             <span className="font-bold text-[#2b579a] flex items-center text-sm mr-3 pl-2"><Calendar size={16} className="mr-1.5"/> Period:</span>
+             <span className="font-bold text-[#2b579a] flex items-center text-sm mr-2 pl-2"><Calendar size={16} className="mr-1.5"/> Period:</span>
+             <select 
+               value={preset} 
+               onChange={e => handlePresetChange(e.target.value)}
+               className="bg-white border border-gray-300 rounded px-2 py-1 text-xs font-semibold text-gray-700 focus:outline-none cursor-pointer mr-2"
+             >
+               <option value="custom">Custom (Wish)</option>
+               <option value="today">Today (Daily)</option>
+               <option value="yesterday">Yesterday</option>
+               <option value="this-week">This Week</option>
+               <option value="this-month">This Month</option>
+               <option value="fin-year">Financial Year</option>
+             </select>
              <div className="flex items-center space-x-2 bg-white px-2 py-1 rounded border border-gray-300 shadow-sm">
-               <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className="border-none bg-transparent text-sm text-gray-800 font-medium focus:outline-none focus:ring-0" />
+               <input type="date" value={fromDate} onChange={e => { setFromDate(e.target.value); setPreset('custom'); }} className="border-none bg-transparent text-sm text-gray-800 font-medium focus:outline-none focus:ring-0" />
                <span className="text-gray-400 text-sm font-medium">to</span>
-               <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className="border-none bg-transparent text-sm text-gray-800 font-medium focus:outline-none focus:ring-0" />
+               <input type="date" value={toDate} onChange={e => { setToDate(e.target.value); setPreset('custom'); }} className="border-none bg-transparent text-sm text-gray-800 font-medium focus:outline-none focus:ring-0" />
              </div>
           </div>
-          <button onClick={downloadPDF} className="bg-emerald-600 text-white px-4 py-2 text-sm font-semibold rounded hover:bg-emerald-700 shadow border border-emerald-800 transition-colors">
-            Download PDF
-          </button>
+<button
+  onClick={downloadPDF}
+  className="bg-emerald-600 text-white px-3 py-1.5 text-xs font-medium rounded-md hover:bg-emerald-700 shadow border border-emerald-700 transition-colors"
+>
+  Download PDF
+</button>
         </div>
 
       </div>

@@ -17,6 +17,7 @@ import PurRegister from './pages/PurRegister';
 
 import StockStatus from './pages/StockStatus';
 import StockRegister from './pages/StockRegister';
+import DailyStockStatus from './pages/DailyStockStatus';
 import ViewLedger from './pages/ViewLedger';
 import StatisticReport from './pages/StatisticReport';
 import TrialBS from './pages/TrialBS';
@@ -56,6 +57,7 @@ function App() {
           {/* Stock */}
           <Route path="stock-status" element={<StockStatus />} />
           <Route path="stock-register" element={<StockRegister />} />
+          <Route path="daily-stock-status" element={<DailyStockStatus />} />
           
           {/* Reports */}
           <Route path="view-ledger" element={<ViewLedger />} />

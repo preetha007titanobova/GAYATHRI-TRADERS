@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { Plus, Edit, Trash2, ArrowLeft, ArrowRight, Search, Printer, Mail, Paperclip, MessageSquare } from 'lucide-react';
+import { Plus, Edit, Trash2, ArrowLeft, ArrowRight, Search, Printer, Mail, Paperclip, MessageSquare, Power } from 'lucide-react';
+import Api from '../Api';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 export type ToolbarActions = {
   onAdd?: () => void;
@@ -30,6 +33,172 @@ const Layout = () => {
     isRetailBill: false
   });
   const location = useLocation();
+
+  const [isCloseDayModalOpen, setIsCloseDayModalOpen] = useState(false);
+  const [closeDayLoading, setCloseDayLoading] = useState(false);
+  const [ownerWhatsApp, setOwnerWhatsApp] = useState(() => localStorage.getItem('close_day_whatsapp') || '+919876543210');
+  const [ownerEmail, setOwnerEmail] = useState(() => localStorage.getItem('close_day_email') || 'titanobovapvt@gmail.com');
+
+  const handleCloseDay = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCloseDayLoading(true);
+    
+    localStorage.setItem('close_day_whatsapp', ownerWhatsApp);
+    localStorage.setItem('close_day_email', ownerEmail);
+
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    const dateStr = `${yyyy}-${mm}-${dd}`;
+    const formattedDate = `${dd}-${mm}-${yyyy}`;
+
+    try {
+      const res = await fetch(`${Api}/products/daily-status?date=${dateStr}`);
+      if (!res.ok) {
+        throw new Error('Failed to retrieve daily stock status from backend.');
+      }
+      const data = await res.json();
+
+      let totalOpening = 0;
+      let totalInward = 0;
+      let totalOutward = 0;
+      let totalClosing = 0;
+      let totalValuation = 0;
+      
+      data.forEach((item: any) => {
+        totalOpening += item.openingStock || 0;
+        totalInward += item.inwardToday || 0;
+        totalOutward += item.outwardToday || 0;
+        totalClosing += item.closingStock || 0;
+        totalValuation += item.valuation || 0;
+      });
+
+      const doc = new jsPDF();
+      doc.setFontSize(16);
+      doc.setTextColor(43, 87, 154);
+      doc.text('Daily Stock Status Report', 14, 15);
+      
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      doc.text(`Close Day Date: ${formattedDate} | Total Valuation: Rs. ${(totalValuation || 0).toFixed(2)}`, 14, 22);
+
+      const headers = [
+        "Item Code", 
+        "Item Name", 
+        "Unit", 
+        "Opening Qty", 
+        "Qty In", 
+        "Qty Out", 
+        "Closing Qty", 
+        "Pur. Rate (Rs.)", 
+        "Closing Val (Rs.)"
+      ];
+      
+      const rows = data.map((item: any) => [
+        item.itemCode || '',
+        item.name || '',
+        item.uom || 'PCS',
+        item.openingStock || 0,
+        item.inwardToday || 0,
+        item.outwardToday || 0,
+        item.closingStock || 0,
+        (item.purchaseRate || 0).toFixed(2),
+        (item.valuation || 0).toFixed(2)
+      ]);
+
+      rows.push([
+        'TOTAL',
+        `${data.length} Items`,
+        '',
+        (totalOpening || 0).toString(),
+        (totalInward || 0).toString(),
+        (totalOutward || 0).toString(),
+        (totalClosing || 0).toString(),
+        '',
+        (totalValuation || 0).toFixed(2)
+      ]);
+
+      autoTable(doc, {
+        startY: 28,
+        head: [headers],
+        body: rows,
+        theme: 'grid',
+        headStyles: { fillColor: [43, 87, 154] },
+        styles: { fontSize: 8 },
+        didParseCell: (cellData) => {
+          if (cellData.row.index === rows.length - 1) {
+            cellData.cell.styles.fontStyle = 'bold';
+            cellData.cell.styles.fillColor = [240, 240, 240];
+          }
+        }
+      });
+
+      const blob = doc.output('blob');
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Daily_Stock_Status_${formattedDate}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      const pdfBase64 = doc.output('datauristring');
+
+      let emailFailed = false;
+      let pdfUrl = '';
+      try {
+        const closeDayRes = await fetch(`${Api}/products/close-day`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            date: formattedDate,
+            pdf: pdfBase64,
+            email: ownerEmail
+          })
+        });
+
+        if (closeDayRes.ok) {
+          const resJson = await closeDayRes.json();
+          pdfUrl = resJson.pdfUrl || '';
+        } else {
+          emailFailed = true;
+        }
+      } catch (e) {
+        emailFailed = true;
+      }
+
+      const whatsappText = `*Sri Gayathri Traders - Close Day Report*\n` +
+                           `*Date:* ${formattedDate}\n` +
+                           `*Total Items:* ${data.length}\n` +
+                           `*Total Qty In:* ${totalInward}\n` +
+                           `*Total Qty Out:* ${totalOutward}\n` +
+                           `*Total Closing Qty:* ${totalClosing}\n` +
+                           `*Total Closing Valuation:* Rs. ${(totalValuation || 0).toFixed(2)}\n\n` +
+                           (pdfUrl ? `*Download PDF Report:* ${pdfUrl}\n\n` : '') +
+                           (emailFailed 
+                             ? `*Note:* Emailed PDF report failed to send due to email credentials error.\n\n`
+                             : `*Notification:* Daily PDF stock report has been generated and emailed to ${ownerEmail}.\n\n`) +
+                           `Generated automatically via Billing System.`;
+
+      const whatsappUrl = `https://api.whatsapp.com/send?phone=${ownerWhatsApp}&text=${encodeURIComponent(whatsappText)}`;
+      window.open(whatsappUrl, '_blank');
+
+      if (emailFailed) {
+        setGlobalNotification({ msg: `Day closed! WhatsApp opened, but daily report email failed to send (please check SMTP credentials).`, type: 'error' });
+      } else {
+        setGlobalNotification({ msg: `Day closed successfully! Report emailed and WhatsApp opened.`, type: 'success' });
+      }
+      setIsCloseDayModalOpen(false);
+    } catch (err: any) {
+      console.error(err);
+      setGlobalNotification({ msg: err.message || 'Error executing Close Day process.', type: 'error' });
+    } finally {
+      setCloseDayLoading(false);
+      setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 6000);
+    }
+  };
 
   const toggleMenu = (menu: string) => {
     setActiveMenu(activeMenu === menu ? null : menu);
@@ -70,6 +239,7 @@ const Layout = () => {
       '/journal-entry': 'Journal Entry',
       '/cheque-printing': 'Cheque Printing',
       '/stock-status': 'Stock Status',
+      '/daily-stock-status': 'Daily Stock Status',
       '/stock-register': 'Stock Register',
       '/view-ledger': 'View Ledger',
       '/statistic-report': 'Statistic Report',
@@ -188,6 +358,7 @@ const Layout = () => {
           {activeMenu === 'Stock' && (
             <div className="absolute top-full left-0 mt-1 bg-white border border-gray-400 shadow-xl w-48 flex flex-col py-1 z-50">
                <Link to="/stock-status" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Stock Status</Link>
+               <Link to="/daily-stock-status" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Daily Stock Status</Link>
                <Link to="/stock-register" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Stock Register</Link>
             </div>
           )}
@@ -289,6 +460,13 @@ const Layout = () => {
             <MessageSquare size={16} />
             <span className="text-[10px] mt-1 font-bold">SMS</span>
           </button>
+
+          <div className="w-[1px] bg-[#8ab870] mx-1 h-8 self-center"></div>
+
+          <button onClick={() => setIsCloseDayModalOpen(true)} className="flex flex-col items-center justify-center p-1 bg-red-600 hover:bg-red-700 text-white rounded min-w-[70px] focus:outline-none transition-colors shadow">
+            <Power size={16} />
+            <span className="text-[10px] mt-1 font-bold">CLOSE DAY</span>
+          </button>
         </div>
 
         {/* Status Indicators */}
@@ -337,6 +515,7 @@ const Layout = () => {
                 { name: 'Pur. Return', path: '/pur-return' },
                 { name: 'Pur. Register', path: '/pur-register' },
                 { name: 'Stock Status', path: '/stock-status' },
+                { name: 'Daily Stock Status', path: '/daily-stock-status' },
                 { name: 'Stock Register', path: '/stock-register' },
                 { name: 'View Ledger', path: '/view-ledger' },
                 { name: 'Statistic Report', path: '/statistic-report' },
@@ -436,6 +615,75 @@ const Layout = () => {
           </div>
         </div>
       </div>
+
+      {/* Close Day Modal */}
+      {isCloseDayModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-[100] p-4">
+          <div className="bg-white border border-gray-400 shadow-2xl rounded-lg w-full max-w-md overflow-hidden">
+            <div className="bg-[#2b579a] text-white p-3 font-bold flex justify-between items-center">
+              <span className="flex items-center space-x-2">
+                <Power size={18} />
+                <span>Close Day Report & Exit</span>
+              </span>
+              <button 
+                onClick={() => setIsCloseDayModalOpen(false)}
+                className="text-white hover:text-red-300 font-bold focus:outline-none text-lg"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <form onSubmit={handleCloseDay} className="p-4 space-y-4 text-left">
+              <p className="text-sm font-semibold text-gray-700">
+                Are you sure you want to close the day? This will download the daily stock status PDF, email it to the owner, and open WhatsApp to share the status.
+              </p>
+              
+              <div className="space-y-3 bg-gray-50 p-3 border border-gray-200 rounded">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Owner's WhatsApp Number</label>
+                  <input 
+                    type="tel"
+                    required
+                    value={ownerWhatsApp}
+                    onChange={e => setOwnerWhatsApp(e.target.value)}
+                    placeholder="e.g. +919876543210"
+                    className="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium bg-white text-black"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Owner's Email Address</label>
+                  <input 
+                    type="email"
+                    required
+                    value={ownerEmail}
+                    onChange={e => setOwnerEmail(e.target.value)}
+                    placeholder="e.g. owner@example.com"
+                    className="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium bg-white text-black"
+                  />
+                </div>
+              </div>
+              
+              <div className="flex space-x-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsCloseDayModalOpen(false)}
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 rounded text-sm transition-colors border border-gray-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={closeDayLoading}
+                  className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white font-bold py-2 rounded text-sm transition-colors border border-red-700 shadow"
+                >
+                  {closeDayLoading ? 'Closing Day...' : 'Send & Close Day'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );

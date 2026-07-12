@@ -21,6 +21,51 @@ const SalesRegister = () => {
   // Date Filters
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [preset, setPreset] = useState('all');
+
+  const handlePresetChange = (val: string) => {
+    setPreset(val);
+    const today = new Date();
+    const formatDate = (d: Date) => {
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    };
+
+    if (val === 'all') {
+      setStartDate('');
+      setEndDate('');
+    } else if (val === 'today') {
+      const dStr = formatDate(today);
+      setStartDate(dStr);
+      setEndDate(dStr);
+    } else if (val === 'yesterday') {
+      const yesterday = new Date(today);
+      yesterday.setDate(today.getDate() - 1);
+      const dStr = formatDate(yesterday);
+      setStartDate(dStr);
+      setEndDate(dStr);
+    } else if (val === 'this-week') {
+      const startOfWeek = new Date(today);
+      const day = today.getDay();
+      const diff = today.getDate() - day + (day === 0 ? -6 : 1);
+      startOfWeek.setDate(diff);
+      const endOfWeek = new Date(startOfWeek);
+      endOfWeek.setDate(startOfWeek.getDate() + 6);
+      setStartDate(formatDate(startOfWeek));
+      setEndDate(formatDate(endOfWeek));
+    } else if (val === 'this-month') {
+      const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+      setStartDate(formatDate(startOfMonth));
+      setEndDate(formatDate(endOfMonth));
+    } else if (val === 'fin-year') {
+      const year = today.getMonth() >= 3 ? today.getFullYear() : today.getFullYear() - 1;
+      setStartDate(`${year}-04-01`);
+      setEndDate(`${year + 1}-03-31`);
+    }
+  };
 
   // Selected Customer Details State
   const [selectedCustomerDetails, setSelectedCustomerDetails] = useState<any | null>(null);
@@ -260,18 +305,31 @@ const SalesRegister = () => {
           {/* Date Range Selection */}
           <div className="flex items-center space-x-1.5 text-xs bg-slate-50 border border-gray-300 p-1 rounded-md shadow-sm">
             <span className="font-bold text-[#2b579a] flex items-center pl-1"><Calendar size={12} className="mr-1"/> Period:</span>
+            <select 
+              value={preset} 
+              onChange={e => handlePresetChange(e.target.value)}
+              className="bg-white border border-gray-300 rounded px-1.5 py-0.5 text-xs font-semibold text-gray-700 focus:outline-none cursor-pointer mr-1"
+            >
+              <option value="all">All Period</option>
+              <option value="custom">Custom (Wish)</option>
+              <option value="today">Today (Daily)</option>
+              <option value="yesterday">Yesterday</option>
+              <option value="this-week">This Week</option>
+              <option value="this-month">This Month</option>
+              <option value="fin-year">Financial Year</option>
+            </select>
             <input 
               type="date" 
               className="border-none bg-transparent font-medium focus:outline-none"
               value={startDate}
-              onChange={e => setStartDate(e.target.value)}
+              onChange={e => { setStartDate(e.target.value); setPreset('custom'); }}
             />
             <span className="text-gray-400 font-medium">to</span>
             <input 
               type="date" 
               className="border-none bg-transparent font-medium focus:outline-none"
               value={endDate}
-              onChange={e => setEndDate(e.target.value)}
+              onChange={e => { setEndDate(e.target.value); setPreset('custom'); }}
             />
           </div>
 
