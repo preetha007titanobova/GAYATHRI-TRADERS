@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { Plus, Edit, Trash2, ArrowLeft, ArrowRight, Search, Printer, Mail, Paperclip, MessageSquare, Power } from 'lucide-react';
+import { Plus, Edit, Trash2, ArrowLeft, ArrowRight, Search, Printer, Mail, Paperclip, MessageSquare, Power, TrendingUp } from 'lucide-react';
 import Api from '../Api';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -206,19 +206,9 @@ const Layout = () => {
 
   const closeMenu = () => setActiveMenu(null);
 
-  const handleAction = (actionName: keyof ToolbarActions) => {
-    if (toolbarActions[actionName]) {
-      toolbarActions[actionName]!();
-    } else {
-      setGlobalNotification({ msg: "Feature not implemented or not applicable for the current module.", type: 'info' });
-      setTimeout(() => setGlobalNotification({msg: '', type: ''}), 4000);
-    }
-  };
 
-  const handleFeatureNotImplemented = (featureName: string) => {
-    setGlobalNotification({ msg: `${featureName} feature is coming soon!`, type: 'info' });
-    setTimeout(() => setGlobalNotification({msg: '', type: ''}), 4000);
-  };
+
+
 
   const getPageTitle = (pathname: string) => {
     const routeTitles: Record<string, string> = {
@@ -303,7 +293,16 @@ const Layout = () => {
       </div>
 
       {/* 2. Main Menu Bar */}
-      <div className="bg-[#f0f0f0] border-b border-gray-300 flex px-2 py-1 text-sm space-x-2 relative z-50">
+   
+
+      {/* Invisible Overlay to catch clicks outside dropdowns */}
+      {activeMenu && (
+        <div className="fixed inset-0 z-40" onClick={closeMenu}></div>
+      )}
+
+      {/* 3. Green Header Bar & Status Indicators */}
+      <div className="bg-[#a8d08d] border-b border-[#8ab870] flex items-center justify-between px-2 py-1 shadow-sm">
+           <div className= "border-gray-300 flex px-2 py-1 text-sm space-x-2 relative z-50">
         
         {/* MASTER */}
         <div className="relative">
@@ -347,11 +346,7 @@ const Layout = () => {
           )}
         </div>
 
-        {/* PRODUCTION */}
-        <div className="relative">
-          <span onClick={() => handleFeatureNotImplemented('Production')} className="px-3 py-1 cursor-pointer select-none rounded hover:bg-blue-100">Production</span>
-        </div>
-
+      
         {/* STOCK */}
         <div className="relative">
           <span onClick={() => toggleMenu('Stock')} className={`px-3 py-1 cursor-pointer select-none rounded ${activeMenu === 'Stock' ? 'bg-blue-200 shadow-inner' : 'hover:bg-blue-100'}`}>Stock</span>
@@ -360,20 +355,6 @@ const Layout = () => {
                <Link to="/stock-status" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Stock Status</Link>
                <Link to="/daily-stock-status" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Daily Stock Status</Link>
                <Link to="/stock-register" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Stock Register</Link>
-            </div>
-          )}
-        </div>
-
-        {/* ACCOUNT */}
-        <div className="relative">
-          <span onClick={() => toggleMenu('Account')} className={`px-3 py-1 cursor-pointer select-none rounded ${activeMenu === 'Account' ? 'bg-blue-200 shadow-inner' : 'hover:bg-blue-100'}`}>Account</span>
-          {activeMenu === 'Account' && (
-            <div className="absolute top-full left-0 mt-1 bg-white border border-gray-400 shadow-xl w-48 flex flex-col py-1 z-50">
-               <Link to="/cash-book" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Cash Book</Link>
-               <Link to="/bank-book" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Bank Book</Link>
-               <div className="border-t border-gray-300 my-1"></div>
-               <Link to="/journal-entry" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Journal Entry</Link>
-               <Link to="/cheque-printing" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Cheque Printing</Link>
             </div>
           )}
         </div>
@@ -393,81 +374,12 @@ const Layout = () => {
           )}
         </div>
         
-        {/* WINDOWS */}
-        <div className="relative">
-          <span onClick={() => handleFeatureNotImplemented('Windows')} className="px-3 py-1 cursor-pointer select-none rounded hover:bg-blue-100">Windows</span>
-        </div>
+      
 
-        {/* CONTACT US */}
-        <div className="relative">
-          <span onClick={() => handleFeatureNotImplemented('Contact Us')} className="px-3 py-1 cursor-pointer select-none rounded hover:bg-blue-100">Contact Us</span>
-        </div>
+     
 
       </div>
-
-      {/* Invisible Overlay to catch clicks outside dropdowns */}
-      {activeMenu && (
-        <div className="fixed inset-0 z-40" onClick={closeMenu}></div>
-      )}
-
-      {/* 3. Green Header Bar & Status Indicators */}
-      <div className="bg-[#a8d08d] border-b border-[#8ab870] flex items-center justify-between px-2 py-1 shadow-sm">
-        {/* Action Buttons */}
-        <div className="flex space-x-1">
-          <button onClick={() => handleAction('onAdd')} className="flex flex-col items-center justify-center p-1 hover:bg-[#8ab870] rounded min-w-[50px] focus:outline-none transition-colors">
-            <Plus size={16} />
-            <span className="text-[10px] mt-1 font-bold">ADD</span>
-          </button>
-          <button onClick={() => handleAction('onEdit')} className="flex flex-col items-center justify-center p-1 hover:bg-[#8ab870] rounded min-w-[50px] focus:outline-none transition-colors">
-            <Edit size={16} />
-            <span className="text-[10px] mt-1 font-bold">EDIT</span>
-          </button>
-          <button onClick={() => handleAction('onDelete')} className="flex flex-col items-center justify-center p-1 hover:bg-[#8ab870] rounded min-w-[50px] focus:outline-none transition-colors">
-            <Trash2 size={16} />
-            <span className="text-[10px] mt-1 font-bold">DELETE</span>
-          </button>
-          
-          <div className="w-[1px] bg-[#8ab870] mx-1 h-8 self-center"></div>
-          
-          <button onClick={() => handleAction('onPrev')} className="flex flex-col items-center justify-center p-1 hover:bg-[#8ab870] rounded min-w-[40px] focus:outline-none transition-colors">
-            <ArrowLeft size={16} />
-            <span className="text-[10px] mt-1 font-bold">PREV</span>
-          </button>
-          <button onClick={() => handleAction('onNext')} className="flex flex-col items-center justify-center p-1 hover:bg-[#8ab870] rounded min-w-[40px] focus:outline-none transition-colors">
-            <ArrowRight size={16} />
-            <span className="text-[10px] mt-1 font-bold">NEXT</span>
-          </button>
-
-          <div className="w-[1px] bg-[#8ab870] mx-1 h-8 self-center"></div>
-
-          <button onClick={() => handleAction('onFind')} className="flex flex-col items-center justify-center p-1 hover:bg-[#8ab870] rounded min-w-[50px] focus:outline-none transition-colors">
-            <Search size={16} />
-            <span className="text-[10px] mt-1 font-bold">FIND</span>
-          </button>
-          <button onClick={() => handleAction('onPrint')} className="flex flex-col items-center justify-center p-1 hover:bg-[#8ab870] rounded min-w-[50px] focus:outline-none transition-colors">
-            <Printer size={16} />
-            <span className="text-[10px] mt-1 font-bold">PRINT</span>
-          </button>
-          <button onClick={() => handleAction('onEmail')} className="flex flex-col items-center justify-center p-1 hover:bg-[#8ab870] rounded min-w-[50px] focus:outline-none transition-colors">
-            <Mail size={16} />
-            <span className="text-[10px] mt-1 font-bold">EMAIL</span>
-          </button>
-          <button onClick={() => handleAction('onAttach')} className="flex flex-col items-center justify-center p-1 hover:bg-[#8ab870] rounded min-w-[50px] focus:outline-none transition-colors">
-            <Paperclip size={16} />
-            <span className="text-[10px] mt-1 font-bold">ATTACH</span>
-          </button>
-          <button onClick={() => handleAction('onSms')} className="flex flex-col items-center justify-center p-1 hover:bg-[#8ab870] rounded min-w-[50px] focus:outline-none transition-colors">
-            <MessageSquare size={16} />
-            <span className="text-[10px] mt-1 font-bold">SMS</span>
-          </button>
-
-          <div className="w-[1px] bg-[#8ab870] mx-1 h-8 self-center"></div>
-
-          <button onClick={() => setIsCloseDayModalOpen(true)} className="flex flex-col items-center justify-center p-1 bg-red-600 hover:bg-red-700 text-white rounded min-w-[70px] focus:outline-none transition-colors shadow">
-            <Power size={16} />
-            <span className="text-[10px] mt-1 font-bold">CLOSE DAY</span>
-          </button>
-        </div>
+      
 
         {/* Status Indicators */}
         <div className="flex space-x-4 items-center bg-[#d1e8e2] px-3 py-1 border border-gray-400 shadow-inner text-sm font-semibold">
@@ -487,6 +399,16 @@ const Layout = () => {
             <input type="checkbox" className="form-checkbox" checked={globalSettings.isRetailBill} onChange={e => setGlobalSettings({...globalSettings, isRetailBill: e.target.checked})} />
             <span>Retail Bill</span>
           </label>
+        </div>
+          <div className="flex space-x-1">
+          <Link to="/daily-stock-status" className="flex flex-col items-center justify-center p-1 bg-[#2b579a] hover:bg-[#1a3a6c] text-white rounded min-w-[90px] focus:outline-none transition-colors shadow no-underline text-center">
+            <TrendingUp size={16} />
+            <span className="text-[10px] mt-1 font-bold">DAILY STOCK STATUS</span>
+          </Link>
+          <button onClick={() => setIsCloseDayModalOpen(true)} className="flex flex-col items-center justify-center p-1 bg-red-600 hover:bg-red-700 text-white rounded min-w-[70px] focus:outline-none transition-colors shadow">
+            <Power size={16} />
+            <span className="text-[10px] mt-1 font-bold">CLOSE DAY</span>
+          </button>
         </div>
       </div>
 
@@ -548,28 +470,15 @@ const Layout = () => {
 
       {/* Bottom Status & Control Bars */}
       <div className="flex flex-col">
-        {/* Control/Shortcut Bar */}
-        <div className="bg-[#e0e0e0] border-t border-gray-400 px-2 py-1 text-[11px] flex space-x-4 font-semibold text-gray-700">
-          <span>CTRL+N-Add</span>
-          <span>CTRL+E-Edit</span>
-          <span>CTRL+D-Delete</span>
-          <span>CTRL+S-Save</span>
-          <span>ESC-Cancel</span>
-          <span>CTRL+P-Print</span>
-          <span>F2-Item Master</span>
-          <span>F3-Ledger Master</span>
-        </div>
-        
-        {/* Bottom Status Bar */}
+      
         <div className="bg-[#2b579a] text-white text-[10px] flex justify-between items-center px-2 py-0.5">
-        <div className="flex space-x-6">
+        {/* <div className="flex space-x-6">
           <span>Company Name: SRI GAYATHRI TRADERS</span>
           <span>Welcome: Administrator</span>
           <span>Year: {displayYear}</span>
-        </div>
+        </div> */}
           <div className="flex space-x-2">
-            <button onClick={() => handleFeatureNotImplemented('Change Year')} className="bg-gray-200 text-black px-2 hover:bg-gray-300 border border-gray-400 text-[10px]">Change Year</button>
-            <button onClick={() => handleFeatureNotImplemented('Change Company')} className="bg-gray-200 text-black px-2 hover:bg-gray-300 border border-gray-400 text-[10px]">Change Company</button>
+           
             <button onClick={() => setIsCalcOpen(!isCalcOpen)} className="bg-gray-200 text-black px-2 hover:bg-gray-300 border border-gray-400 text-[10px] relative">
               Calculator
               {isCalcOpen && (

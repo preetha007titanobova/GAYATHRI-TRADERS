@@ -329,7 +329,7 @@ const DailyStockStatus = () => {
         
         <div className="flex items-center space-x-6">
           <h2 className="text-xl font-bold text-[#2b579a] flex items-center">
-            <span className="bg-[#2b579a] w-2 h-6 mr-2 block"></span>
+            <span className="bg-[#2b579a] w-2 h-4 mr-2 block"></span>
             Daily Stock Status
           </h2>
 
@@ -372,13 +372,7 @@ const DailyStockStatus = () => {
             </div>
           </div>
 
-          <button
-            onClick={downloadPDF}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 text-xs font-semibold rounded-md shadow border border-emerald-700 transition-colors flex items-center space-x-1.5"
-          >
-            <FileText size={14} />
-            <span>Download PDF</span>
-          </button>
+          <button onClick={downloadPDF} className="bg-emerald-600 text-white px-3 py-1 text-sm font-semibold rounded hover:bg-emerald-700 shadow border border-emerald-800 transition-colors">Download PDF</button>
 
           <button
             onClick={shareOnWhatsApp}
