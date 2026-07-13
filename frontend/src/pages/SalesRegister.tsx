@@ -7,9 +7,14 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 const SalesRegister = () => {
-  const { setToolbarActions, setGlobalNotification } = useOutletContext<{
+  const { 
+    setToolbarActions, 
+    setGlobalNotification, 
+    ownerWhatsApp
+  } = useOutletContext<{
     setToolbarActions: (actions: ToolbarActions) => void;
     setGlobalNotification: (notif: {msg: string, type: 'error' | 'success' | 'info' | ''}) => void;
+    ownerWhatsApp: string;
   }>();
   
   const [activeTab, setActiveTab] = useState<'bills' | 'orders' | 'returns'>('bills');
@@ -22,6 +27,23 @@ const SalesRegister = () => {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [preset, setPreset] = useState('all');
+
+  // Customer Filter states
+  const [availableCustomers, setAvailableCustomers] = useState<any[]>([]);
+  const [selectedFilterCustomer, setSelectedFilterCustomer] = useState<string>('all');
+
+  useEffect(() => {
+    // Fetch available customers on mount
+    fetch(`${Api}/ledgers/search?group=Customers`)
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) setAvailableCustomers(data);
+      })
+      .catch(err => console.error("Error fetching customers:", err));
+  }, []);
+
+  // WhatsApp Share State
+  const [sharing, setSharing] = useState(false);
 
   const handlePresetChange = (val: string) => {
     setPreset(val);
@@ -103,9 +125,15 @@ const SalesRegister = () => {
     fetchRecords();
   }, [searchQuery, activeTab]);
 
-  // Date Filtering logic on frontend
+  // Date and Customer Filtering logic on frontend
   const filteredRecords = useMemo(() => {
     return records.filter(rec => {
+      // Filter by customer if selected
+      if (selectedFilterCustomer !== 'all') {
+        const customerName = activeTab === 'bills' ? rec.buyerName : activeTab === 'orders' ? rec.customer : rec.customerName;
+        if ((customerName || 'CASH') !== selectedFilterCustomer) return false;
+      }
+
       const dateVal = new Date(rec.invDate || rec.orderDate || rec.returnDate);
       if (startDate) {
         const sDate = new Date(startDate);
@@ -119,21 +147,21 @@ const SalesRegister = () => {
       }
       return true;
     });
-  }, [records, startDate, endDate]);
+  }, [records, startDate, endDate, selectedFilterCustomer, activeTab]);
 
-  // Fetch customer details when a row is selected
+  // Fetch customer details when a row is selected or a customer filter is set
   useEffect(() => {
     const fetchCustomerDetails = async () => {
-      if (!selectedRowId) {
-        setSelectedCustomerDetails(null);
-        return;
+      let customerName = '';
+      if (selectedRowId) {
+        const selectedRecord = records.find(r => r._id === selectedRowId);
+        if (selectedRecord) {
+          customerName = activeTab === 'bills' ? selectedRecord.buyerName : activeTab === 'orders' ? selectedRecord.customer : selectedRecord.customerName;
+        }
+      } else if (selectedFilterCustomer !== 'all') {
+        customerName = selectedFilterCustomer;
       }
-      const selectedRecord = records.find(r => r._id === selectedRowId);
-      if (!selectedRecord) {
-        setSelectedCustomerDetails(null);
-        return;
-      }
-      const customerName = activeTab === 'bills' ? selectedRecord.buyerName : activeTab === 'orders' ? selectedRecord.customer : selectedRecord.customerName;
+
       if (!customerName || customerName === 'CASH' || customerName === 'CASH CUSTOMER') {
         setSelectedCustomerDetails(null);
         return;
@@ -155,7 +183,7 @@ const SalesRegister = () => {
       }
     };
     fetchCustomerDetails();
-  }, [selectedRowId, records, activeTab]);
+  }, [selectedRowId, selectedFilterCustomer, records, activeTab]);
 
   useEffect(() => {
     setToolbarActions({
@@ -293,6 +321,101 @@ const SalesRegister = () => {
     doc.save(`${title.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
+  const handleShareWhatsApp = async () => {
+    if (sharing) return;
+    setSharing(true);
+    setGlobalNotification({ msg: 'Generating PDF and preparing WhatsApp share...', type: 'info' });
+    try {
+      const doc = new jsPDF();
+      const title = activeTab === 'bills' ? 'Sales Bills Register' : activeTab === 'orders' ? 'Sales Orders Register' : 'Sales Returns Register';
+      
+      // Header styling
+      doc.setFontSize(16);
+      doc.setTextColor(43, 87, 154);
+      doc.text(title, 14, 15);
+      
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      doc.text(`Period: ${startDate || 'All'} to ${endDate || 'All'}`, 14, 22);
+
+      let headers: string[] = [];
+      let rows: any[][] = [];
+
+      if (activeTab === 'bills') {
+        headers = ["Invoice No", "Date", "Customer Name", "GSTIN", "Gross Amt", "Tax Amt", "Net Amt"];
+        rows = filteredRecords.map(rec => [
+          rec.invoiceNo,
+          new Date(rec.invDate).toLocaleDateString(),
+          rec.buyerName || 'CASH CUSTOMER',
+          rec.gstNo || '-',
+          `₹${(rec.totalAmount || 0).toFixed(2)}`,
+          `₹${((rec.cgst || 0) + (rec.sgst || 0)).toFixed(2)}`,
+          `₹${(rec.netAmount || 0).toFixed(2)}`
+        ]);
+      } else if (activeTab === 'orders') {
+        headers = ["Order No", "Date", "Customer Name", "Delivery Date", "Terms", "Grand Total", "Status"];
+        rows = filteredRecords.map(rec => [
+          rec.orderNo,
+          new Date(rec.orderDate).toLocaleDateString(),
+          rec.customer || 'CASH CUSTOMER',
+          rec.deliveryDate ? new Date(rec.deliveryDate).toLocaleDateString() : '-',
+          rec.paymentTerms || '-',
+          `₹${(rec.grandTotal || 0).toFixed(2)}`,
+          rec.status || 'OPEN'
+        ]);
+      } else {
+        headers = ["Return No", "Date", "Customer Name", "Orig. Invoice", "Reason", "Tax Return", "Net Refund"];
+        rows = filteredRecords.map(rec => [
+          rec.returnNo,
+          new Date(rec.returnDate).toLocaleDateString(),
+          rec.customerName || 'CASH CUSTOMER',
+          rec.originalInvoice || '-',
+          rec.reason || '-',
+          `₹${((rec.cgstReturn || 0) + (rec.sgstReturn || 0) + (rec.igstReturn || 0)).toFixed(2)}`,
+          `₹${(rec.netRefundAmount || 0).toFixed(2)}`
+        ]);
+      }
+
+      autoTable(doc, {
+        startY: 26,
+        head: [headers],
+        body: rows,
+        theme: 'grid',
+        headStyles: { fillColor: [43, 87, 154] },
+        styles: { fontSize: 8 },
+      });
+
+      const pdfBase64 = doc.output('datauristring');
+      const filename = `${title.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+      
+      const res = await fetch(`${Api}/products/upload-pdf`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pdf: pdfBase64, filename })
+      });
+
+      if (!res.ok) throw new Error('Failed to upload PDF report');
+      const resData = await res.json();
+      if (!resData.success || !resData.pdfUrl) throw new Error('PDF upload returned unsuccessful');
+
+      const whatsappText = `*Sri Gayathri Traders - ${title}*\n` +
+                           `*Period:* ${startDate || 'All'} to ${endDate || 'All'}\n` +
+                           `*Records Count:* ${filteredRecords.length}\n\n` +
+                           `*Download PDF:* ${resData.pdfUrl}\n\n` +
+                           `Generated automatically via Sri Gayathri Traders Billing System.`;
+
+      const whatsappUrl = `https://api.whatsapp.com/send?phone=${ownerWhatsApp}&text=${encodeURIComponent(whatsappText)}`;
+      window.open(whatsappUrl, '_blank');
+      setGlobalNotification({ msg: 'WhatsApp Web/API link opened successfully!', type: 'success' });
+    } catch (err: any) {
+      console.error(err);
+      setGlobalNotification({ msg: err.message || 'Failed to share on WhatsApp.', type: 'error' });
+    } finally {
+      setSharing(false);
+      setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 5000);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full bg-[#f0f9f4] p-2 relative">
       <div className="flex justify-between items-center mb-2 bg-white p-2 border border-gray-300 shadow-sm rounded">
@@ -333,6 +456,23 @@ const SalesRegister = () => {
             />
           </div>
 
+          {/* Customer Filter Selection */}
+          <div className="flex items-center space-x-1.5 text-xs bg-slate-50 border border-gray-300 p-1 rounded-md shadow-sm">
+            <span className="font-bold text-[#2b579a] flex items-center pl-1">Customer:</span>
+            <select 
+              value={selectedFilterCustomer} 
+              onChange={e => {
+                setSelectedFilterCustomer(e.target.value);
+                setSelectedRowId(null);
+              }}
+              className="bg-white border border-gray-300 rounded px-1.5 py-0.5 text-xs font-semibold text-gray-700 focus:outline-none cursor-pointer"
+            >
+              <option value="all">All Customers</option>
+              <option value="CASH">CASH</option>
+              {availableCustomers.map(c => <option key={c._id} value={c.accountName}>{c.accountName}</option>)}
+            </select>
+          </div>
+
           <div className="relative">
             <input 
               ref={searchInputRef}
@@ -345,6 +485,16 @@ const SalesRegister = () => {
             <Search size={16} className="absolute left-2 top-1.5 text-gray-500" />
           </div>
           <button onClick={downloadPDF} className="bg-emerald-600 text-white px-3 py-1 text-sm font-semibold rounded hover:bg-emerald-700 shadow border border-emerald-800 transition-colors">Download PDF</button>
+          <button 
+            onClick={handleShareWhatsApp} 
+            disabled={sharing}
+            className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-3 py-1 text-sm font-semibold rounded shadow border border-green-800 transition-colors flex items-center"
+          >
+            <svg className="w-4 h-4 mr-1.5 fill-current" viewBox="0 0 24 24">
+              <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.455L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.625 1.451 5.403.002 9.803-4.394 9.806-9.799.002-2.618-1.016-5.079-2.865-6.93C16.368 2.025 13.91 1.006 11.298 1.006c-5.408 0-9.81 4.398-9.813 9.802-.002 1.83.479 3.618 1.393 5.17l-.997 3.642 3.734-.978zM17.15 13.563c-.3-.15-1.771-.875-2.04-.972-.269-.099-.465-.148-.659.15-.195.297-.753.971-.922 1.168-.169.197-.337.221-.637.072-.3-.15-1.264-.467-2.408-1.486-.89-.794-1.49-1.775-1.665-2.072-.175-.297-.019-.458.131-.606.134-.133.3-.347.449-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.659-1.591-.903-2.176-.237-.573-.478-.495-.659-.504-.17-.008-.365-.01-.56-.01s-.51.074-.777.363c-.266.289-1.016.992-1.016 2.42 0 1.427 1.039 2.805 1.182 2.996.143.19 2.043 3.12 4.949 4.377.691.299 1.23.478 1.651.611.693.22 1.325.189 1.822.115.556-.083 1.771-.724 2.019-1.422.25-.698.25-1.299.176-1.422-.075-.123-.269-.197-.569-.347z"/>
+            </svg>
+            {sharing ? 'Sharing...' : 'Share'}
+          </button>
           <button onClick={fetchRecords} className="bg-blue-600 text-white px-3 py-1 text-sm font-semibold rounded hover:bg-blue-700 shadow border border-blue-800">Refresh</button>
         </div>
       </div>
@@ -515,23 +665,25 @@ const SalesRegister = () => {
         </div>
 
         {/* Selected Customer / Ledger profile sidebar on Right */}
-        {selectedRowId && (
+        {(selectedRowId || selectedFilterCustomer !== 'all') && (
           <div className="w-[30%] bg-slate-50 border border-gray-400 rounded flex flex-col p-3 shadow-md space-y-4 overflow-y-auto">
-            <div className="border-b border-slate-300 pb-2">
-              <h3 className="font-bold text-[#2b579a] text-xs uppercase tracking-wider">Transaction Summary</h3>
-              {(() => {
-                const rec = records.find(r => r._id === selectedRowId);
-                if (!rec) return null;
-                return (
-                  <div className="text-xs text-slate-700 mt-2 space-y-1.5">
-                    <div className="flex justify-between"><span>No:</span> <span className="font-bold text-gray-800">{rec.invoiceNo || rec.orderNo || rec.returnNo}</span></div>
-                    <div className="flex justify-between"><span>Date:</span> <span className="font-semibold text-gray-800">{new Date(rec.invDate || rec.orderDate || rec.returnDate).toLocaleDateString()}</span></div>
-                    <div className="flex justify-between"><span>Gross Total:</span> <span className="font-mono text-gray-800">₹{(rec.totalAmount || rec.subtotal || rec.totalReturnAmount || 0).toFixed(2)}</span></div>
-                    <div className="flex justify-between"><span>Net Total:</span> <span className="font-mono text-emerald-800 font-bold text-sm">₹{(rec.netAmount || rec.grandTotal || rec.netRefundAmount || 0).toFixed(2)}</span></div>
-                  </div>
-                );
-              })()}
-            </div>
+            {selectedRowId && (
+              <div className="border-b border-slate-300 pb-2">
+                <h3 className="font-bold text-[#2b579a] text-xs uppercase tracking-wider">Transaction Summary</h3>
+                {(() => {
+                  const rec = records.find(r => r._id === selectedRowId);
+                  if (!rec) return null;
+                  return (
+                    <div className="text-xs text-slate-700 mt-2 space-y-1.5">
+                      <div className="flex justify-between"><span>No:</span> <span className="font-bold text-gray-800">{rec.invoiceNo || rec.orderNo || rec.returnNo}</span></div>
+                      <div className="flex justify-between"><span>Date:</span> <span className="font-semibold text-gray-800">{new Date(rec.invDate || rec.orderDate || rec.returnDate).toLocaleDateString()}</span></div>
+                      <div className="flex justify-between"><span>Gross Total:</span> <span className="font-mono text-gray-800">₹{(rec.totalAmount || rec.subtotal || rec.totalReturnAmount || 0).toFixed(2)}</span></div>
+                      <div className="flex justify-between"><span>Net Total:</span> <span className="font-mono text-emerald-800 font-bold text-sm">₹{(rec.netAmount || rec.grandTotal || rec.netRefundAmount || 0).toFixed(2)}</span></div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
 
             <div>
               <h3 className="font-bold text-slate-700 text-xs uppercase tracking-wider pb-2 border-b border-slate-300">Customer Account Info</h3>
@@ -617,6 +769,8 @@ const SalesRegister = () => {
           )}
         </div>
       </div>
+
+
 
     </div>
   );

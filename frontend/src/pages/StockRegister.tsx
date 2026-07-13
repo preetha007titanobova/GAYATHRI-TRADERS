@@ -24,9 +24,14 @@ interface Product {
 }
 
 const StockRegister = () => {
-  const { setToolbarActions, setGlobalNotification } = useOutletContext<{
+  const { 
+    setToolbarActions, 
+    setGlobalNotification, 
+    ownerWhatsApp
+  } = useOutletContext<{
     setToolbarActions: (actions: ToolbarActions) => void;
     setGlobalNotification: (notif: {msg: string, type: 'error' | 'success' | 'info' | ''}) => void;
+    ownerWhatsApp: string;
   }>();
 
   const [items, setItems] = useState<Product[]>([]);
@@ -128,40 +133,117 @@ const StockRegister = () => {
     fetchLedger();
   }, [selectedItem]);
 
-const downloadPDF = async () => {
+  const downloadPDF = () => {
+    if (!activeItem) return;
+    const doc = new jsPDF();
+    doc.setFontSize(16);
+    doc.setTextColor(43, 87, 154);
+    doc.text('Stock Register Report', 14, 15);
+    
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`Item: [${activeItem.itemCode}] ${activeItem.name} | Period: ${fromDate} to ${toDate}`, 14, 22);
 
-  const response = await axios.get(
-    "http://localhost:5000/api/daily-stock-status/pdf",
-    {
-      responseType: "blob"
+    const headers = ["Date", "Vch Type", "Vch No.", "Particulars", "Inward Qty", "Outward Qty", "Running Bal."];
+    const rows = ledgerRows.rows.map(row => {
+      const dateObj = new Date(row.date);
+      const formattedDate = !isNaN(dateObj.getTime()) ? dateObj.toISOString().split('T')[0].split('-').reverse().join('-') : row.date;
+      return [
+        formattedDate,
+        row.vchType,
+        row.vchNo,
+        row.particulars,
+        row.inward > 0 ? row.inward.toString() : '',
+        row.outward > 0 ? row.outward.toString() : '',
+        row.balance.toString()
+      ];
+    });
+
+    autoTable(doc, {
+      startY: 26,
+      head: [headers],
+      body: rows,
+      theme: 'grid',
+      headStyles: { fillColor: [43, 87, 154] },
+      styles: { fontSize: 8 },
+    });
+
+    doc.save(`Stock_Register_${activeItem.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`);
+  };
+
+  // WhatsApp Share State
+  const [sharing, setSharing] = useState(false);
+
+  const handleShareWhatsApp = async () => {
+    if (sharing) return;
+    if (!activeItem) return;
+    setSharing(true);
+    setGlobalNotification({ msg: 'Generating PDF and preparing WhatsApp share...', type: 'info' });
+    try {
+      const doc = new jsPDF();
+      doc.setFontSize(16);
+      doc.setTextColor(43, 87, 154);
+      doc.text('Stock Register Report', 14, 15);
+      
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      doc.text(`Item: [${activeItem.itemCode}] ${activeItem.name} | Period: ${fromDate} to ${toDate}`, 14, 22);
+
+      const headers = ["Date", "Vch Type", "Vch No.", "Particulars", "Inward Qty", "Outward Qty", "Running Bal."];
+      const rows = ledgerRows.rows.map(row => {
+        const dateObj = new Date(row.date);
+        const formattedDate = !isNaN(dateObj.getTime()) ? dateObj.toISOString().split('T')[0].split('-').reverse().join('-') : row.date;
+        return [
+          formattedDate,
+          row.vchType,
+          row.vchNo,
+          row.particulars,
+          row.inward > 0 ? row.inward.toString() : '',
+          row.outward > 0 ? row.outward.toString() : '',
+          row.balance.toString()
+        ];
+      });
+
+      autoTable(doc, {
+        startY: 26,
+        head: [headers],
+        body: rows,
+        theme: 'grid',
+        headStyles: { fillColor: [43, 87, 154] },
+        styles: { fontSize: 8 },
+      });
+
+      const pdfBase64 = doc.output('datauristring');
+      const filename = `Stock_Register_${activeItem.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+      
+      const res = await fetch(`${Api}/products/upload-pdf`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pdf: pdfBase64, filename })
+      });
+
+      if (!res.ok) throw new Error('Failed to upload PDF report');
+      const resData = await res.json();
+      if (!resData.success || !resData.pdfUrl) throw new Error('PDF upload returned unsuccessful');
+
+      const whatsappText = `*Sri Gayathri Traders - Stock Register Report*\n` +
+                           `*Item:* [${activeItem.itemCode}] ${activeItem.name}\n` +
+                           `*Period:* ${fromDate} to ${toDate}\n` +
+                           `*Closing Stock:* ${ledgerRows.closingBalance}\n\n` +
+                           `*Download PDF:* ${resData.pdfUrl}\n\n` +
+                           `Generated automatically via Sri Gayathri Traders Billing System.`;
+
+      const whatsappUrl = `https://api.whatsapp.com/send?phone=${ownerWhatsApp}&text=${encodeURIComponent(whatsappText)}`;
+      window.open(whatsappUrl, '_blank');
+      setGlobalNotification({ msg: 'WhatsApp Web/API link opened successfully!', type: 'success' });
+    } catch (err: any) {
+      console.error(err);
+      setGlobalNotification({ msg: err.message || 'Failed to share on WhatsApp.', type: 'error' });
+    } finally {
+      setSharing(false);
+      setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 5000);
     }
-  );
-
-  const blob = new Blob(
-    [response.data],
-    {
-      type: "application/pdf"
-    }
-  );
-
-  const url = window.URL.createObjectURL(blob);
-
-  const link = document.createElement("a");
-
-  link.href = url;
-
-  link.download = `Daily-Stock-Status-${new Date()
-    .toLocaleDateString("en-GB")
-    .replaceAll("/", "-")}.pdf`;
-
-  document.body.appendChild(link);
-
-  link.click();
-
-  document.body.removeChild(link);
-
-  window.URL.revokeObjectURL(url);
-};
+  };
 
   useEffect(() => {
     setToolbarActions({
@@ -204,10 +286,7 @@ const downloadPDF = async () => {
       <div className="bg-white p-3 border border-gray-400 shadow-sm rounded mb-2 flex-shrink-0 flex justify-between items-center print:hidden">
         
         <div className="flex items-center space-x-6">
-           <h2 className="text-xl font-bold text-[#2b579a] flex items-center">
-            <span className="bg-[#2b579a] w-2 h-6 mr-2 block"></span>
-            Stock Register
-          </h2>
+       
 
           <div className="flex items-center space-x-2 bg-gray-50 border border-gray-300 p-1 rounded-md shadow-sm">
              <div className="bg-[#2b579a] p-1.5 rounded text-white">
@@ -250,9 +329,19 @@ const downloadPDF = async () => {
           </div>
 <button
   onClick={downloadPDF}
-  className="bg-emerald-600 text-white px-3 py-1.5 text-xs font-medium rounded-md hover:bg-emerald-700 shadow border border-emerald-700 transition-colors"
+  className="bg-emerald-600 text-white px-3 py-1.5 text-xs font-medium rounded-md hover:bg-emerald-700 shadow border border-emerald-700 transition-colors mr-2"
 >
   Download PDF
+</button>
+<button
+  onClick={handleShareWhatsApp}
+  disabled={sharing}
+  className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-3 py-1.5 text-xs font-medium rounded-md shadow border border-green-700 transition-colors flex items-center"
+>
+  <svg className="w-4 h-4 mr-1.5 fill-current" viewBox="0 0 24 24">
+    <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.455L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.625 1.451 5.403.002 9.803-4.394 9.806-9.799.002-2.618-1.016-5.079-2.865-6.93C16.368 2.025 13.91 1.006 11.298 1.006c-5.408 0-9.81 4.398-9.813 9.802-.002 1.83.479 3.618 1.393 5.17l-.997 3.642 3.734-.978zM17.15 13.563c-.3-.15-1.771-.875-2.04-.972-.269-.099-.465-.148-.659.15-.195.297-.753.971-.922 1.168-.169.197-.337.221-.637.072-.3-.15-1.264-.467-2.408-1.486-.89-.794-1.49-1.775-1.665-2.072-.175-.297-.019-.458.131-.606.134-.133.3-.347.449-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.659-1.591-.903-2.176-.237-.573-.478-.495-.659-.504-.17-.008-.365-.01-.56-.01s-.51.074-.777.363c-.266.289-1.016.992-1.016 2.42 0 1.427 1.039 2.805 1.182 2.996.143.19 2.043 3.12 4.949 4.377.691.299 1.23.478 1.651.611.693.22 1.325.189 1.822.115.556-.083 1.771-.724 2.019-1.422.25-.698.25-1.299.176-1.422-.075-.123-.269-.197-.569-.347z"/>
+  </svg>
+  {sharing ? 'Sharing...' : 'Share'}
 </button>
         </div>
 

@@ -328,10 +328,10 @@ const DailyStockStatus = () => {
       <div className="bg-white p-3 border border-gray-400 shadow-sm rounded mb-2 flex-shrink-0 flex justify-between items-center print:hidden">
         
         <div className="flex items-center space-x-6">
-          <h2 className="text-xl font-bold text-[#2b579a] flex items-center">
+          <h5 className="text-xl font-bold text-[#2b579a] flex items-center">
             <span className="bg-[#2b579a] w-2 h-4 mr-2 block"></span>
             Daily Stock Status
-          </h2>
+          </h5>
 
           <div className="flex items-center space-x-4 bg-gray-50 border border-gray-300 px-3 py-1.5 rounded-md shadow-sm">
             <div className="flex items-center space-x-2 border-r border-gray-300 pr-4">

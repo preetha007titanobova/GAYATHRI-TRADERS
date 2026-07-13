@@ -38,6 +38,25 @@ const Layout = () => {
   const [closeDayLoading, setCloseDayLoading] = useState(false);
   const [ownerWhatsApp, setOwnerWhatsApp] = useState(() => localStorage.getItem('close_day_whatsapp') || '+919876543210');
   const [ownerEmail, setOwnerEmail] = useState(() => localStorage.getItem('close_day_email') || 'titanobovapvt@gmail.com');
+  const [isOwnerSettingsModalOpen, setIsOwnerSettingsModalOpen] = useState(false);
+  
+  // Security PIN/Password State
+  const [ownerPin, setOwnerPin] = useState(() => localStorage.getItem('owner_details_pin') || '1234');
+  const [isPinModalOpen, setIsPinModalOpen] = useState(false);
+  const [enteredPin, setEnteredPin] = useState('');
+  const [pinError, setPinError] = useState('');
+
+  const saveOwnerSettings = (whatsapp: string, email: string, newPin?: string) => {
+    localStorage.setItem('close_day_whatsapp', whatsapp);
+    localStorage.setItem('close_day_email', email);
+    setOwnerWhatsApp(whatsapp);
+    setOwnerEmail(email);
+    if (newPin) {
+      localStorage.setItem('owner_details_pin', newPin);
+      setOwnerPin(newPin);
+    }
+    setIsOwnerSettingsModalOpen(false);
+  };
 
   const handleCloseDay = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -401,6 +420,17 @@ const Layout = () => {
           </label>
         </div>
           <div className="flex space-x-1">
+          <button 
+            onClick={() => {
+              setEnteredPin('');
+              setPinError('');
+              setIsPinModalOpen(true);
+            }} 
+            className="flex flex-col items-center justify-center p-1 bg-slate-600 hover:bg-slate-700 text-white rounded min-w-[70px] focus:outline-none transition-colors shadow"
+          >
+            <Edit size={16} />
+            <span className="text-[10px] mt-1 font-bold">OWNER DETAILS</span>
+          </button>
           <Link to="/daily-stock-status" className="flex flex-col items-center justify-center p-1 bg-[#2b579a] hover:bg-[#1a3a6c] text-white rounded min-w-[90px] focus:outline-none transition-colors shadow no-underline text-center">
             <TrendingUp size={16} />
             <span className="text-[10px] mt-1 font-bold">DAILY STOCK STATUS</span>
@@ -416,7 +446,14 @@ const Layout = () => {
       <div className="flex-1 flex overflow-hidden">
         {/* Left/Center Split Content (Outlet handles the POS Checkout form) */}
         <div className="flex-1 overflow-auto bg-[#d1e8e2] p-2">
-          <Outlet context={{ setToolbarActions, setGlobalNotification, globalSettings }} />
+          <Outlet context={{ 
+            setToolbarActions, 
+            setGlobalNotification, 
+            globalSettings, 
+            ownerWhatsApp, 
+            ownerEmail, 
+            openOwnerSettings: () => setIsOwnerSettingsModalOpen(true) 
+          }} />
         </div>
 
         {/* Right-Hand Sidebar Menu */}
@@ -587,6 +624,160 @@ const Layout = () => {
                   className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white font-bold py-2 rounded text-sm transition-colors border border-red-700 shadow"
                 >
                   {closeDayLoading ? 'Closing Day...' : 'Send & Close Day'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Owner Settings Modal */}
+      {isOwnerSettingsModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-[110] p-4">
+          <div className="bg-white border border-gray-400 shadow-2xl rounded-lg w-full max-w-md overflow-hidden">
+            <div className="bg-[#2b579a] text-white p-3 font-bold flex justify-between items-center">
+              <span className="flex items-center space-x-2">
+                <Edit size={18} />
+                <span>Owner Contact Settings</span>
+              </span>
+              <button 
+                onClick={() => setIsOwnerSettingsModalOpen(false)}
+                className="text-white hover:text-red-300 font-bold focus:outline-none text-lg"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const formData = new FormData(e.currentTarget);
+              const whatsapp = formData.get('whatsapp') as string;
+              const email = formData.get('email') as string;
+              const pin = formData.get('pin') as string;
+              saveOwnerSettings(whatsapp, email, pin);
+              setGlobalNotification({ msg: 'Owner contact details updated successfully!', type: 'success' });
+              setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
+            }} className="p-4 space-y-4 text-left">
+              <p className="text-xs text-gray-500">
+                Update the owner's WhatsApp number, email and security PIN. These values will be used as defaults.
+              </p>
+              
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Owner's WhatsApp Number</label>
+                  <input 
+                    type="tel"
+                    name="whatsapp"
+                    required
+                    defaultValue={ownerWhatsApp}
+                    placeholder="e.g. +919876543210"
+                    className="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium bg-white text-black"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Owner's Email Address</label>
+                  <input 
+                    type="email"
+                    name="email"
+                    required
+                    defaultValue={ownerEmail}
+                    placeholder="e.g. owner@example.com"
+                    className="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium bg-white text-black"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Access PIN / Password</label>
+                  <input 
+                    type="password"
+                    name="pin"
+                    required
+                    defaultValue={ownerPin}
+                    placeholder="e.g. 1234"
+                    className="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium bg-white text-black"
+                  />
+                </div>
+              </div>
+              
+              <div className="flex space-x-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsOwnerSettingsModalOpen(false)}
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 rounded text-sm transition-colors border border-gray-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded text-sm transition-colors border border-blue-700 shadow"
+                >
+                  Save Settings
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* PIN Verification Modal */}
+      {isPinModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-[120] p-4">
+          <div className="bg-white border border-gray-400 shadow-2xl rounded-lg w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="bg-[#2b579a] text-white p-3 font-bold flex justify-between items-center">
+              <span>Security Access PIN Required</span>
+              <button 
+                onClick={() => setIsPinModalOpen(false)}
+                className="text-white hover:text-red-300 font-bold focus:outline-none"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              if (enteredPin === ownerPin) {
+                setIsPinModalOpen(false);
+                setIsOwnerSettingsModalOpen(true);
+              } else {
+                setPinError('Invalid PIN! Please check and try again.');
+              }
+            }} className="p-4 space-y-4 text-left">
+              <p className="text-xs text-gray-600 font-medium">
+                Please enter the security PIN to access the Owner Contact Settings.
+              </p>
+              
+              <div>
+                <input 
+                  type="password"
+                  required
+                  autoFocus
+                  value={enteredPin}
+                  onChange={e => {
+                    setEnteredPin(e.target.value);
+                    if (pinError) setPinError('');
+                  }}
+                  placeholder="Enter PIN (Default is 1234)"
+                  className="w-full border border-gray-300 rounded px-2.5 py-2 text-center text-lg tracking-widest focus:outline-none focus:ring-1 focus:ring-blue-500 font-bold bg-white text-black"
+                />
+                {pinError && (
+                  <p className="text-xs text-red-600 font-bold mt-1.5 text-center">{pinError}</p>
+                )}
+              </div>
+              
+              <div className="flex space-x-3 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setIsPinModalOpen(false)}
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 rounded text-sm transition-colors border border-gray-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded text-sm transition-colors border border-blue-700 shadow"
+                >
+                  Verify PIN
                 </button>
               </div>
             </form>

@@ -413,27 +413,7 @@ const LedgerMaster = () => {
             <span>Ledger Directory Grid</span>
             <div className="flex items-center space-x-2">
               <span className="bg-blue-800 px-2 py-0.5 rounded text-xs mr-2">Total: {filteredLedgers.length}</span>
-              <button 
-                onClick={() => setViewMode('split')}
-                className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors border shadow ${viewMode === 'split' ? 'bg-blue-600 border-blue-400 text-white' : 'bg-[#385386] hover:bg-[#2b3e64] text-blue-100 border-blue-500'}`}
-                title="Split Screen View"
-              >
-                ◧ Split
-              </button>
-              <button 
-                onClick={() => setViewMode('table-only')}
-                className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors border shadow ${viewMode === 'table-only' ? 'bg-blue-600 border-blue-400 text-white' : 'bg-[#385386] hover:bg-[#2b3e64] text-blue-100 border-blue-500'}`}
-                title="Maximize Table"
-              >
-                👁 View Full
-              </button>
-              <button 
-                onClick={() => setViewMode('form-only')}
-                className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors border shadow ${viewMode === 'form-only' ? 'bg-blue-600 border-blue-400 text-white' : 'bg-[#385386] hover:bg-[#2b3e64] text-blue-100 border-blue-500'}`}
-                title="Hide Table"
-              >
-                ❌ Hide Table
-              </button>
+        
             </div>
           </div>
 
