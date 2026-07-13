@@ -848,7 +848,7 @@ const POSCheckout = () => {
       )}
 
       {/* 3. Data Entry Grid */}
-      <div className="flex-1 bg-white border border-gray-400 overflow-auto mx-1">
+      <div className="flex-1 min-h-[400px] bg-white border border-gray-400 overflow-auto mx-1">
         <table className="w-full text-left border-collapse">
           <thead>
             <tr>
@@ -911,10 +911,6 @@ const POSCheckout = () => {
       <div className="grid grid-cols-3 gap-2">
         {/* Left: Terms and Actions */}
         <div className="col-span-2 flex flex-col space-y-1">
-          <div className="legacy-panel p-1">
-            <label className="legacy-label block text-xs">Terms & Cond.</label>
-            <textarea className="legacy-input w-full h-8 resize-none text-xs" defaultValue="1. Goods once sold will not be taken back.&#10;2. Interest @ 18% p.a. will be charged if payment is delayed."></textarea>
-          </div>
           
           <div className="legacy-panel p-1 flex space-x-2">
              <div className="flex-1 flex items-center">
