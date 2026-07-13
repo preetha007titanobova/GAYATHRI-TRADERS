@@ -52,7 +52,8 @@ export const deleteSalesBill = async (req: Request, res: Response) => {
 export const searchSalesBills = async (req: Request, res: Response) => {
   try {
     const q = req.query.q as string || '';
-    const bills = await salesService.searchSalesBills(q);
+    const customer = req.query.customer as string || '';
+    const bills = await salesService.searchSalesBills(q, customer);
     res.json(bills);
   } catch (error) {
     console.error(error);

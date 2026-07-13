@@ -39,8 +39,8 @@ model Product {
   price         Float     // This acts as Sales Rate
   mrp           Float     @default(0)
   taxPercent    Float     @default(0)
-  stock         Int       @default(0) // Acts as Physical Stock
-  committedStock Int      @default(0) // Sales Orders hold this stock
+  stock         Float     @default(0) // Acts as Physical Stock
+  committedStock Float    @default(0) // Sales Orders hold this stock
   categoryId    String?   @db.ObjectId
   category      Category? @relation(fields: [categoryId], references: [id])
   department    String?

@@ -23,7 +23,8 @@ export const createSalesBill = async (data: any): Promise<any> => {
   const { 
     invoiceNo, invDate, payDays, buyerName, address, eType, 
     mobileNo, gstNo, printIn, invFormat, invoiceFormat, totalQty, totalAmount, 
-    cgst, sgst, roundOff, netAmount, remarks, shippingAddress, items, salesman, paymentMode 
+    cgst, sgst, roundOff, netAmount, remarks, shippingAddress, items, salesman, paymentMode,
+    paidAmount, pendingAmount, favourDiscount
   } = data;
   
   const db = await getDb();
@@ -45,6 +46,9 @@ export const createSalesBill = async (data: any): Promise<any> => {
       sgst: Number(sgst) || 0,
       roundOff: Number(roundOff) || 0,
       netAmount: Number(netAmount) || 0,
+      paidAmount: Number(paidAmount) || 0,
+      pendingAmount: Number(pendingAmount) || 0,
+      favourDiscount: Number(favourDiscount) || 0,
       remarks,
       shippingAddress,
       salesman,
@@ -52,6 +56,19 @@ export const createSalesBill = async (data: any): Promise<any> => {
       createdAt: new Date(),
       updatedAt: new Date()
   });
+
+  // Auto-record payment if paidAmount > 0 and customer is registered (not CASH walk-in)
+  const pAmt = Number(paidAmount) || 0;
+  if (pAmt > 0 && buyerName && buyerName !== 'CASH' && buyerName !== 'CASH CUSTOMER') {
+    await db.collection('Payment').insertOne({
+      customerName: buyerName,
+      amount: pAmt,
+      paymentMode: paymentMode || 'Cash',
+      date: new Date(invDate),
+      notes: `Auto-payment collection for Invoice ${invoiceNo}`,
+      createdAt: new Date()
+    });
+  }
 
   if (items && items.length > 0) {
     const itemsToInsert = items.map((item: any) => ({
@@ -76,7 +93,8 @@ export const updateSalesBill = async (id: string, data: any): Promise<boolean> =
   const { 
     invoiceNo, invDate, payDays, buyerName, address, eType, 
     mobileNo, gstNo, printIn, invFormat, invoiceFormat, totalQty, totalAmount, 
-    cgst, sgst, roundOff, netAmount, remarks, shippingAddress, items, salesman, paymentMode 
+    cgst, sgst, roundOff, netAmount, remarks, shippingAddress, items, salesman, paymentMode,
+    paidAmount, pendingAmount, favourDiscount
   } = data;
   
   const db = await getDb();
@@ -102,6 +120,9 @@ export const updateSalesBill = async (id: string, data: any): Promise<boolean> =
         sgst: Number(sgst) || 0,
         roundOff: Number(roundOff) || 0,
         netAmount: Number(netAmount) || 0,
+        paidAmount: Number(paidAmount) || 0,
+        pendingAmount: Number(pendingAmount) || 0,
+        favourDiscount: Number(favourDiscount) || 0,
         remarks,
         shippingAddress,
         salesman,
@@ -110,6 +131,20 @@ export const updateSalesBill = async (id: string, data: any): Promise<boolean> =
       }
     }
   );
+
+  // Clean up and re-record auto-payment on invoice update
+  await db.collection('Payment').deleteMany({ notes: `Auto-payment collection for Invoice ${invoiceNo}` });
+  const pAmt = Number(paidAmount) || 0;
+  if (pAmt > 0 && buyerName && buyerName !== 'CASH' && buyerName !== 'CASH CUSTOMER') {
+    await db.collection('Payment').insertOne({
+      customerName: buyerName,
+      amount: pAmt,
+      paymentMode: paymentMode || 'Cash',
+      date: new Date(invDate),
+      notes: `Auto-payment collection for Invoice ${invoiceNo}`,
+      createdAt: new Date()
+    });
+  }
 
   if (billResult.matchedCount === 0) {
     return false;
@@ -142,16 +177,31 @@ export const deleteSalesBill = async (id: string): Promise<boolean> => {
   const db = await getDb();
   const billId = new ObjectId(id as string);
 
+  // Clean up auto-payment on invoice delete
+  const bill = await db.collection('SalesBill').findOne({ _id: billId });
+  if (bill && bill.invoiceNo) {
+    await db.collection('Payment').deleteMany({ notes: `Auto-payment collection for Invoice ${bill.invoiceNo}` });
+  }
+
   await db.collection('SalesItem').deleteMany({ salesBillId: billId });
   const result = await db.collection('SalesBill').deleteOne({ _id: billId });
   return result.deletedCount > 0;
 };
 
-export const searchSalesBills = async (q: string): Promise<any[]> => {
+export const searchSalesBills = async (q: string, customer?: string): Promise<any[]> => {
   const db = await getDb();
-  return await db.collection('SalesBill').find({
-    invoiceNo: { $regex: q, $options: 'i' }
-  }).sort({ createdAt: -1 }).limit(50).toArray();
+  let query: any = {};
+  if (q) {
+    query.invoiceNo = { $regex: q, $options: 'i' };
+  }
+  if (customer) {
+    query.buyerName = customer;
+  }
+  let cursor = db.collection('SalesBill').find(query).sort({ invDate: -1 });
+  if (!customer && !q) {
+    cursor = cursor.limit(50);
+  }
+  return await cursor.toArray();
 };
 
 export const getSalesBillByInvoiceNo = async (invoiceNo: string): Promise<any> => {

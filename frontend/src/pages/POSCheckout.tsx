@@ -43,6 +43,18 @@ const POSCheckout = () => {
   const [customerSearch, setCustomerSearch] = useState('CASH');
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [favourDiscount, setFavourDiscount] = useState<number>(0);
+  const [paidAmount, setPaidAmount] = useState<number>(0);
+  const [pendingAmount, setPendingAmount] = useState<number>(0);
+
+  // Quick Customer Creation modal states
+  const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
+  const [newCustName, setNewCustName] = useState('');
+  const [newCustMobile, setNewCustMobile] = useState('');
+  const [newCustEmail, setNewCustEmail] = useState('');
+  const [newCustGST, setNewCustGST] = useState('');
+  const [newCustOpeningBal, setNewCustOpeningBal] = useState<number>(0);
+  const [newCustCreditLimit, setNewCustCreditLimit] = useState<number>(0);
+  const [custLoading, setCustLoading] = useState(false);
 
   useEffect(() => {
     setCustomerSearch(buyerName);
@@ -178,6 +190,109 @@ const POSCheckout = () => {
         .catch(err => console.error("Error fetching invoice no:", err));
     }
   }, [location.state]);
+
+  // Synchronize paidAmount and pendingAmount based on Net Amount and Pay Mode changes
+  useEffect(() => {
+    if (paymentMode === 'Credit') {
+      setPaidAmount(0);
+      setPendingAmount(netAmount);
+    } else {
+      setPaidAmount(netAmount);
+      setPendingAmount(0);
+    }
+  }, [netAmount, paymentMode]);
+
+  const handlePaidAmountChange = (val: number) => {
+    setPaidAmount(val);
+    setPendingAmount(Math.max(0, netAmount - val));
+  };
+
+  const handleCreateCustomer = async () => {
+    if (!newCustName.trim()) {
+      if (setGlobalNotification) {
+        setGlobalNotification({ msg: 'Customer Name is required.', type: 'error' });
+        setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
+      }
+      return;
+    }
+    if (!newCustMobile.trim()) {
+      if (setGlobalNotification) {
+        setGlobalNotification({ msg: 'Mobile Number is required.', type: 'error' });
+        setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
+      }
+      return;
+    }
+
+    setCustLoading(true);
+    let nextLdgCode = '';
+    try {
+      const codeRes = await fetch(`${Api}/ledgers/next-code`);
+      const codeData = await codeRes.json();
+      nextLdgCode = codeData.ledgerCode || 'LDG-001';
+    } catch (err) {
+      nextLdgCode = 'LDG-999';
+    }
+
+    const payload = {
+      ledgerCode: nextLdgCode,
+      accountName: newCustName,
+      accountGroup: 'Customers',
+      mobileNo: newCustMobile,
+      email: newCustEmail,
+      gstNo: newCustGST,
+      openingBalance: Number(newCustOpeningBal) || 0,
+      drCr: 'Dr',
+      creditLimit: Number(newCustCreditLimit) || 0,
+      isRegular: false
+    };
+
+    try {
+      const res = await fetch(`${Api}/ledgers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.success) {
+        if (setGlobalNotification) {
+          setGlobalNotification({ msg: `Customer ${newCustName} created successfully!`, type: 'success' });
+          setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
+        }
+        setBuyerName(newCustName);
+        setCustomerSearch(newCustName);
+        setMobileNo(newCustMobile);
+        setGstNo(newCustGST);
+        
+        // Refresh customer list
+        const custRes = await fetch(`${Api}/ledgers/search?group=Customers`);
+        const custData = await custRes.json();
+        if (Array.isArray(custData)) {
+          setAvailableCustomers(custData);
+        }
+
+        setIsCustomerModalOpen(false);
+        setNewCustName('');
+        setNewCustMobile('');
+        setNewCustEmail('');
+        setNewCustGST('');
+        setNewCustOpeningBal(0);
+        setNewCustCreditLimit(0);
+      } else {
+        if (setGlobalNotification) {
+          setGlobalNotification({ msg: 'Failed to create customer: ' + data.error, type: 'error' });
+          setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      if (setGlobalNotification) {
+        setGlobalNotification({ msg: 'Error creating customer.', type: 'error' });
+        setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
+      }
+    } finally {
+      setCustLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (isSearchModalOpen && searchInputRef.current) {
@@ -350,6 +465,8 @@ const POSCheckout = () => {
       mobileNo, gstNo, printIn, invoiceFormat, totalQty, totalAmount, 
       favourDiscount: Number(favourDiscount) || 0,
       cgst, sgst, roundOff, netAmount,
+      paidAmount: Number(paidAmount) || 0,
+      pendingAmount: Number(pendingAmount) || 0,
       salesman, paymentMode,
       items: validItems.map(item => ({
         itemName: item.itemName,
@@ -406,6 +523,8 @@ const POSCheckout = () => {
         setGstNo('');
         setTendered(0);
         setFavourDiscount(0);
+        setPaidAmount(0);
+        setPendingAmount(0);
         setConfirmModalState({isOpen: false, action: null});
         if (setGlobalNotification) {
           setGlobalNotification({msg: 'Invoice data cleared successfully.', type: 'success'});
@@ -821,56 +940,67 @@ const POSCheckout = () => {
       {/* 2. Main Document Input Panel */}
       <div className="legacy-panel p-1 text-xs grid grid-cols-12 gap-x-2 gap-y-1 items-center">
           <label className="legacy-label text-right">Buyer</label>
-          <div className="col-span-3 relative">
-            <input 
-              type="text" 
-              className="legacy-input w-full font-bold text-blue-900 bg-blue-50 py-0.5 px-2 pr-6 focus:bg-yellow-50 outline-none border border-gray-300 rounded-sm" 
-              value={customerSearch}
-              onChange={e => {
-                setCustomerSearch(e.target.value);
-                setShowCustomerDropdown(true);
-              }}
-              onFocus={() => setShowCustomerDropdown(true)}
-              onBlur={() => {
-                // Short delay to let onMouseDown run first
-                setTimeout(() => setShowCustomerDropdown(false), 200);
-              }}
-              placeholder="Search / select buyer..."
-            />
-            <span className="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none text-blue-400 font-bold">▾</span>
-            
-            {showCustomerDropdown && (
-              <div className="absolute left-0 right-0 top-full mt-0.5 bg-white border border-gray-300 max-h-48 overflow-y-auto z-[999] shadow-lg rounded text-left">
-                {filteredCustomersList.length === 0 ? (
-                  <div className="p-2 text-xs text-gray-500 italic">No matching customers</div>
-                ) : (
-                  filteredCustomersList.map((c, i) => (
-                    <button
-                      key={c._id || i}
-                      type="button"
-                      onMouseDown={() => {
-                        setBuyerName(c.accountName);
-                        setCustomerSearch(c.accountName);
-                        if (c.accountName === 'CASH') {
-                          setAddress('');
-                          setMobileNo('');
-                          setGstNo('');
-                        } else {
-                          setAddress(c.address || '');
-                          setMobileNo(c.mobileNo || '');
-                          setGstNo(c.gstNo || '');
-                        }
-                        setShowCustomerDropdown(false);
-                      }}
-                      className="w-full text-left px-2.5 py-1.5 text-xs hover:bg-blue-50 text-gray-800 font-semibold border-b border-gray-100 last:border-b-0 flex justify-between"
-                    >
-                      <span>{c.accountName}</span>
-                      {c.ledgerCode && <span className="text-[10px] text-gray-400 font-mono">{c.ledgerCode}</span>}
-                    </button>
-                  ))
-                )}
-              </div>
-            )}
+          <div className="col-span-3 relative flex items-center space-x-1">
+            <div className="relative flex-1">
+              <input 
+                type="text" 
+                className="legacy-input w-full font-bold text-blue-900 bg-blue-50 py-0.5 px-2 pr-6 outline-none border border-gray-300 rounded-sm focus:bg-yellow-50" 
+                value={customerSearch}
+                onChange={e => {
+                  setCustomerSearch(e.target.value);
+                  setShowCustomerDropdown(true);
+                }}
+                onFocus={() => setShowCustomerDropdown(true)}
+                onBlur={() => {
+                  // Short delay to let onMouseDown run first
+                  setTimeout(() => setShowCustomerDropdown(false), 200);
+                }}
+                placeholder="Search / select buyer..."
+              />
+              <span className="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none text-blue-400 font-bold">▾</span>
+              
+              {showCustomerDropdown && (
+                <div className="absolute left-0 right-0 top-full mt-0.5 bg-white border border-gray-300 max-h-48 overflow-y-auto z-[999] shadow-lg rounded text-left">
+                  {filteredCustomersList.length === 0 ? (
+                    <div className="p-2 text-xs text-gray-500 italic">No matching customers</div>
+                  ) : (
+                    filteredCustomersList.map((c, i) => (
+                      <button
+                        key={c._id || i}
+                        type="button"
+                        className="w-full text-left px-2.5 py-1.5 text-xs hover:bg-blue-50 text-gray-800 font-semibold border-b border-gray-100 last:border-b-0 flex justify-between"
+                        onMouseDown={() => {
+                          setBuyerName(c.accountName);
+                          setCustomerSearch(c.accountName);
+                          if (c.accountName === 'CASH') {
+                            setAddress('');
+                            setMobileNo('');
+                            setGstNo('');
+                          } else {
+                            setAddress(c.address || '');
+                            setMobileNo(c.mobileNo || '');
+                            setGstNo(c.gstNo || '');
+                          }
+                          setShowCustomerDropdown(false);
+                        }}
+                      >
+                        <span>{c.accountName}</span>
+                        {c.ledgerCode && <span className="text-[10px] text-gray-400 font-mono">{c.ledgerCode}</span>}
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+            <button 
+              type="button"
+              onClick={() => setIsCustomerModalOpen(true)}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-1.5 py-0.5 rounded text-[10px] shadow-sm flex items-center space-x-0.5 h-6 transition-colors"
+              title="Add New Customer"
+            >
+              <span>+</span>
+              <span>New</span>
+            </button>
           </div>
 
           <label className="legacy-label text-right">Inv No</label>
@@ -1058,6 +1188,7 @@ const POSCheckout = () => {
             <option>UPI</option>
             <option>Credit Card</option>
             <option>Bank Transfer</option>
+            <option>Credit</option>
             <option>Split / Other</option>
           </select>
 
@@ -1074,6 +1205,19 @@ const POSCheckout = () => {
           
           <label className="legacy-label col-span-2 text-right text-green-700">Change Return</label>
           <input type="text" className="legacy-input col-span-2 text-right font-bold bg-green-100 text-green-900 border-green-500 py-0.5" value={(tendered > 0 ? tendered - netAmount : 0).toFixed(2)} disabled />
+
+          <div className="col-span-4 border-t border-gray-300 my-0.5"></div>
+
+          <label className="legacy-label col-span-2 text-right text-emerald-700 font-bold">Paid Amount (₹)</label>
+          <input 
+            type="number" 
+            className="legacy-input col-span-2 text-right font-bold bg-white border-emerald-400 text-emerald-900 py-0.5 focus:bg-yellow-100" 
+            value={paidAmount || ''} 
+            onChange={e => handlePaidAmountChange(Number(e.target.value))} 
+          />
+
+          <label className="legacy-label col-span-2 text-right text-rose-600 font-bold">Pending Amount (₹)</label>
+          <input type="text" className="legacy-input col-span-2 text-right font-bold bg-rose-50 text-rose-800 border-rose-400 py-0.5" value={pendingAmount.toFixed(2)} disabled />
         </div>
       </div>
 
@@ -1222,6 +1366,115 @@ const POSCheckout = () => {
                 }}
               >
                 {confirmModalState.yesText || "Yes, Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Inline Modal: Create New Customer */}
+      {isCustomerModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1000] p-4">
+          <div className="bg-[#f4f7f6] w-[450px] border border-gray-400 rounded shadow-2xl flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="bg-[#2b579a] text-white px-4 py-2 text-sm font-bold flex justify-between items-center">
+              <span>➕ Create New Customer</span>
+              <button 
+                type="button" 
+                onClick={() => setIsCustomerModalOpen(false)} 
+                className="text-white hover:text-red-200 font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-4 space-y-3 text-xs font-semibold text-gray-800">
+              <div className="flex flex-col">
+                <label className="mb-1 text-gray-700 font-bold">Customer Name *</label>
+                <input 
+                  type="text" 
+                  className="legacy-input w-full p-1" 
+                  value={newCustName} 
+                  onChange={e => setNewCustName(e.target.value)} 
+                  placeholder="e.g. Kumar"
+                />
+              </div>
+
+              <div className="flex flex-col">
+                <label className="mb-1 text-gray-700 font-bold">Mobile Number *</label>
+                <input 
+                  type="text" 
+                  className="legacy-input w-full p-1" 
+                  value={newCustMobile} 
+                  onChange={e => setNewCustMobile(e.target.value)} 
+                  placeholder="e.g. 9876543210"
+                />
+              </div>
+
+              <div className="flex flex-col">
+                <label className="mb-1 text-gray-700">Email Address (Optional)</label>
+                <input 
+                  type="email" 
+                  className="legacy-input w-full p-1" 
+                  value={newCustEmail} 
+                  onChange={e => setNewCustEmail(e.target.value)} 
+                  placeholder="e.g. email@example.com"
+                />
+              </div>
+
+              <div className="flex flex-col">
+                <label className="mb-1 text-gray-700">GST Number (Optional)</label>
+                <input 
+                  type="text" 
+                  className="legacy-input w-full p-1 uppercase" 
+                  value={newCustGST} 
+                  onChange={e => setNewCustGST(e.target.value)} 
+                  placeholder="15-digit GSTIN"
+                  maxLength={15}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="flex flex-col">
+                  <label className="mb-1 text-gray-700">Opening Balance (₹)</label>
+                  <input 
+                    type="number" 
+                    className="legacy-input w-full p-1 text-right" 
+                    value={newCustOpeningBal || ''} 
+                    onChange={e => setNewCustOpeningBal(Number(e.target.value))} 
+                    placeholder="0"
+                  />
+                </div>
+                <div className="flex flex-col">
+                  <label className="mb-1 text-gray-700">Credit Limit (₹)</label>
+                  <input 
+                    type="number" 
+                    className="legacy-input w-full p-1 text-right" 
+                    value={newCustCreditLimit || ''} 
+                    onChange={e => setNewCustCreditLimit(Number(e.target.value))} 
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="bg-gray-100 px-4 py-2.5 flex justify-end space-x-2 border-t border-gray-300">
+              <button 
+                type="button" 
+                onClick={handleCreateCustomer} 
+                disabled={custLoading}
+                className="legacy-button bg-blue-600 text-white font-bold border-blue-700 hover:bg-blue-700 w-24 animate-none"
+              >
+                {custLoading ? 'Saving...' : 'Save'}
+              </button>
+              <button 
+                type="button" 
+                onClick={() => setIsCustomerModalOpen(false)} 
+                disabled={custLoading}
+                className="legacy-button bg-gray-200 text-gray-800 font-bold border-gray-300 hover:bg-gray-300 w-24"
+              >
+                Cancel
               </button>
             </div>
           </div>
