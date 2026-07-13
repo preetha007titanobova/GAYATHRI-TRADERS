@@ -42,6 +42,7 @@ const POSCheckout = () => {
   // Searchable Buyer State
   const [customerSearch, setCustomerSearch] = useState('CASH');
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const [favourDiscount, setFavourDiscount] = useState<number>(0);
 
   useEffect(() => {
     setCustomerSearch(buyerName);
@@ -347,6 +348,7 @@ const POSCheckout = () => {
     const payload = {
       invoiceNo, invDate, payDays, buyerName, address, eType, 
       mobileNo, gstNo, printIn, invoiceFormat, totalQty, totalAmount, 
+      favourDiscount: Number(favourDiscount) || 0,
       cgst, sgst, roundOff, netAmount,
       salesman, paymentMode,
       items: validItems.map(item => ({
@@ -403,6 +405,7 @@ const POSCheckout = () => {
         setMobileNo('');
         setGstNo('');
         setTendered(0);
+        setFavourDiscount(0);
         setConfirmModalState({isOpen: false, action: null});
         if (setGlobalNotification) {
           setGlobalNotification({msg: 'Invoice data cleared successfully.', type: 'success'});
@@ -527,20 +530,23 @@ const POSCheckout = () => {
     setTotalQty(tQty);
     setTotalAmount(tAmt);
 
+    // Apply favour discount
+    const discountedTotal = Math.max(0, tAmt - favourDiscount);
+
     // Dynamic CGST & SGST logic
-    const cgstVal = Number((tAmt * (cgstPercent / 100)).toFixed(2));
-    const sgstVal = Number((tAmt * (sgstPercent / 100)).toFixed(2));
+    const cgstVal = Number((discountedTotal * (cgstPercent / 100)).toFixed(2));
+    const sgstVal = Number((discountedTotal * (sgstPercent / 100)).toFixed(2));
     setCgst(cgstVal);
     setSgst(sgstVal);
 
     // Calculate rounding
-    const rawTotal = tAmt + cgstVal + sgstVal;
+    const rawTotal = discountedTotal + cgstVal + sgstVal;
     const roundedTotal = Math.round(rawTotal);
     const roundDiff = Number((roundedTotal - rawTotal).toFixed(2));
 
     setRoundOff(roundDiff);
     setNetAmount(roundedTotal);
-  }, [gridData, cgstPercent, sgstPercent]);
+  }, [gridData, cgstPercent, sgstPercent, favourDiscount]);
 
   // --- Data Entry Grid Auto-Row Logic & Product Auto-Fill ---
   const handleGridChange = (id: number, field: keyof GridRow, value: string) => {
@@ -898,6 +904,11 @@ const POSCheckout = () => {
           <div className="flex items-center space-x-1">
             <span className="bg-[#385623] w-1.5 h-4 block"></span>
             <span>CUSTOMER CREDIT STATUS ({selectedCustomerObj.ledgerCode}):</span>
+            {selectedCustomerObj.isRegular && (
+              <span className="ml-2 bg-yellow-100 border border-yellow-300 text-yellow-800 px-1.5 py-0.5 rounded text-[10px] animate-pulse">
+                ⭐ REGULAR PRIVILEGED
+              </span>
+            )}
           </div>
           <div className="flex space-x-6">
             <div>Current Balance: <span className="font-mono text-[#c55a11]">₹{selectedCustomerObj.openingBalance?.toLocaleString() || 0} {selectedCustomerObj.drCr || 'Dr'}</span></div>
@@ -1002,6 +1013,18 @@ const POSCheckout = () => {
           
           <label className="legacy-label col-span-2 text-right">Total Amount</label>
           <input type="text" className="legacy-input col-span-2 text-right font-bold py-0.5" value={totalAmount.toFixed(2)} disabled />
+
+          <label className="legacy-label col-span-2 text-right text-emerald-700 font-bold flex items-center justify-end">
+            {selectedCustomerObj?.isRegular && <span className="text-yellow-600 mr-1">⭐</span>}
+            Favour Disc (₹)
+          </label>
+          <input 
+            type="number" 
+            className={`legacy-input col-span-2 text-right py-0.5 font-bold focus:bg-yellow-100 ${selectedCustomerObj?.isRegular ? 'bg-yellow-50 border-yellow-400 text-yellow-800' : ''}`} 
+            value={favourDiscount || ''} 
+            onChange={e => setFavourDiscount(Number(e.target.value))} 
+            placeholder="Special Discount"
+          />
           
           <label className="legacy-label col-span-2 flex items-center justify-end">
             CGST <input type="number" className="ml-1 w-10 text-center border border-gray-400 py-0 text-[10px]" value={cgstPercent} onChange={e => setCgstPercent(Number(e.target.value))} /> %

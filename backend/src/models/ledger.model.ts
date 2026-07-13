@@ -21,6 +21,7 @@ export interface Ledger {
   creditLimit: number;
   defaultCreditPeriod?: number;
   registrationType?: string;
+  isRegular?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
 }
