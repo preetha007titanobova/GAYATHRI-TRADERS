@@ -328,10 +328,10 @@ const ItemMaster = () => {
               <div className="flex flex-col">
                 <label className="text-xs font-medium text-slate-600 mb-1">Unit (UOM)</label>
                 <select className="px-3 py-1 bg-white border border-slate-300 rounded text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow" value={uom} onChange={e => setUom(e.target.value)}>
-                  <option>PCS</option>
-                  <option>KG</option>
-                  <option>LTR</option>
-                  <option>BOX</option>
+                  <option>Piece</option>
+                  <option>Pair</option>
+                  <option>Set</option>
+                  <option>Pack</option>
                 </select>
               </div>
 
@@ -346,7 +346,7 @@ const ItemMaster = () => {
               <div className="col-span-3 border-b border-slate-100 my-1"></div>
 
               <div className="flex flex-col">
-                <label className="text-xs font-medium text-slate-600 mb-1">Department</label>
+                <label className="text-xs font-medium text-slate-600 mb-1">Category</label>
                 <select className="px-3 py-1 bg-white border border-slate-300 rounded text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow" value={department} onChange={e => setDepartment(e.target.value)}>
                   <option value="">None</option>
                   <option value="Womens">Womens</option>
@@ -538,8 +538,8 @@ const ItemMaster = () => {
                     key={page}
                     onClick={() => setCurrentPage(page)}
                     className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors ${currentPage === page
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'
                       }`}
                   >
                     {page}
