@@ -429,7 +429,7 @@ const ItemMaster = () => {
         {/* Right Side: Product Directory Grid */}
         <div className={`${viewMode === 'form-only' ? 'hidden' : viewMode === 'table-only' ? 'w-full' : 'w-[42%]'} flex flex-col bg-white overflow-hidden p-6`}>
           <div className="flex justify-between items-center mb-4">
-         
+
             <div className="flex items-center space-x-3">
               <div className="flex items-center space-x-1.5 bg-slate-100 p-1 rounded-full border border-slate-200">
                 <button
@@ -476,8 +476,12 @@ const ItemMaster = () => {
                 <tr>
                   <th className="px-4 py-2.5 font-medium border-b border-slate-200">Item Code</th>
                   <th className="px-4 py-2.5 font-medium border-b border-slate-200">Name</th>
+                  <th className="px-4 py-2.5 font-medium border-b border-slate-200">Category</th>
+                  <th className="px-4 py-2.5 font-medium border-b border-slate-200">Variety</th>
+                  <th className="px-4 py-2.5 font-medium border-b border-slate-200">Size</th>
                   <th className="px-4 py-2.5 font-medium border-b border-slate-200">UOM</th>
                   <th className="px-4 py-2.5 font-medium text-right border-b border-slate-200">Stock</th>
+                  <th className="px-4 py-2.5 font-medium text-right border-b border-slate-200">Purchase Rate</th>
                   <th className="px-4 py-2.5 font-medium text-right border-b border-slate-200">Sales Rate</th>
                   <th className="px-4 py-2.5 font-medium text-right border-b border-slate-200">M.R.P</th>
                 </tr>
@@ -495,14 +499,13 @@ const ItemMaster = () => {
                         <td className="px-4 py-2 whitespace-nowrap text-blue-600 font-medium">{product.itemCode}</td>
                         <td className="px-4 py-2 whitespace-nowrap text-slate-800 font-medium">
                           <div>{product.name}</div>
-                          <div className="flex space-x-1.5 mt-0.5">
-                            {product.department && <span className="px-1.5 py-0.5 bg-blue-50 text-blue-700 text-[10px] rounded font-semibold border border-blue-100">{product.department}</span>}
-                            {product.variety && <span className="px-1.5 py-0.5 bg-purple-50 text-purple-700 text-[10px] rounded font-semibold border border-purple-100">{product.variety}</span>}
-                            {product.size && <span className="px-1.5 py-0.5 bg-amber-50 text-amber-700 text-[10px] rounded font-semibold border border-amber-100">Size: {product.size}</span>}
-                          </div>
                         </td>
+                        <td className="px-4 py-2 whitespace-nowrap">{product.department} </td>
+                        <td className="px-4 py-2 whitespace-nowrap">{product.variety} </td>
+                        <td className="px-4 py-2 whitespace-nowrap">{product.size}</td>
                         <td className="px-4 py-2 whitespace-nowrap">{product.uom}</td>
                         <td className="px-4 py-2 whitespace-nowrap text-right">{product.stock}</td>
+                        <td className="px-4 py-2 whitespace-nowrap text-right">{product.purchaseRate}</td>
                         <td className="px-4 py-2 whitespace-nowrap text-right">₹{product.price?.toFixed(2) || '0.00'}</td>
                         <td className="px-4 py-2 whitespace-nowrap text-right">₹{product.mrp?.toFixed(2) || '0.00'}</td>
                       </tr>
