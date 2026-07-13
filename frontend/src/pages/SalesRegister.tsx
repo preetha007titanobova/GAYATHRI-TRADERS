@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { useOutletContext, useNavigate } from 'react-router-dom';
+import { useOutletContext, useNavigate, useLocation } from 'react-router-dom';
 import type { ToolbarActions } from '../components/Layout';
 import { Search, Calendar } from 'lucide-react';
 import Api from '../Api';
@@ -29,8 +29,9 @@ const SalesRegister = () => {
   const [preset, setPreset] = useState('all');
 
   // Customer Filter states
+  const location = useLocation();
   const [availableCustomers, setAvailableCustomers] = useState<any[]>([]);
-  const [selectedFilterCustomer, setSelectedFilterCustomer] = useState<string>('all');
+  const [selectedFilterCustomer, setSelectedFilterCustomer] = useState<string>(() => location.state?.selectedCustomerName || 'all');
 
   useEffect(() => {
     // Fetch available customers on mount
