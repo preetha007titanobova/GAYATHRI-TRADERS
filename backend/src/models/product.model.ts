@@ -11,6 +11,9 @@ export interface Product {
   stock: number; // Physical Stock
   committedStock?: number;
   categoryId?: string;
+  department?: string;
+  variety?: string;
+  size?: string;
   createdAt?: Date;
   updatedAt?: Date;
 }

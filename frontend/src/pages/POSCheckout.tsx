@@ -148,7 +148,7 @@ const POSCheckout = () => {
       setPrintIn(invoiceToEdit.printIn || 'Blank A4');
       setInvoiceFormat(invoiceToEdit.invFormat || invoiceToEdit.invoiceFormat || 'GSTFormat Full Page');
       
-      // Fetch full details with items
+      // Fetch full details with items                                                                                                  
       fetch(`${Api}/sales/bills/${invoiceToEdit.invoiceNo}`)
         .then(res => res.json())
         .then(data => {
@@ -1121,10 +1121,15 @@ const POSCheckout = () => {
                     {p.itemCode || '-'}
                   </div>
                   <div className="col-span-6 flex flex-col justify-center">
-                    <span className="leading-tight">
+                    <span className="leading-tight font-medium">
                       {p.name}
                     </span>
-                    {p.barcode && <span className={`text-[10px] ${idx === highlightedIndex ? 'text-gray-800' : 'text-gray-500'}`}>Barcode: {p.barcode}</span>}
+                    <div className="flex flex-wrap gap-1 mt-0.5 text-[10px]">
+                      {p.department && <span className={`px-1 rounded font-bold ${idx === highlightedIndex ? 'bg-[#f0f9eb] text-[#2b579a]' : 'bg-[#e8f4fd] text-blue-800'}`}>{p.department}</span>}
+                      {p.variety && <span className={`px-1 rounded font-bold ${idx === highlightedIndex ? 'bg-[#f3e8ff] text-[#2b579a]' : 'bg-purple-100 text-purple-800'}`}>{p.variety}</span>}
+                      {p.size && <span className={`px-1 rounded font-bold ${idx === highlightedIndex ? 'bg-[#fef3c7] text-[#2b579a]' : 'bg-amber-100 text-amber-800'}`}>Size: {p.size}</span>}
+                      {p.barcode && <span className={idx === highlightedIndex ? 'text-gray-800 ml-1' : 'text-gray-500 ml-1'}>Barcode: {p.barcode}</span>}
+                    </div>
                   </div>
                   <div className="col-span-2 flex justify-center">
                     <span className={`px-1.5 py-0.5 text-xs font-bold ${idx === highlightedIndex ? '' : p.stock > 10 ? 'text-green-700' : p.stock > 0 ? 'text-yellow-700' : 'text-red-700'}`}>

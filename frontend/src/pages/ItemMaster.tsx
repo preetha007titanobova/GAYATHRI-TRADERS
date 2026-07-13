@@ -13,6 +13,9 @@ interface Product {
   mrp: number;
   taxPercent: number;
   stock: number;
+  department?: string;
+  variety?: string;
+  size?: string;
 }
 
 const ItemMaster = () => {
@@ -26,6 +29,9 @@ const ItemMaster = () => {
   const [mrp, setMrp] = useState(0);
   const [taxPercent, setTaxPercent] = useState(18);
   const [openingStock, setOpeningStock] = useState(0);
+  const [department, setDepartment] = useState('Womens');
+  const [variety, setVariety] = useState('');
+  const [size, setSize] = useState('');
 
   const [products, setProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -34,7 +40,7 @@ const ItemMaster = () => {
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
-  
+
   // Layout view modes: 'split' | 'form-only' | 'table-only'
   const [viewMode, setViewMode] = useState<'split' | 'form-only' | 'table-only'>('split');
 
@@ -70,7 +76,10 @@ const ItemMaster = () => {
           price: p.price || 0,
           mrp: p.mrp || 0,
           taxPercent: p.taxPercent || 0,
-          stock: p.stock || 0
+          stock: p.stock || 0,
+          department: p.department || '',
+          variety: p.variety || '',
+          size: p.size || ''
         })));
       }
     } catch (err) {
@@ -97,6 +106,9 @@ const ItemMaster = () => {
     setMrp(0);
     setTaxPercent(18);
     setOpeningStock(0);
+    setDepartment('Womens');
+    setVariety('');
+    setSize('');
     fetchNextCode();
   };
 
@@ -111,13 +123,16 @@ const ItemMaster = () => {
     setMrp(product.mrp || 0);
     setTaxPercent(product.taxPercent || 18);
     setOpeningStock(product.stock || 0);
+    setDepartment(product.department || 'Womens');
+    setVariety(product.variety || '');
+    setSize(product.size || '');
   };
 
   const handleDelete = async () => {
     if (!selectedId) {
       if (setGlobalNotification) {
-        setGlobalNotification({msg: "Please select a product to delete.", type: 'error'});
-        setTimeout(() => setGlobalNotification({msg: '', type: ''}), 3000);
+        setGlobalNotification({ msg: "Please select a product to delete.", type: 'error' });
+        setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
       }
       return;
     }
@@ -130,22 +145,22 @@ const ItemMaster = () => {
       const data = await res.json();
       if (data.success) {
         if (setGlobalNotification) {
-          setGlobalNotification({msg: "Product deleted successfully!", type: 'success'});
-          setTimeout(() => setGlobalNotification({msg: '', type: ''}), 3000);
+          setGlobalNotification({ msg: "Product deleted successfully!", type: 'success' });
+          setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
         }
         handleClear();
         fetchProducts();
       } else {
         if (setGlobalNotification) {
-          setGlobalNotification({msg: "Error deleting: " + data.error, type: 'error'});
-          setTimeout(() => setGlobalNotification({msg: '', type: ''}), 3000);
+          setGlobalNotification({ msg: "Error deleting: " + data.error, type: 'error' });
+          setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
         }
       }
     } catch (err) {
       console.error(err);
       if (setGlobalNotification) {
-        setGlobalNotification({msg: "Network error while deleting.", type: 'error'});
-        setTimeout(() => setGlobalNotification({msg: '', type: ''}), 3000);
+        setGlobalNotification({ msg: "Network error while deleting.", type: 'error' });
+        setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
       }
     } finally {
       setLoading(false);
@@ -155,8 +170,8 @@ const ItemMaster = () => {
   const handleSave = async () => {
     if (!itemName.trim()) {
       if (setGlobalNotification) {
-        setGlobalNotification({msg: "Product Name is required.", type: 'error'});
-        setTimeout(() => setGlobalNotification({msg: '', type: ''}), 3000);
+        setGlobalNotification({ msg: "Product Name is required.", type: 'error' });
+        setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
       }
       return;
     }
@@ -171,7 +186,10 @@ const ItemMaster = () => {
       price: salesRate,
       mrp,
       taxPercent,
-      stock: openingStock
+      stock: openingStock,
+      department,
+      variety,
+      size
     };
 
     try {
@@ -186,22 +204,22 @@ const ItemMaster = () => {
 
       if (data.success) {
         if (setGlobalNotification) {
-          setGlobalNotification({msg: `Product ${itemName} saved successfully!`, type: 'success'});
-          setTimeout(() => setGlobalNotification({msg: '', type: ''}), 3000);
+          setGlobalNotification({ msg: `Product ${itemName} saved successfully!`, type: 'success' });
+          setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
         }
         handleClear();
         fetchProducts();
       } else {
         if (setGlobalNotification) {
-          setGlobalNotification({msg: "Error saving: " + data.error, type: 'error'});
-          setTimeout(() => setGlobalNotification({msg: '', type: ''}), 3500);
+          setGlobalNotification({ msg: "Error saving: " + data.error, type: 'error' });
+          setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3500);
         }
       }
     } catch (err) {
       console.error(err);
       if (setGlobalNotification) {
-        setGlobalNotification({msg: "Network error while saving.", type: 'error'});
-        setTimeout(() => setGlobalNotification({msg: '', type: ''}), 3000);
+        setGlobalNotification({ msg: "Network error while saving.", type: 'error' });
+        setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
       }
     } finally {
       setLoading(false);
@@ -237,7 +255,7 @@ const ItemMaster = () => {
     return products.filter(p => {
       const q = searchQuery.toLowerCase();
       return (
-        (p.name || '').toLowerCase().includes(q) || 
+        (p.name || '').toLowerCase().includes(q) ||
         (p.itemCode && p.itemCode.toLowerCase().includes(q)) ||
         (p.barcode && p.barcode.toLowerCase().includes(q))
       );
@@ -256,23 +274,23 @@ const ItemMaster = () => {
       {/* Header */}
       <div className="bg-gradient-to-r from-[#2b579a] to-[#3a75c4] text-white px-4 py-2 flex justify-between items-center shadow-md z-10">
         <span className="font-semibold text-lg tracking-wide">Item Master <span className="font-light text-blue-200 text-sm ml-2">(Product Creation)</span></span>
-        
+
         <div className="flex items-center space-x-2">
-          <button 
+          <button
             onClick={() => setViewMode('split')}
             className={`px-3 py-1 rounded text-xs font-semibold transition-colors shadow-sm ${viewMode === 'split' ? 'bg-blue-600 border border-blue-400 text-white' : 'bg-blue-800 hover:bg-blue-700 text-blue-100'}`}
             title="Split Screen View"
           >
             ◧ Split View
           </button>
-          <button 
+          <button
             onClick={() => setViewMode('table-only')}
             className={`px-3 py-1 rounded text-xs font-semibold transition-colors shadow-sm ${viewMode === 'table-only' ? 'bg-blue-600 border border-blue-400 text-white' : 'bg-blue-800 hover:bg-blue-700 text-blue-100'}`}
             title="Maximize Table"
           >
             👁 View Full Table
           </button>
-          <button 
+          <button
             onClick={() => setViewMode('form-only')}
             className={`px-3 py-1 rounded text-xs font-semibold transition-colors shadow-sm ${viewMode === 'form-only' ? 'bg-blue-600 border border-blue-400 text-white' : 'bg-blue-800 hover:bg-blue-700 text-blue-100'}`}
             title="Hide Table"
@@ -283,14 +301,14 @@ const ItemMaster = () => {
       </div>
 
       <div className="flex-1 flex overflow-hidden">
-        
+
         {/* Left Side: Product Entry Form */}
         <div className={`${viewMode === 'table-only' ? 'hidden' : viewMode === 'form-only' ? 'w-full' : 'w-[58%]'} overflow-y-auto p-6 border-r border-slate-200 bg-white flex flex-col justify-between`}>
           <div>
             <h2 className="text-slate-700 font-semibold text-base mb-4 pb-2 border-b border-slate-100">
               {selectedId ? 'Edit Product' : 'Add New Product'}
             </h2>
-            
+
             <div className="grid grid-cols-3 gap-3">
               <div className="flex flex-col">
                 <label className="text-xs font-medium text-slate-600 mb-1">Item Code</label>
@@ -310,10 +328,10 @@ const ItemMaster = () => {
               <div className="flex flex-col">
                 <label className="text-xs font-medium text-slate-600 mb-1">Unit (UOM)</label>
                 <select className="px-3 py-1 bg-white border border-slate-300 rounded text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow" value={uom} onChange={e => setUom(e.target.value)}>
-                  <option>PCS</option>
-                  <option>KG</option>
-                  <option>LTR</option>
-                  <option>BOX</option>
+                  <option>Piece</option>
+                  <option>Pair</option>
+                  <option>Set</option>
+                  <option>Pack</option>
                 </select>
               </div>
 
@@ -323,6 +341,28 @@ const ItemMaster = () => {
                   <input type="number" className="pr-6 pl-3 py-1 w-full bg-white border border-slate-300 rounded text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow" value={taxPercent} onChange={e => setTaxPercent(Number(e.target.value))} />
                   <span className="absolute right-2 top-1.5 text-slate-400 text-xs">%</span>
                 </div>
+              </div>
+
+              <div className="col-span-3 border-b border-slate-100 my-1"></div>
+
+              <div className="flex flex-col">
+                <label className="text-xs font-medium text-slate-600 mb-1">Category</label>
+                <select className="px-3 py-1 bg-white border border-slate-300 rounded text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow" value={department} onChange={e => setDepartment(e.target.value)}>
+                  <option value="">None</option>
+                  <option value="Womens">Womens</option>
+                  <option value="Mens">Mens</option>
+                  <option value="Kids">Kids</option>
+                </select>
+              </div>
+
+              <div className="flex flex-col">
+                <label className="text-xs font-medium text-slate-600 mb-1">Variety</label>
+                <input type="text" className="px-3 py-1 bg-white border border-slate-300 rounded text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow" value={variety} onChange={e => setVariety(e.target.value)} placeholder="e.g. Kurti, Jeans, Shirt" />
+              </div>
+
+              <div className="flex flex-col">
+                <label className="text-xs font-medium text-slate-600 mb-1">Size</label>
+                <input type="text" className="px-3 py-1 bg-white border border-slate-300 rounded text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow" value={size} onChange={e => setSize(e.target.value)} placeholder="e.g. M, L, XL, 32" />
               </div>
 
               <div className="col-span-3 border-b border-slate-100 my-1"></div>
@@ -359,23 +399,23 @@ const ItemMaster = () => {
           </div>
 
           <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-slate-100">
-            <button 
-              className="px-5 py-1.5 bg-white border border-slate-300 text-slate-700 font-medium rounded-md hover:bg-slate-50 hover:text-slate-900 transition-colors focus:outline-none focus:ring-2 focus:ring-slate-200 active:bg-slate-100 text-sm" 
+            <button
+              className="px-5 py-1.5 bg-white border border-slate-300 text-slate-700 font-medium rounded-md hover:bg-slate-50 hover:text-slate-900 transition-colors focus:outline-none focus:ring-2 focus:ring-slate-200 active:bg-slate-100 text-sm"
               onClick={handleClear}
             >
               Clear
             </button>
             {selectedId && (
-              <button 
-                className="px-5 py-1.5 bg-red-600 border border-red-700 text-white font-medium rounded-md hover:bg-red-700 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 active:bg-red-800 text-sm" 
+              <button
+                className="px-5 py-1.5 bg-red-600 border border-red-700 text-white font-medium rounded-md hover:bg-red-700 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 active:bg-red-800 text-sm"
                 onClick={handleDelete}
                 disabled={loading}
               >
                 Delete
               </button>
             )}
-            <button 
-              className="px-5 py-1.5 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center justify-center min-w-[100px] text-sm" 
+            <button
+              className="px-5 py-1.5 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center justify-center min-w-[100px] text-sm"
               onClick={handleSave}
               disabled={loading}
             >
@@ -391,15 +431,37 @@ const ItemMaster = () => {
           <div className="flex justify-between items-center mb-4">
          
             <div className="flex items-center space-x-3">
-           
-              
+              <div className="flex items-center space-x-1.5 bg-slate-100 p-1 rounded-full border border-slate-200">
+                <button
+                  onClick={() => setViewMode('split')}
+                  className={`px-2.5 py-1 rounded-full text-xs font-semibold transition-colors ${viewMode === 'split' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                  title="Split Screen View"
+                >
+                  ◧ Split
+                </button>
+                <button
+                  onClick={() => setViewMode('table-only')}
+                  className={`px-2.5 py-1 rounded-full text-xs font-semibold transition-colors ${viewMode === 'table-only' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                  title="Maximize Table View"
+                >
+                  👁 View Full
+                </button>
+                <button
+                  onClick={() => setViewMode('form-only')}
+                  className={`px-2.5 py-1 rounded-full text-xs font-semibold transition-colors ${viewMode === 'form-only' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                  title="Hide Table"
+                >
+                  ❌ Hide Table
+                </button>
+              </div>
+
               <div className="relative w-48">
                 <svg className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
-                <input 
-                  type="text" 
-                  placeholder="Search products..." 
+                <input
+                  type="text"
+                  placeholder="Search products..."
                   className="w-full pl-9 pr-3 py-1.5 bg-white border border-slate-300 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
@@ -425,13 +487,20 @@ const ItemMaster = () => {
                   paginatedProducts.map(product => {
                     const isSelected = selectedId === product.id;
                     return (
-                      <tr 
-                        key={product.id} 
+                      <tr
+                        key={product.id}
                         className={`hover:bg-blue-50/50 cursor-pointer transition-colors ${isSelected ? 'bg-blue-50 font-medium' : ''}`}
                         onClick={() => handleRowClick(product)}
                       >
                         <td className="px-4 py-2 whitespace-nowrap text-blue-600 font-medium">{product.itemCode}</td>
-                        <td className="px-4 py-2 whitespace-nowrap text-slate-800 font-medium">{product.name}</td>
+                        <td className="px-4 py-2 whitespace-nowrap text-slate-800 font-medium">
+                          <div>{product.name}</div>
+                          <div className="flex space-x-1.5 mt-0.5">
+                            {product.department && <span className="px-1.5 py-0.5 bg-blue-50 text-blue-700 text-[10px] rounded font-semibold border border-blue-100">{product.department}</span>}
+                            {product.variety && <span className="px-1.5 py-0.5 bg-purple-50 text-purple-700 text-[10px] rounded font-semibold border border-purple-100">{product.variety}</span>}
+                            {product.size && <span className="px-1.5 py-0.5 bg-amber-50 text-amber-700 text-[10px] rounded font-semibold border border-amber-100">Size: {product.size}</span>}
+                          </div>
+                        </td>
                         <td className="px-4 py-2 whitespace-nowrap">{product.uom}</td>
                         <td className="px-4 py-2 whitespace-nowrap text-right">{product.stock}</td>
                         <td className="px-4 py-2 whitespace-nowrap text-right">₹{product.price?.toFixed(2) || '0.00'}</td>
@@ -468,11 +537,10 @@ const ItemMaster = () => {
                   <button
                     key={page}
                     onClick={() => setCurrentPage(page)}
-                    className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors ${
-                      currentPage === page
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'
-                    }`}
+                    className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors ${currentPage === page
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'
+                      }`}
                   >
                     {page}
                   </button>

@@ -21,6 +21,9 @@ interface Product {
   _id?: string;
   name: string;
   itemCode: string;
+  department?: string;
+  variety?: string;
+  size?: string;
 }
 
 const StockRegister = () => {
@@ -300,7 +303,18 @@ const StockRegister = () => {
                  onChange={e => setSelectedItem(e.target.value)}
                  className="bg-transparent text-sm font-bold text-gray-800 focus:outline-none w-64 pr-2 cursor-pointer"
                >
-                 {items.map(i => <option key={i.id || i._id} value={i.id || i._id}>[{i.itemCode}] {i.name}</option>)}
+                 {items.map(i => {
+                   const variantLabel = [
+                     i.department ? i.department : '',
+                     i.variety ? i.variety : '',
+                     i.size ? `Size ${i.size}` : ''
+                   ].filter(Boolean).join(' - ');
+                   return (
+                     <option key={i.id || i._id} value={i.id || i._id}>
+                       [{i.itemCode}] {i.name} {variantLabel ? `(${variantLabel})` : ''}
+                     </option>
+                   );
+                 })}
                </select>
              )}
           </div>

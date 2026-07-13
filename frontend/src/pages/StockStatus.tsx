@@ -14,6 +14,9 @@ interface StockItem {
   stock: number;
   minReorder?: number;
   purchaseRate: number;
+  department?: string;
+  variety?: string;
+  size?: string;
 }
 
 const GROUPS = ['All', 'Electronics', 'Hardware', 'Accessories'];
@@ -185,7 +188,14 @@ const StockStatus = () => {
                   return (
                     <tr key={item.id || item._id || idx} className={`border-b border-gray-200 transition-colors ${isLow ? 'bg-red-50/70 hover:bg-red-100/70' : (idx % 2 === 0 ? 'bg-white hover:bg-blue-50' : 'bg-[#fcfdfd] hover:bg-blue-50')}`}>
                       <td className="border-r border-gray-200 p-2 font-mono text-xs font-bold text-gray-600">{item.itemCode}</td>
-                      <td className="border-r border-gray-200 p-2 font-bold text-gray-800">{item.name} {item.group && <span className="text-[10px] font-normal text-gray-400 ml-2">({item.group})</span>}</td>
+                      <td className="border-r border-gray-200 p-2 text-gray-800">
+                        <div className="font-bold">{item.name} {item.group && <span className="text-[10px] font-normal text-gray-400 ml-2">({item.group})</span>}</div>
+                        <div className="flex space-x-1.5 mt-0.5">
+                          {item.department && <span className="px-1.5 py-0.5 bg-blue-50 text-blue-700 text-[10px] rounded font-semibold border border-blue-100">{item.department}</span>}
+                          {item.variety && <span className="px-1.5 py-0.5 bg-purple-50 text-purple-700 text-[10px] rounded font-semibold border border-purple-100">{item.variety}</span>}
+                          {item.size && <span className="px-1.5 py-0.5 bg-amber-50 text-amber-700 text-[10px] rounded font-semibold border border-amber-100">Size: {item.size}</span>}
+                        </div>
+                      </td>
                       <td className="border-r border-gray-200 p-2 text-xs text-center text-gray-500">{item.uom || 'PCS'}</td>
                       <td className={`border-r border-gray-200 p-2 text-right font-mono font-black text-sm ${isLow ? 'text-red-600' : 'text-blue-700'}`}>
                         {isLow && <AlertTriangle size={12} className="inline mr-1 -mt-1 text-red-500" />}
