@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext, useNavigate } from 'react-router-dom';
 import Api from '../Api';
 
 const ACCOUNT_GROUPS = [
@@ -12,6 +12,7 @@ const REGISTRATION_TYPES = ['Regular', 'Composition', 'Unregistered', 'Consumer'
 const STATES = ['Maharashtra', 'Delhi', 'Karnataka', 'Tamil Nadu', 'Gujarat', 'Abstract State'];
 
 const LedgerMaster = () => {
+  const navigate = useNavigate();
   // --- Form State ---
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [ledgerCode, setLedgerCode] = useState('');
@@ -36,6 +37,7 @@ const LedgerMaster = () => {
   const [loading, setLoading] = useState(false);
   const [ledgers, setLedgers] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isRegular, setIsRegular] = useState(false);
   
   // Layout view modes: 'split' | 'form-only' | 'table-only'
   const [viewMode, setViewMode] = useState<'split' | 'form-only' | 'table-only'>('split');
@@ -88,6 +90,7 @@ const LedgerMaster = () => {
     setCity('');
     setState('Abstract State');
     setPincode('');
+    setIsRegular(false);
     fetchNextCode();
   };
 
@@ -108,6 +111,7 @@ const LedgerMaster = () => {
     setCity(ledger.city || '');
     setState(ledger.state || 'Abstract State');
     setPincode(ledger.pincode || '');
+    setIsRegular(!!ledger.isRegular);
   };
 
   const handleDelete = async () => {
@@ -182,7 +186,8 @@ const LedgerMaster = () => {
       address,
       city,
       state,
-      pincode
+      pincode,
+      isRegular: group === 'Customers' ? isRegular : false
     };
 
     try {
@@ -308,6 +313,20 @@ const LedgerMaster = () => {
                     {ACCOUNT_GROUPS.map(g => <option key={g} value={g}>{g}</option>)}
                   </select>
                 </div>
+                {group === 'Customers' && (
+                  <div className="flex items-center space-x-2 mt-1.5 col-span-3">
+                    <input 
+                      type="checkbox" 
+                      id="isRegularCheckbox" 
+                      className="form-checkbox h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
+                      checked={isRegular}
+                      onChange={e => setIsRegular(e.target.checked)}
+                    />
+                    <label htmlFor="isRegularCheckbox" className="text-xs font-bold text-gray-700 select-none cursor-pointer">
+                      ⭐ Mark as Regular Customer (Eligible for special discounts & favors)
+                    </label>
+                  </div>
+                )}
               </div>
             </fieldset>
 
@@ -390,18 +409,32 @@ const LedgerMaster = () => {
             </fieldset>
 
             {/* Action Buttons inside form */}
-            <div className="flex justify-end space-x-2 pt-2 border-t border-gray-300">
-              <button className={`legacy-button font-bold w-24 ${loading ? 'bg-gray-300' : 'bg-[#e6f2ff] hover:bg-[#cce5ff] border-[#b3d4fc] text-[#004085]'}`} onClick={handleSave} disabled={loading}>
-                {loading ? 'Saving...' : selectedId ? 'Update' : 'Save (Ctrl+S)'}
-              </button>
-              {selectedId && (
-                <button className="legacy-button bg-red-600 hover:bg-red-700 font-bold border-red-800 w-24 text-white" onClick={handleDelete} disabled={loading}>
-                  Delete
+            <div className="flex justify-between items-center pt-2 border-t border-gray-300">
+              <div>
+                {selectedId && group === 'Customers' && (
+                  <button 
+                    onClick={() => {
+                      navigate('/sales-register', { state: { selectedCustomerName: accountName } });
+                    }}
+                    className="legacy-button bg-yellow-100 hover:bg-yellow-200 border-yellow-400 font-bold text-yellow-800 text-xs py-1 px-3 rounded shadow-sm flex items-center space-x-1"
+                  >
+                    <span>📜 View Sales History</span>
+                  </button>
+                )}
+              </div>
+              <div className="flex space-x-2">
+                <button className={`legacy-button font-bold w-24 ${loading ? 'bg-gray-300' : 'bg-[#e6f2ff] hover:bg-[#cce5ff] border-[#b3d4fc] text-[#004085]'}`} onClick={handleSave} disabled={loading}>
+                  {loading ? 'Saving...' : selectedId ? 'Update' : 'Save (Ctrl+S)'}
                 </button>
-              )}
-              <button className="legacy-button bg-gray-200 hover:bg-gray-300 font-bold border-gray-400 w-24 text-gray-800" onClick={handleClear} disabled={loading}>
-                Clear
-              </button>
+                {selectedId && (
+                  <button className="legacy-button bg-red-600 hover:bg-red-700 font-bold border-red-800 w-24 text-white" onClick={handleDelete} disabled={loading}>
+                    Delete
+                  </button>
+                )}
+                <button className="legacy-button bg-gray-200 hover:bg-gray-300 font-bold border-gray-400 w-24 text-gray-800" onClick={handleClear} disabled={loading}>
+                  Clear
+                </button>
+              </div>
             </div>
 
           </div>
@@ -413,27 +446,7 @@ const LedgerMaster = () => {
             <span>Ledger Directory Grid</span>
             <div className="flex items-center space-x-2">
               <span className="bg-blue-800 px-2 py-0.5 rounded text-xs mr-2">Total: {filteredLedgers.length}</span>
-              <button 
-                onClick={() => setViewMode('split')}
-                className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors border shadow ${viewMode === 'split' ? 'bg-blue-600 border-blue-400 text-white' : 'bg-[#385386] hover:bg-[#2b3e64] text-blue-100 border-blue-500'}`}
-                title="Split Screen View"
-              >
-                ◧ Split
-              </button>
-              <button 
-                onClick={() => setViewMode('table-only')}
-                className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors border shadow ${viewMode === 'table-only' ? 'bg-blue-600 border-blue-400 text-white' : 'bg-[#385386] hover:bg-[#2b3e64] text-blue-100 border-blue-500'}`}
-                title="Maximize Table"
-              >
-                👁 View Full
-              </button>
-              <button 
-                onClick={() => setViewMode('form-only')}
-                className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors border shadow ${viewMode === 'form-only' ? 'bg-blue-600 border-blue-400 text-white' : 'bg-[#385386] hover:bg-[#2b3e64] text-blue-100 border-blue-500'}`}
-                title="Hide Table"
-              >
-                ❌ Hide Table
-              </button>
+        
             </div>
           </div>
 
@@ -467,7 +480,14 @@ const LedgerMaster = () => {
                       className={`border-b border-gray-200 hover:bg-[#d1e8e2] cursor-pointer transition-colors ${isSelected ? 'bg-[#cce5ff] text-[#004085] font-medium' : ''}`}
                       onClick={() => handleRowClick(l)}
                     >
-                      <td className="p-2 font-bold text-blue-900">{l.accountName}</td>
+                      <td className="p-2 font-bold text-blue-900">
+                        {l.accountName}
+                        {l.isRegular && (
+                          <span className="ml-2 bg-yellow-100 border border-yellow-300 text-yellow-800 text-[9px] font-bold px-1 rounded inline-flex items-center shadow-xs">
+                            ⭐ Regular
+                          </span>
+                        )}
+                      </td>
                       <td className="p-2 text-gray-700">{l.accountGroup}</td>
                       <td className="p-2 text-right font-mono font-bold">
                         {l.openingBalance?.toLocaleString()} <span className="text-[10px] text-gray-500">{l.drCr}</span>

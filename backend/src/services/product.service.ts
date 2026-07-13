@@ -70,3 +70,88 @@ export const deleteProduct = async (id: string): Promise<boolean> => {
   const result = await db.collection('Product').deleteOne({ _id: new ObjectId(id as string) });
   return result.deletedCount > 0;
 };
+
+export const getDailyStockStatus = async (dateStr: string): Promise<any[]> => {
+  const startOfDay = new Date(`${dateStr}T00:00:00.000`);
+  const endOfDay = new Date(`${dateStr}T23:59:59.999`);
+
+  const products = await prisma.product.findMany({
+    orderBy: { name: 'asc' }
+  });
+
+  const salesItems = await prisma.salesItem.findMany({
+    where: {
+      salesBill: {
+        invDate: { gte: startOfDay }
+      }
+    },
+    include: {
+      salesBill: true
+    }
+  });
+
+  const salesReturnItems = await prisma.salesReturnItem.findMany({
+    where: {
+      disposition: 'Return to Warehouse',
+      salesReturn: {
+        returnDate: { gte: startOfDay }
+      }
+    },
+    include: {
+      salesReturn: true
+    }
+  });
+
+  return products.map(product => {
+    const prodId = product.id;
+
+    const productSales = salesItems.filter(item => item.productId === prodId);
+    const productReturns = salesReturnItems.filter(item => item.productId === prodId);
+
+    let outwardToday = 0;
+    let inwardToday = 0;
+    let outwardAfterToday = 0;
+    let inwardAfterToday = 0;
+
+    for (const item of productSales) {
+      if (item.salesBill) {
+        const invDate = new Date(item.salesBill.invDate);
+        if (invDate >= startOfDay && invDate <= endOfDay) {
+          outwardToday += item.qty || 0;
+        } else if (invDate > endOfDay) {
+          outwardAfterToday += item.qty || 0;
+        }
+      }
+    }
+
+    for (const item of productReturns) {
+      if (item.salesReturn) {
+        const returnDate = new Date(item.salesReturn.returnDate);
+        if (returnDate >= startOfDay && returnDate <= endOfDay) {
+          inwardToday += item.returnQty || 0;
+        } else if (returnDate > endOfDay) {
+          inwardAfterToday += item.returnQty || 0;
+        }
+      }
+    }
+
+    const currentStock = product.stock || 0;
+    const closingStock = currentStock - inwardAfterToday + outwardAfterToday;
+    const openingStock = closingStock - inwardToday + outwardToday;
+
+    return {
+      id: product.id,
+      itemCode: product.itemCode || '',
+      name: product.name,
+      uom: product.uom || 'PCS',
+      purchaseRate: product.purchaseRate || 0,
+      price: product.price || 0,
+      openingStock,
+      inwardToday,
+      outwardToday,
+      closingStock,
+      valuation: closingStock * (product.purchaseRate || 0)
+    };
+  });
+};
+

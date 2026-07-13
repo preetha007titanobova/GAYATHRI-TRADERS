@@ -39,6 +39,29 @@ const POSCheckout = () => {
   const [printIn, setPrintIn] = useState('Blank A4');
   const [invoiceFormat, setInvoiceFormat] = useState('GSTFormat Full Page');
 
+  // Searchable Buyer State
+  const [customerSearch, setCustomerSearch] = useState('CASH');
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const [favourDiscount, setFavourDiscount] = useState<number>(0);
+
+  useEffect(() => {
+    setCustomerSearch(buyerName);
+  }, [buyerName]);
+
+  const filteredCustomersList = useMemo(() => {
+    const q = customerSearch.toLowerCase();
+    const matches = availableCustomers.filter(c => 
+      c.accountName.toLowerCase().includes(q) || 
+      (c.ledgerCode && c.ledgerCode.toLowerCase().includes(q))
+    );
+    if (!q || 'cash'.includes(q)) {
+      if (!matches.some(m => m.accountName === 'CASH')) {
+        return [{ accountName: 'CASH' }, ...matches];
+      }
+    }
+    return matches;
+  }, [availableCustomers, customerSearch]);
+
   // --- State for Data Entry Grid ---
   const initialGridData = incomingPayload?.items?.length > 0 
     ? incomingPayload.items.map((item: any, idx: number) => {
@@ -325,6 +348,7 @@ const POSCheckout = () => {
     const payload = {
       invoiceNo, invDate, payDays, buyerName, address, eType, 
       mobileNo, gstNo, printIn, invoiceFormat, totalQty, totalAmount, 
+      favourDiscount: Number(favourDiscount) || 0,
       cgst, sgst, roundOff, netAmount,
       salesman, paymentMode,
       items: validItems.map(item => ({
@@ -381,6 +405,7 @@ const POSCheckout = () => {
         setMobileNo('');
         setGstNo('');
         setTendered(0);
+        setFavourDiscount(0);
         setConfirmModalState({isOpen: false, action: null});
         if (setGlobalNotification) {
           setGlobalNotification({msg: 'Invoice data cleared successfully.', type: 'success'});
@@ -505,20 +530,23 @@ const POSCheckout = () => {
     setTotalQty(tQty);
     setTotalAmount(tAmt);
 
+    // Apply favour discount
+    const discountedTotal = Math.max(0, tAmt - favourDiscount);
+
     // Dynamic CGST & SGST logic
-    const cgstVal = Number((tAmt * (cgstPercent / 100)).toFixed(2));
-    const sgstVal = Number((tAmt * (sgstPercent / 100)).toFixed(2));
+    const cgstVal = Number((discountedTotal * (cgstPercent / 100)).toFixed(2));
+    const sgstVal = Number((discountedTotal * (sgstPercent / 100)).toFixed(2));
     setCgst(cgstVal);
     setSgst(sgstVal);
 
     // Calculate rounding
-    const rawTotal = tAmt + cgstVal + sgstVal;
+    const rawTotal = discountedTotal + cgstVal + sgstVal;
     const roundedTotal = Math.round(rawTotal);
     const roundDiff = Number((roundedTotal - rawTotal).toFixed(2));
 
     setRoundOff(roundDiff);
     setNetAmount(roundedTotal);
-  }, [gridData, cgstPercent, sgstPercent]);
+  }, [gridData, cgstPercent, sgstPercent, favourDiscount]);
 
   // --- Data Entry Grid Auto-Row Logic & Product Auto-Fill ---
   const handleGridChange = (id: number, field: keyof GridRow, value: string) => {
@@ -793,18 +821,57 @@ const POSCheckout = () => {
       {/* 2. Main Document Input Panel */}
       <div className="legacy-panel p-1 text-xs grid grid-cols-12 gap-x-2 gap-y-1 items-center">
           <label className="legacy-label text-right">Buyer</label>
-          <select className="legacy-input col-span-3 font-bold text-blue-900 bg-blue-50 py-0.5" value={buyerName} onChange={e => {
-            setBuyerName(e.target.value);
-            const selectedCust = availableCustomers.find(c => c.accountName === e.target.value);
-            if (selectedCust) {
-              setAddress(selectedCust.address || '');
-              setMobileNo(selectedCust.mobileNo || '');
-              setGstNo(selectedCust.gstNo || '');
-            }
-          }}>
-            <option value="CASH">CASH</option>
-            {availableCustomers.map(c => <option key={c._id} value={c.accountName}>{c.accountName}</option>)}
-          </select>
+          <div className="col-span-3 relative">
+            <input 
+              type="text" 
+              className="legacy-input w-full font-bold text-blue-900 bg-blue-50 py-0.5 px-2 pr-6 focus:bg-yellow-50 outline-none border border-gray-300 rounded-sm" 
+              value={customerSearch}
+              onChange={e => {
+                setCustomerSearch(e.target.value);
+                setShowCustomerDropdown(true);
+              }}
+              onFocus={() => setShowCustomerDropdown(true)}
+              onBlur={() => {
+                // Short delay to let onMouseDown run first
+                setTimeout(() => setShowCustomerDropdown(false), 200);
+              }}
+              placeholder="Search / select buyer..."
+            />
+            <span className="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none text-blue-400 font-bold">▾</span>
+            
+            {showCustomerDropdown && (
+              <div className="absolute left-0 right-0 top-full mt-0.5 bg-white border border-gray-300 max-h-48 overflow-y-auto z-[999] shadow-lg rounded text-left">
+                {filteredCustomersList.length === 0 ? (
+                  <div className="p-2 text-xs text-gray-500 italic">No matching customers</div>
+                ) : (
+                  filteredCustomersList.map((c, i) => (
+                    <button
+                      key={c._id || i}
+                      type="button"
+                      onMouseDown={() => {
+                        setBuyerName(c.accountName);
+                        setCustomerSearch(c.accountName);
+                        if (c.accountName === 'CASH') {
+                          setAddress('');
+                          setMobileNo('');
+                          setGstNo('');
+                        } else {
+                          setAddress(c.address || '');
+                          setMobileNo(c.mobileNo || '');
+                          setGstNo(c.gstNo || '');
+                        }
+                        setShowCustomerDropdown(false);
+                      }}
+                      className="w-full text-left px-2.5 py-1.5 text-xs hover:bg-blue-50 text-gray-800 font-semibold border-b border-gray-100 last:border-b-0 flex justify-between"
+                    >
+                      <span>{c.accountName}</span>
+                      {c.ledgerCode && <span className="text-[10px] text-gray-400 font-mono">{c.ledgerCode}</span>}
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
 
           <label className="legacy-label text-right">Inv No</label>
           <input type="text" className="legacy-input col-span-2 font-bold py-0.5" value={invoiceNo} disabled />
@@ -837,6 +904,11 @@ const POSCheckout = () => {
           <div className="flex items-center space-x-1">
             <span className="bg-[#385623] w-1.5 h-4 block"></span>
             <span>CUSTOMER CREDIT STATUS ({selectedCustomerObj.ledgerCode}):</span>
+            {selectedCustomerObj.isRegular && (
+              <span className="ml-2 bg-yellow-100 border border-yellow-300 text-yellow-800 px-1.5 py-0.5 rounded text-[10px] animate-pulse">
+                ⭐ REGULAR PRIVILEGED
+              </span>
+            )}
           </div>
           <div className="flex space-x-6">
             <div>Current Balance: <span className="font-mono text-[#c55a11]">₹{selectedCustomerObj.openingBalance?.toLocaleString() || 0} {selectedCustomerObj.drCr || 'Dr'}</span></div>
@@ -848,7 +920,7 @@ const POSCheckout = () => {
       )}
 
       {/* 3. Data Entry Grid */}
-      <div className="flex-1 bg-white border border-gray-400 overflow-auto mx-1">
+      <div className="flex-1 min-h-[400px] bg-white border border-gray-400 overflow-auto mx-1">
         <table className="w-full text-left border-collapse">
           <thead>
             <tr>
@@ -911,10 +983,6 @@ const POSCheckout = () => {
       <div className="grid grid-cols-3 gap-2">
         {/* Left: Terms and Actions */}
         <div className="col-span-2 flex flex-col space-y-1">
-          <div className="legacy-panel p-1">
-            <label className="legacy-label block text-xs">Terms & Cond.</label>
-            <textarea className="legacy-input w-full h-8 resize-none text-xs" defaultValue="1. Goods once sold will not be taken back.&#10;2. Interest @ 18% p.a. will be charged if payment is delayed."></textarea>
-          </div>
           
           <div className="legacy-panel p-1 flex space-x-2">
              <div className="flex-1 flex items-center">
@@ -945,6 +1013,18 @@ const POSCheckout = () => {
           
           <label className="legacy-label col-span-2 text-right">Total Amount</label>
           <input type="text" className="legacy-input col-span-2 text-right font-bold py-0.5" value={totalAmount.toFixed(2)} disabled />
+
+          <label className="legacy-label col-span-2 text-right text-emerald-700 font-bold flex items-center justify-end">
+            {selectedCustomerObj?.isRegular && <span className="text-yellow-600 mr-1">⭐</span>}
+            Favour Disc (₹)
+          </label>
+          <input 
+            type="number" 
+            className={`legacy-input col-span-2 text-right py-0.5 font-bold focus:bg-yellow-100 ${selectedCustomerObj?.isRegular ? 'bg-yellow-50 border-yellow-400 text-yellow-800' : ''}`} 
+            value={favourDiscount || ''} 
+            onChange={e => setFavourDiscount(Number(e.target.value))} 
+            placeholder="Special Discount"
+          />
           
           <label className="legacy-label col-span-2 flex items-center justify-end">
             CGST <input type="number" className="ml-1 w-10 text-center border border-gray-400 py-0 text-[10px]" value={cgstPercent} onChange={e => setCgstPercent(Number(e.target.value))} /> %

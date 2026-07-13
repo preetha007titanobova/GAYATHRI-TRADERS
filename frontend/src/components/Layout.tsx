@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { Plus, Edit, Trash2, ArrowLeft, ArrowRight, Search, Printer, Mail, Paperclip, MessageSquare } from 'lucide-react';
+import { Plus, Edit, Trash2, ArrowLeft, ArrowRight, Search, Printer, Mail, Paperclip, MessageSquare, Power, TrendingUp } from 'lucide-react';
+import Api from '../Api';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 export type ToolbarActions = {
   onAdd?: () => void;
@@ -31,25 +34,200 @@ const Layout = () => {
   });
   const location = useLocation();
 
+  const [isCloseDayModalOpen, setIsCloseDayModalOpen] = useState(false);
+  const [closeDayLoading, setCloseDayLoading] = useState(false);
+  const [ownerWhatsApp, setOwnerWhatsApp] = useState(() => localStorage.getItem('close_day_whatsapp') || '+919876543210');
+  const [ownerEmail, setOwnerEmail] = useState(() => localStorage.getItem('close_day_email') || 'titanobovapvt@gmail.com');
+  const [isOwnerSettingsModalOpen, setIsOwnerSettingsModalOpen] = useState(false);
+  
+  // Security PIN/Password State
+  const [ownerPin, setOwnerPin] = useState(() => localStorage.getItem('owner_details_pin') || '1234');
+  const [isPinModalOpen, setIsPinModalOpen] = useState(false);
+  const [enteredPin, setEnteredPin] = useState('');
+  const [pinError, setPinError] = useState('');
+
+  const saveOwnerSettings = (whatsapp: string, email: string, newPin?: string) => {
+    localStorage.setItem('close_day_whatsapp', whatsapp);
+    localStorage.setItem('close_day_email', email);
+    setOwnerWhatsApp(whatsapp);
+    setOwnerEmail(email);
+    if (newPin) {
+      localStorage.setItem('owner_details_pin', newPin);
+      setOwnerPin(newPin);
+    }
+    setIsOwnerSettingsModalOpen(false);
+  };
+
+  const handleCloseDay = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCloseDayLoading(true);
+    
+    localStorage.setItem('close_day_whatsapp', ownerWhatsApp);
+    localStorage.setItem('close_day_email', ownerEmail);
+
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    const dateStr = `${yyyy}-${mm}-${dd}`;
+    const formattedDate = `${dd}-${mm}-${yyyy}`;
+
+    try {
+      const res = await fetch(`${Api}/products/daily-status?date=${dateStr}`);
+      if (!res.ok) {
+        throw new Error('Failed to retrieve daily stock status from backend.');
+      }
+      const data = await res.json();
+
+      let totalOpening = 0;
+      let totalInward = 0;
+      let totalOutward = 0;
+      let totalClosing = 0;
+      let totalValuation = 0;
+      
+      data.forEach((item: any) => {
+        totalOpening += item.openingStock || 0;
+        totalInward += item.inwardToday || 0;
+        totalOutward += item.outwardToday || 0;
+        totalClosing += item.closingStock || 0;
+        totalValuation += item.valuation || 0;
+      });
+
+      const doc = new jsPDF();
+      doc.setFontSize(16);
+      doc.setTextColor(43, 87, 154);
+      doc.text('Daily Stock Status Report', 14, 15);
+      
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      doc.text(`Close Day Date: ${formattedDate} | Total Valuation: Rs. ${(totalValuation || 0).toFixed(2)}`, 14, 22);
+
+      const headers = [
+        "Item Code", 
+        "Item Name", 
+        "Unit", 
+        "Opening Qty", 
+        "Qty In", 
+        "Qty Out", 
+        "Closing Qty", 
+        "Pur. Rate (Rs.)", 
+        "Closing Val (Rs.)"
+      ];
+      
+      const rows = data.map((item: any) => [
+        item.itemCode || '',
+        item.name || '',
+        item.uom || 'PCS',
+        item.openingStock || 0,
+        item.inwardToday || 0,
+        item.outwardToday || 0,
+        item.closingStock || 0,
+        (item.purchaseRate || 0).toFixed(2),
+        (item.valuation || 0).toFixed(2)
+      ]);
+
+      rows.push([
+        'TOTAL',
+        `${data.length} Items`,
+        '',
+        (totalOpening || 0).toString(),
+        (totalInward || 0).toString(),
+        (totalOutward || 0).toString(),
+        (totalClosing || 0).toString(),
+        '',
+        (totalValuation || 0).toFixed(2)
+      ]);
+
+      autoTable(doc, {
+        startY: 28,
+        head: [headers],
+        body: rows,
+        theme: 'grid',
+        headStyles: { fillColor: [43, 87, 154] },
+        styles: { fontSize: 8 },
+        didParseCell: (cellData) => {
+          if (cellData.row.index === rows.length - 1) {
+            cellData.cell.styles.fontStyle = 'bold';
+            cellData.cell.styles.fillColor = [240, 240, 240];
+          }
+        }
+      });
+
+      const blob = doc.output('blob');
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Daily_Stock_Status_${formattedDate}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      const pdfBase64 = doc.output('datauristring');
+
+      let emailFailed = false;
+      let pdfUrl = '';
+      try {
+        const closeDayRes = await fetch(`${Api}/products/close-day`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            date: formattedDate,
+            pdf: pdfBase64,
+            email: ownerEmail
+          })
+        });
+
+        if (closeDayRes.ok) {
+          const resJson = await closeDayRes.json();
+          pdfUrl = resJson.pdfUrl || '';
+        } else {
+          emailFailed = true;
+        }
+      } catch (e) {
+        emailFailed = true;
+      }
+
+      const whatsappText = `*Sri Gayathri Traders - Close Day Report*\n` +
+                           `*Date:* ${formattedDate}\n` +
+                           `*Total Items:* ${data.length}\n` +
+                           `*Total Qty In:* ${totalInward}\n` +
+                           `*Total Qty Out:* ${totalOutward}\n` +
+                           `*Total Closing Qty:* ${totalClosing}\n` +
+                           `*Total Closing Valuation:* Rs. ${(totalValuation || 0).toFixed(2)}\n\n` +
+                           (pdfUrl ? `*Download PDF Report:* ${pdfUrl}\n\n` : '') +
+                           (emailFailed 
+                             ? `*Note:* Emailed PDF report failed to send due to email credentials error.\n\n`
+                             : `*Notification:* Daily PDF stock report has been generated and emailed to ${ownerEmail}.\n\n`) +
+                           `Generated automatically via Billing System.`;
+
+      const whatsappUrl = `https://api.whatsapp.com/send?phone=${ownerWhatsApp}&text=${encodeURIComponent(whatsappText)}`;
+      window.open(whatsappUrl, '_blank');
+
+      if (emailFailed) {
+        setGlobalNotification({ msg: `Day closed! WhatsApp opened, but daily report email failed to send (please check SMTP credentials).`, type: 'error' });
+      } else {
+        setGlobalNotification({ msg: `Day closed successfully! Report emailed and WhatsApp opened.`, type: 'success' });
+      }
+      setIsCloseDayModalOpen(false);
+    } catch (err: any) {
+      console.error(err);
+      setGlobalNotification({ msg: err.message || 'Error executing Close Day process.', type: 'error' });
+    } finally {
+      setCloseDayLoading(false);
+      setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 6000);
+    }
+  };
+
   const toggleMenu = (menu: string) => {
     setActiveMenu(activeMenu === menu ? null : menu);
   };
 
   const closeMenu = () => setActiveMenu(null);
 
-  const handleAction = (actionName: keyof ToolbarActions) => {
-    if (toolbarActions[actionName]) {
-      toolbarActions[actionName]!();
-    } else {
-      setGlobalNotification({ msg: "Feature not implemented or not applicable for the current module.", type: 'info' });
-      setTimeout(() => setGlobalNotification({msg: '', type: ''}), 4000);
-    }
-  };
 
-  const handleFeatureNotImplemented = (featureName: string) => {
-    setGlobalNotification({ msg: `${featureName} feature is coming soon!`, type: 'info' });
-    setTimeout(() => setGlobalNotification({msg: '', type: ''}), 4000);
-  };
+
+
 
   const getPageTitle = (pathname: string) => {
     const routeTitles: Record<string, string> = {
@@ -70,6 +248,7 @@ const Layout = () => {
       '/journal-entry': 'Journal Entry',
       '/cheque-printing': 'Cheque Printing',
       '/stock-status': 'Stock Status',
+      '/daily-stock-status': 'Daily Stock Status',
       '/stock-register': 'Stock Register',
       '/view-ledger': 'View Ledger',
       '/statistic-report': 'Statistic Report',
@@ -133,7 +312,16 @@ const Layout = () => {
       </div>
 
       {/* 2. Main Menu Bar */}
-      <div className="bg-[#f0f0f0] border-b border-gray-300 flex px-2 py-1 text-sm space-x-2 relative z-50">
+   
+
+      {/* Invisible Overlay to catch clicks outside dropdowns */}
+      {activeMenu && (
+        <div className="fixed inset-0 z-40" onClick={closeMenu}></div>
+      )}
+
+      {/* 3. Green Header Bar & Status Indicators */}
+      <div className="bg-[#a8d08d] border-b border-[#8ab870] flex items-center justify-between px-2 py-1 shadow-sm">
+           <div className= "border-gray-300 flex px-2 py-1 text-sm space-x-2 relative z-50">
         
         {/* MASTER */}
         <div className="relative">
@@ -177,32 +365,15 @@ const Layout = () => {
           )}
         </div>
 
-        {/* PRODUCTION */}
-        <div className="relative">
-          <span onClick={() => handleFeatureNotImplemented('Production')} className="px-3 py-1 cursor-pointer select-none rounded hover:bg-blue-100">Production</span>
-        </div>
-
+      
         {/* STOCK */}
         <div className="relative">
           <span onClick={() => toggleMenu('Stock')} className={`px-3 py-1 cursor-pointer select-none rounded ${activeMenu === 'Stock' ? 'bg-blue-200 shadow-inner' : 'hover:bg-blue-100'}`}>Stock</span>
           {activeMenu === 'Stock' && (
             <div className="absolute top-full left-0 mt-1 bg-white border border-gray-400 shadow-xl w-48 flex flex-col py-1 z-50">
                <Link to="/stock-status" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Stock Status</Link>
+               <Link to="/daily-stock-status" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Daily Stock Status</Link>
                <Link to="/stock-register" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Stock Register</Link>
-            </div>
-          )}
-        </div>
-
-        {/* ACCOUNT */}
-        <div className="relative">
-          <span onClick={() => toggleMenu('Account')} className={`px-3 py-1 cursor-pointer select-none rounded ${activeMenu === 'Account' ? 'bg-blue-200 shadow-inner' : 'hover:bg-blue-100'}`}>Account</span>
-          {activeMenu === 'Account' && (
-            <div className="absolute top-full left-0 mt-1 bg-white border border-gray-400 shadow-xl w-48 flex flex-col py-1 z-50">
-               <Link to="/cash-book" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Cash Book</Link>
-               <Link to="/bank-book" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Bank Book</Link>
-               <div className="border-t border-gray-300 my-1"></div>
-               <Link to="/journal-entry" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Journal Entry</Link>
-               <Link to="/cheque-printing" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Cheque Printing</Link>
             </div>
           )}
         </div>
@@ -222,74 +393,12 @@ const Layout = () => {
           )}
         </div>
         
-        {/* WINDOWS */}
-        <div className="relative">
-          <span onClick={() => handleFeatureNotImplemented('Windows')} className="px-3 py-1 cursor-pointer select-none rounded hover:bg-blue-100">Windows</span>
-        </div>
+      
 
-        {/* CONTACT US */}
-        <div className="relative">
-          <span onClick={() => handleFeatureNotImplemented('Contact Us')} className="px-3 py-1 cursor-pointer select-none rounded hover:bg-blue-100">Contact Us</span>
-        </div>
+     
 
       </div>
-
-      {/* Invisible Overlay to catch clicks outside dropdowns */}
-      {activeMenu && (
-        <div className="fixed inset-0 z-40" onClick={closeMenu}></div>
-      )}
-
-      {/* 3. Green Header Bar & Status Indicators */}
-      <div className="bg-[#a8d08d] border-b border-[#8ab870] flex items-center justify-between px-2 py-1 shadow-sm">
-        {/* Action Buttons */}
-        <div className="flex space-x-1">
-          <button onClick={() => handleAction('onAdd')} className="flex flex-col items-center justify-center p-1 hover:bg-[#8ab870] rounded min-w-[50px] focus:outline-none transition-colors">
-            <Plus size={16} />
-            <span className="text-[10px] mt-1 font-bold">ADD</span>
-          </button>
-          <button onClick={() => handleAction('onEdit')} className="flex flex-col items-center justify-center p-1 hover:bg-[#8ab870] rounded min-w-[50px] focus:outline-none transition-colors">
-            <Edit size={16} />
-            <span className="text-[10px] mt-1 font-bold">EDIT</span>
-          </button>
-          <button onClick={() => handleAction('onDelete')} className="flex flex-col items-center justify-center p-1 hover:bg-[#8ab870] rounded min-w-[50px] focus:outline-none transition-colors">
-            <Trash2 size={16} />
-            <span className="text-[10px] mt-1 font-bold">DELETE</span>
-          </button>
-          
-          <div className="w-[1px] bg-[#8ab870] mx-1 h-8 self-center"></div>
-          
-          <button onClick={() => handleAction('onPrev')} className="flex flex-col items-center justify-center p-1 hover:bg-[#8ab870] rounded min-w-[40px] focus:outline-none transition-colors">
-            <ArrowLeft size={16} />
-            <span className="text-[10px] mt-1 font-bold">PREV</span>
-          </button>
-          <button onClick={() => handleAction('onNext')} className="flex flex-col items-center justify-center p-1 hover:bg-[#8ab870] rounded min-w-[40px] focus:outline-none transition-colors">
-            <ArrowRight size={16} />
-            <span className="text-[10px] mt-1 font-bold">NEXT</span>
-          </button>
-
-          <div className="w-[1px] bg-[#8ab870] mx-1 h-8 self-center"></div>
-
-          <button onClick={() => handleAction('onFind')} className="flex flex-col items-center justify-center p-1 hover:bg-[#8ab870] rounded min-w-[50px] focus:outline-none transition-colors">
-            <Search size={16} />
-            <span className="text-[10px] mt-1 font-bold">FIND</span>
-          </button>
-          <button onClick={() => handleAction('onPrint')} className="flex flex-col items-center justify-center p-1 hover:bg-[#8ab870] rounded min-w-[50px] focus:outline-none transition-colors">
-            <Printer size={16} />
-            <span className="text-[10px] mt-1 font-bold">PRINT</span>
-          </button>
-          <button onClick={() => handleAction('onEmail')} className="flex flex-col items-center justify-center p-1 hover:bg-[#8ab870] rounded min-w-[50px] focus:outline-none transition-colors">
-            <Mail size={16} />
-            <span className="text-[10px] mt-1 font-bold">EMAIL</span>
-          </button>
-          <button onClick={() => handleAction('onAttach')} className="flex flex-col items-center justify-center p-1 hover:bg-[#8ab870] rounded min-w-[50px] focus:outline-none transition-colors">
-            <Paperclip size={16} />
-            <span className="text-[10px] mt-1 font-bold">ATTACH</span>
-          </button>
-          <button onClick={() => handleAction('onSms')} className="flex flex-col items-center justify-center p-1 hover:bg-[#8ab870] rounded min-w-[50px] focus:outline-none transition-colors">
-            <MessageSquare size={16} />
-            <span className="text-[10px] mt-1 font-bold">SMS</span>
-          </button>
-        </div>
+      
 
         {/* Status Indicators */}
         <div className="flex space-x-4 items-center bg-[#d1e8e2] px-3 py-1 border border-gray-400 shadow-inner text-sm font-semibold">
@@ -310,13 +419,41 @@ const Layout = () => {
             <span>Retail Bill</span>
           </label>
         </div>
+          <div className="flex space-x-1">
+          <button 
+            onClick={() => {
+              setEnteredPin('');
+              setPinError('');
+              setIsPinModalOpen(true);
+            }} 
+            className="flex flex-col items-center justify-center p-1 bg-slate-600 hover:bg-slate-700 text-white rounded min-w-[70px] focus:outline-none transition-colors shadow"
+          >
+            <Edit size={16} />
+            <span className="text-[10px] mt-1 font-bold">OWNER DETAILS</span>
+          </button>
+          <Link to="/daily-stock-status" className="flex flex-col items-center justify-center p-1 bg-[#2b579a] hover:bg-[#1a3a6c] text-white rounded min-w-[90px] focus:outline-none transition-colors shadow no-underline text-center">
+            <TrendingUp size={16} />
+            <span className="text-[10px] mt-1 font-bold">DAILY STOCK STATUS</span>
+          </Link>
+          <button onClick={() => setIsCloseDayModalOpen(true)} className="flex flex-col items-center justify-center p-1 bg-red-600 hover:bg-red-700 text-white rounded min-w-[70px] focus:outline-none transition-colors shadow">
+            <Power size={16} />
+            <span className="text-[10px] mt-1 font-bold">CLOSE DAY</span>
+          </button>
+        </div>
       </div>
 
       {/* Main Content Area */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left/Center Split Content (Outlet handles the POS Checkout form) */}
         <div className="flex-1 overflow-auto bg-[#d1e8e2] p-2">
-          <Outlet context={{ setToolbarActions, setGlobalNotification, globalSettings }} />
+          <Outlet context={{ 
+            setToolbarActions, 
+            setGlobalNotification, 
+            globalSettings, 
+            ownerWhatsApp, 
+            ownerEmail, 
+            openOwnerSettings: () => setIsOwnerSettingsModalOpen(true) 
+          }} />
         </div>
 
         {/* Right-Hand Sidebar Menu */}
@@ -337,6 +474,7 @@ const Layout = () => {
                 { name: 'Pur. Return', path: '/pur-return' },
                 { name: 'Pur. Register', path: '/pur-register' },
                 { name: 'Stock Status', path: '/stock-status' },
+                { name: 'Daily Stock Status', path: '/daily-stock-status' },
                 { name: 'Stock Register', path: '/stock-register' },
                 { name: 'View Ledger', path: '/view-ledger' },
                 { name: 'Statistic Report', path: '/statistic-report' },
@@ -369,28 +507,15 @@ const Layout = () => {
 
       {/* Bottom Status & Control Bars */}
       <div className="flex flex-col">
-        {/* Control/Shortcut Bar */}
-        <div className="bg-[#e0e0e0] border-t border-gray-400 px-2 py-1 text-[11px] flex space-x-4 font-semibold text-gray-700">
-          <span>CTRL+N-Add</span>
-          <span>CTRL+E-Edit</span>
-          <span>CTRL+D-Delete</span>
-          <span>CTRL+S-Save</span>
-          <span>ESC-Cancel</span>
-          <span>CTRL+P-Print</span>
-          <span>F2-Item Master</span>
-          <span>F3-Ledger Master</span>
-        </div>
-        
-        {/* Bottom Status Bar */}
+      
         <div className="bg-[#2b579a] text-white text-[10px] flex justify-between items-center px-2 py-0.5">
-        <div className="flex space-x-6">
+        {/* <div className="flex space-x-6">
           <span>Company Name: SRI GAYATHRI TRADERS</span>
           <span>Welcome: Administrator</span>
           <span>Year: {displayYear}</span>
-        </div>
+        </div> */}
           <div className="flex space-x-2">
-            <button onClick={() => handleFeatureNotImplemented('Change Year')} className="bg-gray-200 text-black px-2 hover:bg-gray-300 border border-gray-400 text-[10px]">Change Year</button>
-            <button onClick={() => handleFeatureNotImplemented('Change Company')} className="bg-gray-200 text-black px-2 hover:bg-gray-300 border border-gray-400 text-[10px]">Change Company</button>
+           
             <button onClick={() => setIsCalcOpen(!isCalcOpen)} className="bg-gray-200 text-black px-2 hover:bg-gray-300 border border-gray-400 text-[10px] relative">
               Calculator
               {isCalcOpen && (
@@ -436,6 +561,229 @@ const Layout = () => {
           </div>
         </div>
       </div>
+
+      {/* Close Day Modal */}
+      {isCloseDayModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-[100] p-4">
+          <div className="bg-white border border-gray-400 shadow-2xl rounded-lg w-full max-w-md overflow-hidden">
+            <div className="bg-[#2b579a] text-white p-3 font-bold flex justify-between items-center">
+              <span className="flex items-center space-x-2">
+                <Power size={18} />
+                <span>Close Day Report & Exit</span>
+              </span>
+              <button 
+                onClick={() => setIsCloseDayModalOpen(false)}
+                className="text-white hover:text-red-300 font-bold focus:outline-none text-lg"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <form onSubmit={handleCloseDay} className="p-4 space-y-4 text-left">
+              <p className="text-sm font-semibold text-gray-700">
+                Are you sure you want to close the day? This will download the daily stock status PDF, email it to the owner, and open WhatsApp to share the status.
+              </p>
+              
+              <div className="space-y-3 bg-gray-50 p-3 border border-gray-200 rounded">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Owner's WhatsApp Number</label>
+                  <input 
+                    type="tel"
+                    required
+                    value={ownerWhatsApp}
+                    onChange={e => setOwnerWhatsApp(e.target.value)}
+                    placeholder="e.g. +919876543210"
+                    className="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium bg-white text-black"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Owner's Email Address</label>
+                  <input 
+                    type="email"
+                    required
+                    value={ownerEmail}
+                    onChange={e => setOwnerEmail(e.target.value)}
+                    placeholder="e.g. owner@example.com"
+                    className="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium bg-white text-black"
+                  />
+                </div>
+              </div>
+              
+              <div className="flex space-x-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsCloseDayModalOpen(false)}
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 rounded text-sm transition-colors border border-gray-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={closeDayLoading}
+                  className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white font-bold py-2 rounded text-sm transition-colors border border-red-700 shadow"
+                >
+                  {closeDayLoading ? 'Closing Day...' : 'Send & Close Day'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Owner Settings Modal */}
+      {isOwnerSettingsModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-[110] p-4">
+          <div className="bg-white border border-gray-400 shadow-2xl rounded-lg w-full max-w-md overflow-hidden">
+            <div className="bg-[#2b579a] text-white p-3 font-bold flex justify-between items-center">
+              <span className="flex items-center space-x-2">
+                <Edit size={18} />
+                <span>Owner Contact Settings</span>
+              </span>
+              <button 
+                onClick={() => setIsOwnerSettingsModalOpen(false)}
+                className="text-white hover:text-red-300 font-bold focus:outline-none text-lg"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const formData = new FormData(e.currentTarget);
+              const whatsapp = formData.get('whatsapp') as string;
+              const email = formData.get('email') as string;
+              const pin = formData.get('pin') as string;
+              saveOwnerSettings(whatsapp, email, pin);
+              setGlobalNotification({ msg: 'Owner contact details updated successfully!', type: 'success' });
+              setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
+            }} className="p-4 space-y-4 text-left">
+              <p className="text-xs text-gray-500">
+                Update the owner's WhatsApp number, email and security PIN. These values will be used as defaults.
+              </p>
+              
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Owner's WhatsApp Number</label>
+                  <input 
+                    type="tel"
+                    name="whatsapp"
+                    required
+                    defaultValue={ownerWhatsApp}
+                    placeholder="e.g. +919876543210"
+                    className="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium bg-white text-black"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Owner's Email Address</label>
+                  <input 
+                    type="email"
+                    name="email"
+                    required
+                    defaultValue={ownerEmail}
+                    placeholder="e.g. owner@example.com"
+                    className="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium bg-white text-black"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Access PIN / Password</label>
+                  <input 
+                    type="password"
+                    name="pin"
+                    required
+                    defaultValue={ownerPin}
+                    placeholder="e.g. 1234"
+                    className="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium bg-white text-black"
+                  />
+                </div>
+              </div>
+              
+              <div className="flex space-x-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsOwnerSettingsModalOpen(false)}
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 rounded text-sm transition-colors border border-gray-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded text-sm transition-colors border border-blue-700 shadow"
+                >
+                  Save Settings
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* PIN Verification Modal */}
+      {isPinModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-[120] p-4">
+          <div className="bg-white border border-gray-400 shadow-2xl rounded-lg w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="bg-[#2b579a] text-white p-3 font-bold flex justify-between items-center">
+              <span>Security Access PIN Required</span>
+              <button 
+                onClick={() => setIsPinModalOpen(false)}
+                className="text-white hover:text-red-300 font-bold focus:outline-none"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              if (enteredPin === ownerPin) {
+                setIsPinModalOpen(false);
+                setIsOwnerSettingsModalOpen(true);
+              } else {
+                setPinError('Invalid PIN! Please check and try again.');
+              }
+            }} className="p-4 space-y-4 text-left">
+              <p className="text-xs text-gray-600 font-medium">
+                Please enter the security PIN to access the Owner Contact Settings.
+              </p>
+              
+              <div>
+                <input 
+                  type="password"
+                  required
+                  autoFocus
+                  value={enteredPin}
+                  onChange={e => {
+                    setEnteredPin(e.target.value);
+                    if (pinError) setPinError('');
+                  }}
+                  placeholder="Enter PIN (Default is 1234)"
+                  className="w-full border border-gray-300 rounded px-2.5 py-2 text-center text-lg tracking-widest focus:outline-none focus:ring-1 focus:ring-blue-500 font-bold bg-white text-black"
+                />
+                {pinError && (
+                  <p className="text-xs text-red-600 font-bold mt-1.5 text-center">{pinError}</p>
+                )}
+              </div>
+              
+              <div className="flex space-x-3 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setIsPinModalOpen(false)}
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 rounded text-sm transition-colors border border-gray-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded text-sm transition-colors border border-blue-700 shadow"
+                >
+                  Verify PIN
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );

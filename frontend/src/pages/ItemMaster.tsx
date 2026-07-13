@@ -429,7 +429,7 @@ const ItemMaster = () => {
         {/* Right Side: Product Directory Grid */}
         <div className={`${viewMode === 'form-only' ? 'hidden' : viewMode === 'table-only' ? 'w-full' : 'w-[42%]'} flex flex-col bg-white overflow-hidden p-6`}>
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-slate-700 font-semibold text-base">Product Directory Grid</h2>
+         
             <div className="flex items-center space-x-3">
               <div className="flex items-center space-x-1.5 bg-slate-100 p-1 rounded-full border border-slate-200">
                 <button

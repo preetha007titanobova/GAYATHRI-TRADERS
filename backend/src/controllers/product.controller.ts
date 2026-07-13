@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { prisma } from '../config/db';
 import * as productService from '../services/product.service';
+import * as notificationService from '../services/notification.service';
 
 export const searchItems = async (req: Request, res: Response) => {
   try {
@@ -115,3 +116,53 @@ export const deleteProduct = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Failed to delete product', details: error.message });
   }
 };
+
+export const getDailyStockStatus = async (req: Request, res: Response) => {
+  try {
+    const date = req.query.date as string || new Date().toISOString().split('T')[0];
+    const data = await productService.getDailyStockStatus(date);
+    res.json(data);
+  } catch (error: any) {
+    console.error("Daily Stock Status Error:", error);
+    res.status(500).json({ error: 'Failed to fetch daily stock status', details: error.message });
+  }
+};
+
+export const closeDay = async (req: Request, res: Response) => {
+  try {
+    const { date, pdf, email } = req.body;
+    if (!pdf) {
+      return res.status(400).json({ error: 'PDF data is required' });
+    }
+    
+    const filename = `Daily_Stock_Status_${date?.replace(/-/g, '_')}.pdf`;
+    const pdfUrl = await notificationService.uploadPdfToTmpFiles(pdf, filename);
+    
+    const emailSuccess = await notificationService.sendCloseDayEmail(date, pdf, email);
+    
+    res.json({ 
+      success: true, 
+      emailSuccess, 
+      pdfUrl, 
+      message: 'Close Day completed' 
+    });
+  } catch (error: any) {
+    console.error("Close Day Error:", error);
+    res.status(500).json({ error: 'Failed to complete Close Day', details: error.message });
+  }
+};
+
+export const uploadPdf = async (req: Request, res: Response) => {
+  try {
+    const { pdf, filename } = req.body;
+    if (!pdf) {
+      return res.status(400).json({ error: 'PDF data is required' });
+    }
+    const pdfUrl = await notificationService.uploadPdfToTmpFiles(pdf, filename || 'report.pdf');
+    res.json({ success: true, pdfUrl });
+  } catch (error: any) {
+    console.error("Upload PDF Error:", error);
+    res.status(500).json({ error: 'Failed to upload PDF', details: error.message });
+  }
+};
+
