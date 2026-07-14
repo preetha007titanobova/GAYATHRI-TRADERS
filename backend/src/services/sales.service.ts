@@ -54,18 +54,70 @@ export const createSalesBill = async (data: any): Promise<any> => {
   });
 
   if (items && items.length > 0) {
-    const itemsToInsert = items.map((item: any) => ({
+    const itemsToInsert = [];
+    for (const item of items) {
+      let productId = item.productId ? new ObjectId(item.productId as string) : null;
+      let product = null;
+      if (productId) {
+        product = await prisma.product.findUnique({
+          where: { id: productId.toString() }
+        });
+      }
+      if (!product && item.itemDesc) {
+        product = await prisma.product.findFirst({
+          where: {
+            OR: [
+              { itemCode: item.itemDesc },
+              { barcode: item.itemDesc }
+            ]
+          }
+        });
+      }
+      if (!product && item.itemName) {
+        product = await prisma.product.findFirst({
+          where: { name: item.itemName }
+        });
+      }
+
+      const qty = Number(item.qty) || 0;
+      if (product) {
+        productId = new ObjectId(product.id);
+        if (qty > 0) {
+          await prisma.product.updateMany({
+            where: { id: product.id },
+            data: {
+              stock: {
+                decrement: Math.round(qty)
+              }
+            }
+          });
+        }
+      } else {
+        if (qty > 0 && item.itemName) {
+          await prisma.product.updateMany({
+            where: { name: item.itemName },
+            data: {
+              stock: {
+                decrement: Math.round(qty)
+              }
+            }
+          });
+        }
+      }
+
+      itemsToInsert.push({
         salesBillId: billResult.insertedId,
         itemName: item.itemName,
         itemDesc: item.itemDesc,
-        qty: Number(item.qty) || 0,
+        qty: qty,
         uom: item.uom,
         rate: Number(item.rate) || 0,
         discPercent: Number(item.discPercent) || 0,
         discAmt: Number(item.discAmt) || 0,
         amount: Number(item.amount) || 0,
-        productId: item.productId ? new ObjectId(item.productId as string) : null
-    }));
+        productId: productId
+      });
+    }
     await db.collection('SalesItem').insertMany(itemsToInsert);
   }
 
@@ -81,6 +133,33 @@ export const updateSalesBill = async (id: string, data: any): Promise<boolean> =
   
   const db = await getDb();
   const billId = new ObjectId(id as string);
+
+  // Revert old stock changes
+  const oldItems = await db.collection('SalesItem').find({ salesBillId: billId }).toArray();
+  for (const item of oldItems) {
+    const qty = Number(item.qty) || 0;
+    if (qty > 0) {
+      if (item.productId) {
+        await prisma.product.updateMany({
+          where: { id: item.productId.toString() },
+          data: {
+            stock: {
+              increment: Math.round(qty)
+            }
+          }
+        });
+      } else if (item.itemName) {
+        await prisma.product.updateMany({
+          where: { name: item.itemName },
+          data: {
+            stock: {
+              increment: Math.round(qty)
+            }
+          }
+        });
+      }
+    }
+  }
 
   const billResult = await db.collection('SalesBill').updateOne(
     { _id: billId },
@@ -118,20 +197,72 @@ export const updateSalesBill = async (id: string, data: any): Promise<boolean> =
   // Delete existing items
   await db.collection('SalesItem').deleteMany({ salesBillId: billId });
 
-  // Insert new items
+  // Insert new items and reduce stock
   if (items && items.length > 0) {
-    const itemsToInsert = items.map((item: any) => ({
+    const itemsToInsert = [];
+    for (const item of items) {
+      let productId = item.productId ? new ObjectId(item.productId as string) : null;
+      let product = null;
+      if (productId) {
+        product = await prisma.product.findUnique({
+          where: { id: productId.toString() }
+        });
+      }
+      if (!product && item.itemDesc) {
+        product = await prisma.product.findFirst({
+          where: {
+            OR: [
+              { itemCode: item.itemDesc },
+              { barcode: item.itemDesc }
+            ]
+          }
+        });
+      }
+      if (!product && item.itemName) {
+        product = await prisma.product.findFirst({
+          where: { name: item.itemName }
+        });
+      }
+
+      const qty = Number(item.qty) || 0;
+      if (product) {
+        productId = new ObjectId(product.id);
+        if (qty > 0) {
+          await prisma.product.updateMany({
+            where: { id: product.id },
+            data: {
+              stock: {
+                decrement: Math.round(qty)
+              }
+            }
+          });
+        }
+      } else {
+        if (qty > 0 && item.itemName) {
+          await prisma.product.updateMany({
+            where: { name: item.itemName },
+            data: {
+              stock: {
+                decrement: Math.round(qty)
+              }
+            }
+          });
+        }
+      }
+
+      itemsToInsert.push({
         salesBillId: billId,
         itemName: item.itemName,
         itemDesc: item.itemDesc,
-        qty: Number(item.qty) || 0,
+        qty: qty,
         uom: item.uom,
         rate: Number(item.rate) || 0,
         discPercent: Number(item.discPercent) || 0,
         discAmt: Number(item.discAmt) || 0,
         amount: Number(item.amount) || 0,
-        productId: item.productId ? new ObjectId(item.productId as string) : null
-    }));
+        productId: productId
+      });
+    }
     await db.collection('SalesItem').insertMany(itemsToInsert);
   }
 
@@ -141,6 +272,33 @@ export const updateSalesBill = async (id: string, data: any): Promise<boolean> =
 export const deleteSalesBill = async (id: string): Promise<boolean> => {
   const db = await getDb();
   const billId = new ObjectId(id as string);
+
+  // Revert stock changes first
+  const oldItems = await db.collection('SalesItem').find({ salesBillId: billId }).toArray();
+  for (const item of oldItems) {
+    const qty = Number(item.qty) || 0;
+    if (qty > 0) {
+      if (item.productId) {
+        await prisma.product.updateMany({
+          where: { id: item.productId.toString() },
+          data: {
+            stock: {
+              increment: Math.round(qty)
+            }
+          }
+        });
+      } else if (item.itemName) {
+        await prisma.product.updateMany({
+          where: { name: item.itemName },
+          data: {
+            stock: {
+              increment: Math.round(qty)
+            }
+          }
+        });
+      }
+    }
+  }
 
   await db.collection('SalesItem').deleteMany({ salesBillId: billId });
   const result = await db.collection('SalesBill').deleteOne({ _id: billId });

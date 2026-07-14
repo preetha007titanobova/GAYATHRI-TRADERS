@@ -5,6 +5,7 @@ import { Calendar, Package, FileText } from 'lucide-react';
 import Api from '../Api';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import Modal from '../components/Modal';
 
 interface StockMove {
   id: string;
@@ -43,6 +44,19 @@ const StockRegister = () => {
   const [fromDate, setFromDate] = useState('2026-04-01');
   const [toDate, setToDate] = useState('2027-03-31');
   const [preset, setPreset] = useState('fin-year');
+
+  const activeItem = useMemo(() => {
+    return items.find(i => (i.id || i._id) === selectedItem);
+  }, [items, selectedItem]);
+
+  // Damages state
+  const [damages, setDamages] = useState<Record<string, { qty: number, reason: string }>>({});
+  
+  // Damages modal state
+  const [isDmgModalOpen, setIsDmgModalOpen] = useState(false);
+  const [selectedRowForDmg, setSelectedRowForDmg] = useState<StockMove | null>(null);
+  const [tempDmgQty, setTempDmgQty] = useState(0);
+  const [tempDmgReason, setTempDmgReason] = useState('');
 
   const handlePresetChange = (val: string) => {
     setPreset(val);
@@ -112,6 +126,18 @@ const StockRegister = () => {
     fetchItems();
   }, []);
 
+  // Load damages on mount
+  useEffect(() => {
+    const stored = localStorage.getItem('billing_damages');
+    if (stored) {
+      try {
+        setDamages(JSON.parse(stored));
+      } catch (e) {
+        console.error("Error parsing billing_damages", e);
+      }
+    }
+  }, []);
+
   // Fetch Ledger when Item changes
   useEffect(() => {
     const fetchLedger = async () => {
@@ -121,7 +147,45 @@ const StockRegister = () => {
         const res = await fetch(`${Api}/sales/stock-ledger/${selectedItem}`);
         if (res.ok) {
           const data = await res.json();
-          setMovements(data.movements || []);
+          const backendMovements = data.movements || [];
+
+          // Fetch local purchase bills
+          const storedBillsStr = localStorage.getItem('billing_purchase_bills');
+          const localPurchaseMovements: StockMove[] = [];
+          if (storedBillsStr && activeItem) {
+            try {
+              const storedBills = JSON.parse(storedBillsStr);
+              if (Array.isArray(storedBills)) {
+                storedBills.forEach((bill: any) => {
+                  if (bill.items && Array.isArray(bill.items)) {
+                    bill.items.forEach((pItem: any) => {
+                      const isMatch = (activeItem.itemCode && pItem.itemCode === activeItem.itemCode) ||
+                                      (activeItem.name && pItem.itemDesc?.toLowerCase() === activeItem.name.toLowerCase());
+                      if (isMatch) {
+                        localPurchaseMovements.push({
+                          id: `local-pb-${bill.voucherNo}-${pItem.itemCode || pItem.itemDesc}`,
+                          date: bill.date, // Format is YYYY-MM-DD
+                          vchType: 'Purchase',
+                          vchNo: bill.voucherNo,
+                          particulars: bill.supplierName || 'Supplier',
+                          inward: Number(pItem.qty) || 0,
+                          outward: 0
+                        });
+                      }
+                    });
+                  }
+                });
+              }
+            } catch (e) {
+              console.error("Error parsing local purchase bills", e);
+            }
+          }
+
+          const combinedMovements = [...backendMovements, ...localPurchaseMovements];
+          // Sort them by date to maintain chronological order
+          combinedMovements.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+          setMovements(combinedMovements);
           setOpeningBalance(data.openingBalance || 0);
         } else {
           setMovements([]);
@@ -134,7 +198,7 @@ const StockRegister = () => {
       }
     };
     fetchLedger();
-  }, [selectedItem]);
+  }, [selectedItem, activeItem]);
 
   const downloadPDF = () => {
     if (!activeItem) return;
@@ -258,29 +322,106 @@ const StockRegister = () => {
     return () => setToolbarActions({});
   }, [setToolbarActions, setGlobalNotification]);
 
-  const activeItem = items.find(i => (i.id || i._id) === selectedItem);
-
   const ledgerRows = useMemo(() => {
-    const filtered = movements.filter(m => m.date >= fromDate && m.date <= toDate).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const filtered = movements.filter(m => {
+      const mDateStr = new Date(m.date).toISOString().split('T')[0];
+      return mDateStr >= fromDate && mDateStr <= toDate;
+    }).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     
     // Calculate opening balance based on moves before fromDate
-    const priorMoves = movements.filter(m => m.date < fromDate);
+    const priorMoves = movements.filter(m => {
+      const mDateStr = new Date(m.date).toISOString().split('T')[0];
+      return mDateStr < fromDate;
+    });
+    
     let currentBal = openingBalance;
     priorMoves.forEach(m => {
+      const dmg = damages[m.id]?.qty || 0;
       currentBal += m.inward;
       currentBal -= m.outward;
+      currentBal -= dmg;
     });
 
     const calculatedOpeningBalance = currentBal;
 
     const rowsWithBal = filtered.map(m => {
+      const dmg = damages[m.id]?.qty || 0;
       currentBal += m.inward;
       currentBal -= m.outward;
-      return { ...m, balance: currentBal };
+      currentBal -= dmg;
+      return { ...m, balance: currentBal, damageQty: dmg, damageReason: damages[m.id]?.reason || '' };
     });
 
     return { openingBalance: calculatedOpeningBalance, rows: rowsWithBal, closingBalance: currentBal };
-  }, [movements, openingBalance, fromDate, toDate]);
+  }, [movements, openingBalance, fromDate, toDate, damages]);
+
+  const handleOpenDamagesModal = (row: any) => {
+    setSelectedRowForDmg(row);
+    const existing = damages[row.id] || { qty: 0, reason: '' };
+    setTempDmgQty(existing.qty);
+    setTempDmgReason(existing.reason);
+    setIsDmgModalOpen(true);
+  };
+
+  const handleSaveDamages = async () => {
+    if (!selectedRowForDmg || !activeItem) return;
+
+    const prevQty = damages[selectedRowForDmg.id]?.qty || 0;
+    const newQty = Number(tempDmgQty) || 0;
+    const adjustment = prevQty - newQty;
+
+    const updatedDamages = {
+      ...damages,
+      [selectedRowForDmg.id]: {
+        qty: newQty,
+        reason: tempDmgReason
+      }
+    };
+
+    // Remove key if qty is 0
+    if (newQty <= 0) {
+      delete updatedDamages[selectedRowForDmg.id];
+    }
+
+    try {
+      // Sync to backend DB
+      const updatedProduct = {
+        ...activeItem,
+        price: activeItem.price || 0,
+        stock: activeItem.stock + adjustment
+      };
+
+      const res = await fetch(`${Api}/products/${activeItem.id || activeItem._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedProduct)
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to update product stock in DB');
+      }
+
+      // Update Local Storage & State
+      localStorage.setItem('billing_damages', JSON.stringify(updatedDamages));
+      setDamages(updatedDamages);
+
+      // Update local product items list so activeItem's stock changes immediately
+      setItems(prev => prev.map(p => {
+        if ((p.id || p._id) === (activeItem.id || activeItem._id)) {
+          return { ...p, stock: p.stock + adjustment };
+        }
+        return p;
+      }));
+
+      setGlobalNotification({ msg: `Damages of ${newQty} recorded successfully!`, type: 'success' });
+    } catch (err: any) {
+      console.error(err);
+      setGlobalNotification({ msg: err.message || 'Failed to update damages.', type: 'error' });
+    } finally {
+      setIsDmgModalOpen(false);
+      setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
+    }
+  };
 
   return (
     <div className="flex flex-col h-full bg-[#f0f9f4] p-2 overflow-hidden">
@@ -382,19 +523,20 @@ const StockRegister = () => {
                 <th className="border-r border-[#142d54] p-2 text-xs font-semibold">Particulars</th>
                 <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-28 text-right text-green-300">Inward Qty</th>
                 <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-28 text-right text-red-300">Outward Qty</th>
+                <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-32 text-right text-orange-300">Damages</th>
                 <th className="p-2 text-xs font-semibold w-32 text-right text-yellow-300">Running Bal.</th>
               </tr>
             </thead>
             <tbody>
               {loadingLedger ? (
                 <tr>
-                  <td colSpan={7} className="p-12 text-center text-gray-500">
+                  <td colSpan={8} className="p-12 text-center text-gray-500">
                     Loading stock movements...
                   </td>
                 </tr>
               ) : ledgerRows.rows.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="p-12 text-center text-gray-400">
+                  <td colSpan={8} className="p-12 text-center text-gray-400">
                     <div className="flex flex-col items-center">
                       <FileText size={32} className="mb-2 opacity-50" />
                       <p className="italic text-sm">No stock movements found for this period.</p>
@@ -402,7 +544,7 @@ const StockRegister = () => {
                   </td>
                 </tr>
               ) : (
-                ledgerRows.rows.map((row, idx) => {
+                ledgerRows.rows.map((row: any, idx) => {
                   const dateObj = new Date(row.date);
                   const formattedDate = !isNaN(dateObj.getTime()) ? dateObj.toISOString().split('T')[0].split('-').reverse().join('-') : row.date;
                   return (
@@ -413,6 +555,16 @@ const StockRegister = () => {
                       <td className="border-r border-gray-200 p-2 font-medium text-gray-800">{row.particulars}</td>
                       <td className="border-r border-gray-200 p-2 text-right font-mono font-bold text-green-600 bg-green-50/30">{row.inward > 0 ? row.inward : ''}</td>
                       <td className="border-r border-gray-200 p-2 text-right font-mono font-bold text-red-600 bg-red-50/30">{row.outward > 0 ? row.outward : ''}</td>
+                      <td 
+                        className="border-r border-gray-200 p-2 text-right font-mono font-bold text-orange-600 bg-orange-50/10 cursor-pointer hover:bg-orange-100/30"
+                        onClick={() => handleOpenDamagesModal(row)}
+                        title={row.damageReason ? `Reason: ${row.damageReason}` : 'Click to enter damages'}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-gray-400 italic max-w-[90px] truncate">{row.damageReason}</span>
+                          <span>{row.damageQty > 0 ? row.damageQty : '-'}</span>
+                        </div>
+                      </td>
                       <td className="p-2 text-right font-mono font-black text-gray-900 bg-yellow-50/20">{row.balance}</td>
                     </tr>
                   )
@@ -431,6 +583,57 @@ const StockRegister = () => {
         </div>
 
       </div>
+
+      {/* DAMAGES ENTRY MODAL */}
+      <Modal
+        isOpen={isDmgModalOpen}
+        onClose={() => setIsDmgModalOpen(false)}
+        title={`Enter Damages - ${selectedRowForDmg?.vchNo || ''}`}
+      >
+        <div className="flex flex-col space-y-4">
+          <div className="bg-orange-50 border border-orange-200 p-3 rounded text-orange-800 text-xs font-semibold">
+            Product: <span className="font-bold">{activeItem?.name}</span>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1">Damaged Quantity</label>
+            <input
+              type="number"
+              min="0"
+              value={tempDmgQty}
+              onChange={e => setTempDmgQty(Number(e.target.value) || 0)}
+              className="w-full border border-gray-400 p-2 rounded text-sm focus:border-blue-500 focus:outline-none"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1">Reason for Damage</label>
+            <textarea
+              value={tempDmgReason}
+              onChange={e => setTempDmgReason(e.target.value)}
+              placeholder="e.g. Expired, mice damage, torn packing..."
+              className="w-full border border-gray-400 p-2 rounded text-sm focus:border-blue-500 focus:outline-none"
+              rows={3}
+            />
+          </div>
+
+          <div className="flex justify-end space-x-2 pt-2">
+            <button
+              onClick={() => setIsDmgModalOpen(false)}
+              className="bg-gray-100 border border-gray-300 text-gray-700 px-4 py-2 rounded text-sm hover:bg-gray-200 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSaveDamages}
+              className="bg-blue-600 border border-blue-700 text-white px-4 py-2 rounded text-sm hover:bg-blue-700 transition-colors shadow font-bold"
+            >
+              Save Changes
+            </button>
+          </div>
+        </div>
+      </Modal>
+
     </div>
   );
 };
