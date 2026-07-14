@@ -14,7 +14,6 @@ import SalesRegister from './pages/SalesRegister';
 import PurchaseBill from './pages/PurchaseBill';
 import PurReturn from './pages/PurReturn';
 import PurRegister from './pages/PurRegister';
-import CustomerLedger from './pages/CustomerLedger';
 
 import StockStatus from './pages/StockStatus';
 import StockRegister from './pages/StockRegister';
@@ -46,7 +45,6 @@ function App() {
           <Route path="sales-bill" element={<POSCheckout />} />
           <Route path="sales-return" element={<SalesReturn />} />
           <Route path="sales-register" element={<SalesRegister />} />
-          <Route path="customer-ledger" element={<CustomerLedger />} />
           
           {/* Purchase */}
           <Route path="purchase-bill" element={<PurchaseBill />} />

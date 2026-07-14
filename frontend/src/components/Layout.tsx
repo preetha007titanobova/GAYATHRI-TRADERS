@@ -240,7 +240,6 @@ const Layout = () => {
       '/sales-bill': 'Sales Bill',
       '/sales-return': 'Sales Return',
       '/sales-register': 'Sales Register',
-      '/customer-ledger': 'Customer Ledger',
       '/purchase-bill': 'Purchase Bill',
       '/pur-return': 'Pur. Return',
       '/pur-register': 'Pur. Register',
@@ -347,7 +346,6 @@ const Layout = () => {
                <Link to="/sales-order" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Sales Order</Link>
                <Link to="/sales-bill" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Sales Bill</Link>
                <Link to="/sales-return" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Sales Return</Link>
-               <Link to="/customer-ledger" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium text-emerald-800 font-semibold">⭐ Customer Ledger</Link>
                <div className="border-t border-gray-300 my-1"></div>
                <Link to="/sales-register" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Sales Register</Link>
             </div>
