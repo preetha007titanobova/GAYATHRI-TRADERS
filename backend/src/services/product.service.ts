@@ -46,18 +46,19 @@ export const createProduct = async (data: Product): Promise<any> => {
   });
 };
 
-export const updateProduct = async (id: string, data: Product): Promise<boolean> => {
+export const updateProduct = async (id: string, data: any): Promise<boolean> => {
   const db = await getDb();
+  const { id: _, _id, createdAt, updatedAt, ...updatableFields } = data;
   const result = await db.collection('Product').updateOne(
     { _id: new ObjectId(id as string) },
     {
       $set: {
-        ...data,
+        ...updatableFields,
         purchaseRate: Number(data.purchaseRate) || 0,
         price: Number(data.price) || 0,
         mrp: Number(data.mrp) || 0,
         taxPercent: Number(data.taxPercent) || 0,
-        stock: Number(data.stock) || 0,
+        stock: Math.round(Number(data.stock) || 0),
         updatedAt: new Date()
       }
     }
