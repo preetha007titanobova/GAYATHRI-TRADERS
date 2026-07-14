@@ -35,23 +35,37 @@ const POSCheckout = () => {
   const [address, setAddress] = useState('');
   const [eType, setEType] = useState('Local');
   const [mobileNo, setMobileNo] = useState('');
-  const [gstNo, setGstNo] = useState('');
   const [printIn, setPrintIn] = useState('Blank A4');
   const [invoiceFormat, setInvoiceFormat] = useState('GSTFormat Full Page');
+  const [isRegularCustomer, setIsRegularCustomer] = useState(false);
+
+  const fetchAvailableCustomers = () => {
+    fetch(`${Api}/ledgers/search?group=Customers`)
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) setAvailableCustomers(data);
+      })
+      .catch(err => console.error("Error fetching customers:", err));
+  };
 
   // Searchable Buyer State
   const [customerSearch, setCustomerSearch] = useState('CASH');
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [favourDiscount, setFavourDiscount] = useState<number>(0);
+  const [favourType, setFavourType] = useState('None'); // 'None' | 'Half' | 'Free' | 'Percent' | 'Amount'
+  const [favourPercent, setFavourPercent] = useState<number | string>(0);
   const [paidAmount, setPaidAmount] = useState<number>(0);
   const [pendingAmount, setPendingAmount] = useState<number>(0);
+
+  useEffect(() => {
+    localStorage.setItem('active_selected_customer_name', buyerName);
+  }, [buyerName]);
 
   // Quick Customer Creation modal states
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [newCustName, setNewCustName] = useState('');
   const [newCustMobile, setNewCustMobile] = useState('');
   const [newCustEmail, setNewCustEmail] = useState('');
-  const [newCustGST, setNewCustGST] = useState('');
   const [newCustOpeningBal, setNewCustOpeningBal] = useState<number>(0);
   const [newCustCreditLimit, setNewCustCreditLimit] = useState<number>(0);
   const [custLoading, setCustLoading] = useState(false);
@@ -119,7 +133,8 @@ const POSCheckout = () => {
     message?: string, 
     title?: string, 
     yesText?: string, 
-    noText?: string
+    noText?: string,
+    showRegularCheckbox?: boolean
   }>({isOpen: false, action: null});
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -138,12 +153,7 @@ const POSCheckout = () => {
       .catch(err => console.error("Error fetching products:", err));
 
     // Fetch available customers
-    fetch(`${Api}/ledgers/search?group=Customers`)
-      .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data)) setAvailableCustomers(data);
-      })
-      .catch(err => console.error("Error fetching customers:", err));
+    fetchAvailableCustomers();
 
     const invoiceToEdit = location.state?.invoiceToEdit;
     if (invoiceToEdit) {
@@ -157,7 +167,6 @@ const POSCheckout = () => {
       setAddress(invoiceToEdit.address || '');
       setEType(invoiceToEdit.eType || 'Local');
       setMobileNo(invoiceToEdit.mobileNo || '');
-      setGstNo(invoiceToEdit.gstNo || '');
       setPrintIn(invoiceToEdit.printIn || 'Blank A4');
       setInvoiceFormat(invoiceToEdit.invFormat || invoiceToEdit.invoiceFormat || 'GSTFormat Full Page');
       
@@ -239,7 +248,6 @@ const POSCheckout = () => {
       accountGroup: 'Customers',
       mobileNo: newCustMobile,
       email: newCustEmail,
-      gstNo: newCustGST,
       openingBalance: Number(newCustOpeningBal) || 0,
       drCr: 'Dr',
       creditLimit: Number(newCustCreditLimit) || 0,
@@ -261,20 +269,14 @@ const POSCheckout = () => {
         setBuyerName(newCustName);
         setCustomerSearch(newCustName);
         setMobileNo(newCustMobile);
-        setGstNo(newCustGST);
         
         // Refresh customer list
-        const custRes = await fetch(`${Api}/ledgers/search?group=Customers`);
-        const custData = await custRes.json();
-        if (Array.isArray(custData)) {
-          setAvailableCustomers(custData);
-        }
+        fetchAvailableCustomers();
 
         setIsCustomerModalOpen(false);
         setNewCustName('');
         setNewCustMobile('');
         setNewCustEmail('');
-        setNewCustGST('');
         setNewCustOpeningBal(0);
         setNewCustCreditLimit(0);
       } else {
@@ -303,6 +305,37 @@ const POSCheckout = () => {
   const selectedCustomerObj = useMemo(() => {
     return availableCustomers.find(c => c.accountName === buyerName);
   }, [availableCustomers, buyerName]);
+
+  // Auto-detect if entered name/phone matches an existing regular customer
+  useEffect(() => {
+    if (buyerName && buyerName !== 'CASH') {
+      if (mobileNo) {
+        const match = availableCustomers.find(
+          c => c.accountName.toLowerCase() === buyerName.toLowerCase() && 
+               c.mobileNo === mobileNo
+        );
+        if (match) {
+          setIsRegularCustomer(!!match.isRegular);
+        }
+      }
+    } else {
+      setIsRegularCustomer(false);
+    }
+  }, [buyerName, mobileNo, availableCustomers]);
+
+  // Dynamically update favourDiscount based on favourType, favourPercent, and totalAmount
+  useEffect(() => {
+    if (favourType === 'None') {
+      setFavourDiscount(0);
+    } else if (favourType === 'Half') {
+      setFavourDiscount(Number((totalAmount * 0.5).toFixed(2)));
+    } else if (favourType === 'Free') {
+      setFavourDiscount(totalAmount);
+    } else if (favourType === 'Percent') {
+      const p = Number(favourPercent) || 0;
+      setFavourDiscount(Number((totalAmount * (p / 100)).toFixed(2)));
+    }
+  }, [favourType, favourPercent, totalAmount]);
 
   const filteredProducts = availableProducts
     .filter(p => {
@@ -451,19 +484,72 @@ const POSCheckout = () => {
       return;
     }
 
+    const isPending = Number(pendingAmount) > 0;
+
     setConfirmModalState({
       isOpen: true,
+      title: isPending ? "Confirm Credit Sale" : "Save Invoice",
+      message: isPending ? "This invoice contains pending dues. Do you want to save it?" : "Do you want to save this invoice?",
+      showRegularCheckbox: isPending && buyerName !== 'CASH',
       action: () => executeSave(validItems)
     });
   };
 
   const executeSave = async (validItems: any[]) => {
     setConfirmModalState({isOpen: false, action: null});
+
+    // Sync or auto-create Customer Ledger if buyerName is not CASH
+    if (buyerName && buyerName !== 'CASH') {
+      const match = selectedCustomerObj || availableCustomers.find(
+        c => c.accountName.toLowerCase() === buyerName.toLowerCase() && 
+             c.mobileNo === mobileNo
+      );
+      if (match && (match._id || match.id)) {
+        try {
+          await fetch(`${Api}/ledgers/${match._id || match.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ...match,
+              isRegular: isRegularCustomer,
+              mobileNo: mobileNo || match.mobileNo
+            })
+          });
+        } catch (err) {
+          console.error("Failed to update regular status in save:", err);
+        }
+      } else {
+        // Auto-create customer ledger entry since they don't exist
+        try {
+          const codeRes = await fetch(`${Api}/ledgers/next-code`);
+          const codeData = await codeRes.json();
+          const nextLdgCode = codeData.ledgerCode || 'LDG-001';
+          
+          await fetch(`${Api}/ledgers`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ledgerCode: nextLdgCode,
+              accountName: buyerName,
+              accountGroup: 'Customers',
+              mobileNo: mobileNo,
+              openingBalance: 0,
+              drCr: 'Dr',
+              creditLimit: 0,
+              isRegular: isRegularCustomer
+            })
+          });
+        } catch (err) {
+          console.error("Failed to auto-create ledger for customer in save:", err);
+        }
+      }
+    }
     
     const payload = {
       invoiceNo, invDate, payDays, buyerName, address, eType, 
-      mobileNo, gstNo, printIn, invoiceFormat, totalQty, totalAmount, 
+      mobileNo, printIn, invoiceFormat, totalQty, totalAmount, 
       favourDiscount: Number(favourDiscount) || 0,
+      favourType: favourType,
       cgst, sgst, roundOff, netAmount,
       paidAmount: Number(paidAmount) || 0,
       pendingAmount: Number(pendingAmount) || 0,
@@ -520,7 +606,6 @@ const POSCheckout = () => {
         setBuyerName('CASH');
         setAddress('');
         setMobileNo('');
-        setGstNo('');
         setTendered(0);
         setFavourDiscount(0);
         setPaidAmount(0);
@@ -975,11 +1060,9 @@ const POSCheckout = () => {
                           if (c.accountName === 'CASH') {
                             setAddress('');
                             setMobileNo('');
-                            setGstNo('');
                           } else {
                             setAddress(c.address || '');
                             setMobileNo(c.mobileNo || '');
-                            setGstNo(c.gstNo || '');
                           }
                           setShowCustomerDropdown(false);
                         }}
@@ -1015,14 +1098,45 @@ const POSCheckout = () => {
              <option>Interstate</option>
           </select>
 
-          <label className="legacy-label text-right">Address</label>
-          <input type="text" className="legacy-input col-span-3 py-0.5" value={address} onChange={e => setAddress(e.target.value)} />
-          
           <label className="legacy-label text-right">Mobile</label>
           <input type="text" className="legacy-input col-span-2 py-0.5" value={mobileNo} onChange={e => setMobileNo(e.target.value)} />
 
-          <label className="legacy-label text-right">GST No</label>
-          <input type="text" className="legacy-input col-span-2 py-0.5" value={gstNo} onChange={e => setGstNo(e.target.value)} />
+          <label className="legacy-label text-right">Regular</label>
+          <div className="col-span-2 flex items-center">
+            <input 
+              type="checkbox"
+              id="sales-bill-regular-checkbox"
+              className="mr-1.5 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+              checked={isRegularCustomer}
+              disabled={buyerName === 'CASH'}
+              onChange={async (e) => {
+                const checked = e.target.checked;
+                setIsRegularCustomer(checked);
+                
+                const match = selectedCustomerObj || availableCustomers.find(
+                  c => c.accountName.toLowerCase() === buyerName.toLowerCase() && 
+                       c.mobileNo === mobileNo
+                );
+                
+                if (match && (match._id || match.id)) {
+                  try {
+                    await fetch(`${Api}/ledgers/${match._id || match.id}`, {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        ...match,
+                        isRegular: checked
+                      })
+                    });
+                    fetchAvailableCustomers();
+                  } catch (err) {
+                    console.error("Failed to update regular status:", err);
+                  }
+                }
+              }}
+            />
+            <span className="text-[10px] font-bold text-gray-700 select-none cursor-pointer">Regular Customer</span>
+          </div>
 
           <label className="legacy-label text-right">Salesman</label>
           <input type="text" className="legacy-input col-span-2 bg-yellow-50 py-0.5" value={salesman} onChange={e => setSalesman(e.target.value)} placeholder="Billed By" />
@@ -1044,7 +1158,6 @@ const POSCheckout = () => {
             <div>Current Balance: <span className="font-mono text-[#c55a11]">₹{selectedCustomerObj.openingBalance?.toLocaleString() || 0} {selectedCustomerObj.drCr || 'Dr'}</span></div>
             <div>Credit Limit: <span className="font-mono">₹{selectedCustomerObj.creditLimit?.toLocaleString() || 0}</span></div>
             <div>Allowed Period: <span>{selectedCustomerObj.defaultCreditPeriod || 0} Days</span></div>
-            <div>GSTIN: <span>{selectedCustomerObj.gstNo || 'N/A'}</span></div>
           </div>
         </div>
       )}
@@ -1145,6 +1258,34 @@ const POSCheckout = () => {
           <input type="text" className="legacy-input col-span-2 text-right font-bold py-0.5" value={totalAmount.toFixed(2)} disabled />
 
           <label className="legacy-label col-span-2 text-right text-emerald-700 font-bold flex items-center justify-end">
+            Owner Decision
+          </label>
+          <select 
+            className="legacy-input col-span-2 py-0.5 font-bold bg-yellow-50 border-yellow-400 text-yellow-800 text-[11px]"
+            value={favourType}
+            onChange={e => setFavourType(e.target.value)}
+          >
+            <option value="None">Full Price (0% Disc)</option>
+            <option value="Half">Half Price (50% Disc)</option>
+            <option value="Free">Free (100% Disc)</option>
+            <option value="Percent">Custom Percent (%)</option>
+            <option value="Amount">Custom Amount (₹)</option>
+          </select>
+
+          {favourType === 'Percent' && (
+            <>
+              <label className="legacy-label col-span-2 text-right">Favour %</label>
+              <input 
+                type="number" 
+                className="legacy-input col-span-2 text-right py-0.5" 
+                value={favourPercent} 
+                onChange={e => setFavourPercent(e.target.value)} 
+                placeholder="Discount %"
+              />
+            </>
+          )}
+
+          <label className="legacy-label col-span-2 text-right text-emerald-700 font-bold flex items-center justify-end">
             {selectedCustomerObj?.isRegular && <span className="text-yellow-600 mr-1">⭐</span>}
             Favour Disc (₹)
           </label>
@@ -1153,7 +1294,8 @@ const POSCheckout = () => {
             className={`legacy-input col-span-2 text-right py-0.5 font-bold focus:bg-yellow-100 ${selectedCustomerObj?.isRegular ? 'bg-yellow-50 border-yellow-400 text-yellow-800' : ''}`} 
             value={favourDiscount || ''} 
             onChange={e => setFavourDiscount(Number(e.target.value))} 
-            placeholder="Special Discount"
+            disabled={favourType !== 'Amount'}
+            placeholder="Discount Amount"
           />
           
           <label className="legacy-label col-span-2 flex items-center justify-end">
@@ -1338,6 +1480,20 @@ const POSCheckout = () => {
               <p className="text-sm text-gray-800 font-semibold mb-2">{confirmModalState.message || "Do you want to save these changes permanently?"}</p>
               {!confirmModalState.title && <p className="text-xs text-gray-600">This action cannot be undone.</p>}
             </div>
+            {confirmModalState.showRegularCheckbox && (
+              <div className="flex items-center px-4 py-2 bg-blue-50 border-b border-gray-300">
+                <input 
+                  type="checkbox"
+                  id="confirm-modal-regular-checkbox"
+                  className="mr-2 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+                  checked={isRegularCustomer}
+                  onChange={(e) => setIsRegularCustomer(e.target.checked)}
+                />
+                <label htmlFor="confirm-modal-regular-checkbox" className="text-xs font-bold text-blue-900 cursor-pointer select-none">
+                  Is this a Regular Customer?
+                </label>
+              </div>
+            )}
             <div className="bg-gray-100 px-4 py-2 flex justify-end space-x-2 border-t border-gray-300">
               <button 
                 id="confirm-cancel-btn"
@@ -1419,18 +1575,6 @@ const POSCheckout = () => {
                   value={newCustEmail} 
                   onChange={e => setNewCustEmail(e.target.value)} 
                   placeholder="e.g. email@example.com"
-                />
-              </div>
-
-              <div className="flex flex-col">
-                <label className="mb-1 text-gray-700">GST Number (Optional)</label>
-                <input 
-                  type="text" 
-                  className="legacy-input w-full p-1 uppercase" 
-                  value={newCustGST} 
-                  onChange={e => setNewCustGST(e.target.value)} 
-                  placeholder="15-digit GSTIN"
-                  maxLength={15}
                 />
               </div>
 

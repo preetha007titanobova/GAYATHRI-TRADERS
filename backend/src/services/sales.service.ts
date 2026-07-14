@@ -2,20 +2,24 @@ import { ObjectId } from 'mongodb';
 import { prisma, getDb } from '../config/db';
 
 export const getNextInvoice = async (): Promise<string> => {
-  const lastBill = await prisma.salesBill.findFirst({
-    orderBy: { createdAt: 'desc' }
+  const bills = await prisma.salesBill.findMany({
+    select: { invoiceNo: true }
   });
   
-  let nextNum = 1;
-  if (lastBill && lastBill.invoiceNo.startsWith('INV-')) {
-    const parts = lastBill.invoiceNo.split('-');
-    const parsed = parseInt(parts[2] || '0');
-    if (!isNaN(parsed)) {
-      nextNum = parsed + 1;
-    }
-  }
-  
   const year = new Date().getFullYear();
+  let maxNum = 0;
+  
+  bills.forEach(b => {
+    if (b.invoiceNo && b.invoiceNo.startsWith(`INV-${year}-`)) {
+      const parts = b.invoiceNo.split('-');
+      const num = parseInt(parts[2]);
+      if (!isNaN(num) && num > maxNum) {
+        maxNum = num;
+      }
+    }
+  });
+  
+  const nextNum = maxNum + 1;
   return `INV-${year}-${nextNum.toString().padStart(4, '0')}`;
 };
 

@@ -32,6 +32,109 @@ const Layout = () => {
     isTaxBill: true,
     isRetailBill: false
   });
+
+  // States for detailed customer profile modal in top bar
+  const [selectedDetailCust, setSelectedDetailCust] = useState<any | null>(null);
+  const [custDetailDues, setCustDetailDues] = useState<{
+    opening: number;
+    sales: number;
+    payments: number;
+    outstanding: number;
+  }>({ opening: 0, sales: 0, payments: 0, outstanding: 0 });
+  const [custDetailHistory, setCustDetailHistory] = useState<any[]>([]);
+  const [custDetailLoading, setCustDetailLoading] = useState(false);
+
+  // States for regular customer list modal in top bar
+  const [isRegularCustModalOpen, setIsRegularCustModalOpen] = useState(false);
+  const [regularCusts, setRegularCusts] = useState<any[]>([]);
+
+  const openRegularCustsModal = () => {
+    setIsRegularCustModalOpen(true);
+    fetch(`${Api}/ledgers/search?group=Customers`)
+      .then(res => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          const regulars = data.filter(c => c.isRegular);
+          setRegularCusts(regulars);
+        }
+      })
+      .catch(err => console.error("Failed to load regular customers:", err));
+  };
+
+  const openCustomerDetailByName = async (customerName: string) => {
+    if (!customerName || customerName === 'CASH') return;
+    setCustDetailLoading(true);
+    
+    try {
+      const resLedgers = await fetch(`${Api}/ledgers/search?group=Customers`);
+      const ledgers = await resLedgers.json();
+      const ledger = ledgers.find((l: any) => l.accountName === customerName);
+      
+      if (!ledger) {
+        setCustDetailLoading(false);
+        return;
+      }
+      
+      setSelectedDetailCust(ledger);
+      
+      const [invoiceRes, paymentRes] = await Promise.all([
+        fetch(`${Api}/sales/search?customer=${encodeURIComponent(customerName)}`),
+        fetch(`${Api}/payments?customer=${encodeURIComponent(customerName)}`)
+      ]);
+      
+      const invoices = await invoiceRes.json();
+      const payments = await paymentRes.json();
+      
+      const opening = ledger.openingBalance || 0;
+      let salesTotal = 0;
+      const historyItems: any[] = [];
+      
+      if (Array.isArray(invoices)) {
+        invoices.forEach(inv => {
+          salesTotal += inv.netAmount || 0;
+          historyItems.push({
+            date: inv.invDate,
+            ref: inv.invoiceNo,
+            type: 'Credit Sale',
+            debit: inv.netAmount,
+            credit: 0
+          });
+        });
+      }
+      
+      let paymentsTotal = 0;
+      if (Array.isArray(payments)) {
+        payments.forEach(pay => {
+          paymentsTotal += pay.amount || 0;
+          historyItems.push({
+            date: pay.date || pay.createdAt,
+            ref: pay.paymentMode || 'Payment',
+            type: 'Payment Collected',
+            debit: 0,
+            credit: pay.amount
+          });
+        });
+      }
+      
+      historyItems.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      
+      const outstanding = ledger.drCr === 'Dr' 
+        ? (opening + salesTotal - paymentsTotal) 
+        : (salesTotal - (opening + paymentsTotal));
+        
+      setCustDetailDues({
+        opening,
+        sales: salesTotal,
+        payments: paymentsTotal,
+        outstanding
+      });
+      setCustDetailHistory(historyItems);
+    } catch (err) {
+      console.error("Failed to load customer statement details:", err);
+    } finally {
+      setCustDetailLoading(false);
+    }
+  };
   const location = useLocation();
 
   const [isCloseDayModalOpen, setIsCloseDayModalOpen] = useState(false);
@@ -408,6 +511,16 @@ const Layout = () => {
             <input type="checkbox" className="form-checkbox" checked={globalSettings.isSelectedCustomer} onChange={e => setGlobalSettings({...globalSettings, isSelectedCustomer: e.target.checked})} />
             <span>Selected Customer ?</span>
           </label>
+          {globalSettings.isSelectedCustomer && localStorage.getItem('active_selected_customer_name') && localStorage.getItem('active_selected_customer_name') !== 'CASH' && (
+            <button
+              type="button"
+              onClick={() => openCustomerDetailByName(localStorage.getItem('active_selected_customer_name') || '')}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-2 py-0.5 rounded text-[10px] shadow-sm ml-1 transition-colors flex items-center"
+              title="Click to view selected customer history details"
+            >
+              👤 {localStorage.getItem('active_selected_customer_name')}
+            </button>
+          )}
           <label className="flex items-center space-x-1 cursor-pointer">
             <input type="checkbox" className="form-checkbox" checked={globalSettings.isChallan} onChange={e => setGlobalSettings({...globalSettings, isChallan: e.target.checked})} />
             <span>Challan</span>
@@ -422,6 +535,13 @@ const Layout = () => {
           </label>
         </div>
           <div className="flex space-x-1">
+          <button 
+            onClick={openRegularCustsModal}
+            className="flex flex-col items-center justify-center p-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded min-w-[70px] focus:outline-none transition-colors shadow"
+          >
+            <TrendingUp size={16} />
+            <span className="text-[10px] mt-1 font-bold">REGULAR CUST</span>
+          </button>
           <button 
             onClick={() => {
               setEnteredPin('');
@@ -787,6 +907,174 @@ const Layout = () => {
         </div>
       )}
 
+      {/* Regular Customers List Modal */}
+      {isRegularCustModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1000] p-4">
+          <div className="bg-[#f0f4f8] w-[450px] max-h-[80vh] border border-gray-400 rounded shadow-2xl flex flex-col overflow-hidden text-gray-800 text-xs">
+            {/* Header */}
+            <div className="bg-emerald-700 text-white px-4 py-2 text-sm font-bold flex justify-between items-center">
+              <span>⭐ Regular Customers Directory</span>
+              <button onClick={() => setIsRegularCustModalOpen(false)} className="text-white hover:text-red-200 font-bold text-lg">✕</button>
+            </div>
+            {/* Body */}
+            <div className="p-4 flex-1 overflow-y-auto space-y-2 text-left">
+              {regularCusts.length === 0 ? (
+                <div className="text-center italic py-10 text-gray-500">No regular customers marked in the system.</div>
+              ) : (
+                <div className="border border-gray-300 rounded overflow-hidden">
+                  <table className="w-full text-left border-collapse text-xs bg-white">
+                    <thead className="bg-[#e9ecef] font-bold text-gray-700">
+                      <tr>
+                        <th className="p-2 border-b border-gray-300">Name</th>
+                        <th className="p-2 border-b border-gray-300">Mobile</th>
+                        <th className="p-2 border-b border-gray-300 text-right">Limit</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {regularCusts.map((c, i) => (
+                        <tr key={c._id || i} className="border-b border-gray-200 hover:bg-emerald-50">
+                          <td className="p-2 font-bold">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsRegularCustModalOpen(false);
+                                openCustomerDetailByName(c.accountName);
+                              }}
+                              className="text-blue-600 hover:underline hover:text-blue-800 text-left font-bold"
+                            >
+                              {c.accountName}
+                            </button>
+                          </td>
+                          <td className="p-2 font-mono">{c.mobileNo || 'N/A'}</td>
+                          <td className="p-2 text-right font-mono">₹{c.creditLimit || 0}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+            {/* Footer */}
+            <div className="bg-gray-100 px-4 py-2 border-t border-gray-300 flex justify-end">
+              <button onClick={() => setIsRegularCustModalOpen(false)} className="px-4 py-1.5 bg-gray-200 hover:bg-gray-300 font-bold border border-gray-400 rounded-sm">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Complete Customer Details Modal */}
+      {selectedDetailCust && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1000] p-4">
+          <div className="bg-[#f0f4f8] w-[650px] max-h-[85vh] border border-gray-400 rounded shadow-2xl flex flex-col overflow-hidden text-gray-800 text-xs">
+            {/* Header */}
+            <div className="bg-[#1e3f70] text-white px-4 py-2.5 font-bold flex justify-between items-center text-sm">
+              <span>👤 Customer Complete Profile & Dues Statement</span>
+              <button onClick={() => setSelectedDetailCust(null)} className="text-white hover:text-red-200 font-bold text-lg">✕</button>
+            </div>
+            
+            {/* Body */}
+            <div className="flex-1 p-4 space-y-4 overflow-y-auto text-left">
+              
+              {/* Profile Card */}
+              <div className="bg-white border border-gray-300 rounded p-3 grid grid-cols-2 gap-3 shadow-xs">
+                <div>
+                  <span className="text-gray-500 font-bold">Ledger Code:</span>
+                  <span className="ml-2 font-mono text-gray-900">{selectedDetailCust.ledgerCode}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500 font-bold">Account Name:</span>
+                  <span className="ml-2 font-bold text-blue-900">{selectedDetailCust.accountName}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500 font-bold">Contact Phone:</span>
+                  <span className="ml-2 text-gray-900">{selectedDetailCust.mobileNo || 'N/A'}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500 font-bold">Email Address:</span>
+                  <span className="ml-2 text-gray-900">{selectedDetailCust.email || 'N/A'}</span>
+                </div>
+                <div className="col-span-2 border-t border-gray-100 pt-2">
+                  <span className="text-gray-500 font-bold">Mailing Address:</span>
+                  <span className="ml-2 text-gray-900">
+                    {[selectedDetailCust.address, selectedDetailCust.city, selectedDetailCust.state, selectedDetailCust.pincode].filter(Boolean).join(', ') || 'N/A'}
+                  </span>
+                </div>
+                <div className="col-span-2 border-t border-gray-100 pt-2 flex space-x-6">
+                  <div>
+                    <span className="text-gray-500 font-bold">Regular Customer:</span>
+                    <span className="ml-2">{selectedDetailCust.isRegular ? '⭐ Yes (Regular)' : 'No'}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 font-bold">Credit Limit:</span>
+                    <span className="ml-2 font-mono">₹{selectedDetailCust.creditLimit?.toLocaleString() || 0}</span>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Balances Card */}
+              <div className="grid grid-cols-4 gap-3">
+                <div className="bg-white border border-gray-300 p-2.5 rounded text-center shadow-xs">
+                  <div className="text-gray-500 font-bold uppercase text-[9px]">Opening Dues</div>
+                  <div className="text-sm font-bold font-mono text-gray-800 mt-1">₹{custDetailDues.opening.toLocaleString()}</div>
+                </div>
+                <div className="bg-white border border-gray-300 p-2.5 rounded text-center shadow-xs">
+                  <div className="text-gray-500 font-bold uppercase text-[9px]">Total Credit Sales</div>
+                  <div className="text-sm font-bold font-mono text-rose-600 mt-1">₹{custDetailDues.sales.toLocaleString()}</div>
+                </div>
+                <div className="bg-white border border-gray-300 p-2.5 rounded text-center shadow-xs">
+                  <div className="text-gray-500 font-bold uppercase text-[9px]">Total Received</div>
+                  <div className="text-sm font-bold font-mono text-green-700 mt-1">₹{custDetailDues.payments.toLocaleString()}</div>
+                </div>
+                <div className="bg-rose-50 border border-rose-300 p-2.5 rounded text-center shadow-sm">
+                  <div className="text-rose-800 font-bold uppercase text-[9px]">Outstanding Balance</div>
+                  <div className="text-base font-bold font-mono text-rose-600 mt-0.5">₹{custDetailDues.outstanding.toLocaleString()}</div>
+                </div>
+              </div>
+              
+              {/* History Table */}
+              <div className="bg-white border border-gray-300 rounded shadow-xs overflow-hidden flex flex-col">
+                <div className="bg-gray-100 p-2 border-b border-gray-200 font-bold text-gray-700">Chronological Transactions History</div>
+                <div className="max-h-40 overflow-y-auto">
+                  {custDetailLoading ? (
+                    <div className="p-4 text-center font-bold text-gray-500 animate-pulse">Loading statement details...</div>
+                  ) : custDetailHistory.length === 0 ? (
+                    <div className="p-4 text-center italic text-gray-400">No transaction records found for this customer.</div>
+                  ) : (
+                    <table className="w-full text-left border-collapse text-[11px] bg-white">
+                      <thead>
+                        <tr className="bg-gray-50 border-b border-gray-200 font-bold text-gray-600">
+                          <th className="p-1.5 pl-3">Date</th>
+                          <th className="p-1.5">Ref / Mode</th>
+                          <th className="p-1.5">Type</th>
+                          <th className="p-1.5 text-right">Debit (₹)</th>
+                          <th className="p-1.5 text-right pr-3">Credit (₹)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {custDetailHistory.map((h, index) => (
+                          <tr key={index} className="border-b border-gray-100 hover:bg-gray-50 font-medium">
+                            <td className="p-1.5 pl-3 font-semibold text-gray-500">{new Date(h.date).toLocaleDateString('en-IN')}</td>
+                            <td className="p-1.5 font-mono text-gray-700">{h.ref}</td>
+                            <td className="p-1.5 text-gray-600">{h.type}</td>
+                            <td className="p-1.5 text-right font-mono font-bold text-rose-600">{h.debit > 0 ? `₹${h.debit.toFixed(2)}` : '-'}</td>
+                            <td className="p-1.5 text-right font-mono font-bold text-green-700 pr-3">{h.credit > 0 ? `₹${h.credit.toFixed(2)}` : '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </div>
+              
+            </div>
+            
+            {/* Footer */}
+            <div className="bg-gray-50 px-4 py-2 border-t border-gray-300 flex justify-end">
+              <button onClick={() => setSelectedDetailCust(null)} className="px-4 py-1 bg-gray-200 hover:bg-gray-300 font-bold border border-gray-400 rounded-sm">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

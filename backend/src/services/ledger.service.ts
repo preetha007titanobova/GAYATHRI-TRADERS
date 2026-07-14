@@ -44,11 +44,14 @@ export const createLedger = async (data: Ledger): Promise<any> => {
 
 export const updateLedger = async (id: string, data: Ledger): Promise<boolean> => {
   const db = await getDb();
+  const updateData: any = { ...data };
+  delete updateData._id;
+  delete updateData.id;
   const result = await db.collection('Ledger').updateOne(
     { _id: new ObjectId(id as string) },
     {
       $set: {
-        ...data,
+        ...updateData,
         openingBalance: Number(data.openingBalance) || 0,
         creditLimit: Number(data.creditLimit) || 0,
         defaultCreditPeriod: Number(data.defaultCreditPeriod) || 0,

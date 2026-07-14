@@ -253,8 +253,7 @@ const CustomerLedger = () => {
     doc.text(`Name: ${activeCustomer.accountName}`, 14, 42);
     doc.text(`Ledger Code: ${activeCustomer.ledgerCode}`, 14, 47);
     doc.text(`Mobile: ${activeCustomer.mobileNo || 'N/A'}`, 14, 52);
-    doc.text(`GSTIN: ${activeCustomer.gstNo || 'N/A'}`, 14, 57);
-
+ 
     doc.text(`Opening Balance: Rs. ${summaryBalances.opening.toFixed(2)}`, 110, 42);
     doc.text(`Credit Limit: Rs. ${activeCustomer.creditLimit ? activeCustomer.creditLimit.toFixed(2) : 'N/A'}`, 110, 47);
     doc.text(`Outstanding Due: Rs. ${summaryBalances.outstanding.toFixed(2)}`, 110, 52);
@@ -361,10 +360,6 @@ const CustomerLedger = () => {
                 <div className="flex justify-between">
                   <span className="text-gray-500">Email:</span>
                   <span>{activeCustomer?.email || 'N/A'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">GSTIN:</span>
-                  <span className="font-mono">{activeCustomer?.gstNo || 'N/A'}</span>
                 </div>
                 <div className="flex justify-between border-t border-gray-100 pt-1">
                   <span className="text-gray-500">Opening Bal:</span>
