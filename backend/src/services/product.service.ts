@@ -48,14 +48,11 @@ export const createProduct = async (data: Product): Promise<any> => {
 
 export const updateProduct = async (id: string, data: Product): Promise<boolean> => {
   const db = await getDb();
-  const updateData: any = { ...data };
-  delete updateData._id;
-  delete updateData.id;
   const result = await db.collection('Product').updateOne(
     { _id: new ObjectId(id as string) },
     {
       $set: {
-        ...updateData,
+        ...data,
         purchaseRate: Number(data.purchaseRate) || 0,
         price: Number(data.price) || 0,
         mrp: Number(data.mrp) || 0,

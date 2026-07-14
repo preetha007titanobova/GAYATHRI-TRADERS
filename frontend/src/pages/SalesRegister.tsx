@@ -539,8 +539,8 @@ const SalesRegister = () => {
                   <th className="border-r border-b border-gray-400 p-2 font-bold">Invoice No</th>
                   <th className="border-r border-b border-gray-400 p-2 font-bold">Date</th>
                   <th className="border-r border-b border-gray-400 p-2 font-bold">Customer Name</th>
+                  <th className="border-r border-b border-gray-400 p-2 font-bold">GSTIN</th>
                   <th className="border-r border-b border-gray-400 p-2 font-bold text-right">Gross Amt</th>
-                  <th className="border-r border-b border-gray-400 p-2 font-bold text-right">Favour Type / Disc</th>
                   <th className="border-r border-b border-gray-400 p-2 font-bold text-right">Tax Amt</th>
                   <th className="border-r border-b border-gray-400 p-2 font-bold text-right">Net Amt</th>
                   <th className="border-b border-gray-400 p-2 font-bold text-center">Status</th>
@@ -599,10 +599,8 @@ const SalesRegister = () => {
                         <td className="border-r border-gray-300 p-1.5 font-semibold text-[#2b579a]">{rec.invoiceNo}</td>
                         <td className="border-r border-gray-300 p-1.5">{new Date(rec.invDate).toLocaleDateString()}</td>
                         <td className="border-r border-gray-300 p-1.5">{rec.buyerName || 'CASH CUSTOMER'}</td>
+                        <td className="border-r border-gray-300 p-1.5">{rec.gstNo || '-'}</td>
                         <td className="border-r border-gray-300 p-1.5 text-right font-mono">₹{rec.totalAmount?.toFixed(2) || '0.00'}</td>
-                        <td className="border-r border-gray-300 p-1.5 text-center font-bold text-amber-700 bg-amber-50">
-                          {rec.favourType && rec.favourType !== 'None' ? `${rec.favourType} (₹${(rec.favourDiscount || 0).toFixed(2)})` : rec.favourDiscount > 0 ? `₹${(rec.favourDiscount || 0).toFixed(2)}` : '-'}
-                        </td>
                         <td className="border-r border-gray-300 p-1.5 text-right font-mono text-red-600">₹{taxAmt.toFixed(2)}</td>
                         <td className="border-r border-gray-300 p-1.5 text-right font-mono font-bold text-green-700">₹{rec.netAmount?.toFixed(2) || '0.00'}</td>
                         <td className="p-1.5 text-center">

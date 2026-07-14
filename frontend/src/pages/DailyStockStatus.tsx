@@ -36,7 +36,6 @@ const DailyStockStatus = () => {
 
   const [selectedDate, setSelectedDate] = useState(getTodayStr());
   const [inventory, setInventory] = useState<DailyStockItem[]>([]);
-  const [favourBills, setFavourBills] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [hideZero, setHideZero] = useState(false);
@@ -44,28 +43,13 @@ const DailyStockStatus = () => {
   const fetchDailyStatus = async () => {
     setLoading(true);
     try {
-      const [stockRes, salesRes] = await Promise.all([
-        fetch(`${Api}/products/daily-status?date=${selectedDate}`),
-        fetch(`${Api}/sales/search?q=`)
-      ]);
-      
-      if (stockRes.ok) {
-        const data = await stockRes.json();
+      const res = await fetch(`${Api}/products/daily-status?date=${selectedDate}`);
+      if (res.ok) {
+        const data = await res.json();
         setInventory(data);
       } else {
         setInventory([]);
         setGlobalNotification({ msg: 'Failed to retrieve stock data.', type: 'error' });
-      }
-
-      if (salesRes.ok) {
-        const sales = await salesRes.json();
-        if (Array.isArray(sales)) {
-          const dailyFavours = sales.filter(bill => {
-            const billDate = new Date(bill.invDate).toISOString().split('T')[0];
-            return billDate === selectedDate && bill.favourDiscount > 0;
-          });
-          setFavourBills(dailyFavours);
-        }
       }
     } catch (err) {
       console.error("Failed to fetch daily status", err);
@@ -487,48 +471,6 @@ const DailyStockStatus = () => {
               )}
             </tbody>
           </table>
-        </div>
-
-        {/* Daily Favour / Discount Sales Summary */}
-        <div className="bg-white border border-gray-400 p-3 rounded-sm shadow-xs flex-shrink-0 mt-2 mb-2 text-xs">
-          <h3 className="text-sm font-bold text-rose-800 border-b border-gray-200 pb-1 flex justify-between items-center">
-            <span>🎁 Daily Favour & Owner Decision Sales Summary</span>
-            <span className="bg-rose-100 text-rose-800 text-[10px] font-bold px-2 py-0.5 rounded">Total Favour Discs: ₹{favourBills.reduce((sum, b) => sum + (b.favourDiscount || 0), 0).toFixed(2)}</span>
-          </h3>
-          <div className="max-h-40 overflow-y-auto mt-2">
-            {favourBills.length === 0 ? (
-              <div className="text-center italic text-gray-400 py-4">No favor or special discount sales recorded on this day.</div>
-            ) : (
-              <table className="w-full text-left border-collapse whitespace-nowrap">
-                <thead>
-                  <tr className="bg-gray-50 text-gray-700 font-bold border-b border-gray-300">
-                    <th className="p-1.5 pl-3">Invoice No</th>
-                    <th className="p-1.5">Customer Name</th>
-                    <th className="p-1.5 text-right">Bill Total (₹)</th>
-                    <th className="p-1.5 text-right text-rose-600">Favour Discount (₹)</th>
-                    <th className="p-1.5">Favour Type / Owner Decision</th>
-                    <th className="p-1.5 text-right font-bold pr-3">Net Amount (₹)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {favourBills.map((b, i) => (
-                    <tr key={b._id || i} className="border-b border-gray-200 hover:bg-rose-50 font-semibold bg-white">
-                      <td className="p-1.5 pl-3 text-[#2b579a] font-mono">{b.invoiceNo}</td>
-                      <td className="p-1.5 text-gray-800">{b.buyerName || 'CASH CUSTOMER'}</td>
-                      <td className="p-1.5 text-right font-mono text-gray-600">₹{(b.totalAmount || 0).toFixed(2)}</td>
-                      <td className="p-1.5 text-right font-mono text-rose-600">₹{(b.favourDiscount || 0).toFixed(2)}</td>
-                      <td className="p-1.5 text-gray-700">
-                        <span className="bg-rose-100 border border-rose-200 text-rose-800 text-[10px] font-bold px-1.5 py-0.5 rounded">
-                          {b.favourType || 'Custom Discount'}
-                        </span>
-                      </td>
-                      <td className="p-1.5 text-right font-mono font-bold text-green-700 pr-3">₹{(b.netAmount || 0).toFixed(2)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
         </div>
 
         {/* FOOTER */}
