@@ -19,8 +19,6 @@ interface StockItem {
   size?: string;
 }
 
-const GROUPS = ['All', 'Electronics', 'Hardware', 'Accessories'];
-
 const StockStatus = () => {
   const { setToolbarActions, setGlobalNotification } = useOutletContext<{
     setToolbarActions: (actions: ToolbarActions) => void;
@@ -79,7 +77,11 @@ const StockStatus = () => {
         const q = search.toLowerCase();
         const code = item.itemCode?.toLowerCase() || '';
         const name = item.name?.toLowerCase() || '';
-        if (!name.includes(q) && !code.includes(q)) return false;
+        const department = item.department?.toLowerCase() || '';
+        const variety = item.variety?.toLowerCase() || '';
+        const size = item.size?.toLowerCase() || '';
+
+        if (!name.includes(q) && !code.includes(q) && !department.includes(q) && !variety.includes(q) && !size.includes(q)) return false;
       }
       return true;
     });
@@ -100,13 +102,6 @@ const StockStatus = () => {
           <div className="flex items-center space-x-4 bg-gray-50 border border-gray-300 px-3 py-1.5 rounded-md shadow-sm">
             <div className="flex items-center space-x-2 border-r border-gray-300 pr-4">
               <Filter size={16} className="text-gray-500" />
-              <select
-                value={selectedGroup}
-                onChange={e => setSelectedGroup(e.target.value)}
-                className="bg-transparent text-sm font-bold text-gray-800 focus:outline-none cursor-pointer"
-              >
-                {GROUPS.map(g => <option key={g} value={g}>{g}</option>)}
-              </select>
             </div>
 
             <div className="flex items-center space-x-2 border-r border-gray-300 pr-4">
