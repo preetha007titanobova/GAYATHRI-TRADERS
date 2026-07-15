@@ -141,16 +141,39 @@ const SalesReturn = () => {
     calculateTotalToReverse(itemsToReturn, invoiceDetails?.eType || 'Local');
   }, [itemsToReturn, invoiceDetails]);
 
+  // Auto-load invoice on typing/pasting exact invoice number
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(async () => {
+      const query = searchQuery.trim();
+      if (query.length >= 6 && (!invoiceDetails || invoiceDetails.invoiceNo !== query)) {
+        try {
+          const res = await fetch(`${Api}/sales/bills/search?q=${query}`);
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            const exactMatch = data.find(inv => inv.invoiceNo.toLowerCase() === query.toLowerCase());
+            if (exactMatch) {
+              loadInvoice(exactMatch.invoiceNo);
+            }
+          }
+        } catch (err) {
+          console.error("Auto-load invoice error:", err);
+        }
+      }
+    }, 400);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery, invoiceDetails]);
+
   const handleSearchInvoice = async () => {
-    if (!searchQuery.trim()) return;
     try {
       const res = await fetch(`${Api}/sales/bills/search?q=${searchQuery}`);
       const data = await res.json();
       if (Array.isArray(data)) {
-        const exactMatch = data.find(inv => inv.invoiceNo.toLowerCase() === searchQuery.trim().toLowerCase());
+        const trimmedQuery = searchQuery.trim();
+        const exactMatch = trimmedQuery ? data.find(inv => inv.invoiceNo.toLowerCase() === trimmedQuery.toLowerCase()) : null;
         if (exactMatch) {
           loadInvoice(exactMatch.invoiceNo);
-        } else if (data.length === 1) {
+        } else if (trimmedQuery && data.length === 1) {
           loadInvoice(data[0].invoiceNo);
         } else {
           setInvoiceSearchResults(data);
@@ -493,7 +516,7 @@ const SalesReturn = () => {
       </div>
 
       {/* 3. Data Entry Grid */}
-      <div className="flex-1 bg-white border border-gray-400 overflow-auto shadow-sm">
+      <div className="flex-1 min-h-[350px] bg-white border border-gray-400 overflow-auto shadow-sm">
         <table className="w-full text-left border-collapse">
           <thead className="sticky top-0 bg-[#e8ecef] shadow-sm z-10">
             <tr>
