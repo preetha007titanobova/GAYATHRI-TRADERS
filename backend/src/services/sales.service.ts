@@ -5,7 +5,7 @@ export const getNextInvoice = async (): Promise<string> => {
   const lastBill = await prisma.salesBill.findFirst({
     orderBy: { createdAt: 'desc' }
   });
-  
+
   let nextNum = 1;
   if (lastBill && lastBill.invoiceNo.startsWith('INV-')) {
     const parts = lastBill.invoiceNo.split('-');
@@ -14,43 +14,43 @@ export const getNextInvoice = async (): Promise<string> => {
       nextNum = parsed + 1;
     }
   }
-  
+
   const year = new Date().getFullYear();
   return `INV-${year}-${nextNum.toString().padStart(4, '0')}`;
 };
 
 export const createSalesBill = async (data: any): Promise<any> => {
-  const { 
-    invoiceNo, invDate, payDays, buyerName, address, eType, 
-    mobileNo, gstNo, printIn, invFormat, invoiceFormat, totalQty, totalAmount, 
-    cgst, sgst, roundOff, netAmount, remarks, shippingAddress, items, salesman, paymentMode 
+  const {
+    invoiceNo, invDate, payDays, buyerName, address, eType,
+    mobileNo, gstNo, printIn, invFormat, invoiceFormat, totalQty, totalAmount,
+    cgst, sgst, roundOff, netAmount, remarks, shippingAddress, items, salesman, paymentMode
   } = data;
-  
+
   const db = await getDb();
 
   const billResult = await db.collection('SalesBill').insertOne({
-      invoiceNo,
-      invDate: new Date(invDate),
-      payDays: Number(payDays) || 0,
-      buyerName,
-      address,
-      eType,
-      mobileNo,
-      gstNo,
-      printIn,
-      invFormat: invFormat || invoiceFormat,
-      totalQty: Number(totalQty) || 0,
-      totalAmount: Number(totalAmount) || 0,
-      cgst: Number(cgst) || 0,
-      sgst: Number(sgst) || 0,
-      roundOff: Number(roundOff) || 0,
-      netAmount: Number(netAmount) || 0,
-      remarks,
-      shippingAddress,
-      salesman,
-      paymentMode: paymentMode || 'Cash',
-      createdAt: new Date(),
-      updatedAt: new Date()
+    invoiceNo,
+    invDate: new Date(invDate),
+    payDays: Number(payDays) || 0,
+    buyerName,
+    address,
+    eType,
+    mobileNo,
+    gstNo,
+    printIn,
+    invFormat: invFormat || invoiceFormat,
+    totalQty: Number(totalQty) || 0,
+    totalAmount: Number(totalAmount) || 0,
+    cgst: Number(cgst) || 0,
+    sgst: Number(sgst) || 0,
+    roundOff: Number(roundOff) || 0,
+    netAmount: Number(netAmount) || 0,
+    remarks,
+    shippingAddress,
+    salesman,
+    paymentMode: paymentMode || 'Cash',
+    createdAt: new Date(),
+    updatedAt: new Date()
   });
 
   if (items && items.length > 0) {
@@ -125,12 +125,12 @@ export const createSalesBill = async (data: any): Promise<any> => {
 };
 
 export const updateSalesBill = async (id: string, data: any): Promise<boolean> => {
-  const { 
-    invoiceNo, invDate, payDays, buyerName, address, eType, 
-    mobileNo, gstNo, printIn, invFormat, invoiceFormat, totalQty, totalAmount, 
-    cgst, sgst, roundOff, netAmount, remarks, shippingAddress, items, salesman, paymentMode 
+  const {
+    invoiceNo, invDate, payDays, buyerName, address, eType,
+    mobileNo, gstNo, printIn, invFormat, invoiceFormat, totalQty, totalAmount,
+    cgst, sgst, roundOff, netAmount, remarks, shippingAddress, items, salesman, paymentMode
   } = data;
-  
+
   const db = await getDb();
   const billId = new ObjectId(id as string);
 
@@ -307,9 +307,18 @@ export const deleteSalesBill = async (id: string): Promise<boolean> => {
 
 export const searchSalesBills = async (q: string): Promise<any[]> => {
   const db = await getDb();
-  return await db.collection('SalesBill').find({
-    invoiceNo: { $regex: q, $options: 'i' }
-  }).sort({ createdAt: -1 }).limit(50).toArray();
+  let query: any = {};
+  if (q) {
+    query.$or = [
+      { invoiceNo: { $regex: q, $options: 'i' } },
+      { buyerName: { $regex: q, $options: 'i' } }
+    ];
+  }
+  let cursor = db.collection('SalesBill').find(query).sort({ createdAt: -1 });
+  if (!q) {
+    cursor = cursor.limit(50);
+  }
+  return await cursor.toArray();
 };
 
 export const getSalesBillByInvoiceNo = async (invoiceNo: string): Promise<any> => {
@@ -317,7 +326,18 @@ export const getSalesBillByInvoiceNo = async (invoiceNo: string): Promise<any> =
   const bill = await db.collection('SalesBill').findOne({ invoiceNo });
   if (!bill) return null;
   const items = await db.collection('SalesItem').find({ salesBillId: bill._id }).toArray();
-  return { ...bill, items };
+  const itemsWithBarcode = [];
+  for (const item of items) {
+    let barcode = '';
+    if (item.productId) {
+      const prod = await db.collection('Product').findOne({ _id: new ObjectId(item.productId as string) });
+      if (prod) {
+        barcode = prod.barcode || '';
+      }
+    }
+    itemsWithBarcode.push({ ...item, barcode });
+  }
+  return { ...bill, items: itemsWithBarcode };
 };
 
 export const createSalesOrder = async (data: any): Promise<any> => {
@@ -325,41 +345,41 @@ export const createSalesOrder = async (data: any): Promise<any> => {
   const db = await getDb();
 
   const orderResult = await db.collection('SalesOrder').insertOne({
-      orderNo,
-      orderDate: new Date(orderDate),
-      customer,
-      deliveryDate: deliveryDate ? new Date(deliveryDate) : null,
-      paymentTerms,
-      status: status || 'OPEN',
-      isInterstate,
-      subtotal: summary?.subtotal || 0,
-      cgst: summary?.cgst || 0,
-      sgst: summary?.sgst || 0,
-      igst: summary?.igst || 0,
-      rounding: summary?.rounding || 0,
-      grandTotal: summary?.grandTotal || 0,
-      createdAt: new Date(),
-      updatedAt: new Date()
+    orderNo,
+    orderDate: new Date(orderDate),
+    customer,
+    deliveryDate: deliveryDate ? new Date(deliveryDate) : null,
+    paymentTerms,
+    status: status || 'OPEN',
+    isInterstate,
+    subtotal: summary?.subtotal || 0,
+    cgst: summary?.cgst || 0,
+    sgst: summary?.sgst || 0,
+    igst: summary?.igst || 0,
+    rounding: summary?.rounding || 0,
+    grandTotal: summary?.grandTotal || 0,
+    createdAt: new Date(),
+    updatedAt: new Date()
   });
 
   if (items && items.length > 0) {
     const itemsToInsert = items.map((item: any) => ({
-        salesOrderId: orderResult.insertedId,
-        orderNo,
-        lineId: item.lineId,
-        lineIndex: item.lineIndex,
-        itemCode: item.itemCode,
-        itemDescription: item.itemDescription,
-        quantityOrdered: Number(item.quantityOrdered) || 0,
-        quantityFulfilled: Number(item.quantityFulfilled) || 0,
-        unitPrice: Number(item.unitPrice) || 0,
-        discountPercentage: Number(item.discountPercentage) || 0,
-        taxableAmount: Number(item.taxableAmount) || 0,
-        taxRatePercentage: Number(item.taxRatePercentage) || 0,
-        cgstAmount: Number(item.cgstAmount) || 0,
-        sgstAmount: Number(item.sgstAmount) || 0,
-        igstAmount: Number(item.igstAmount) || 0,
-        lineSubTotal: Number(item.lineSubTotal) || 0
+      salesOrderId: orderResult.insertedId,
+      orderNo,
+      lineId: item.lineId,
+      lineIndex: item.lineIndex,
+      itemCode: item.itemCode,
+      itemDescription: item.itemDescription,
+      quantityOrdered: Number(item.quantityOrdered) || 0,
+      quantityFulfilled: Number(item.quantityFulfilled) || 0,
+      unitPrice: Number(item.unitPrice) || 0,
+      discountPercentage: Number(item.discountPercentage) || 0,
+      taxableAmount: Number(item.taxableAmount) || 0,
+      taxRatePercentage: Number(item.taxRatePercentage) || 0,
+      cgstAmount: Number(item.cgstAmount) || 0,
+      sgstAmount: Number(item.sgstAmount) || 0,
+      igstAmount: Number(item.igstAmount) || 0,
+      lineSubTotal: Number(item.lineSubTotal) || 0
     }));
     await db.collection('SalesOrderItem').insertMany(itemsToInsert);
 
@@ -388,9 +408,14 @@ export const createSalesOrder = async (data: any): Promise<any> => {
 
 export const searchSalesOrders = async (q: string): Promise<any[]> => {
   const db = await getDb();
-  return await db.collection('SalesOrder').find({
-    orderNo: { $regex: q, $options: 'i' }
-  }).sort({ createdAt: -1 }).limit(100).toArray();
+  let query: any = {};
+  if (q) {
+    query.$or = [
+      { orderNo: { $regex: q, $options: 'i' } },
+      { customer: { $regex: q, $options: 'i' } }
+    ];
+  }
+  return await db.collection('SalesOrder').find(query).sort({ createdAt: -1 }).limit(100).toArray();
 };
 
 export const getSalesOrderDetails = async (id: string): Promise<any> => {
@@ -460,22 +485,22 @@ export const updateSalesOrder = async (id: string, data: any): Promise<boolean> 
 
   if (items && items.length > 0) {
     const itemsToInsert = items.map((item: any) => ({
-        salesOrderId: orderId,
-        orderNo,
-        lineId: item.lineId,
-        lineIndex: item.lineIndex,
-        itemCode: item.itemCode,
-        itemDescription: item.itemDescription,
-        quantityOrdered: Number(item.quantityOrdered) || 0,
-        quantityFulfilled: Number(item.quantityFulfilled) || 0,
-        unitPrice: Number(item.unitPrice) || 0,
-        discountPercentage: Number(item.discountPercentage) || 0,
-        taxableAmount: Number(item.taxableAmount) || 0,
-        taxRatePercentage: Number(item.taxRatePercentage) || 0,
-        cgstAmount: Number(item.cgstAmount) || 0,
-        sgstAmount: Number(item.sgstAmount) || 0,
-        igstAmount: Number(item.igstAmount) || 0,
-        lineSubTotal: Number(item.lineSubTotal) || 0
+      salesOrderId: orderId,
+      orderNo,
+      lineId: item.lineId,
+      lineIndex: item.lineIndex,
+      itemCode: item.itemCode,
+      itemDescription: item.itemDescription,
+      quantityOrdered: Number(item.quantityOrdered) || 0,
+      quantityFulfilled: Number(item.quantityFulfilled) || 0,
+      unitPrice: Number(item.unitPrice) || 0,
+      discountPercentage: Number(item.discountPercentage) || 0,
+      taxableAmount: Number(item.taxableAmount) || 0,
+      taxRatePercentage: Number(item.taxRatePercentage) || 0,
+      cgstAmount: Number(item.cgstAmount) || 0,
+      sgstAmount: Number(item.sgstAmount) || 0,
+      igstAmount: Number(item.igstAmount) || 0,
+      lineSubTotal: Number(item.lineSubTotal) || 0
     }));
     await db.collection('SalesOrderItem').insertMany(itemsToInsert);
 
@@ -535,7 +560,7 @@ export const deleteSalesOrder = async (id: string): Promise<boolean> => {
 export const getNextSalesReturnSequence = async (): Promise<string> => {
   const db = await getDb();
   const lastReturn = await db.collection('SalesReturn').find().sort({ createdAt: -1 }).limit(1).toArray();
-  
+
   let nextNum = 1;
   if (lastReturn && lastReturn.length > 0 && lastReturn[0].returnNo && lastReturn[0].returnNo.startsWith('CN-')) {
     const parts = lastReturn[0].returnNo.split('-');
@@ -544,7 +569,7 @@ export const getNextSalesReturnSequence = async (): Promise<string> => {
       nextNum = parsed + 1;
     }
   }
-  
+
   const today = new Date();
   const month = today.getMonth() + 1;
   const currentYear = today.getFullYear();
@@ -554,46 +579,162 @@ export const getNextSalesReturnSequence = async (): Promise<string> => {
 };
 
 export const createSalesReturn = async (data: any): Promise<any> => {
-  const { 
-    returnNo, returnDate, originalInvoice, customerName, reason, 
-    totalReturnAmount, cgstReturn, sgstReturn, igstReturn, roundOff, netRefundAmount, items 
+  const {
+    returnNo, returnDate, originalInvoice, customerName, reason, returnType,
+    totalReturnAmount, cgstReturn, sgstReturn, igstReturn, roundOff, netRefundAmount, items
   } = data;
-  
+
   const db = await getDb();
 
   const returnResult = await db.collection('SalesReturn').insertOne({
-      returnNo,
-      returnDate: new Date(returnDate),
-      originalInvoice,
-      customerName,
-      reason,
-      totalReturnAmount: Number(totalReturnAmount) || 0,
-      cgstReturn: Number(cgstReturn) || 0,
-      sgstReturn: Number(sgstReturn) || 0,
-      igstReturn: Number(igstReturn) || 0,
-      roundOff: Number(roundOff) || 0,
-      netRefundAmount: Number(netRefundAmount) || 0,
-      createdAt: new Date()
+    returnNo,
+    returnDate: new Date(returnDate),
+    originalInvoice,
+    customerName,
+    reason,
+    returnType: returnType || 'Credit Note (Refund)',
+    totalReturnAmount: Number(totalReturnAmount) || 0,
+    cgstReturn: Number(cgstReturn) || 0,
+    sgstReturn: Number(sgstReturn) || 0,
+    igstReturn: Number(igstReturn) || 0,
+    roundOff: Number(roundOff) || 0,
+    netRefundAmount: Number(netRefundAmount) || 0,
+    createdAt: new Date()
   });
 
   if (items && items.length > 0) {
     const itemsToInsert = items.map((item: any) => ({
-        salesReturnId: returnResult.insertedId,
-        itemCode: item.itemCode,
-        itemName: item.itemName,
-        invoicedQty: Number(item.invoicedQty) || 0,
-        returnQty: Number(item.returnQty) || 0,
-        unitPrice: Number(item.unitPrice) || 0,
-        taxableAmt: Number(item.taxableAmt) || 0,
-        taxPercent: Number(item.taxPercent) || 0,
-        disposition: item.disposition,
-        subtotal: Number(item.subtotal) || 0,
-        productId: item.productId ? new ObjectId(item.productId as string) : null
+      salesReturnId: returnResult.insertedId,
+      itemCode: item.itemCode,
+      itemName: item.itemName,
+      invoicedQty: Number(item.invoicedQty) || 0,
+      returnQty: Number(item.returnQty) || 0,
+      unitPrice: Number(item.unitPrice) || 0,
+      taxableAmt: Number(item.taxableAmt) || 0,
+      taxPercent: Number(item.taxPercent) || 0,
+      disposition: item.disposition,
+      subtotal: Number(item.subtotal) || 0,
+      productId: item.productId ? new ObjectId(item.productId as string) : null
     }));
     await db.collection('SalesReturnItem').insertMany(itemsToInsert);
 
     for (const item of itemsToInsert) {
-      if (item.returnQty > 0 && item.disposition === 'Return to Warehouse' && (item.itemCode || item.itemName)) {
+      if (item.returnQty > 0 && (item.itemCode || item.itemName)) {
+        if (item.disposition === 'Defective / Damaged' || item.disposition === 'Quarantine & Scrap') {
+          // Increment damagedStock in MongoDB directly
+          await db.collection('Product').updateOne(
+            { $or: [{ itemCode: item.itemCode }, { name: item.itemName }] },
+            { $inc: { damagedStock: item.returnQty } }
+          );
+        } else {
+          // Default or Return to Warehouse: increment normal stock
+          await prisma.product.updateMany({
+            where: {
+              OR: [
+                { itemCode: item.itemCode },
+                { name: item.itemName }
+              ]
+            },
+            data: {
+              stock: {
+                increment: item.returnQty
+              }
+            }
+          });
+        }
+
+        // If it is an exchange, a replacement item is given, so decrement normal stock
+        if (returnType === 'Exchange (Replacement)') {
+          await prisma.product.updateMany({
+            where: {
+              OR: [
+                { itemCode: item.itemCode },
+                { name: item.itemName }
+              ]
+            },
+            data: {
+              stock: {
+                decrement: item.returnQty
+              }
+            }
+          });
+        }
+      }
+    }
+  }
+
+  if (customerName && netRefundAmount > 0 && returnType !== 'Exchange (Replacement)') {
+    const ledger = await db.collection('Ledger').findOne({ accountName: customerName });
+    if (ledger) {
+      await db.collection('Ledger').updateOne(
+        { _id: ledger._id },
+        { $inc: { openingBalance: -Number(netRefundAmount) } }
+      );
+    }
+  }
+
+  return { id: returnResult.insertedId.toString(), returnNo };
+};
+
+export const searchSalesReturns = async (q: string): Promise<any[]> => {
+  const db = await getDb();
+  let query: any = {};
+  if (q) {
+    query.$or = [
+      { returnNo: { $regex: q, $options: 'i' } },
+      { customerName: { $regex: q, $options: 'i' } }
+    ];
+  }
+  return await db.collection('SalesReturn').find(query).sort({ createdAt: -1 }).limit(100).toArray();
+};
+
+export const getSalesReturnDetails = async (id: string): Promise<any> => {
+  const db = await getDb();
+  const returnId = new ObjectId(id as string);
+  const salesReturn = await db.collection('SalesReturn').findOne({ _id: returnId });
+  if (!salesReturn) return null;
+  const items = await db.collection('SalesReturnItem').find({ salesReturnId: returnId }).toArray();
+  return { ...salesReturn, items };
+};
+
+export const updateSalesReturn = async (id: string, data: any): Promise<boolean> => {
+  const {
+    returnNo, returnDate, originalInvoice, customerName, reason, returnType,
+    totalReturnAmount, cgstReturn, sgstReturn, igstReturn, roundOff, netRefundAmount, items
+  } = data;
+
+  const db = await getDb();
+  const returnId = new ObjectId(id as string);
+
+  // Revert old stock changes
+  const oldItems = await db.collection('SalesReturnItem').find({ salesReturnId: returnId }).toArray();
+  const oldReturn = await db.collection('SalesReturn').findOne({ _id: returnId });
+  for (const item of oldItems) {
+    if (item.returnQty > 0 && (item.itemCode || item.itemName)) {
+      // Revert returned item stock increment
+      if (item.disposition === 'Defective / Damaged' || item.disposition === 'Quarantine & Scrap') {
+        await db.collection('Product').updateOne(
+          { $or: [{ itemCode: item.itemCode }, { name: item.itemName }] },
+          { $inc: { damagedStock: -item.returnQty } }
+        );
+      } else {
+        await prisma.product.updateMany({
+          where: {
+            OR: [
+              { itemCode: item.itemCode },
+              { name: item.itemName }
+            ]
+          },
+          data: {
+            stock: {
+              decrement: item.returnQty
+            }
+          }
+        });
+      }
+
+      // Revert replacement item stock decrement if it was an exchange
+      if (oldReturn && oldReturn.returnType === 'Exchange (Replacement)') {
         await prisma.product.updateMany({
           where: {
             OR: [
@@ -611,71 +752,13 @@ export const createSalesReturn = async (data: any): Promise<any> => {
     }
   }
 
-  if (customerName && netRefundAmount > 0) {
-    const ledger = await db.collection('Ledger').findOne({ accountName: customerName });
-    if (ledger) {
-      await db.collection('Ledger').updateOne(
-        { _id: ledger._id },
-        { $inc: { openingBalance: -Number(netRefundAmount) } }
-      );
-    }
-  }
-
-  return { id: returnResult.insertedId.toString(), returnNo };
-};
-
-export const searchSalesReturns = async (q: string): Promise<any[]> => {
-  const db = await getDb();
-  const query = q ? { returnNo: { $regex: q, $options: 'i' } } : {};
-  return await db.collection('SalesReturn').find(query).sort({ createdAt: -1 }).limit(100).toArray();
-};
-
-export const getSalesReturnDetails = async (id: string): Promise<any> => {
-  const db = await getDb();
-  const returnId = new ObjectId(id as string);
-  const salesReturn = await db.collection('SalesReturn').findOne({ _id: returnId });
-  if (!salesReturn) return null;
-  const items = await db.collection('SalesReturnItem').find({ salesReturnId: returnId }).toArray();
-  return { ...salesReturn, items };
-};
-
-export const updateSalesReturn = async (id: string, data: any): Promise<boolean> => {
-  const { 
-    returnNo, returnDate, originalInvoice, customerName, reason, 
-    totalReturnAmount, cgstReturn, sgstReturn, igstReturn, roundOff, netRefundAmount, items 
-  } = data;
-
-  const db = await getDb();
-  const returnId = new ObjectId(id as string);
-
-  // Revert old stock changes
-  const oldItems = await db.collection('SalesReturnItem').find({ salesReturnId: returnId }).toArray();
-  for (const item of oldItems) {
-    if (item.returnQty > 0 && item.disposition === 'Return to Warehouse' && (item.itemCode || item.itemName)) {
-      await prisma.product.updateMany({
-        where: {
-          OR: [
-            { itemCode: item.itemCode },
-            { name: item.itemName }
-          ]
-        },
-        data: {
-          stock: {
-            decrement: item.returnQty
-          }
-        }
-      });
-    }
-  }
-
   // Revert ledger impact
-  const salesReturn = await db.collection('SalesReturn').findOne({ _id: returnId });
-  if (salesReturn && salesReturn.customerName && salesReturn.netRefundAmount > 0) {
-    const ledger = await db.collection('Ledger').findOne({ accountName: salesReturn.customerName });
+  if (oldReturn && oldReturn.customerName && oldReturn.netRefundAmount > 0 && oldReturn.returnType !== 'Exchange (Replacement)') {
+    const ledger = await db.collection('Ledger').findOne({ accountName: oldReturn.customerName });
     if (ledger) {
       await db.collection('Ledger').updateOne(
         { _id: ledger._id },
-        { $inc: { openingBalance: Number(salesReturn.netRefundAmount) } }
+        { $inc: { openingBalance: Number(oldReturn.netRefundAmount) } }
       );
     }
   }
@@ -690,6 +773,7 @@ export const updateSalesReturn = async (id: string, data: any): Promise<boolean>
         originalInvoice,
         customerName,
         reason,
+        returnType,
         totalReturnAmount: Number(totalReturnAmount) || 0,
         cgstReturn: Number(cgstReturn) || 0,
         sgstReturn: Number(sgstReturn) || 0,
@@ -710,23 +794,111 @@ export const updateSalesReturn = async (id: string, data: any): Promise<boolean>
 
   if (items && items.length > 0) {
     const itemsToInsert = items.map((item: any) => ({
-        salesReturnId: returnId,
-        itemCode: item.itemCode,
-        itemName: item.itemName,
-        invoicedQty: Number(item.invoicedQty) || 0,
-        returnQty: Number(item.returnQty) || 0,
-        unitPrice: Number(item.unitPrice) || 0,
-        taxableAmt: Number(item.taxableAmt) || 0,
-        taxPercent: Number(item.taxPercent) || 0,
-        disposition: item.disposition,
-        subtotal: Number(item.subtotal) || 0,
-        productId: item.productId ? new ObjectId(item.productId as string) : null
+      salesReturnId: returnId,
+      itemCode: item.itemCode,
+      itemName: item.itemName,
+      invoicedQty: Number(item.invoicedQty) || 0,
+      returnQty: Number(item.returnQty) || 0,
+      unitPrice: Number(item.unitPrice) || 0,
+      taxableAmt: Number(item.taxableAmt) || 0,
+      taxPercent: Number(item.taxPercent) || 0,
+      disposition: item.disposition,
+      subtotal: Number(item.subtotal) || 0,
+      productId: item.productId ? new ObjectId(item.productId as string) : null
     }));
     await db.collection('SalesReturnItem').insertMany(itemsToInsert);
 
-    // Apply new stock increment
+    // Apply new stock changes
     for (const item of itemsToInsert) {
-      if (item.returnQty > 0 && item.disposition === 'Return to Warehouse' && (item.itemCode || item.itemName)) {
+      if (item.returnQty > 0 && (item.itemCode || item.itemName)) {
+        if (item.disposition === 'Defective / Damaged' || item.disposition === 'Quarantine & Scrap') {
+          await db.collection('Product').updateOne(
+            { $or: [{ itemCode: item.itemCode }, { name: item.itemName }] },
+            { $inc: { damagedStock: item.returnQty } }
+          );
+        } else {
+          await prisma.product.updateMany({
+            where: {
+              OR: [
+                { itemCode: item.itemCode },
+                { name: item.itemName }
+              ]
+            },
+            data: {
+              stock: {
+                increment: item.returnQty
+              }
+            }
+          });
+        }
+
+        // If it is an exchange, a replacement item is given, so decrement normal stock
+        if (returnType === 'Exchange (Replacement)') {
+          await prisma.product.updateMany({
+            where: {
+              OR: [
+                { itemCode: item.itemCode },
+                { name: item.itemName }
+              ]
+            },
+            data: {
+              stock: {
+                decrement: item.returnQty
+              }
+            }
+          });
+        }
+      }
+    }
+  }
+
+  // Apply new ledger impact
+  if (customerName && netRefundAmount > 0 && returnType !== 'Exchange (Replacement)') {
+    const ledger = await db.collection('Ledger').findOne({ accountName: customerName });
+    if (ledger) {
+      await db.collection('Ledger').updateOne(
+        { _id: ledger._id },
+        { $inc: { openingBalance: -Number(netRefundAmount) } }
+      );
+    }
+  }
+
+  return true;
+};
+
+export const deleteSalesReturn = async (id: string): Promise<boolean> => {
+  const db = await getDb();
+  const returnId = new ObjectId(id as string);
+
+  const salesReturn = await db.collection('SalesReturn').findOne({ _id: returnId });
+
+  const items = await db.collection('SalesReturnItem').find({ salesReturnId: returnId }).toArray();
+  for (const item of items) {
+    if (item.returnQty > 0 && (item.itemCode || item.itemName)) {
+      // Revert returned item stock increment
+      if (item.disposition === 'Defective / Damaged' || item.disposition === 'Quarantine & Scrap') {
+        await db.collection('Product').updateOne(
+          { $or: [{ itemCode: item.itemCode }, { name: item.itemName }] },
+          { $inc: { damagedStock: -item.returnQty } }
+        );
+      } else {
+        await prisma.product.updateMany({
+          where: {
+            OR: [
+              { itemCode: item.itemCode },
+              { name: item.itemName }
+            ]
+          },
+          data: {
+            stock: {
+              decrement: item.returnQty
+            }
+          }
+        });
+      }
+
+      // Revert replacement item stock decrement if it was an exchange
+      if (salesReturn && salesReturn.returnType === 'Exchange (Replacement)') {
         await prisma.product.updateMany({
           where: {
             OR: [
@@ -744,45 +916,7 @@ export const updateSalesReturn = async (id: string, data: any): Promise<boolean>
     }
   }
 
-  // Apply new ledger impact
-  if (customerName && netRefundAmount > 0) {
-    const ledger = await db.collection('Ledger').findOne({ accountName: customerName });
-    if (ledger) {
-      await db.collection('Ledger').updateOne(
-        { _id: ledger._id },
-        { $inc: { openingBalance: -Number(netRefundAmount) } }
-      );
-    }
-  }
-
-  return true;
-};
-
-export const deleteSalesReturn = async (id: string): Promise<boolean> => {
-  const db = await getDb();
-  const returnId = new ObjectId(id as string);
-
-  const items = await db.collection('SalesReturnItem').find({ salesReturnId: returnId }).toArray();
-  for (const item of items) {
-    if (item.returnQty > 0 && item.disposition === 'Return to Warehouse' && (item.itemCode || item.itemName)) {
-      await prisma.product.updateMany({
-        where: {
-          OR: [
-            { itemCode: item.itemCode },
-            { name: item.itemName }
-          ]
-        },
-        data: {
-          stock: {
-            decrement: item.returnQty
-          }
-        }
-      });
-    }
-  }
-
-  const salesReturn = await db.collection('SalesReturn').findOne({ _id: returnId });
-  if (salesReturn && salesReturn.customerName && salesReturn.netRefundAmount > 0) {
+  if (salesReturn && salesReturn.customerName && salesReturn.netRefundAmount > 0 && salesReturn.returnType !== 'Exchange (Replacement)') {
     const ledger = await db.collection('Ledger').findOne({ accountName: salesReturn.customerName });
     if (ledger) {
       await db.collection('Ledger').updateOne(
@@ -812,7 +946,7 @@ export const getStockLedger = async (productId: string): Promise<any> => {
 
   // Inward Movements (Sales Returns)
   const returnItems = await prisma.salesReturnItem.findMany({
-    where: { productId, disposition: 'Return to Warehouse' },
+    where: { productId },
     include: { salesReturn: true }
   }) as any[];
 
@@ -839,9 +973,11 @@ export const getStockLedger = async (productId: string): Promise<any> => {
         date: item.salesReturn.returnDate,
         vchType: 'Sales Return',
         vchNo: item.salesReturn.returnNo,
-        particulars: item.salesReturn.customerName,
+        particulars: `Returned by customer: ${item.salesReturn.customerName}`,
         inward: item.returnQty,
-        outward: 0
+        outward: 0,
+        disposition: item.disposition,
+        reason: item.salesReturn.reason
       });
     }
   }
@@ -850,14 +986,14 @@ export const getStockLedger = async (productId: string): Promise<any> => {
 
   const totalInward = movements.reduce((sum, m) => sum + m.inward, 0);
   const totalOutward = movements.reduce((sum, m) => sum + m.outward, 0);
-  
+
   const calculatedOpeningBalance = product.stock - totalInward + totalOutward;
 
-  return { 
+  return {
     productId,
     productName: product.name,
     currentStock: product.stock,
     openingBalance: calculatedOpeningBalance,
-    movements 
+    movements
   };
 };

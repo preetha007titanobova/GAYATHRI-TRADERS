@@ -552,7 +552,16 @@ const StockRegister = () => {
                       <td className="border-r border-gray-200 p-2 text-xs font-medium text-gray-600">{formattedDate}</td>
                       <td className="border-r border-gray-200 p-2 text-xs font-bold text-gray-700 bg-gray-50/50">{row.vchType}</td>
                       <td className="border-r border-gray-200 p-2 font-mono text-xs text-blue-700">{row.vchNo}</td>
-                      <td className="border-r border-gray-200 p-2 font-medium text-gray-800">{row.particulars}</td>
+                      <td className="border-r border-gray-200 p-2 font-medium text-gray-800">
+                        <div>{row.particulars}</div>
+                        {row.disposition && row.disposition !== 'Return to Warehouse' && (
+                          <div className="text-[10px] font-bold mt-1 inline-flex items-center">
+                            <span className="bg-red-50 text-red-700 border border-red-300 px-2 py-0.5 rounded shadow-sm">
+                              ⚠️ DEFECTIVE/DAMAGED STOCK: {row.disposition} ({row.reason || 'No reason specified'})
+                            </span>
+                          </div>
+                        )}
+                      </td>
                       <td className="border-r border-gray-200 p-2 text-right font-mono font-bold text-green-600 bg-green-50/30">{row.inward > 0 ? row.inward : ''}</td>
                       <td className="border-r border-gray-200 p-2 text-right font-mono font-bold text-red-600 bg-red-50/30">{row.outward > 0 ? row.outward : ''}</td>
                       <td 
