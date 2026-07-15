@@ -124,18 +124,69 @@ const LedgerMaster = () => {
         });
       }
       
-      // Add Sales Returns
+      // Add Sales Returns & Exchanges
       if (Array.isArray(returns)) {
         returns.forEach((r: any) => {
           if (r.customerName === customerName) {
-            moves.push({
-              date: new Date(r.returnDate || r.createdAt),
-              particulars: 'Sales Return',
-              vchType: 'Sales Return',
-              vchNo: r.returnNo,
-              dr: 0,
-              cr: r.netRefundAmount || 0
-            });
+            if (r.returnType === 'Exchange (Replacement)') {
+              const returnedVal = (Number(r.totalReturnAmount) || 0) + (Number(r.cgstReturn) || 0) + (Number(r.sgstReturn) || 0) + (Number(r.igstReturn) || 0);
+              let repVal = 0;
+              if (Array.isArray(r.replacementItems)) {
+                r.replacementItems.forEach((item: any) => {
+                  repVal += Number(item.subtotal) || 0;
+                });
+              }
+
+              // 1. Exchange Return portion (Credit)
+              moves.push({
+                date: new Date(r.returnDate || r.createdAt),
+                particulars: `Exchange Return (${r.returnNo})`,
+                vchType: 'Sales Return',
+                vchNo: r.returnNo,
+                dr: 0,
+                cr: returnedVal
+              });
+
+              // 2. Exchange Replacement Purchase portion (Debit)
+              moves.push({
+                date: new Date(r.returnDate || r.createdAt),
+                particulars: `Exchange Purchase (${r.returnNo})`,
+                vchType: 'Sales Invoice',
+                vchNo: `EXCH-${r.returnNo}`,
+                dr: repVal,
+                cr: 0
+              });
+
+              // 3. Payment offset if paid immediately
+              if (r.extraReceived > 0 && r.paymentMode !== 'Credit') {
+                moves.push({
+                  date: new Date(r.returnDate || r.createdAt),
+                  particulars: `Exchange Payment Received (${r.paymentMode})`,
+                  vchType: 'Payment Received',
+                  vchNo: `REC-${r.returnNo}`,
+                  dr: 0,
+                  cr: r.extraReceived
+                });
+              } else if (r.refundAmount > 0 && r.refundMethod !== 'Store Credit') {
+                moves.push({
+                  date: new Date(r.returnDate || r.createdAt),
+                  particulars: `Exchange Cash Refunded (${r.refundMethod})`,
+                  vchType: 'Payment Refunded',
+                  vchNo: `REF-${r.returnNo}`,
+                  dr: r.refundAmount,
+                  cr: 0
+                });
+              }
+            } else {
+              moves.push({
+                date: new Date(r.returnDate || r.createdAt),
+                particulars: 'Sales Return',
+                vchType: 'Sales Return',
+                vchNo: r.returnNo,
+                dr: 0,
+                cr: r.netRefundAmount || 0
+              });
+            }
           }
         });
       }
