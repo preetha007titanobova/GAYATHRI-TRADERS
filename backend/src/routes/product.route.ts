@@ -5,6 +5,7 @@ const router = Router();
 
 router.get('/search', productController.searchItems);
 router.get('/daily-status', productController.getDailyStockStatus);
+router.get('/stock-register-report', productController.getStockRegisterReport);
 router.post('/close-day', productController.closeDay);
 router.post('/upload-pdf', productController.uploadPdf);
 router.post('/seed', productController.seedMockItems);

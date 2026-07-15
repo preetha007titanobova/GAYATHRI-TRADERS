@@ -166,3 +166,14 @@ export const uploadPdf = async (req: Request, res: Response) => {
   }
 };
 
+export const getStockRegisterReport = async (req: Request, res: Response) => {
+  try {
+    const data = await productService.getStockRegisterReport();
+    res.json(data);
+  } catch (error: any) {
+    console.error("Stock Register Report Error:", error);
+    res.status(500).json({ error: 'Failed to fetch stock register report', details: error.message });
+  }
+};
+
+
