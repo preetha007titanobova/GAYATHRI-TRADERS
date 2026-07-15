@@ -946,9 +946,14 @@ export const getStockLedger = async (productId: string): Promise<any> => {
 
   // Inward Movements (Sales Returns)
   const returnItems = await prisma.salesReturnItem.findMany({
-    where: { productId },
-    include: { salesReturn: true }
+    where: { productId }
   }) as any[];
+
+  const salesReturns = await prisma.salesReturn.findMany();
+  const salesReturnMap = new Map(salesReturns.map(r => [r.id, r]));
+  for (const item of returnItems) {
+    item.salesReturn = salesReturnMap.get(item.salesReturnId) || null;
+  }
 
   let movements = [];
 

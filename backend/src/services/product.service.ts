@@ -156,3 +156,87 @@ export const getDailyStockStatus = async (dateStr: string): Promise<any[]> => {
   });
 };
 
+export const getStockRegisterReport = async (): Promise<any[]> => {
+  const products = await prisma.product.findMany({
+    orderBy: { name: 'asc' }
+  });
+
+  const salesItems = await prisma.salesItem.findMany({
+    include: {
+      salesBill: true
+    }
+  }) as any[];
+
+  const salesReturnItems = await prisma.salesReturnItem.findMany({
+    where: {
+      disposition: 'Return to Warehouse'
+    }
+  }) as any[];
+
+  const salesReturns = await prisma.salesReturn.findMany();
+  const salesReturnMap = new Map(salesReturns.map(r => [r.id, r]));
+  for (const item of salesReturnItems) {
+    item.salesReturn = salesReturnMap.get(item.salesReturnId) || null;
+  }
+
+  return products.map(product => {
+    const prodId = product.id;
+
+    const prodSales = salesItems.filter(item => item.productId === prodId);
+    const prodReturns = salesReturnItems.filter(item => item.productId === prodId);
+
+    const dbMovements: any[] = [];
+
+    for (const item of prodSales) {
+      if (item.salesBill) {
+        dbMovements.push({
+          id: item.id,
+          date: item.salesBill.invDate,
+          vchType: 'Sales',
+          vchNo: item.salesBill.invoiceNo,
+          particulars: item.salesBill.buyerName,
+          inward: 0,
+          outward: item.qty
+        });
+      }
+    }
+
+    for (const item of prodReturns) {
+      if (item.salesReturn) {
+        dbMovements.push({
+          id: item.id,
+          date: item.salesReturn.returnDate,
+          vchType: 'Sales Return',
+          vchNo: item.salesReturn.returnNo,
+          particulars: item.salesReturn.customerName,
+          inward: item.returnQty,
+          outward: 0
+        });
+      }
+    }
+
+    dbMovements.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    const totalInward = dbMovements.reduce((sum, m) => sum + m.inward, 0);
+    const totalOutward = dbMovements.reduce((sum, m) => sum + m.outward, 0);
+
+    const calculatedOpeningBalance = (product.stock || 0) - totalInward + totalOutward;
+
+    return {
+      id: product.id,
+      itemCode: product.itemCode || '',
+      name: product.name,
+      department: product.department || '',
+      variety: product.variety || '',
+      size: product.size || '',
+      uom: product.uom || 'PCS',
+      purchaseRate: product.purchaseRate || 0,
+      price: product.price || 0,
+      dbStock: product.stock || 0,
+      openingBalance: calculatedOpeningBalance,
+      movements: dbMovements
+    };
+  });
+};
+
+

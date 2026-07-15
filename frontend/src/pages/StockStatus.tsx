@@ -32,6 +32,39 @@ const StockStatus = () => {
   const [selectedGroup, setSelectedGroup] = useState('All');
   const [hideZero, setHideZero] = useState(false);
 
+  // Damages state
+  const [damages, setDamages] = useState<Record<string, { qty: number, reason: string, productId?: string, itemCode?: string }>>({});
+
+  useEffect(() => {
+    const stored = localStorage.getItem('billing_damages');
+    if (stored) {
+      try {
+        setDamages(JSON.parse(stored));
+      } catch (e) {
+        console.error("Error parsing billing_damages", e);
+      }
+    }
+  }, []);
+
+  const getProductDamages = (prodId: string, itemCode: string) => {
+    let totalQty = 0;
+    const reasons: string[] = [];
+    
+    Object.entries(damages).forEach(([rowId, dmg]) => {
+      const isMatch = (dmg.productId && (dmg.productId === prodId)) ||
+                      (dmg.itemCode && dmg.itemCode === itemCode) ||
+                      (rowId.includes(`-${itemCode}`));
+      
+      if (isMatch) {
+        totalQty += dmg.qty || 0;
+        if (dmg.reason) {
+          reasons.push(`${dmg.reason} (${dmg.qty})`);
+        }
+      }
+    });
+    
+    return { totalQty, reasons: reasons.join(', ') || '-' };
+  };
   const fetchInventory = async () => {
     setLoading(true);
     try {
@@ -176,6 +209,7 @@ const StockStatus = () => {
                   const qty = item.stock || 0;
                   const minReorder = item.minReorder || 10; // Defaulting to 10 if not set
                   const isLow = qty < minReorder;
+                  const { totalQty: dmgQty, reasons: dmgReasons } = getProductDamages(item.id || item._id || '', item.itemCode || '');
 
                   return (
                     <tr key={item.id || item._id || idx} className={`border-b border-gray-200 transition-colors ${isLow ? 'bg-red-50/70 hover:bg-red-100/70' : (idx % 2 === 0 ? 'bg-white hover:bg-blue-50' : 'bg-[#fcfdfd] hover:bg-blue-50')}`}>
