@@ -31,6 +31,39 @@ const StockStatus = () => {
   const [selectedGroup, setSelectedGroup] = useState('All');
   const [hideZero, setHideZero] = useState(false);
 
+  // Damages state
+  const [damages, setDamages] = useState<Record<string, { qty: number, reason: string, productId?: string, itemCode?: string }>>({});
+
+  useEffect(() => {
+    const stored = localStorage.getItem('billing_damages');
+    if (stored) {
+      try {
+        setDamages(JSON.parse(stored));
+      } catch (e) {
+        console.error("Error parsing billing_damages", e);
+      }
+    }
+  }, []);
+
+  const getProductDamages = (prodId: string, itemCode: string) => {
+    let totalQty = 0;
+    const reasons: string[] = [];
+    
+    Object.entries(damages).forEach(([rowId, dmg]) => {
+      const isMatch = (dmg.productId && (dmg.productId === prodId)) ||
+                      (dmg.itemCode && dmg.itemCode === itemCode) ||
+                      (rowId.includes(`-${itemCode}`));
+      
+      if (isMatch) {
+        totalQty += dmg.qty || 0;
+        if (dmg.reason) {
+          reasons.push(`${dmg.reason} (${dmg.qty})`);
+        }
+      }
+    });
+    
+    return { totalQty, reasons: reasons.join(', ') || '-' };
+  };
   const fetchInventory = async () => {
     setLoading(true);
     try {
@@ -150,19 +183,21 @@ const StockStatus = () => {
                 <th className="px-4 py-2.5 font-medium border-b border-slate-200">Size</th>
                 <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-20 text-center">Unit</th>
                 <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-28 text-right">Available stock</th>
+                <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-28 text-right text-orange-300">Damages (Qty)</th>
+                <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-48 text-left text-orange-300">Damage Reasons</th>
                 <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-28 text-right">Min Reorder</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="p-12 text-center text-gray-500">
+                  <td colSpan={10} className="p-12 text-center text-gray-500">
                     Loading stock data...
                   </td>
                 </tr>
               ) : filteredStock.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="p-12 text-center text-gray-400">
+                  <td colSpan={10} className="p-12 text-center text-gray-400">
                     <div className="flex flex-col items-center">
                       <PackageSearch size={32} className="mb-2 opacity-50" />
                       <p className="italic text-sm">No items found matching criteria.</p>
@@ -174,6 +209,7 @@ const StockStatus = () => {
                   const qty = item.stock || 0;
                   const minReorder = item.minReorder || 10; // Defaulting to 10 if not set
                   const isLow = qty < minReorder;
+                  const { totalQty: dmgQty, reasons: dmgReasons } = getProductDamages(item.id || item._id || '', item.itemCode || '');
 
                   return (
                     <tr key={item.id || item._id || idx} className={`border-b border-gray-200 transition-colors ${isLow ? 'bg-red-50/70 hover:bg-red-100/70' : (idx % 2 === 0 ? 'bg-white hover:bg-blue-50' : 'bg-[#fcfdfd] hover:bg-blue-50')}`}>
@@ -189,6 +225,8 @@ const StockStatus = () => {
                         {isLow && <AlertTriangle size={12} className="inline mr-1 -mt-1 text-red-500" />}
                         {qty}
                       </td>
+                      <td className="border-r border-gray-200 p-2 text-right font-mono font-bold text-orange-600 bg-orange-50/10">{dmgQty > 0 ? dmgQty : '-'}</td>
+                      <td className="border-r border-gray-200 p-2 text-xs text-gray-600 font-medium max-w-[200px] truncate" title={dmgReasons}>{dmgReasons}</td>
                       <td className="border-r border-gray-200 p-2 text-right font-mono text-xs text-gray-500">{minReorder}</td>
                     </tr>
                   );

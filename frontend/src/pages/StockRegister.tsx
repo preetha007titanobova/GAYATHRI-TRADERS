@@ -6,7 +6,6 @@ import Api from '../Api';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Modal from '../components/Modal';
-
 interface StockMove {
   id: string;
   date: string;
@@ -148,8 +147,6 @@ const StockRegister = () => {
         if (res.ok) {
           const data = await res.json();
           const backendMovements = data.movements || [];
-
-          // Fetch local purchase bills
           const storedBillsStr = localStorage.getItem('billing_purchase_bills');
           const localPurchaseMovements: StockMove[] = [];
           if (storedBillsStr && activeItem) {
@@ -182,9 +179,7 @@ const StockRegister = () => {
           }
 
           const combinedMovements = [...backendMovements, ...localPurchaseMovements];
-          // Sort them by date to maintain chronological order
           combinedMovements.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
           setMovements(combinedMovements);
           setOpeningBalance(data.openingBalance || 0);
         } else {
@@ -374,7 +369,9 @@ const StockRegister = () => {
       ...damages,
       [selectedRowForDmg.id]: {
         qty: newQty,
-        reason: tempDmgReason
+        reason: tempDmgReason,
+        productId: activeItem.id || activeItem._id,
+        itemCode: activeItem.itemCode
       }
     };
 
@@ -404,8 +401,6 @@ const StockRegister = () => {
       // Update Local Storage & State
       localStorage.setItem('billing_damages', JSON.stringify(updatedDamages));
       setDamages(updatedDamages);
-
-      // Update local product items list so activeItem's stock changes immediately
       setItems(prev => prev.map(p => {
         if ((p.id || p._id) === (activeItem.id || activeItem._id)) {
           return { ...p, stock: p.stock + adjustment };
