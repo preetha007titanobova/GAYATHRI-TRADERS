@@ -25,6 +25,10 @@ router.get('/returns/search', salesController.searchSalesReturns);
 router.get('/returns/:id', salesController.getSalesReturnDetails);
 router.put('/returns/:id', salesController.updateSalesReturn);
 router.delete('/returns/:id', salesController.deleteSalesReturn);
+router.get('/returns/invoice/:invoiceNo', salesController.getReturnsByInvoice);
+
+// Sales Status Report
+router.get('/status/report', salesController.getSalesStatusReport);
 
 // Stock Ledger
 router.get('/stock-ledger/:productId', salesController.getStockLedger);

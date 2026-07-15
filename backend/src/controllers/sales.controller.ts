@@ -223,3 +223,24 @@ export const getStockLedger = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Failed to fetch stock ledger' });
   }
 };
+
+export const getSalesStatusReport = async (req: Request, res: Response) => {
+  try {
+    const report = await salesService.getSalesStatusReport();
+    res.json(report);
+  } catch (error: any) {
+    console.error("Sales Status Report Error:", error);
+    res.status(500).json({ error: 'Failed to fetch sales status report', details: error.message });
+  }
+};
+
+export const getReturnsByInvoice = async (req: Request, res: Response) => {
+  try {
+    const { invoiceNo } = req.params;
+    const data = await salesService.getReturnsByInvoice(invoiceNo as string);
+    res.json(data);
+  } catch (error: any) {
+    console.error("Get Returns By Invoice Error:", error);
+    res.status(500).json({ error: 'Failed to fetch returns by invoice', details: error.message });
+  }
+};

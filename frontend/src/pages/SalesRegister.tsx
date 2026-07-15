@@ -642,6 +642,7 @@ const SalesRegister = () => {
                   } else {
                     // returns
                     const taxAmt = (rec.cgstReturn || 0) + (rec.sgstReturn || 0) + (rec.igstReturn || 0);
+                    const isExchange = rec.returnType === 'Exchange (Replacement)';
                     return (
                       <tr
                         key={rec._id}
@@ -664,9 +665,27 @@ const SalesRegister = () => {
                         <td className="border-r border-gray-300 p-1.5">{rec.originalInvoice || '-'}</td>
                         <td className="border-r border-gray-300 p-1.5 text-ellipsis overflow-hidden max-w-[150px]">{rec.reason || '-'}</td>
                         <td className="border-r border-gray-300 p-1.5 text-right font-mono text-red-600">₹{taxAmt.toFixed(2)}</td>
-                        <td className="border-r border-gray-300 p-1.5 text-right font-mono font-bold text-green-700">₹{rec.netRefundAmount?.toFixed(2) || '0.00'}</td>
+                        <td className="border-r border-gray-300 p-1.5 text-right font-mono font-bold text-green-700">
+                          {isExchange ? (
+                            rec.extraReceived > 0 ? (
+                              <span className="text-emerald-600 font-extrabold">+₹{rec.extraReceived.toFixed(2)}</span>
+                            ) : rec.refundAmount > 0 ? (
+                              <span className="text-orange-600 font-extrabold">-₹{rec.refundAmount.toFixed(2)}</span>
+                            ) : (
+                              '₹0.00'
+                            )
+                          ) : (
+                            `₹${(rec.netRefundAmount || 0).toFixed(2)}`
+                          )}
+                        </td>
                         <td className="p-1.5 text-center">
-                          <span className="bg-yellow-100 text-yellow-800 text-[10px] font-bold px-2 py-0.5 rounded border border-yellow-300">RETURNED</span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                            isExchange 
+                              ? 'bg-purple-100 text-purple-800 border-purple-300' 
+                              : 'bg-yellow-100 text-yellow-800 border-yellow-300'
+                          }`}>
+                            {isExchange ? 'EXCHANGE' : 'RETURN'}
+                          </span>
                         </td>
                       </tr>
                     );
@@ -690,8 +709,37 @@ const SalesRegister = () => {
                     <div className="text-xs text-slate-700 mt-2 space-y-1.5">
                       <div className="flex justify-between"><span>No:</span> <span className="font-bold text-gray-800">{rec.invoiceNo || rec.orderNo || rec.returnNo}</span></div>
                       <div className="flex justify-between"><span>Date:</span> <span className="font-semibold text-gray-800">{new Date(rec.invDate || rec.orderDate || rec.returnDate).toLocaleDateString()}</span></div>
-                      <div className="flex justify-between"><span>Gross Total:</span> <span className="font-mono text-gray-800">₹{(rec.totalAmount || rec.subtotal || rec.totalReturnAmount || 0).toFixed(2)}</span></div>
-                      <div className="flex justify-between"><span>Net Total:</span> <span className="font-mono text-emerald-800 font-bold text-sm">₹{(rec.netAmount || rec.grandTotal || rec.netRefundAmount || 0).toFixed(2)}</span></div>
+                      <div className="flex justify-between"><span>Type:</span> <span className="font-semibold text-gray-800">{rec.returnType || (rec.invoiceNo ? 'Sales Bill' : 'Sales Order')}</span></div>
+                      {rec.returnType === 'Exchange (Replacement)' ? (
+                        <>
+                          <div className="flex justify-between text-red-600 font-semibold">
+                            <span>Returned Value:</span>
+                            <span className="font-mono">₹{((rec.totalReturnAmount || 0) + (rec.cgstReturn || 0) + (rec.sgstReturn || 0) + (rec.igstReturn || 0)).toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between text-green-600 font-semibold">
+                            <span>Replacement Value:</span>
+                            <span className="font-mono">₹{(rec.replacementItems ? rec.replacementItems.reduce((sum: number, i: any) => sum + (i.subtotal || 0), 0) : 0).toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between font-bold text-slate-900 border-t border-slate-300 pt-1.5">
+                            <span>Net Adjustment:</span>
+                            <span className="font-mono">
+                              {rec.extraReceived > 0 
+                                ? `+₹${rec.extraReceived.toFixed(2)}` 
+                                : rec.refundAmount > 0 
+                                  ? `-₹${rec.refundAmount.toFixed(2)}` 
+                                  : '₹0.00'}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-[10px] text-slate-500">
+                            <span>{rec.extraReceived > 0 ? `Paid via ${rec.paymentMode}` : rec.refundAmount > 0 ? `Refund: ${rec.refundMethod}` : ''}</span>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex justify-between"><span>Gross Total:</span> <span className="font-mono text-gray-800">₹{(rec.totalAmount || rec.subtotal || rec.totalReturnAmount || 0).toFixed(2)}</span></div>
+                          <div className="flex justify-between"><span>Net Total:</span> <span className="font-mono text-emerald-800 font-bold text-sm">₹{(rec.netAmount || rec.grandTotal || rec.netRefundAmount || 0).toFixed(2)}</span></div>
+                        </>
+                      )}
                     </div>
                   );
                 })()}

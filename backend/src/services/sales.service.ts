@@ -581,7 +581,8 @@ export const getNextSalesReturnSequence = async (): Promise<string> => {
 export const createSalesReturn = async (data: any): Promise<any> => {
   const {
     returnNo, returnDate, originalInvoice, customerName, reason, returnType,
-    totalReturnAmount, cgstReturn, sgstReturn, igstReturn, roundOff, netRefundAmount, items
+    totalReturnAmount, cgstReturn, sgstReturn, igstReturn, roundOff, netRefundAmount, items,
+    extraReceived, refundAmount, paymentMode, refundMethod, replacementItems
   } = data;
 
   const db = await getDb();
@@ -599,6 +600,11 @@ export const createSalesReturn = async (data: any): Promise<any> => {
     igstReturn: Number(igstReturn) || 0,
     roundOff: Number(roundOff) || 0,
     netRefundAmount: Number(netRefundAmount) || 0,
+    extraReceived: Number(extraReceived) || 0,
+    refundAmount: Number(refundAmount) || 0,
+    paymentMode: paymentMode || 'Cash',
+    refundMethod: refundMethod || 'Cash',
+    replacementItems: replacementItems || [],
     createdAt: new Date()
   });
 
@@ -642,34 +648,58 @@ export const createSalesReturn = async (data: any): Promise<any> => {
             }
           });
         }
-
-        // If it is an exchange, a replacement item is given, so decrement normal stock
-        if (returnType === 'Exchange (Replacement)') {
-          await prisma.product.updateMany({
-            where: {
-              OR: [
-                { itemCode: item.itemCode },
-                { name: item.itemName }
-              ]
-            },
-            data: {
-              stock: {
-                decrement: item.returnQty
-              }
-            }
-          });
-        }
       }
     }
   }
 
-  if (customerName && netRefundAmount > 0 && returnType !== 'Exchange (Replacement)') {
+  // Process replacement items stock changes if it is an Exchange
+  if (returnType === 'Exchange (Replacement)' && replacementItems && replacementItems.length > 0) {
+    for (const repItem of replacementItems) {
+      const qty = Number(repItem.qty) || 0;
+      if (qty > 0 && (repItem.itemCode || repItem.itemName)) {
+        await prisma.product.updateMany({
+          where: {
+            OR: [
+              { itemCode: repItem.itemCode },
+              { name: repItem.itemName }
+            ]
+          },
+          data: {
+            stock: {
+              decrement: qty
+            }
+          }
+        });
+      }
+    }
+  }
+
+  // Adjust Ledger opening balance
+  if (customerName) {
     const ledger = await db.collection('Ledger').findOne({ accountName: customerName });
     if (ledger) {
-      await db.collection('Ledger').updateOne(
-        { _id: ledger._id },
-        { $inc: { openingBalance: -Number(netRefundAmount) } }
-      );
+      let ledgerAdjustment = 0;
+      if (returnType === 'Exchange (Replacement)') {
+        const netDiff = (Number(extraReceived) || 0) - (Number(refundAmount) || 0);
+        if (netDiff > 0) {
+          if (paymentMode === 'Credit') {
+            ledgerAdjustment = netDiff;
+          }
+        } else if (netDiff < 0) {
+          if (refundMethod === 'Store Credit') {
+            ledgerAdjustment = netDiff; // netDiff is negative, so this decrements openingBalance
+          }
+        }
+      } else {
+        ledgerAdjustment = -Number(netRefundAmount);
+      }
+
+      if (ledgerAdjustment !== 0) {
+        await db.collection('Ledger').updateOne(
+          { _id: ledger._id },
+          { $inc: { openingBalance: Number(ledgerAdjustment) } }
+        );
+      }
     }
   }
 
@@ -700,7 +730,8 @@ export const getSalesReturnDetails = async (id: string): Promise<any> => {
 export const updateSalesReturn = async (id: string, data: any): Promise<boolean> => {
   const {
     returnNo, returnDate, originalInvoice, customerName, reason, returnType,
-    totalReturnAmount, cgstReturn, sgstReturn, igstReturn, roundOff, netRefundAmount, items
+    totalReturnAmount, cgstReturn, sgstReturn, igstReturn, roundOff, netRefundAmount, items,
+    extraReceived, refundAmount, paymentMode, refundMethod, replacementItems
   } = data;
 
   const db = await getDb();
@@ -732,19 +763,24 @@ export const updateSalesReturn = async (id: string, data: any): Promise<boolean>
           }
         });
       }
+    }
+  }
 
-      // Revert replacement item stock decrement if it was an exchange
-      if (oldReturn && oldReturn.returnType === 'Exchange (Replacement)') {
+  // Revert old replacement item stock decrement if it was an exchange
+  if (oldReturn && oldReturn.returnType === 'Exchange (Replacement)' && oldReturn.replacementItems && oldReturn.replacementItems.length > 0) {
+    for (const repItem of oldReturn.replacementItems) {
+      const qty = Number(repItem.qty) || 0;
+      if (qty > 0 && (repItem.itemCode || repItem.itemName)) {
         await prisma.product.updateMany({
           where: {
             OR: [
-              { itemCode: item.itemCode },
-              { name: item.itemName }
+              { itemCode: repItem.itemCode },
+              { name: repItem.itemName }
             ]
           },
           data: {
             stock: {
-              increment: item.returnQty
+              increment: qty
             }
           }
         });
@@ -752,14 +788,32 @@ export const updateSalesReturn = async (id: string, data: any): Promise<boolean>
     }
   }
 
-  // Revert ledger impact
-  if (oldReturn && oldReturn.customerName && oldReturn.netRefundAmount > 0 && oldReturn.returnType !== 'Exchange (Replacement)') {
+  // Revert old ledger impact
+  if (oldReturn && oldReturn.customerName) {
     const ledger = await db.collection('Ledger').findOne({ accountName: oldReturn.customerName });
     if (ledger) {
-      await db.collection('Ledger').updateOne(
-        { _id: ledger._id },
-        { $inc: { openingBalance: Number(oldReturn.netRefundAmount) } }
-      );
+      let ledgerAdjustment = 0;
+      if (oldReturn.returnType === 'Exchange (Replacement)') {
+        const oldDiff = (Number(oldReturn.extraReceived) || 0) - (Number(oldReturn.refundAmount) || 0);
+        if (oldDiff > 0) {
+          if (oldReturn.paymentMode === 'Credit') {
+            ledgerAdjustment = -oldDiff;
+          }
+        } else if (oldDiff < 0) {
+          if (oldReturn.refundMethod === 'Store Credit') {
+            ledgerAdjustment = -oldDiff;
+          }
+        }
+      } else {
+        ledgerAdjustment = Number(oldReturn.netRefundAmount) || 0;
+      }
+
+      if (ledgerAdjustment !== 0) {
+        await db.collection('Ledger').updateOne(
+          { _id: ledger._id },
+          { $inc: { openingBalance: Number(ledgerAdjustment) } }
+        );
+      }
     }
   }
 
@@ -780,6 +834,11 @@ export const updateSalesReturn = async (id: string, data: any): Promise<boolean>
         igstReturn: Number(igstReturn) || 0,
         roundOff: Number(roundOff) || 0,
         netRefundAmount: Number(netRefundAmount) || 0,
+        extraReceived: Number(extraReceived) || 0,
+        refundAmount: Number(refundAmount) || 0,
+        paymentMode: paymentMode || 'Cash',
+        refundMethod: refundMethod || 'Cash',
+        replacementItems: replacementItems || [],
         updatedAt: new Date()
       }
     }
@@ -831,35 +890,58 @@ export const updateSalesReturn = async (id: string, data: any): Promise<boolean>
             }
           });
         }
+      }
+    }
+  }
 
-        // If it is an exchange, a replacement item is given, so decrement normal stock
-        if (returnType === 'Exchange (Replacement)') {
-          await prisma.product.updateMany({
-            where: {
-              OR: [
-                { itemCode: item.itemCode },
-                { name: item.itemName }
-              ]
-            },
-            data: {
-              stock: {
-                decrement: item.returnQty
-              }
+  // Apply new replacement items stock changes if it is an Exchange
+  if (returnType === 'Exchange (Replacement)' && replacementItems && replacementItems.length > 0) {
+    for (const repItem of replacementItems) {
+      const qty = Number(repItem.qty) || 0;
+      if (qty > 0 && (repItem.itemCode || repItem.itemName)) {
+        await prisma.product.updateMany({
+          where: {
+            OR: [
+              { itemCode: repItem.itemCode },
+              { name: repItem.itemName }
+            ]
+          },
+          data: {
+            stock: {
+              decrement: qty
             }
-          });
-        }
+          }
+        });
       }
     }
   }
 
   // Apply new ledger impact
-  if (customerName && netRefundAmount > 0 && returnType !== 'Exchange (Replacement)') {
+  if (customerName) {
     const ledger = await db.collection('Ledger').findOne({ accountName: customerName });
     if (ledger) {
-      await db.collection('Ledger').updateOne(
-        { _id: ledger._id },
-        { $inc: { openingBalance: -Number(netRefundAmount) } }
-      );
+      let ledgerAdjustment = 0;
+      if (returnType === 'Exchange (Replacement)') {
+        const netDiff = (Number(extraReceived) || 0) - (Number(refundAmount) || 0);
+        if (netDiff > 0) {
+          if (paymentMode === 'Credit') {
+            ledgerAdjustment = netDiff;
+          }
+        } else if (netDiff < 0) {
+          if (refundMethod === 'Store Credit') {
+            ledgerAdjustment = netDiff;
+          }
+        }
+      } else {
+        ledgerAdjustment = -Number(netRefundAmount);
+      }
+
+      if (ledgerAdjustment !== 0) {
+        await db.collection('Ledger').updateOne(
+          { _id: ledger._id },
+          { $inc: { openingBalance: Number(ledgerAdjustment) } }
+        );
+      }
     }
   }
 
@@ -871,6 +953,7 @@ export const deleteSalesReturn = async (id: string): Promise<boolean> => {
   const returnId = new ObjectId(id as string);
 
   const salesReturn = await db.collection('SalesReturn').findOne({ _id: returnId });
+  if (!salesReturn) return false;
 
   const items = await db.collection('SalesReturnItem').find({ salesReturnId: returnId }).toArray();
   for (const item of items) {
@@ -896,19 +979,24 @@ export const deleteSalesReturn = async (id: string): Promise<boolean> => {
           }
         });
       }
+    }
+  }
 
-      // Revert replacement item stock decrement if it was an exchange
-      if (salesReturn && salesReturn.returnType === 'Exchange (Replacement)') {
+  // Revert replacement item stock decrement if it was an exchange
+  if (salesReturn.returnType === 'Exchange (Replacement)' && salesReturn.replacementItems && salesReturn.replacementItems.length > 0) {
+    for (const repItem of salesReturn.replacementItems) {
+      const qty = Number(repItem.qty) || 0;
+      if (qty > 0 && (repItem.itemCode || repItem.itemName)) {
         await prisma.product.updateMany({
           where: {
             OR: [
-              { itemCode: item.itemCode },
-              { name: item.itemName }
+              { itemCode: repItem.itemCode },
+              { name: repItem.itemName }
             ]
           },
           data: {
             stock: {
-              increment: item.returnQty
+              increment: qty
             }
           }
         });
@@ -916,13 +1004,32 @@ export const deleteSalesReturn = async (id: string): Promise<boolean> => {
     }
   }
 
-  if (salesReturn && salesReturn.customerName && salesReturn.netRefundAmount > 0 && salesReturn.returnType !== 'Exchange (Replacement)') {
+  // Revert ledger impact
+  if (salesReturn.customerName) {
     const ledger = await db.collection('Ledger').findOne({ accountName: salesReturn.customerName });
     if (ledger) {
-      await db.collection('Ledger').updateOne(
-        { _id: ledger._id },
-        { $inc: { openingBalance: Number(salesReturn.netRefundAmount) } }
-      );
+      let ledgerAdjustment = 0;
+      if (salesReturn.returnType === 'Exchange (Replacement)') {
+        const oldDiff = (Number(salesReturn.extraReceived) || 0) - (Number(salesReturn.refundAmount) || 0);
+        if (oldDiff > 0) {
+          if (salesReturn.paymentMode === 'Credit') {
+            ledgerAdjustment = -oldDiff;
+          }
+        } else if (oldDiff < 0) {
+          if (salesReturn.refundMethod === 'Store Credit') {
+            ledgerAdjustment = -oldDiff;
+          }
+        }
+      } else {
+        ledgerAdjustment = Number(salesReturn.netRefundAmount) || 0;
+      }
+
+      if (ledgerAdjustment !== 0) {
+        await db.collection('Ledger').updateOne(
+          { _id: ledger._id },
+          { $inc: { openingBalance: Number(ledgerAdjustment) } }
+        );
+      }
     }
   }
 
@@ -1001,4 +1108,84 @@ export const getStockLedger = async (productId: string): Promise<any> => {
     openingBalance: calculatedOpeningBalance,
     movements
   };
+};
+
+export const getSalesStatusReport = async (): Promise<any[]> => {
+  const db = await getDb();
+  const bills = await db.collection('SalesBill').find().sort({ createdAt: -1 }).toArray();
+  const returns = await db.collection('SalesReturn').find().toArray();
+
+  return bills.map((bill: any) => {
+    const billReturns = returns.filter((r: any) => r.originalInvoice === bill.invoiceNo);
+
+    let totalReturned = 0;
+    let totalExchanged = 0;
+    let totalRefunded = 0;
+    let totalExtraReceived = 0;
+
+    billReturns.forEach((r: any) => {
+      if (r.returnType === 'Exchange (Replacement)') {
+        const returnedVal = (Number(r.totalReturnAmount) || 0) + (Number(r.cgstReturn) || 0) + (Number(r.sgstReturn) || 0) + (Number(r.igstReturn) || 0);
+        totalReturned += returnedVal;
+
+        let repVal = 0;
+        if (Array.isArray(r.replacementItems)) {
+          r.replacementItems.forEach((item: any) => {
+            repVal += Number(item.subtotal) || 0;
+          });
+        }
+        totalExchanged += repVal;
+        totalExtraReceived += Number(r.extraReceived) || 0;
+        totalRefunded += Number(r.refundAmount) || 0;
+      } else {
+        const returnedVal = Number(r.netRefundAmount) || Number(r.totalReturnAmount) || 0;
+        totalReturned += returnedVal;
+        totalRefunded += returnedVal;
+      }
+    });
+
+    const originalSale = bill.netAmount || 0;
+    const netSale = originalSale - totalReturned + totalExchanged;
+
+    let status = 'Completed';
+    if (billReturns.length > 0) {
+      const hasExchange = billReturns.some((r: any) => r.returnType === 'Exchange (Replacement)');
+      if (hasExchange) {
+        if (totalReturned >= originalSale) {
+          status = 'Fully Exchanged';
+        } else {
+          status = 'Partially Exchanged';
+        }
+      } else {
+        if (totalReturned >= originalSale) {
+          status = 'Fully Returned';
+        } else {
+          status = 'Partially Returned';
+        }
+      }
+    }
+
+    return {
+      id: bill._id,
+      invoiceNo: bill.invoiceNo,
+      invDate: bill.invDate || bill.createdAt,
+      buyerName: bill.buyerName,
+      originalSale,
+      returned: totalReturned,
+      exchanged: totalExchanged,
+      refunded: totalRefunded,
+      extraReceived: totalExtraReceived,
+      netSale,
+      status
+    };
+  });
+};
+
+export const getReturnsByInvoice = async (invoiceNo: string): Promise<any[]> => {
+  const db = await getDb();
+  const returns = await db.collection('SalesReturn').find({ originalInvoice: invoiceNo }).toArray();
+  for (const r of returns) {
+    r.items = await db.collection('SalesReturnItem').find({ salesReturnId: r._id }).toArray();
+  }
+  return returns;
 };

@@ -33,6 +33,34 @@ const SalesReturn = () => {
   const [customReason, setCustomReason] = useState('');
   const [returnType, setReturnType] = useState('Credit Note (Refund)');
 
+  // Exchange / Replacement State
+  interface ReplacementGridRow {
+    id: number;
+    productId: string | null;
+    itemCode: string;
+    itemName: string;
+    qty: number;
+    unitPrice: number;
+    taxPercent: number;
+    taxableAmt: number;
+    subtotal: number;
+  }
+  const [replacementItems, setReplacementItems] = useState<ReplacementGridRow[]>([]);
+  const [paymentMode, setPaymentMode] = useState('Cash');
+  const [refundMethod, setRefundMethod] = useState('Cash');
+  const [extraReceived, setExtraReceived] = useState(0);
+  const [refundAmount, setRefundAmount] = useState(0);
+  const [productSearchQuery, setProductSearchQuery] = useState('');
+  const [productSearchResults, setProductSearchResults] = useState<any[]>([]);
+  const [isProductDropdownOpen, setIsProductDropdownOpen] = useState(false);
+
+  // Replacement Totals
+  const [totalReplacementAmount, setTotalReplacementAmount] = useState(0);
+  const [cgstReplacement, setCgstReplacement] = useState(0);
+  const [sgstReplacement, setSgstReplacement] = useState(0);
+  const [igstReplacement, setIgstReplacement] = useState(0);
+  const [netReplacementAmount, setNetReplacementAmount] = useState(0);
+
   // Grid State
   const [itemsToReturn, setItemsToReturn] = useState<ReturnGridRow[]>([]);
 
@@ -69,6 +97,7 @@ const SalesReturn = () => {
               buyerName: data.customerName || '',
               eType: data.igstReturn > 0 ? 'Interstate' : 'Local'
             });
+            setReturnType(data.returnType || 'Credit Note (Refund)');
             if (Array.isArray(data.items)) {
               setItemsToReturn(data.items.map((item: any, idx: number) => ({
                 id: idx + 1,
@@ -85,6 +114,23 @@ const SalesReturn = () => {
                 _originalTaxable: item.taxableAmt || (item.returnQty * item.unitPrice)
               })));
             }
+            if (Array.isArray(data.replacementItems)) {
+              setReplacementItems(data.replacementItems.map((item: any, idx: number) => ({
+                id: idx + 1,
+                productId: item.productId || null,
+                itemCode: item.itemCode || '-',
+                itemName: item.itemName || '',
+                qty: item.qty || 1,
+                unitPrice: item.unitPrice || 0,
+                taxPercent: item.taxPercent || 0,
+                taxableAmt: item.taxableAmt || 0,
+                subtotal: item.subtotal || 0
+              })));
+            }
+            setExtraReceived(data.extraReceived || 0);
+            setRefundAmount(data.refundAmount || 0);
+            setPaymentMode(data.paymentMode || 'Cash');
+            setRefundMethod(data.refundMethod || 'Cash');
           }
         })
         .catch(err => console.error("Failed to fetch return details:", err));
@@ -163,6 +209,101 @@ const SalesReturn = () => {
 
     return () => clearTimeout(delayDebounceFn);
   }, [searchQuery, invoiceDetails]);
+
+  // Product Search Effect for Exchange Replacement
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(async () => {
+      const q = productSearchQuery.trim();
+      if (q.length >= 1) {
+        try {
+          const res = await fetch(`${Api}/products/search?q=${encodeURIComponent(q)}`);
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            setProductSearchResults(data);
+            setIsProductDropdownOpen(true);
+          }
+        } catch (err) {
+          console.error("Replacement product search error:", err);
+        }
+      } else {
+        setProductSearchResults([]);
+        setIsProductDropdownOpen(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [productSearchQuery]);
+
+  // Compute Replacement Totals
+  useEffect(() => {
+    let tAmt = 0;
+    let c = 0;
+    let s = 0;
+    let i = 0;
+
+    replacementItems.forEach(row => {
+      tAmt += row.taxableAmt;
+      const taxAmt = row.subtotal - row.taxableAmt;
+      if (invoiceDetails?.eType === 'Interstate') {
+        i += taxAmt;
+      } else {
+        c += taxAmt / 2;
+        s += taxAmt / 2;
+      }
+    });
+
+    setTotalReplacementAmount(tAmt);
+    setCgstReplacement(c);
+    setSgstReplacement(s);
+    setIgstReplacement(i);
+    const rawTotal = replacementItems.reduce((sum, item) => sum + item.subtotal, 0);
+    setNetReplacementAmount(Math.round(rawTotal));
+  }, [replacementItems, invoiceDetails]);
+
+  const handleAddReplacementProduct = (product: any) => {
+    const nextId = replacementItems.length + 1;
+    const taxRate = Number(product.gstPercent) || 0;
+    const unitPrice = Number(product.price) || 0;
+    const qty = 1;
+    const rowTaxable = (unitPrice * qty) / (1 + taxRate / 100);
+    const rowSubtotal = unitPrice * qty;
+
+    const newItem: ReplacementGridRow = {
+      id: nextId,
+      productId: product.id || product._id,
+      itemCode: product.itemCode || '-',
+      itemName: product.name,
+      qty: 1,
+      unitPrice: unitPrice,
+      taxPercent: taxRate,
+      taxableAmt: rowTaxable,
+      subtotal: rowSubtotal
+    };
+
+    setReplacementItems(prev => [...prev, newItem]);
+    setProductSearchQuery('');
+    setIsProductDropdownOpen(false);
+  };
+
+  const handleReplacementGridChange = (id: number, field: keyof ReplacementGridRow, value: any) => {
+    setReplacementItems(prev => prev.map(row => {
+      if (row.id !== id) return row;
+      const newRow = { ...row, [field]: value };
+      if (field === 'qty' || field === 'unitPrice') {
+        const qty = field === 'qty' ? Number(value) || 0 : newRow.qty;
+        const price = field === 'unitPrice' ? Number(value) || 0 : newRow.unitPrice;
+        newRow.qty = qty;
+        newRow.unitPrice = price;
+        newRow.taxableAmt = (price * qty) / (1 + newRow.taxPercent / 100);
+        newRow.subtotal = price * qty;
+      }
+      return newRow;
+    }));
+  };
+
+  const handleDeleteReplacementItem = (id: number) => {
+    setReplacementItems(prev => prev.filter(row => row.id !== id).map((row, idx) => ({ ...row, id: idx + 1 })));
+  };
 
   const handleSearchInvoice = async () => {
     try {
@@ -323,6 +464,10 @@ const SalesReturn = () => {
       return;
     }
 
+    const diff = netReplacementAmount - netRefundAmount;
+    const computedExtraReceived = diff > 0 ? diff : 0;
+    const computedRefundAmount = diff < 0 ? -diff : 0;
+
     const payload = {
       returnNo,
       returnDate,
@@ -336,7 +481,12 @@ const SalesReturn = () => {
       igstReturn,
       roundOff,
       netRefundAmount,
-      items: selectedItems
+      items: selectedItems,
+      extraReceived: computedExtraReceived,
+      refundAmount: computedRefundAmount,
+      paymentMode: diff > 0 ? paymentMode : 'Cash',
+      refundMethod: diff < 0 ? refundMethod : 'Cash',
+      replacementItems: returnType === 'Exchange (Replacement)' ? replacementItems : []
     };
 
     try {
@@ -349,7 +499,7 @@ const SalesReturn = () => {
       });
       const data = await res.json();
       if (data.success) {
-        if (setGlobalNotification) setGlobalNotification({msg: `Credit Note ${returnNo} saved successfully!`, type: 'success'});
+        if (setGlobalNotification) setGlobalNotification({msg: `Transaction ${returnNo} saved successfully!`, type: 'success'});
         if (editingReturnId) {
           setTimeout(() => navigate('/sales-register'), 1500);
         } else {
@@ -367,7 +517,15 @@ const SalesReturn = () => {
   const handleCancelClick = () => {
     setInvoiceDetails(null);
     setItemsToReturn([]);
+    setReplacementItems([]);
+    setExtraReceived(0);
+    setRefundAmount(0);
+    setPaymentMode('Cash');
+    setRefundMethod('Cash');
     setSearchQuery('');
+    setProductSearchQuery('');
+    setProductSearchResults([]);
+    setIsProductDropdownOpen(false);
     fetchNextSequence();
     if (setGlobalNotification) {
       setGlobalNotification({msg: 'Return form cleared.', type: 'success'});
@@ -508,10 +666,38 @@ const SalesReturn = () => {
           </div>
         </div>
 
-        {/* Highlighted Grand Total Overlay (Restructured into its own panel) */}
-        <div className="w-64 bg-gray-900 rounded-md border border-gray-700 flex flex-col items-center justify-center text-white shadow-md p-4">
-          <span className="text-xs text-gray-400 font-bold tracking-widest uppercase mb-2 text-center">Grand Total To Reverse</span>
-          <span className="text-3xl font-black text-[#ff7f50] tracking-tight">₹ {netRefundAmount.toFixed(2)}</span>
+        {/* Highlighted Grand Total Overlay */}
+        <div className="w-80 bg-gray-900 rounded-md border border-gray-700 flex flex-col justify-center text-white shadow-md p-4 space-y-2">
+          {returnType === 'Exchange (Replacement)' ? (
+            <>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-gray-400 font-bold uppercase">To Reverse:</span>
+                <span className="font-mono text-red-400 font-bold">₹{netRefundAmount.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-gray-400 font-bold uppercase">Replacement:</span>
+                <span className="font-mono text-green-400 font-bold">₹{netReplacementAmount.toFixed(2)}</span>
+              </div>
+              <div className="border-t border-gray-700 my-1"></div>
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-gray-400 font-bold uppercase">Net Difference:</span>
+                <span className={`text-xl font-mono font-black ${
+                  netReplacementAmount - netRefundAmount > 0 
+                    ? 'text-emerald-400' 
+                    : netReplacementAmount - netRefundAmount < 0 
+                      ? 'text-orange-400' 
+                      : 'text-white'
+                }`}>
+                  ₹{(netReplacementAmount - netRefundAmount).toFixed(2)}
+                </span>
+              </div>
+            </>
+          ) : (
+            <div className="flex flex-col items-center">
+              <span className="text-xs text-gray-400 font-bold tracking-widest uppercase mb-2 text-center">Grand Total To Reverse</span>
+              <span className="text-3xl font-black text-[#ff7f50] tracking-tight">₹ {netRefundAmount.toFixed(2)}</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -597,27 +783,177 @@ const SalesReturn = () => {
         </table>
       </div>
 
+      {/* 3.1 Replacement Items Grid (Exchanges only) */}
+      {returnType === 'Exchange (Replacement)' && (
+        <div className="bg-slate-50 border border-gray-400 p-3 rounded shadow-sm space-y-3 mt-2 flex-shrink-0">
+          <div className="flex justify-between items-center border-b border-gray-300 pb-2">
+            <div className="flex items-center space-x-2">
+              <span className="font-bold text-slate-800 text-sm">Replacement / New Items Purchased</span>
+              <span className="bg-green-200 text-green-800 text-[10px] px-2 py-0.5 rounded border border-green-400 font-bold">EXCHANGE MODE</span>
+            </div>
+            
+            <div className="relative w-64 print:hidden">
+              <input
+                type="text"
+                placeholder="Search replacement product..."
+                className="w-full border border-gray-400 pl-8 pr-2 py-1 text-xs rounded focus:outline-none focus:border-blue-500"
+                value={productSearchQuery}
+                onChange={e => setProductSearchQuery(e.target.value)}
+              />
+              <Search size={14} className="absolute left-2.5 top-1.5 text-gray-500" />
+              
+              {isProductDropdownOpen && productSearchResults.length > 0 && (
+                <div className="absolute top-full left-0 right-0 bg-white border border-gray-400 shadow-lg rounded mt-1 max-h-48 overflow-y-auto z-50">
+                  {productSearchResults.map(prod => (
+                    <div
+                      key={prod.id || prod._id}
+                      onClick={() => handleAddReplacementProduct(prod)}
+                      className="p-2 hover:bg-blue-50 cursor-pointer border-b border-gray-100 flex justify-between items-center text-xs"
+                    >
+                      <div>
+                        <div className="font-bold text-gray-800">{prod.name}</div>
+                        <div className="text-[10px] text-gray-500 font-mono">{prod.itemCode} | Barcode: {prod.barcode || '-'}</div>
+                      </div>
+                      <div className="font-bold font-mono text-blue-600">₹{Number(prod.price).toFixed(2)}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          
+          <div className="overflow-x-auto max-h-[160px] bg-white rounded border border-gray-200">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead className="bg-[#f0f4f8] sticky top-0 z-10">
+                <tr>
+                  <th className="p-2 border border-gray-300 w-10 text-center">#</th>
+                  <th className="p-2 border border-gray-300 w-24">Item Code</th>
+                  <th className="p-2 border border-gray-300">Name</th>
+                  <th className="p-2 border border-gray-300 w-24 text-center">Qty</th>
+                  <th className="p-2 border border-gray-300 w-28 text-right">Unit Price</th>
+                  <th className="p-2 border border-gray-300 w-20 text-center">Tax %</th>
+                  <th className="p-2 border border-gray-300 w-28 text-right">Taxable</th>
+                  <th className="p-2 border border-gray-300 w-28 text-right">Subtotal</th>
+                  <th className="p-2 border border-gray-300 w-20 text-center">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {replacementItems.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="text-center py-6 text-gray-400 italic">
+                      No replacement items selected yet. Search above to add items.
+                    </td>
+                  </tr>
+                ) : replacementItems.map((row, idx) => (
+                  <tr key={row.id} className="hover:bg-slate-50 border-b border-gray-200">
+                    <td className="p-2 border-r border-gray-200 text-center font-mono text-gray-500">{idx + 1}</td>
+                    <td className="p-2 border-r border-gray-200 font-mono text-gray-600">{row.itemCode}</td>
+                    <td className="p-2 border-r border-gray-200 font-semibold text-gray-800">{row.itemName}</td>
+                    <td className="p-0 border-r border-gray-200 w-24">
+                      <input
+                        type="number"
+                        min="1"
+                        className="w-full p-1.5 text-center font-bold outline-none border-none focus:bg-yellow-100"
+                        value={row.qty}
+                        onChange={e => handleReplacementGridChange(row.id, 'qty', e.target.value)}
+                      />
+                    </td>
+                    <td className="p-0 border-r border-gray-200 w-28">
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        className="w-full p-1.5 text-right font-mono outline-none border-none focus:bg-yellow-100"
+                        value={row.unitPrice}
+                        onChange={e => handleReplacementGridChange(row.id, 'unitPrice', e.target.value)}
+                      />
+                    </td>
+                    <td className="p-2 border-r border-gray-200 text-center font-mono text-gray-600">{row.taxPercent.toFixed(1)}%</td>
+                    <td className="p-2 border-r border-gray-200 text-right font-mono text-gray-600">₹{row.taxableAmt.toFixed(2)}</td>
+                    <td className="p-2 border-r border-gray-200 text-right font-mono font-bold text-slate-800">₹{row.subtotal.toFixed(2)}</td>
+                    <td className="p-1 text-center">
+                      <button
+                        onClick={() => handleDeleteReplacementItem(row.id)}
+                        className="bg-red-50 hover:bg-red-100 text-red-600 px-2 py-1 rounded text-[10px] font-bold border border-red-200 shadow-sm"
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* 4. Bottom Summary Stack and Action Footer */}
-      <div className="flex justify-between items-end pt-2 pb-1">
+      <div className="flex justify-between items-end pt-2 pb-1 gap-4">
         {/* Action Buttons Container */}
-        <div className="flex space-x-3 mb-1 ml-2">
+        <div className="flex flex-col space-y-2 mb-1 ml-2">
           <button 
             id="save-credit-note-btn" 
             onClick={handleSaveClick} 
             className="bg-red-600 text-white font-bold px-6 py-2.5 rounded-md shadow-md border border-red-800 hover:bg-red-700 focus:ring-2 focus:ring-red-400 focus:outline-none transition-all flex items-center space-x-2"
           >
-            <span>Confirm Return (CTRL+S)</span>
+            <span>{returnType === 'Exchange (Replacement)' ? 'Confirm Exchange (CTRL+S)' : 'Confirm Return (CTRL+S)'}</span>
           </button>
           <button 
             onClick={handleCancelClick} 
-            className="bg-gray-200 text-gray-800 font-bold px-6 py-2.5 rounded-md shadow-sm border border-gray-400 hover:bg-gray-300 transition-all"
+            className="bg-gray-200 text-gray-800 font-bold px-6 py-2.5 rounded-md shadow-sm border border-gray-400 hover:bg-gray-300 transition-all text-center"
           >
             Cancel (ESC)
           </button>
         </div>
 
+        {/* Financial Adjustments Pane (Exchanges only) */}
+        {returnType === 'Exchange (Replacement)' && (
+          <div className="legacy-panel p-3 border border-indigo-200 bg-indigo-50/20 shadow-md grid grid-cols-2 gap-x-3 gap-y-1.5 items-center text-xs flex-1 mb-1 max-w-[400px]">
+            <h4 className="col-span-2 font-bold text-indigo-950 border-b border-indigo-200 pb-1 uppercase tracking-wider mb-1">Exchange Financial Adjustments</h4>
+            
+            <label className="font-semibold text-gray-600">Reversal Total (R):</label>
+            <span className="font-mono font-bold text-red-700 text-right">₹{netRefundAmount.toFixed(2)}</span>
+            
+            <label className="font-semibold text-gray-600">Replacement Purchase (P):</label>
+            <span className="font-mono font-bold text-green-700 text-right">₹{netReplacementAmount.toFixed(2)}</span>
+            
+            <div className="col-span-2 border-t border-indigo-100 my-0.5"></div>
+            
+            {netReplacementAmount - netRefundAmount > 0 ? (
+              <>
+                <label className="font-bold text-slate-800">EXTRA AMOUNT TO COLLECT:</label>
+                <span className="font-mono font-black text-slate-900 text-right text-sm text-green-700">₹{(netReplacementAmount - netRefundAmount).toFixed(2)}</span>
+                
+                <label className="font-semibold text-gray-700">Extra Payment Method:</label>
+                <select className="legacy-input p-1 text-xs border border-gray-400 rounded focus:outline-none bg-white" value={paymentMode} onChange={e => setPaymentMode(e.target.value)}>
+                  <option>Cash</option>
+                  <option>UPI</option>
+                  <option>Card</option>
+                  <option>Credit</option>
+                </select>
+              </>
+            ) : netReplacementAmount - netRefundAmount < 0 ? (
+              <>
+                <label className="font-bold text-orange-800">REFUND AMOUNT DUE:</label>
+                <span className="font-mono font-black text-orange-900 text-right text-sm text-red-600">₹{(netRefundAmount - netReplacementAmount).toFixed(2)}</span>
+                
+                <label className="font-semibold text-gray-700">Refund / Credit Method:</label>
+                <select className="legacy-input p-1 text-xs border border-gray-400 rounded focus:outline-none bg-white" value={refundMethod} onChange={e => setRefundMethod(e.target.value)}>
+                  <option>Cash</option>
+                  <option>UPI</option>
+                  <option>Store Credit</option>
+                </select>
+              </>
+            ) : (
+              <span className="col-span-2 text-center py-2 font-bold text-emerald-800 bg-emerald-50 rounded border border-emerald-200">
+                EXCHANGE BALANCED (DIFFERENCE IS ₹0.00)
+              </span>
+            )}
+          </div>
+        )}
+
         {/* Totals Summary */}
-        <div className="legacy-panel p-3 grid grid-cols-2 gap-y-1 items-center w-80 shadow-md">
+        <div className="legacy-panel p-3 grid grid-cols-2 gap-y-1 items-center w-80 shadow-md mb-1">
           <label className="legacy-label">Subtotal Reversal (Before Tax)</label>
           <input type="text" className="legacy-input text-right font-semibold text-gray-700 bg-gray-50" value={totalReturnAmount.toFixed(2)} disabled />
           
@@ -626,15 +962,15 @@ const SalesReturn = () => {
           
           <label className="legacy-label text-gray-600">Less SGST</label>
           <input type="text" className="legacy-input text-right bg-gray-50 text-gray-600" value={sgstReturn.toFixed(2)} disabled />
-
+ 
           <label className="legacy-label text-gray-600">Less IGST</label>
           <input type="text" className="legacy-input text-right bg-gray-50 text-gray-600" value={igstReturn.toFixed(2)} disabled />
-
+ 
           <label className="legacy-label text-gray-500">Rounding Offset</label>
           <input type="text" className="legacy-input text-right bg-gray-50 text-gray-500" value={roundOff > 0 ? `+${roundOff.toFixed(2)}` : roundOff.toFixed(2)} disabled />
-
+ 
           <div className="col-span-2 border-t border-gray-400 my-1"></div>
-
+ 
           <label className="legacy-label text-sm font-bold text-red-800">TOTAL REFUNDABLE BALANCE</label>
           <input type="text" className="legacy-input text-right text-base font-black bg-red-100 text-red-900 border-red-300" value={netRefundAmount.toFixed(2)} disabled />
         </div>

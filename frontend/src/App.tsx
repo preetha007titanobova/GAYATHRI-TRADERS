@@ -11,6 +11,7 @@ import SalesOrder from './pages/SalesOrder';
 import SalesReturn from './pages/SalesReturn';
 import BarcodeGeneration from './pages/BarcodeGeneration';
 import SalesRegister from './pages/SalesRegister';
+import SalesStatus from './pages/SalesStatus';
 import PurchaseBill from './pages/PurchaseBill';
 import PurReturn from './pages/PurReturn';
 import PurRegister from './pages/PurRegister';
@@ -45,6 +46,7 @@ function App() {
           <Route path="sales-bill" element={<POSCheckout />} />
           <Route path="sales-return" element={<SalesReturn />} />
           <Route path="sales-register" element={<SalesRegister />} />
+          <Route path="sales-status" element={<SalesStatus />} />
           
           {/* Purchase */}
           <Route path="purchase-bill" element={<PurchaseBill />} />

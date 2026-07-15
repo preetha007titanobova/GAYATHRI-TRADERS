@@ -240,6 +240,7 @@ const Layout = () => {
       '/sales-bill': 'Sales Bill',
       '/sales-return': 'Sales Return',
       '/sales-register': 'Sales Register',
+      '/sales-status': 'Sales Status',
       '/purchase-bill': 'Purchase Bill',
       '/pur-return': 'Pur. Return',
       '/pur-register': 'Pur. Register',
@@ -348,6 +349,7 @@ const Layout = () => {
                <Link to="/sales-return" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Sales Return</Link>
                <div className="border-t border-gray-300 my-1"></div>
                <Link to="/sales-register" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Sales Register</Link>
+               <Link to="/sales-status" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Sales Status</Link>
             </div>
           )}
         </div>
@@ -470,6 +472,7 @@ const Layout = () => {
                 { name: 'Sales Bill', path: '/sales-bill' },
                 { name: 'Sales Return', path: '/sales-return' },
                 { name: 'Sales Register', path: '/sales-register' },
+                { name: 'Sales Status', path: '/sales-status' },
                 { name: 'Purchase Bill', path: '/purchase-bill' },
                 { name: 'Pur. Return', path: '/pur-return' },
                 { name: 'Pur. Register', path: '/pur-register' },
