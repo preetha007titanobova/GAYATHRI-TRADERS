@@ -162,6 +162,18 @@ const StockRegister = () => {
     return () => window.removeEventListener('storage', syncLocalStorage);
   }, []);
 
+  // Safe date helper to format movements date reliably
+  const getMoveDateStr = (dateVal: any) => {
+    if (!dateVal) return '';
+    try {
+      const d = new Date(dateVal);
+      if (isNaN(d.getTime())) return '';
+      return d.toISOString().split('T')[0];
+    } catch (e) {
+      return '';
+    }
+  };
+
   // Compute calculated metrics (opening, inward, outward, damages, closing, rows) for a product
   const getProductLedgerData = (product: Product) => {
     const itemCode = product.itemCode;
@@ -195,15 +207,15 @@ const StockRegister = () => {
     const combinedMovements = [...dbMovements, ...localPurchaseMovements];
     combinedMovements.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-    // Filter movements by date
+    // Filter movements by date safely
     const priorMoves = combinedMovements.filter(m => {
-      const mDateStr = new Date(m.date).toISOString().split('T')[0];
-      return mDateStr < fromDate;
+      const mDateStr = getMoveDateStr(m.date);
+      return mDateStr && mDateStr < fromDate;
     });
 
     const periodMoves = combinedMovements.filter(m => {
-      const mDateStr = new Date(m.date).toISOString().split('T')[0];
-      return mDateStr >= fromDate && mDateStr <= toDate;
+      const mDateStr = getMoveDateStr(m.date);
+      return mDateStr && mDateStr >= fromDate && mDateStr <= toDate;
     });
 
     // Opening stock calculation
@@ -792,7 +804,11 @@ const StockRegister = () => {
                     filteredProducts.map((p, idx) => (
                       <tr 
                         key={p.id || p._id || idx} 
-                        className={`border-b border-gray-200 transition-colors ${
+                        onClick={() => {
+                          setSelectedItem(p.id || p._id || '');
+                          setViewMode('ledger');
+                        }}
+                        className={`border-b border-gray-200 transition-colors cursor-pointer ${
                           idx % 2 === 0 ? 'bg-white hover:bg-blue-50/40' : 'bg-[#fcfdfd] hover:bg-blue-50/40'
                         }`}
                       >
