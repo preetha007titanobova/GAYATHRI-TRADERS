@@ -674,21 +674,22 @@ const StockRegister = () => {
             </button>
           </div>
 
-          {/* Common Filter Search Input */}
-          {viewMode === 'summary' ? (
-            <div className="flex items-center space-x-2 bg-gray-50 border border-gray-300 px-3 py-1.5 rounded-md shadow-sm">
-              <Search size={16} className="text-gray-400" />
-              <input
-                id="summary-search-input"
-                type="text"
-                placeholder="Search code, name, category..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                className="bg-transparent text-sm focus:outline-none w-64 placeholder-gray-400 font-medium text-gray-700"
-              />
-            </div>
-          ) : (
-            <div className="flex items-center space-x-2 bg-gray-50 border border-gray-300 p-1 rounded-md shadow-sm">
+          {/* Common Filter Search Input (Visible in both views) */}
+          <div className="flex items-center space-x-2 bg-gray-50 border border-gray-300 px-3 py-1.5 rounded-md shadow-sm">
+            <Search size={16} className="text-gray-400" />
+            <input
+              id="summary-search-input"
+              type="text"
+              placeholder="Search code, name, category..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="bg-transparent text-sm focus:outline-none w-64 placeholder-gray-400 font-medium text-gray-700"
+            />
+          </div>
+
+          {/* Product Dropdown for Ledger view */}
+          {viewMode === 'ledger' && (
+            <div className="flex items-center space-x-2 bg-gray-50 border border-gray-300 p-1.5 rounded-md shadow-sm">
                <div className="bg-[#2b579a] p-1.5 rounded text-white">
                  <Package size={14} />
                </div>
@@ -697,7 +698,18 @@ const StockRegister = () => {
                  onChange={e => setSelectedItem(e.target.value)}
                  className="bg-transparent text-sm font-bold text-gray-800 focus:outline-none w-64 pr-2 cursor-pointer"
                >
-                 {reportData.map(i => {
+                 {reportData.filter(i => {
+                   if ((i.id || i._id) === selectedItem) return true; // Always include selected item
+                   if (!searchQuery) return true;
+                   const q = searchQuery.toLowerCase();
+                   return (
+                     i.itemCode?.toLowerCase().includes(q) ||
+                     i.name?.toLowerCase().includes(q) ||
+                     i.department?.toLowerCase().includes(q) ||
+                     i.variety?.toLowerCase().includes(q) ||
+                     i.size?.toLowerCase().includes(q)
+                   );
+                 }).map(i => {
                    const variantLabel = [
                      i.department ? i.department : '',
                      i.variety ? i.variety : '',

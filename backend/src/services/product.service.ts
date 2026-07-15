@@ -170,11 +170,14 @@ export const getStockRegisterReport = async (): Promise<any[]> => {
   const salesReturnItems = await prisma.salesReturnItem.findMany({
     where: {
       disposition: 'Return to Warehouse'
-    },
-    include: {
-      salesReturn: true
     }
   }) as any[];
+
+  const salesReturns = await prisma.salesReturn.findMany();
+  const salesReturnMap = new Map(salesReturns.map(r => [r.id, r]));
+  for (const item of salesReturnItems) {
+    item.salesReturn = salesReturnMap.get(item.salesReturnId) || null;
+  }
 
   return products.map(product => {
     const prodId = product.id;
