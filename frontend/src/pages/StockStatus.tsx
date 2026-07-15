@@ -12,6 +12,7 @@ interface StockItem {
   group?: string;
   uom: string;
   stock: number;
+  damagedStock?: number;
   minReorder?: number;
   purchaseRate: number;
   department?: string;
@@ -183,21 +184,20 @@ const StockStatus = () => {
                 <th className="px-4 py-2.5 font-medium border-b border-slate-200">Size</th>
                 <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-20 text-center">Unit</th>
                 <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-28 text-right">Available stock</th>
-                <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-28 text-right text-orange-300">Damages (Qty)</th>
-                <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-48 text-left text-orange-300">Damage Reasons</th>
+                <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-28 text-right text-red-300">Damaged Stock</th>
                 <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-28 text-right">Min Reorder</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={10} className="p-12 text-center text-gray-500">
+                  <td colSpan={9} className="p-12 text-center text-gray-500">
                     Loading stock data...
                   </td>
                 </tr>
               ) : filteredStock.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="p-12 text-center text-gray-400">
+                  <td colSpan={9} className="p-12 text-center text-gray-400">
                     <div className="flex flex-col items-center">
                       <PackageSearch size={32} className="mb-2 opacity-50" />
                       <p className="italic text-sm">No items found matching criteria.</p>
@@ -225,8 +225,9 @@ const StockStatus = () => {
                         {isLow && <AlertTriangle size={12} className="inline mr-1 -mt-1 text-red-500" />}
                         {qty}
                       </td>
-                      <td className="border-r border-gray-200 p-2 text-right font-mono font-bold text-orange-600 bg-orange-50/10">{dmgQty > 0 ? dmgQty : '-'}</td>
-                      <td className="border-r border-gray-200 p-2 text-xs text-gray-600 font-medium max-w-[200px] truncate" title={dmgReasons}>{dmgReasons}</td>
+                      <td className="border-r border-gray-200 p-2 text-right font-mono font-bold text-red-600 bg-red-50/10">
+                        {item.damagedStock || 0}
+                      </td>
                       <td className="border-r border-gray-200 p-2 text-right font-mono text-xs text-gray-500">{minReorder}</td>
                     </tr>
                   );

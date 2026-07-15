@@ -16,6 +16,8 @@ interface ReturnGridRow {
   disposition: string;
   subtotal: number;
   _originalTaxable: number;
+  isSelected?: boolean;
+  barcode?: string;
 }
 
 const SalesReturn = () => {
@@ -28,6 +30,8 @@ const SalesReturn = () => {
   const [invoiceDetails, setInvoiceDetails] = useState<{invoiceNo: string, buyerName: string, eType: string} | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [reason, setReason] = useState('Damaged in Transit');
+  const [customReason, setCustomReason] = useState('');
+  const [returnType, setReturnType] = useState('Credit Note (Refund)');
 
   // Grid State
   const [itemsToReturn, setItemsToReturn] = useState<ReturnGridRow[]>([]);
@@ -137,12 +141,48 @@ const SalesReturn = () => {
     calculateTotalToReverse(itemsToReturn, invoiceDetails?.eType || 'Local');
   }, [itemsToReturn, invoiceDetails]);
 
+  // Auto-load invoice on typing/pasting exact invoice number
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(async () => {
+      const query = searchQuery.trim();
+      if (query.length >= 6 && (!invoiceDetails || invoiceDetails.invoiceNo !== query)) {
+        try {
+          const res = await fetch(`${Api}/sales/bills/search?q=${query}`);
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            const exactMatch = data.find(inv => inv.invoiceNo.toLowerCase() === query.toLowerCase());
+            if (exactMatch) {
+              loadInvoice(exactMatch.invoiceNo);
+            }
+          }
+        } catch (err) {
+          console.error("Auto-load invoice error:", err);
+        }
+      }
+    }, 400);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery, invoiceDetails]);
+
   const handleSearchInvoice = async () => {
     try {
       const res = await fetch(`${Api}/sales/bills/search?q=${searchQuery}`);
       const data = await res.json();
-      setInvoiceSearchResults(data);
-      setIsInvoiceSearchOpen(true);
+      if (Array.isArray(data)) {
+        const trimmedQuery = searchQuery.trim();
+        const exactMatch = trimmedQuery ? data.find(inv => inv.invoiceNo.toLowerCase() === trimmedQuery.toLowerCase()) : null;
+        if (exactMatch) {
+          loadInvoice(exactMatch.invoiceNo);
+        } else if (trimmedQuery && data.length === 1) {
+          loadInvoice(data[0].invoiceNo);
+        } else {
+          setInvoiceSearchResults(data);
+          setIsInvoiceSearchOpen(true);
+        }
+      } else {
+        setInvoiceSearchResults([]);
+        setIsInvoiceSearchOpen(true);
+      }
     } catch (err) {
       console.error(err);
     }
@@ -158,6 +198,7 @@ const SalesReturn = () => {
         buyerName: data.buyerName,
         eType: data.eType || 'Local'
       });
+      setSearchQuery(data.invoiceNo);
 
       const mappedItems = data.items.map((item: any, idx: number) => {
         // Calculate original tax percent used
@@ -184,7 +225,9 @@ const SalesReturn = () => {
           taxPercent: inferredTaxPercent,
           disposition: 'Return to Warehouse',
           subtotal: 0,
-          _originalTaxable: taxable
+          _originalTaxable: taxable,
+          isSelected: false,
+          barcode: item.barcode || ''
         };
       });
 
@@ -202,6 +245,21 @@ const SalesReturn = () => {
       
       const newRow = { ...row, [field]: value };
       
+      if (field === 'isSelected') {
+        const selected = !!value;
+        newRow.isSelected = selected;
+        if (!selected) {
+          newRow.returnQty = 0;
+          newRow.taxableAmt = 0;
+          newRow.subtotal = 0;
+        } else {
+          newRow.returnQty = 1;
+          const unitPriceAfterDiscount = newRow._originalTaxable / newRow.invoicedQty;
+          newRow.taxableAmt = 1 * unitPriceAfterDiscount;
+          newRow.subtotal = newRow.taxableAmt + (newRow.taxableAmt * (newRow.taxPercent / 100));
+        }
+      }
+      
       if (field === 'returnQty') {
         const qty = Number(value) || 0;
         // Validation Rule 2: Upper Boundary Check
@@ -216,7 +274,6 @@ const SalesReturn = () => {
         }
 
         // Calculate taxable based on unit rate * qty (assuming proportional discount if any)
-        // Original price after discount per unit:
         const unitPriceAfterDiscount = newRow._originalTaxable / newRow.invoicedQty;
         newRow.taxableAmt = newRow.returnQty * unitPriceAfterDiscount;
         newRow.subtotal = newRow.taxableAmt + (newRow.taxableAmt * (newRow.taxPercent / 100));
@@ -257,10 +314,10 @@ const SalesReturn = () => {
 
   const handleSaveClick = async () => {
     // Validation Rule 1: Zero-Quantity Exception Guardrail
-    const totalReturns = itemsToReturn.reduce((sum, row) => sum + row.returnQty, 0);
-    if (totalReturns === 0) {
+    const selectedItems = itemsToReturn.filter(row => row.isSelected && row.returnQty > 0);
+    if (selectedItems.length === 0) {
       if (setGlobalNotification) {
-        setGlobalNotification({msg: "Cannot save: Return quantities must contain at least one value greater than zero.", type: 'error'});
+        setGlobalNotification({msg: "Cannot save: Return quantities must contain at least one selected item with a value greater than zero.", type: 'error'});
         setTimeout(() => setGlobalNotification({msg: '', type: ''}), 4000);
       }
       return;
@@ -271,14 +328,15 @@ const SalesReturn = () => {
       returnDate,
       originalInvoice: invoiceDetails?.invoiceNo || '',
       customerName: invoiceDetails?.buyerName || '',
-      reason,
+      reason: reason === 'Other' ? customReason : reason,
+      returnType,
       totalReturnAmount,
       cgstReturn,
       sgstReturn,
       igstReturn,
       roundOff,
       netRefundAmount,
-      items: itemsToReturn.filter(row => row.returnQty > 0)
+      items: selectedItems
     };
 
     try {
@@ -397,12 +455,25 @@ const SalesReturn = () => {
             </div>
             <div className="flex flex-col">
               <label className="text-sm font-semibold text-gray-600 mb-1">Reason</label>
-              <select className="legacy-input" value={reason} onChange={e => setReason(e.target.value)}>
+              <select className="legacy-input" value={reason} onChange={e => {
+                setReason(e.target.value);
+                if (e.target.value !== 'Other') setCustomReason('');
+              }}>
                 <option>Damaged in Transit</option>
                 <option>Defective Product</option>
                 <option>Customer Dissatisfaction</option>
                 <option>Wrong Item Delivered</option>
+                <option>Other</option>
               </select>
+              {reason === 'Other' && (
+                <input 
+                  type="text" 
+                  placeholder="Specify custom reason..." 
+                  className="legacy-input mt-1.5 focus:border-red-500" 
+                  value={customReason} 
+                  onChange={e => setCustomReason(e.target.value)} 
+                />
+              )}
             </div>
           </div>
 
@@ -427,6 +498,13 @@ const SalesReturn = () => {
               <label className="text-sm font-semibold text-gray-600 mb-1">Customer Name</label>
               <input type="text" className="legacy-input bg-gray-100" value={invoiceDetails?.buyerName || ''} disabled />
             </div>
+            <div className="flex flex-col">
+              <label className="text-sm font-semibold text-gray-600 mb-1">Return Type / Action</label>
+              <select className="legacy-input font-bold text-slate-800" value={returnType} onChange={e => setReturnType(e.target.value)}>
+                <option>Credit Note (Refund)</option>
+                <option>Exchange (Replacement)</option>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -438,16 +516,19 @@ const SalesReturn = () => {
       </div>
 
       {/* 3. Data Entry Grid */}
-      <div className="flex-1 bg-white border border-gray-400 overflow-auto shadow-sm">
+      <div className="flex-1 min-h-[350px] bg-white border border-gray-400 overflow-auto shadow-sm">
         <table className="w-full text-left border-collapse">
           <thead className="sticky top-0 bg-[#e8ecef] shadow-sm z-10">
             <tr>
+              <th className="legacy-grid-header w-12 text-center">SELECT</th>
               <th className="legacy-grid-header w-10 text-center">#</th>
               <th className="legacy-grid-header w-24">ITEM CODE</th>
+              <th className="legacy-grid-header w-32">BARCODE</th>
               <th className="legacy-grid-header">DESCRIPTION</th>
               <th className="legacy-grid-header w-24 text-center">INVOICED QTY</th>
               <th className="legacy-grid-header w-24 text-center">RETURN QTY</th>
               <th className="legacy-grid-header w-24 text-right">UNIT PRICE</th>
+              <th className="legacy-grid-header w-28 text-right">AMT SPENT</th>
               <th className="legacy-grid-header w-24 text-right">TAXABLE AMT</th>
               <th className="legacy-grid-header w-16 text-center">TAX %</th>
               <th className="legacy-grid-header w-40">DISPOSITION</th>
@@ -457,14 +538,23 @@ const SalesReturn = () => {
           <tbody>
             {itemsToReturn.length === 0 ? (
               <tr>
-                <td colSpan={10} className="text-center py-8 text-gray-400 italic text-sm">
+                <td colSpan={13} className="text-center py-8 text-gray-400 italic text-sm">
                   Search and select an Original Invoice to populate items...
                 </td>
               </tr>
             ) : itemsToReturn.map((row, idx) => (
               <tr key={row.id} className="hover:bg-red-50 border-b border-gray-200">
+                <td className="legacy-grid-cell text-center">
+                  <input 
+                    type="checkbox" 
+                    className="form-checkbox h-4.5 w-4.5 text-red-600 rounded cursor-pointer"
+                    checked={!!row.isSelected}
+                    onChange={e => handleGridChange(row.id, 'isSelected', e.target.checked)}
+                  />
+                </td>
                 <td className="legacy-grid-cell text-center text-gray-500 font-mono text-xs">{row.id}</td>
                 <td className="legacy-grid-cell font-mono text-xs text-gray-700">{row.itemCode}</td>
+                <td className="legacy-grid-cell font-mono text-xs text-blue-900 bg-slate-50">{row.barcode || '-'}</td>
                 <td className="legacy-grid-cell font-semibold text-gray-800 text-xs">{row.itemName}</td>
                 <td className="legacy-grid-cell text-center bg-gray-50 font-bold text-gray-600">{row.invoicedQty}</td>
                 <td className="legacy-grid-cell p-0 relative">
@@ -474,13 +564,17 @@ const SalesReturn = () => {
                     min="0"
                     max={row.invoicedQty}
                     step="1"
-                    className={`w-full h-full p-1 text-center font-bold outline-none focus:bg-yellow-100 ${row.returnQty > row.invoicedQty ? 'border-2 border-red-500 bg-red-100 text-red-700' : 'border-none'}`} 
+                    disabled={!row.isSelected}
+                    className={`w-full h-full p-1 text-center font-bold outline-none focus:bg-yellow-100 ${!row.isSelected ? 'bg-slate-100/50 text-slate-400 cursor-not-allowed' : (row.returnQty > row.invoicedQty ? 'border-2 border-red-500 bg-red-100 text-red-700' : 'border-none')}`} 
                     value={row.returnQty || ''} 
                     onChange={e => handleGridChange(row.id, 'returnQty', e.target.value)} 
                     onKeyDown={e => handleGridKeyDown(e, idx, 0)}
                   />
                 </td>
                 <td className="legacy-grid-cell text-right text-gray-600">{row.unitPrice.toFixed(2)}</td>
+                <td className="legacy-grid-cell text-right bg-slate-50 font-mono text-slate-700">
+                  ₹{((row._originalTaxable * (1 + row.taxPercent / 100)) || 0).toFixed(2)}
+                </td>
                 <td className="legacy-grid-cell text-right bg-red-50/50 font-semibold text-red-900">{row.taxableAmt.toFixed(2)}</td>
                 <td className="legacy-grid-cell text-center text-gray-600 text-[10px]">{row.taxPercent.toFixed(1)}%</td>
                 <td className="legacy-grid-cell p-0">
@@ -493,6 +587,7 @@ const SalesReturn = () => {
                   >
                     <option>Return to Warehouse</option>
                     <option>Quarantine & Scrap</option>
+                    <option>Defective / Damaged</option>
                   </select>
                 </td>
                 <td className="legacy-grid-cell text-right bg-gray-100 font-bold text-gray-800 pr-4">{row.subtotal.toFixed(2)}</td>
@@ -579,15 +674,22 @@ const SalesReturn = () => {
                 </thead>
                 <tbody>
                   {invoiceSearchResults.map((inv) => (
-                    <tr key={inv._id} className="hover:bg-blue-50">
-                      <td className="p-1 border border-gray-300 font-semibold">{inv.invoiceNo}</td>
+                    <tr 
+                      key={inv._id} 
+                      className="hover:bg-blue-50 cursor-pointer"
+                      onClick={() => loadInvoice(inv.invoiceNo)}
+                    >
+                      <td className="p-1 border border-gray-300 font-semibold text-blue-600 hover:text-blue-800 hover:underline">{inv.invoiceNo}</td>
                       <td className="p-1 border border-gray-300">{new Date(inv.invDate).toLocaleDateString()}</td>
                       <td className="p-1 border border-gray-300">{inv.buyerName}</td>
-                      <td className="p-1 border border-gray-300 text-right">{inv.netAmount.toFixed(2)}</td>
+                      <td className="p-1 border border-gray-300 text-right font-mono">₹{inv.netAmount.toFixed(2)}</td>
                       <td className="p-1 border border-gray-300 text-center">
                         <button 
                           className="bg-[#a8d08d] text-black px-2 py-0.5 rounded text-xs font-bold shadow-sm hover:bg-green-400 border border-[#8ab870]"
-                          onClick={() => loadInvoice(inv.invoiceNo)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            loadInvoice(inv.invoiceNo);
+                          }}
                         >
                           Select
                         </button>

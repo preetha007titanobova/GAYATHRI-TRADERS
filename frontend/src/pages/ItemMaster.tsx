@@ -39,7 +39,7 @@ const ItemMaster = () => {
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const itemsPerPage = 15;
 
   // Layout view modes: 'split' | 'form-only' | 'table-only'
   const [viewMode, setViewMode] = useState<'split' | 'form-only' | 'table-only'>('split');
@@ -429,32 +429,7 @@ const ItemMaster = () => {
         {/* Right Side: Product Directory Grid */}
         <div className={`${viewMode === 'form-only' ? 'hidden' : viewMode === 'table-only' ? 'w-full' : 'w-[42%]'} flex flex-col bg-white overflow-hidden p-6`}>
           <div className="flex justify-between items-center mb-4">
-
             <div className="flex items-center space-x-3">
-              <div className="flex items-center space-x-1.5 bg-slate-100 p-1 rounded-full border border-slate-200">
-                <button
-                  onClick={() => setViewMode('split')}
-                  className={`px-2.5 py-1 rounded-full text-xs font-semibold transition-colors ${viewMode === 'split' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                  title="Split Screen View"
-                >
-                  ◧ Split
-                </button>
-                <button
-                  onClick={() => setViewMode('table-only')}
-                  className={`px-2.5 py-1 rounded-full text-xs font-semibold transition-colors ${viewMode === 'table-only' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                  title="Maximize Table View"
-                >
-                  👁 View Full
-                </button>
-                <button
-                  onClick={() => setViewMode('form-only')}
-                  className={`px-2.5 py-1 rounded-full text-xs font-semibold transition-colors ${viewMode === 'form-only' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                  title="Hide Table"
-                >
-                  ❌ Hide Table
-                </button>
-              </div>
-
               <div className="relative w-48">
                 <svg className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -496,18 +471,18 @@ const ItemMaster = () => {
                         className={`hover:bg-blue-50/50 cursor-pointer transition-colors ${isSelected ? 'bg-blue-50 font-medium' : ''}`}
                         onClick={() => handleRowClick(product)}
                       >
-                        <td className="px-4 py-2 whitespace-nowrap text-blue-600 font-medium">{product.itemCode}</td>
-                        <td className="px-4 py-2 whitespace-nowrap text-slate-800 font-medium">
+                        <td className="px-4 py-2.5 whitespace-nowrap text-blue-600 font-medium">{product.itemCode}</td>
+                        <td className="px-4 py-2.5 whitespace-nowrap text-slate-800 font-medium">
                           <div>{product.name}</div>
                         </td>
-                        <td className="px-4 py-2 whitespace-nowrap">{product.department} </td>
-                        <td className="px-4 py-2 whitespace-nowrap">{product.variety} </td>
-                        <td className="px-4 py-2 whitespace-nowrap">{product.size}</td>
-                        <td className="px-4 py-2 whitespace-nowrap">{product.uom}</td>
-                        <td className="px-4 py-2 whitespace-nowrap text-right">{product.stock}</td>
-                        <td className="px-4 py-2 whitespace-nowrap text-right">{product.purchaseRate}</td>
-                        <td className="px-4 py-2 whitespace-nowrap text-right">₹{product.price?.toFixed(2) || '0.00'}</td>
-                        <td className="px-4 py-2 whitespace-nowrap text-right">₹{product.mrp?.toFixed(2) || '0.00'}</td>
+                        <td className="px-4 py-2.5 whitespace-nowrap">{product.department} </td>
+                        <td className="px-4 py-2.5 whitespace-nowrap">{product.variety} </td>
+                        <td className="px-4 py-2.5 whitespace-nowrap">{product.size}</td>
+                        <td className="px-4 py-2.5 whitespace-nowrap">{product.uom}</td>
+                        <td className="px-4 py-2.5 whitespace-nowrap text-right">{product.stock}</td>
+                        <td className="px-4 py-2.5 whitespace-nowrap text-right">{product.purchaseRate}</td>
+                        <td className="px-4 py-2.5 whitespace-nowrap text-right">₹{product.price?.toFixed(2) || '0.00'}</td>
+                        <td className="px-4 py-2.5 whitespace-nowrap text-right">₹{product.mrp?.toFixed(2) || '0.00'}</td>
                       </tr>
                     );
                   })

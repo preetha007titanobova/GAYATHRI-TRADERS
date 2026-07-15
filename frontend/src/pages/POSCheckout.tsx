@@ -45,13 +45,21 @@ const POSCheckout = () => {
   const [favourDiscount, setFavourDiscount] = useState<number>(0);
 
   useEffect(() => {
-    setCustomerSearch(buyerName);
+    if (buyerName !== customerSearch) {
+      setCustomerSearch(buyerName);
+    }
   }, [buyerName]);
+
+  useEffect(() => {
+    if (customerSearch !== buyerName) {
+      setBuyerName(customerSearch || 'CASH');
+    }
+  }, [customerSearch]);
 
   const filteredCustomersList = useMemo(() => {
     const q = customerSearch.toLowerCase();
-    const matches = availableCustomers.filter(c => 
-      c.accountName.toLowerCase().includes(q) || 
+    const matches = availableCustomers.filter(c =>
+      c.accountName.toLowerCase().includes(q) ||
       (c.ledgerCode && c.ledgerCode.toLowerCase().includes(q))
     );
     if (!q || 'cash'.includes(q)) {
@@ -63,22 +71,22 @@ const POSCheckout = () => {
   }, [availableCustomers, customerSearch]);
 
   // --- State for Data Entry Grid ---
-  const initialGridData = incomingPayload?.items?.length > 0 
+  const initialGridData = incomingPayload?.items?.length > 0
     ? incomingPayload.items.map((item: any, idx: number) => {
-        const baseAmount = item.qty * item.rate;
-        const discAmt = (baseAmount * item.discPercent) / 100;
-        return {
-          id: idx + 1,
-          itemName: item.itemName,
-          itemDesc: item.itemDesc,
-          qty: item.qty,
-          uom: 'PCS',
-          rate: item.rate,
-          discPercent: item.discPercent,
-          discAmt: discAmt,
-          amount: baseAmount - discAmt
-        };
-      })
+      const baseAmount = item.qty * item.rate;
+      const discAmt = (baseAmount * item.discPercent) / 100;
+      return {
+        id: idx + 1,
+        itemName: item.itemName,
+        itemDesc: item.itemDesc,
+        qty: item.qty,
+        uom: 'PCS',
+        rate: item.rate,
+        discPercent: item.discPercent,
+        discAmt: discAmt,
+        amount: baseAmount - discAmt
+      };
+    })
     : [{ id: 1, itemName: '', itemDesc: '', qty: 0, uom: '', rate: 0, discPercent: 0, discAmt: 0, amount: 0 }];
 
   const [gridData, setGridData] = useState<GridRow[]>(initialGridData);
@@ -101,19 +109,19 @@ const POSCheckout = () => {
   const [activeRowId, setActiveRowId] = useState<number>(1);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
   const [confirmModalState, setConfirmModalState] = useState<{
-    isOpen: boolean, 
-    action: (() => void) | null, 
-    cancelAction?: (() => void) | null, 
-    message?: string, 
-    title?: string, 
-    yesText?: string, 
+    isOpen: boolean,
+    action: (() => void) | null,
+    cancelAction?: (() => void) | null,
+    message?: string,
+    title?: string,
+    yesText?: string,
     noText?: string
-  }>({isOpen: false, action: null});
+  }>({ isOpen: false, action: null });
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // --- Global Context ---
   const { setToolbarActions, setGlobalNotification } = useOutletContext<{ setToolbarActions?: any, setGlobalNotification?: any }>() || {};
-  
+
   const [availableProducts, setAvailableProducts] = useState<any[]>([]);
 
   useEffect(() => {
@@ -148,7 +156,7 @@ const POSCheckout = () => {
       setGstNo(invoiceToEdit.gstNo || '');
       setPrintIn(invoiceToEdit.printIn || 'Blank A4');
       setInvoiceFormat(invoiceToEdit.invFormat || invoiceToEdit.invoiceFormat || 'GSTFormat Full Page');
-      
+
       // Fetch full details with items                                                                                                  
       fetch(`${Api}/sales/bills/${invoiceToEdit.invoiceNo}`)
         .then(res => res.json())
@@ -193,7 +201,7 @@ const POSCheckout = () => {
     .filter(p => {
       const q = searchQuery.toLowerCase();
       return (
-        p.name.toLowerCase().includes(q) || 
+        p.name.toLowerCase().includes(q) ||
         (p.itemCode && p.itemCode.toLowerCase().includes(q)) ||
         (p.barcode && p.barcode.toLowerCase().includes(q))
       );
@@ -204,14 +212,14 @@ const POSCheckout = () => {
     setActiveRowId(rowId);
     setSearchQuery('');
     setHighlightedIndex(0);
-    
+
     if (targetElem) {
       const rect = targetElem.getBoundingClientRect();
       setDropdownPosition({ top: rect.bottom + 2, left: Math.max(10, rect.left) });
     } else {
       setDropdownPosition({ top: 150, left: 100 });
     }
-    
+
     setIsSearchModalOpen(true);
   };
 
@@ -226,22 +234,22 @@ const POSCheckout = () => {
   const selectProductFromModal = (product: any) => {
     setGridData(prev => prev.map(row => {
       if (row.id !== activeRowId) return row;
-      
-      let updatedRow = { 
-        ...row, 
+
+      let updatedRow = {
+        ...row,
         itemName: product.name,
-        itemDesc: product.itemCode || product.barcode || '', 
+        itemDesc: product.itemCode || product.barcode || '',
         uom: product.uom || 'PCS',
         rate: product.price || 0,
-        qty: row.qty === 0 ? 1 : row.qty 
+        qty: row.qty === 0 ? 1 : row.qty
       };
-      
+
       let baseAmount = updatedRow.qty * updatedRow.rate;
       updatedRow.discAmt = Number(((baseAmount * updatedRow.discPercent) / 100).toFixed(2));
       updatedRow.amount = Number((baseAmount - updatedRow.discAmt).toFixed(2));
       return updatedRow;
     }));
-    
+
     // Auto-add new row if it's the last row
     if (activeRowId === gridData.length) {
       setGridData(prev => [...prev, {
@@ -251,7 +259,7 @@ const POSCheckout = () => {
     }
 
     setIsSearchModalOpen(false);
-    
+
     // Move focus to Qty
     setTimeout(() => {
       const rowIndex = gridData.findIndex(r => r.id === activeRowId);
@@ -285,8 +293,8 @@ const POSCheckout = () => {
       const validItems = gridData.filter(row => row.itemName && row.qty > 0 && row.rate > 0);
       if (validItems.length === 0) {
         if (setGlobalNotification) {
-          setGlobalNotification({msg: "Please add at least one valid item to the grid before saving.", type: 'error'});
-          setTimeout(() => setGlobalNotification({msg: '', type: ''}), 4000);
+          setGlobalNotification({ msg: "Please add at least one valid item to the grid before saving.", type: 'error' });
+          setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
         }
         return;
       }
@@ -298,7 +306,7 @@ const POSCheckout = () => {
         noText: "No, Save Only",
         action: () => {
           const formattedItems = validItems.map(item => ({
-            itemCode: item.itemDesc || item.itemName, 
+            itemCode: item.itemDesc || item.itemName,
             itemDesc: item.itemName,
             qty: item.qty,
             rate: item.rate,
@@ -330,8 +338,8 @@ const POSCheckout = () => {
     const validItems = gridData.filter(row => row.itemName && row.qty > 0 && row.rate > 0);
     if (validItems.length === 0) {
       if (setGlobalNotification) {
-        setGlobalNotification({msg: "Please add at least one valid item to the grid before saving.", type: 'error'});
-        setTimeout(() => setGlobalNotification({msg: '', type: ''}), 4000);
+        setGlobalNotification({ msg: "Please add at least one valid item to the grid before saving.", type: 'error' });
+        setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
       }
       return;
     }
@@ -343,11 +351,11 @@ const POSCheckout = () => {
   };
 
   const executeSave = async (validItems: any[]) => {
-    setConfirmModalState({isOpen: false, action: null});
-    
+    setConfirmModalState({ isOpen: false, action: null });
+
     const payload = {
-      invoiceNo, invDate, payDays, buyerName, address, eType, 
-      mobileNo, gstNo, printIn, invoiceFormat, totalQty, totalAmount, 
+      invoiceNo, invDate, payDays, buyerName, address, eType,
+      mobileNo, gstNo, printIn, invoiceFormat, totalQty, totalAmount,
       favourDiscount: Number(favourDiscount) || 0,
       cgst, sgst, roundOff, netAmount,
       salesman, paymentMode,
@@ -373,7 +381,7 @@ const POSCheckout = () => {
       });
       const data = await res.json();
       if (data.success) {
-        if (setGlobalNotification) setGlobalNotification({msg: `Sales Bill ${invoiceNo} saved successfully!`, type: 'success'});
+        if (setGlobalNotification) setGlobalNotification({ msg: `Sales Bill ${invoiceNo} saved successfully!`, type: 'success' });
         if (editingBillId) {
           setTimeout(() => navigate('/sales-register'), 1500);
         } else {
@@ -381,15 +389,15 @@ const POSCheckout = () => {
         }
       } else {
         if (setGlobalNotification) {
-          setGlobalNotification({msg: "Error saving: " + data.error, type: 'error'});
-          setTimeout(() => setGlobalNotification({msg: '', type: ''}), 4000);
+          setGlobalNotification({ msg: "Error saving: " + data.error, type: 'error' });
+          setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
         }
       }
     } catch (err) {
       console.error(err);
       if (setGlobalNotification) {
-        setGlobalNotification({msg: "Network error while saving.", type: 'error'});
-        setTimeout(() => setGlobalNotification({msg: '', type: ''}), 4000);
+        setGlobalNotification({ msg: "Network error while saving.", type: 'error' });
+        setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
       }
     }
   };
@@ -406,10 +414,10 @@ const POSCheckout = () => {
         setGstNo('');
         setTendered(0);
         setFavourDiscount(0);
-        setConfirmModalState({isOpen: false, action: null});
+        setConfirmModalState({ isOpen: false, action: null });
         if (setGlobalNotification) {
-          setGlobalNotification({msg: 'Invoice data cleared successfully.', type: 'success'});
-          setTimeout(() => setGlobalNotification({msg: '', type: ''}), 3000);
+          setGlobalNotification({ msg: 'Invoice data cleared successfully.', type: 'success' });
+          setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
         }
       },
       message: "Are you sure you want to cancel and clear all data? All unsaved work will be lost."
@@ -417,13 +425,13 @@ const POSCheckout = () => {
   };
 
   const handlePrintAction = (docType: string) => {
-    if (setGlobalNotification) setGlobalNotification({msg: `Preparing ${docType} for printing...`, type: 'success'});
-    
+    if (setGlobalNotification) setGlobalNotification({ msg: `Preparing ${docType} for printing...`, type: 'success' });
+
     // Format items for the print utility
     const formattedItems = gridData
       .filter(item => item.itemName) // Only print valid items
       .map(item => ({
-        itemCode: item.itemDesc || item.itemName, 
+        itemCode: item.itemDesc || item.itemName,
         itemDesc: item.itemName,
         qty: item.qty,
         rate: item.rate,
@@ -443,7 +451,7 @@ const POSCheckout = () => {
     });
 
     setTimeout(() => {
-      if (setGlobalNotification) setGlobalNotification({msg: '', type: ''});
+      if (setGlobalNotification) setGlobalNotification({ msg: '', type: '' });
     }, 2000);
   };
 
@@ -451,21 +459,21 @@ const POSCheckout = () => {
     const validItems = gridData.filter(row => row.itemName);
     if (validItems.length === 0) {
       if (setGlobalNotification) {
-        setGlobalNotification({msg: "No items to export.", type: 'error'});
-        setTimeout(() => setGlobalNotification({msg: '', type: ''}), 3000);
+        setGlobalNotification({ msg: "No items to export.", type: 'error' });
+        setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
       }
       return;
     }
-    
-    if (setGlobalNotification) setGlobalNotification({msg: "Generating CSV Export...", type: 'success'});
-    
+
+    if (setGlobalNotification) setGlobalNotification({ msg: "Generating CSV Export...", type: 'success' });
+
     // Create CSV content
     const headers = ["Item Name", "Qty", "UOM", "Rate", "Discount %", "Discount Amt", "Total Amount"];
     const rows = validItems.map(item => [
       `"${item.itemName}"`, item.qty, `"${item.uom}"`, item.rate, item.discPercent, item.discAmt, item.amount
     ]);
     const csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
-    
+
     // Download logic
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
@@ -476,9 +484,9 @@ const POSCheckout = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    
+
     setTimeout(() => {
-      if (setGlobalNotification) setGlobalNotification({msg: '', type: ''});
+      if (setGlobalNotification) setGlobalNotification({ msg: '', type: '' });
     }, 3000);
   };
 
@@ -520,7 +528,7 @@ const POSCheckout = () => {
   useEffect(() => {
     let tQty = 0;
     let tAmt = 0;
-    
+
     // Calculate sums
     gridData.forEach(row => {
       tQty += row.qty || 0;
@@ -553,9 +561,9 @@ const POSCheckout = () => {
     setGridData(prev => {
       const newGrid = prev.map(row => {
         if (row.id !== id) return row;
-        
+
         let updatedRow = { ...row, [field]: field === 'itemName' || field === 'itemDesc' || field === 'uom' ? value : Number(value) };
-        
+
         let baseAmount = updatedRow.qty * updatedRow.rate;
         if (field === 'discPercent') {
           updatedRow.discAmt = Number(((baseAmount * updatedRow.discPercent) / 100).toFixed(2));
@@ -603,22 +611,22 @@ const POSCheckout = () => {
     try {
       const res = await fetch(`${Api}/products/search?q=${encodeURIComponent(itemName)}`);
       const products = await res.json();
-      
+
       const product = products.find((p: any) => p.name.toLowerCase() === itemName.trim().toLowerCase()) || products[0];
-      
+
       if (product) {
         setGridData(prev => prev.map(row => {
           if (row.id !== id) return row;
-          
-          let updatedRow = { 
-            ...row, 
+
+          let updatedRow = {
+            ...row,
             itemName: product.name,
-            itemDesc: product.itemCode || product.barcode || '', 
+            itemDesc: product.itemCode || product.barcode || '',
             uom: product.uom || 'PCS',
             rate: product.price || 0,
-            qty: row.qty === 0 ? 1 : row.qty 
+            qty: row.qty === 0 ? 1 : row.qty
           };
-          
+
           let baseAmount = updatedRow.qty * updatedRow.rate;
           updatedRow.discAmt = Number(((baseAmount * updatedRow.discPercent) / 100).toFixed(2));
           updatedRow.amount = Number((baseAmount - updatedRow.discAmt).toFixed(2));
@@ -697,13 +705,13 @@ const POSCheckout = () => {
               document.getElementById(`grid-input-${rowIndex}-2`)?.focus();
             }, 50);
             if (setGlobalNotification) {
-              setGlobalNotification({msg: `Found ${product.name}`, type: 'success'});
-              setTimeout(() => setGlobalNotification({msg: '', type: ''}), 1500);
+              setGlobalNotification({ msg: `Found ${product.name}`, type: 'success' });
+              setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 1500);
             }
           } else {
             if (setGlobalNotification) {
-              setGlobalNotification({msg: `Barcode not found: ${barcode}`, type: 'error'});
-              setTimeout(() => setGlobalNotification({msg: '', type: ''}), 2500);
+              setGlobalNotification({ msg: `Barcode not found: ${barcode}`, type: 'error' });
+              setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 2500);
             }
           }
         } catch (err) { console.error(err); }
@@ -757,7 +765,7 @@ const POSCheckout = () => {
           let newGrid = [...prev];
           const existingRowIdx = newGrid.findIndex(r => r.itemName === product.name);
           if (existingRowIdx !== -1) {
-            let row = {...newGrid[existingRowIdx]};
+            let row = { ...newGrid[existingRowIdx] };
             row.qty = Number(row.qty) + 1;
             let baseAmount = row.qty * row.rate;
             row.discAmt = Number(((baseAmount * row.discPercent) / 100).toFixed(2));
@@ -768,7 +776,7 @@ const POSCheckout = () => {
             const newRow = {
               id: emptyRowIdx !== -1 ? newGrid[emptyRowIdx].id : Date.now(),
               itemName: product.name,
-              itemDesc: product.itemCode || product.barcode || '', 
+              itemDesc: product.itemCode || product.barcode || '',
               uom: product.uom || 'PCS',
               rate: product.price || 0,
               qty: 1,
@@ -791,13 +799,13 @@ const POSCheckout = () => {
         });
 
         if (setGlobalNotification) {
-          setGlobalNotification({msg: `Added ${product.name}`, type: 'success'});
-          setTimeout(() => setGlobalNotification({msg: '', type: ''}), 1500);
+          setGlobalNotification({ msg: `Added ${product.name}`, type: 'success' });
+          setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 1500);
         }
       } else {
         if (setGlobalNotification) {
-          setGlobalNotification({msg: `Barcode not found: ${barcode}`, type: 'error'});
-          setTimeout(() => setGlobalNotification({msg: '', type: ''}), 2500);
+          setGlobalNotification({ msg: `Barcode not found: ${barcode}`, type: 'error' });
+          setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 2500);
         }
       }
     } catch (err) {
@@ -808,7 +816,7 @@ const POSCheckout = () => {
 
   return (
     <div className="flex flex-col h-full space-y-2">
-      
+
       {/* 1. Header & Rapid Scan */}
       <div className="bg-blue-50 border border-blue-200 p-1.5 rounded-sm shadow-sm flex items-center space-x-2">
         <div className="flex items-center space-x-1 pr-3 border-r border-blue-200">
@@ -817,85 +825,82 @@ const POSCheckout = () => {
         </div>
         <div className="text-xs text-blue-800">Scan barcodes directly in the active grid row.</div>
       </div>
-      
+
       {/* 2. Main Document Input Panel */}
       <div className="legacy-panel p-1 text-xs grid grid-cols-12 gap-x-2 gap-y-1 items-center">
-          <label className="legacy-label text-right">Buyer</label>
-          <div className="col-span-3 relative">
-            <input 
-              type="text" 
-              className="legacy-input w-full font-bold text-blue-900 bg-blue-50 py-0.5 px-2 pr-6 focus:bg-yellow-50 outline-none border border-gray-300 rounded-sm" 
-              value={customerSearch}
-              onChange={e => {
-                setCustomerSearch(e.target.value);
-                setShowCustomerDropdown(true);
-              }}
-              onFocus={() => setShowCustomerDropdown(true)}
-              onBlur={() => {
-                // Short delay to let onMouseDown run first
-                setTimeout(() => setShowCustomerDropdown(false), 200);
-              }}
-              placeholder="Search / select buyer..."
-            />
-            <span className="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none text-blue-400 font-bold">▾</span>
-            
-            {showCustomerDropdown && (
-              <div className="absolute left-0 right-0 top-full mt-0.5 bg-white border border-gray-300 max-h-48 overflow-y-auto z-[999] shadow-lg rounded text-left">
-                {filteredCustomersList.length === 0 ? (
-                  <div className="p-2 text-xs text-gray-500 italic">No matching customers</div>
-                ) : (
-                  filteredCustomersList.map((c, i) => (
-                    <button
-                      key={c._id || i}
-                      type="button"
-                      onMouseDown={() => {
-                        setBuyerName(c.accountName);
-                        setCustomerSearch(c.accountName);
-                        if (c.accountName === 'CASH') {
-                          setAddress('');
-                          setMobileNo('');
-                          setGstNo('');
-                        } else {
-                          setAddress(c.address || '');
-                          setMobileNo(c.mobileNo || '');
-                          setGstNo(c.gstNo || '');
-                        }
-                        setShowCustomerDropdown(false);
-                      }}
-                      className="w-full text-left px-2.5 py-1.5 text-xs hover:bg-blue-50 text-gray-800 font-semibold border-b border-gray-100 last:border-b-0 flex justify-between"
-                    >
-                      <span>{c.accountName}</span>
-                      {c.ledgerCode && <span className="text-[10px] text-gray-400 font-mono">{c.ledgerCode}</span>}
-                    </button>
-                  ))
-                )}
-              </div>
-            )}
-          </div>
+        <label className="legacy-label text-right">Buyer</label>
+        <div className="col-span-3 relative">
+          <input
+            type="text"
+            className="legacy-input w-full font-bold text-blue-900 bg-blue-50 py-0.5 px-2 pr-6 focus:bg-yellow-50 outline-none border border-gray-300 rounded-sm"
+            value={customerSearch}
+            onChange={e => {
+              setCustomerSearch(e.target.value);
+              setShowCustomerDropdown(true);
+            }}
+            onFocus={() => setShowCustomerDropdown(true)}
+            onBlur={() => {
+              // Short delay to let onMouseDown run first
+              setTimeout(() => setShowCustomerDropdown(false), 200);
+            }}
+            placeholder="Search / select buyer..."
+          />
+          <span className="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none text-blue-400 font-bold">▾</span>
 
-          <label className="legacy-label text-right">Inv No</label>
-          <input type="text" className="legacy-input col-span-2 font-bold py-0.5" value={invoiceNo} disabled />
-          
-          <label className="legacy-label text-right">Inv Date</label>
-          <input type="date" className="legacy-input col-span-2 py-0.5" value={invDate} onChange={e => setInvDate(e.target.value)} />
-          
-          <label className="legacy-label text-right">E.Type</label>
-          <select className="legacy-input col-span-2 py-0.5" value={eType} onChange={e => setEType(e.target.value)}>
-             <option>Local</option>
-             <option>Interstate</option>
-          </select>
+          {showCustomerDropdown && (
+            <div className="absolute left-0 right-0 top-full mt-0.5 bg-white border border-gray-300 max-h-48 overflow-y-auto z-[999] shadow-lg rounded text-left">
+              {filteredCustomersList.length === 0 ? (
+                <div className="p-2 text-xs text-gray-500 italic">No matching customers</div>
+              ) : (
+                filteredCustomersList.map((c, i) => (
+                  <button
+                    key={c._id || i}
+                    type="button"
+                    onMouseDown={() => {
+                      setBuyerName(c.accountName);
+                      setCustomerSearch(c.accountName);
+                      if (c.accountName === 'CASH') {
+                        setAddress('');
+                        setMobileNo('');
+                        setGstNo('');
+                      } else {
+                        setAddress(c.address || '');
+                        setMobileNo(c.mobileNo || '');
+                        setGstNo(c.gstNo || '');
+                      }
+                      setShowCustomerDropdown(false);
+                    }}
+                    className="w-full text-left px-2.5 py-1.5 text-xs hover:bg-blue-50 text-gray-800 font-semibold border-b border-gray-100 last:border-b-0 flex justify-between"
+                  >
+                    <span>{c.accountName}</span>
+                    {c.ledgerCode && <span className="text-[10px] text-gray-400 font-mono">{c.ledgerCode}</span>}
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+        </div>
 
-          <label className="legacy-label text-right">Address</label>
-          <input type="text" className="legacy-input col-span-3 py-0.5" value={address} onChange={e => setAddress(e.target.value)} />
-          
-          <label className="legacy-label text-right">Mobile</label>
-          <input type="text" className="legacy-input col-span-2 py-0.5" value={mobileNo} onChange={e => setMobileNo(e.target.value)} />
+        <label className="legacy-label text-right">Inv No</label>
+        <input type="text" className="legacy-input col-span-2 font-bold py-0.5" value={invoiceNo} disabled />
 
-          <label className="legacy-label text-right">GST No</label>
-          <input type="text" className="legacy-input col-span-2 py-0.5" value={gstNo} onChange={e => setGstNo(e.target.value)} />
+        <label className="legacy-label text-right">Inv Date</label>
+        <input type="date" className="legacy-input col-span-2 py-0.5" value={invDate} onChange={e => setInvDate(e.target.value)} />
 
-          <label className="legacy-label text-right">Salesman</label>
-          <input type="text" className="legacy-input col-span-2 bg-yellow-50 py-0.5" value={salesman} onChange={e => setSalesman(e.target.value)} placeholder="Billed By" />
+        <label className="legacy-label text-right">E.Type</label>
+        <select className="legacy-input col-span-2 py-0.5" value={eType} onChange={e => setEType(e.target.value)}>
+          <option>Local</option>
+          <option>Interstate</option>
+        </select>
+
+        {/* <label className="legacy-label text-right">Address</label>
+          <input type="text" className="legacy-input col-span-3 py-0.5" value={address} onChange={e => setAddress(e.target.value)} /> */}
+
+        <label className="legacy-label text-right">Mobile</label>
+        <input type="text" className="legacy-input col-span-2 py-0.5" value={mobileNo} onChange={e => setMobileNo(e.target.value)} />
+
+        <label className="legacy-label text-right">Salesman</label>
+        <input type="text" className="legacy-input col-span-2 bg-yellow-50 py-0.5" value={salesman} onChange={e => setSalesman(e.target.value)} placeholder="Billed By" />
       </div>
 
       {/* Selected Customer Status Banner */}
@@ -914,7 +919,6 @@ const POSCheckout = () => {
             <div>Current Balance: <span className="font-mono text-[#c55a11]">₹{selectedCustomerObj.openingBalance?.toLocaleString() || 0} {selectedCustomerObj.drCr || 'Dr'}</span></div>
             <div>Credit Limit: <span className="font-mono">₹{selectedCustomerObj.creditLimit?.toLocaleString() || 0}</span></div>
             <div>Allowed Period: <span>{selectedCustomerObj.defaultCreditPeriod || 0} Days</span></div>
-            <div>GSTIN: <span>{selectedCustomerObj.gstNo || 'N/A'}</span></div>
           </div>
         </div>
       )}
@@ -940,24 +944,24 @@ const POSCheckout = () => {
               <tr key={row.id} className="hover:bg-blue-50">
                 <td className="legacy-grid-cell text-center font-semibold text-gray-700">{idx + 1}</td>
                 <td className="legacy-grid-cell p-0">
-                  <input 
+                  <input
                     id={`grid-input-${idx}-0`}
-                    type="text" 
+                    type="text"
                     placeholder="Barcode..."
-                    className="w-full h-full p-1 pl-2 border-none outline-none focus:bg-yellow-100 font-mono text-blue-900" 
-                    value={row.itemDesc} 
-                    onChange={e => handleGridChange(row.id, 'itemDesc', e.target.value)} 
+                    className="w-full h-full p-1 pl-2 border-none outline-none focus:bg-yellow-100 font-mono text-blue-900"
+                    value={row.itemDesc}
+                    onChange={e => handleGridChange(row.id, 'itemDesc', e.target.value)}
                     onKeyDown={e => handleKeyDown(e, idx, 0, row.id, row.itemName)}
                   />
                 </td>
                 <td className="legacy-grid-cell p-0 relative">
-                  <input 
+                  <input
                     id={`grid-input-${idx}-1`}
-                    type="text" 
+                    type="text"
                     placeholder="Press Enter to search..."
-                    className="w-full h-full p-1 pl-2 border-none outline-none focus:bg-yellow-100 placeholder-gray-300" 
-                    value={row.itemName} 
-                    onChange={e => handleGridChange(row.id, 'itemName', e.target.value)} 
+                    className="w-full h-full p-1 pl-2 border-none outline-none focus:bg-yellow-100 placeholder-gray-300"
+                    value={row.itemName}
+                    onChange={e => handleGridChange(row.id, 'itemName', e.target.value)}
                     onBlur={e => handleItemBlur(row.id, e.target.value)}
                     onKeyDown={e => handleKeyDown(e, idx, 1, row.id, row.itemName)}
                   />
@@ -983,16 +987,16 @@ const POSCheckout = () => {
       <div className="grid grid-cols-3 gap-2">
         {/* Left: Terms and Actions */}
         <div className="col-span-2 flex flex-col space-y-1">
-          
+
           <div className="legacy-panel p-1 flex space-x-2">
-             <div className="flex-1 flex items-center">
-               <label className="legacy-label whitespace-nowrap mr-2">Shipping Addr.</label>
-               <input type="text" className="legacy-input w-full py-0.5" />
-             </div>
-             <div className="flex-1 flex items-center">
-               <label className="legacy-label whitespace-nowrap mr-2">Remarks</label>
-               <input type="text" className="legacy-input w-full py-0.5" />
-             </div>
+            <div className="flex-1 flex items-center">
+              <label className="legacy-label whitespace-nowrap mr-2">Shipping Addr.</label>
+              <input type="text" className="legacy-input w-full py-0.5" />
+            </div>
+            <div className="flex-1 flex items-center">
+              <label className="legacy-label whitespace-nowrap mr-2">Remarks</label>
+              <input type="text" className="legacy-input w-full py-0.5" />
+            </div>
           </div>
 
           <div className="flex space-x-2 mt-auto pb-1">
@@ -1010,7 +1014,7 @@ const POSCheckout = () => {
         <div className="legacy-panel p-1 grid grid-cols-4 gap-x-2 gap-y-0.5 items-center text-xs">
           <label className="legacy-label col-span-2 text-right">Total Qty</label>
           <input type="text" className="legacy-input col-span-2 text-right font-bold py-0.5" value={totalQty.toFixed(2)} disabled />
-          
+
           <label className="legacy-label col-span-2 text-right">Total Amount</label>
           <input type="text" className="legacy-input col-span-2 text-right font-bold py-0.5" value={totalAmount.toFixed(2)} disabled />
 
@@ -1018,19 +1022,19 @@ const POSCheckout = () => {
             {selectedCustomerObj?.isRegular && <span className="text-yellow-600 mr-1">⭐</span>}
             Favour Disc (₹)
           </label>
-          <input 
-            type="number" 
-            className={`legacy-input col-span-2 text-right py-0.5 font-bold focus:bg-yellow-100 ${selectedCustomerObj?.isRegular ? 'bg-yellow-50 border-yellow-400 text-yellow-800' : ''}`} 
-            value={favourDiscount || ''} 
-            onChange={e => setFavourDiscount(Number(e.target.value))} 
+          <input
+            type="number"
+            className={`legacy-input col-span-2 text-right py-0.5 font-bold focus:bg-yellow-100 ${selectedCustomerObj?.isRegular ? 'bg-yellow-50 border-yellow-400 text-yellow-800' : ''}`}
+            value={favourDiscount || ''}
+            onChange={e => setFavourDiscount(Number(e.target.value))}
             placeholder="Special Discount"
           />
-          
+
           <label className="legacy-label col-span-2 flex items-center justify-end">
             CGST <input type="number" className="ml-1 w-10 text-center border border-gray-400 py-0 text-[10px]" value={cgstPercent} onChange={e => setCgstPercent(Number(e.target.value))} /> %
           </label>
           <input type="text" className="legacy-input col-span-2 text-right py-0.5" value={cgst.toFixed(2)} disabled />
-          
+
           <label className="legacy-label col-span-2 flex items-center justify-end">
             SGST <input type="number" className="ml-1 w-10 text-center border border-gray-400 py-0 text-[10px]" value={sgstPercent} onChange={e => setSgstPercent(Number(e.target.value))} /> %
           </label>
@@ -1062,16 +1066,16 @@ const POSCheckout = () => {
           </select>
 
           <label className="legacy-label col-span-2 text-right text-blue-900">Amt Tendered</label>
-          <input 
-            id="tendered-input" 
-            type="number" 
-            className="legacy-input col-span-2 text-right font-bold bg-white border-blue-400 py-0.5" 
-            value={tendered || ''} 
-            onChange={e => setTendered(Number(e.target.value))} 
+          <input
+            id="tendered-input"
+            type="number"
+            className="legacy-input col-span-2 text-right font-bold bg-white border-blue-400 py-0.5"
+            value={tendered || ''}
+            onChange={e => setTendered(Number(e.target.value))}
             onKeyDown={handleTenderedEnter}
-            placeholder="Cash given..." 
+            placeholder="Cash given..."
           />
-          
+
           <label className="legacy-label col-span-2 text-right text-green-700">Change Return</label>
           <input type="text" className="legacy-input col-span-2 text-right font-bold bg-green-100 text-green-900 border-green-500 py-0.5" value={(tendered > 0 ? tendered - netAmount : 0).toFixed(2)} disabled />
         </div>
@@ -1080,11 +1084,11 @@ const POSCheckout = () => {
       {/* Enterprise-styled Inline Dropdown Modal */}
       {isSearchModalOpen && (
         <div className="fixed inset-0 z-50" onClick={closeSearchModal}>
-          <div 
+          <div
             className="fixed bg-white shadow-2xl flex flex-col border border-gray-500 rounded-sm overflow-hidden"
-            style={{ 
-              top: `${dropdownPosition.top}px`, 
-              left: `${dropdownPosition.left}px`, 
+            style={{
+              top: `${dropdownPosition.top}px`,
+              left: `${dropdownPosition.left}px`,
               width: '750px',
               maxHeight: '400px'
             }}
@@ -1100,15 +1104,15 @@ const POSCheckout = () => {
                 ✕
               </button>
             </div>
-            
+
             {/* Search Input Area */}
             <div className="p-3 bg-[#f0f0f0] border-b border-gray-300 flex items-center space-x-3">
               <div className="relative flex-1">
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-                <input 
+                <input
                   ref={searchInputRef}
-                  type="text" 
-                  placeholder="Search by product name, code, or barcode... (Sorted Alphabetically)" 
+                  type="text"
+                  placeholder="Search by product name, code, or barcode... (Sorted Alphabetically)"
                   className="w-full pl-9 pr-3 py-1.5 border border-gray-400 focus:border-[#385386] focus:ring-1 focus:ring-[#385386] outline-none text-sm text-gray-800"
                   value={searchQuery}
                   onChange={e => {
@@ -1135,8 +1139,8 @@ const POSCheckout = () => {
             {/* List Body */}
             <div className="overflow-y-auto flex-1 bg-white">
               {filteredProducts.map((p, idx) => (
-                <div 
-                  key={p.id} 
+                <div
+                  key={p.id}
                   className={`grid grid-cols-12 gap-2 px-3 py-1.5 border-b border-gray-200 cursor-pointer items-center text-sm ${idx === highlightedIndex ? 'bg-[#a3c293] text-black font-semibold' : 'hover:bg-[#eaf1e6] text-gray-800'}`}
                   onClick={() => selectProductFromModal(p)}
                 >
@@ -1195,21 +1199,21 @@ const POSCheckout = () => {
               {!confirmModalState.title && <p className="text-xs text-gray-600">This action cannot be undone.</p>}
             </div>
             <div className="bg-gray-100 px-4 py-2 flex justify-end space-x-2 border-t border-gray-300">
-              <button 
+              <button
                 id="confirm-cancel-btn"
                 className="px-4 py-1.5 bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold rounded-sm text-sm border border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500"
                 onClick={() => {
                   if (confirmModalState.cancelAction) confirmModalState.cancelAction();
-                  else setConfirmModalState({isOpen: false, action: null});
+                  else setConfirmModalState({ isOpen: false, action: null });
                 }}
                 onKeyDown={(e) => {
                   if (e.key === 'ArrowRight') document.getElementById('confirm-save-btn')?.focus();
-                  if (e.key === 'Escape') setConfirmModalState({isOpen: false, action: null});
+                  if (e.key === 'Escape') setConfirmModalState({ isOpen: false, action: null });
                 }}
               >
                 {confirmModalState.noText || "No, Cancel"}
               </button>
-              <button 
+              <button
                 id="confirm-save-btn"
                 autoFocus
                 className="px-4 py-1.5 bg-[#a3c293] hover:bg-[#8eb07d] text-black font-bold rounded-sm text-sm border border-gray-500 focus:outline-none focus:ring-2 focus:ring-green-700"
@@ -1218,7 +1222,7 @@ const POSCheckout = () => {
                 }}
                 onKeyDown={(e) => {
                   if (e.key === 'ArrowLeft') document.getElementById('confirm-cancel-btn')?.focus();
-                  if (e.key === 'Escape') setConfirmModalState({isOpen: false, action: null});
+                  if (e.key === 'Escape') setConfirmModalState({ isOpen: false, action: null });
                 }}
               >
                 {confirmModalState.yesText || "Yes, Save"}

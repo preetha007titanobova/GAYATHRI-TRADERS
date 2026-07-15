@@ -1022,4 +1022,4 @@ const StockRegister = () => {
   );
 };
 
-export default StockRegister;
+export default StockRegister;
