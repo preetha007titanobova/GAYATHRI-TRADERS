@@ -578,7 +578,13 @@ const LedgerMaster = () => {
             <span>Ledger Directory Grid</span>
             <div className="flex items-center space-x-2">
               <span className="bg-blue-800 px-2 py-0.5 rounded text-xs mr-2">Total: {filteredLedgers.length}</span>
-        
+           <button 
+                onClick={() => setViewMode('form-only')}
+                className={`px-2 py-0.5 rounded text-xs font-semibold transition-colors ${viewMode === 'form-only' ? 'bg-blue-600 border border-blue-400 text-white' : 'bg-blue-800 hover:bg-blue-700 text-blue-100'}`}
+                title="Hide Table"
+              >
+                ❌ Hide Table
+              </button>
             </div>
           </div>
 

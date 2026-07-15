@@ -27,7 +27,7 @@ const POSCheckout = () => {
   const [invoiceNo, setInvoiceNo] = useState('Loading...'); // Fetched from backend
   const [invDate, setInvDate] = useState(new Date().toISOString().split('T')[0]);
   const [payDays, setPayDays] = useState(0);
-  const [buyerName, setBuyerName] = useState(incomingPayload?.buyerName || 'CASH');
+  const [buyerName, setBuyerName] = useState(incomingPayload?.buyerName || '');
   const [salesman, setSalesman] = useState('');
   const [paymentMode, setPaymentMode] = useState('Cash');
   const [rapidBarcode, setRapidBarcode] = useState('');
@@ -40,7 +40,7 @@ const POSCheckout = () => {
   const [invoiceFormat, setInvoiceFormat] = useState('GSTFormat Full Page');
 
   // Searchable Buyer State
-  const [customerSearch, setCustomerSearch] = useState('CASH');
+  const [customerSearch, setCustomerSearch] = useState('');
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [favourDiscount, setFavourDiscount] = useState<number>(0);
 
@@ -52,7 +52,7 @@ const POSCheckout = () => {
 
   useEffect(() => {
     if (customerSearch !== buyerName) {
-      setBuyerName(customerSearch || 'CASH');
+      setBuyerName(customerSearch || '');
     }
   }, [customerSearch]);
 
@@ -147,7 +147,7 @@ const POSCheckout = () => {
       setInvoiceNo(invoiceToEdit.invoiceNo);
       setInvDate(new Date(invoiceToEdit.invDate).toISOString().split('T')[0]);
       setPayDays(invoiceToEdit.payDays || 0);
-      setBuyerName(invoiceToEdit.buyerName || 'CASH');
+      setBuyerName(invoiceToEdit.buyerName || '');
       setSalesman(invoiceToEdit.salesman || '');
       setPaymentMode(invoiceToEdit.paymentMode || 'Cash');
       setAddress(invoiceToEdit.address || '');
@@ -408,7 +408,7 @@ const POSCheckout = () => {
       isOpen: true,
       action: () => {
         setGridData([{ id: Date.now(), itemName: '', itemDesc: '', qty: 0, uom: '', rate: 0, discPercent: 0, discAmt: 0, amount: 0 }]);
-        setBuyerName('CASH');
+        setBuyerName('');
         setAddress('');
         setMobileNo('');
         setGstNo('');
