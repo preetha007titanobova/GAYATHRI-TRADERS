@@ -37,3 +37,54 @@ export const getStatistics = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Failed to fetch statistics' });
   }
 };
+
+export const getDashboardStatistics = async (req: Request, res: Response) => {
+  try {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
+
+    const openOrders = await prisma.salesOrder.findMany({ where: { status: 'Open' } });
+    const partialOrders = await prisma.salesOrder.findMany({ where: { status: 'Partial' } });
+    const completedOrdersCount = await prisma.salesOrder.count({ where: { status: 'Completed' } });
+    const cancelledOrdersCount = await prisma.salesOrder.count({ where: { status: 'Cancelled' } });
+
+    // Pending Delivery Amount: sum of balanceAmount for Open and Partial orders
+    const pendingDeliveryAmount = [...openOrders, ...partialOrders].reduce((sum, o) => sum + (o.balanceAmount || 0), 0);
+
+    const todaysOrdersCount = await prisma.salesOrder.count({
+      where: {
+        createdAt: {
+          gte: todayStart,
+          lte: todayEnd
+        }
+      }
+    });
+
+    const thisMonthsOrdersCount = await prisma.salesOrder.count({
+      where: {
+        createdAt: {
+          gte: monthStart
+        }
+      }
+    });
+
+    res.json({
+      totalOpenOrders: openOrders.length,
+      totalPartialOrders: partialOrders.length,
+      completedOrders: completedOrdersCount,
+      cancelledOrders: cancelledOrdersCount,
+      pendingDeliveryAmount,
+      todaysOrders: todaysOrdersCount,
+      thisMonthsOrders: thisMonthsOrdersCount
+    });
+  } catch (error) {
+    console.error('Dashboard Statistics Error:', error);
+    res.status(500).json({ error: 'Failed to fetch dashboard statistics' });
+  }
+};

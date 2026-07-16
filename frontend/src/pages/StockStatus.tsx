@@ -18,6 +18,7 @@ interface StockItem {
   department?: string;
   variety?: string;
   size?: string;
+  pendingOrderQty?: number;
 }
 
 const StockStatus = () => {
@@ -223,7 +224,12 @@ const StockStatus = () => {
                       <td className="border-r border-gray-200 p-2 text-xs text-center text-gray-500">{item.uom || 'PCS'}</td>
                       <td className={`border-r border-gray-200 p-2 text-right font-mono font-black text-sm ${isLow ? 'text-red-600' : 'text-blue-700'}`}>
                         {isLow && <AlertTriangle size={12} className="inline mr-1 -mt-1 text-red-500" />}
-                        {qty}
+                        <div>{qty}</div>
+                        {Number(item.pendingOrderQty) > 0 && (
+                          <div className="text-[10px] text-amber-600 font-bold whitespace-nowrap leading-none mt-1">
+                            ({item.pendingOrderQty} {item.uom || 'PCS'} in sales order)
+                          </div>
+                        )}
                       </td>
                       <td className="border-r border-gray-200 p-2 text-right font-mono font-bold text-red-600 bg-red-50/10">
                         {item.damagedStock || 0}

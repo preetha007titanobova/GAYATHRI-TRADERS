@@ -12,10 +12,12 @@ router.get('/bills/search', salesController.searchSalesBills);
 router.get('/bills/:invoiceNo', salesController.getSalesBillByInvoiceNo);
 
 // Sales Orders
+router.get('/orders/next-sequence', salesController.getNextSalesOrderSequence);
 router.post('/orders', salesController.createSalesOrder);
 router.get('/orders/search', salesController.searchSalesOrders);
 router.get('/orders/:id', salesController.getSalesOrderDetails);
 router.put('/orders/:id', salesController.updateSalesOrder);
+router.put('/orders/:id/cancel', salesController.cancelSalesOrder);
 router.delete('/orders/:id', salesController.deleteSalesOrder);
 
 // Sales Returns

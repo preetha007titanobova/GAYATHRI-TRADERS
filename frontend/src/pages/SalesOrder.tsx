@@ -1,14 +1,17 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useOutletContext, useLocation, useNavigate } from 'react-router-dom';
-import { Plus, Trash2, Search, Calendar, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Trash2, Calendar, FileText, Printer, ArrowLeft, RefreshCw } from 'lucide-react';
 import Api from '../Api';
 
 interface SalesOrderItemLine {
   lineId: string;
   orderId: string;
   lineIndex: number;
+  productId?: string;
   itemCode: string;
   itemDescription: string;
+  color: string;
+  size: string;
   quantityOrdered: number | string;
   quantityFulfilled: number;
   unitPrice: number | string;
@@ -21,20 +24,285 @@ interface SalesOrderItemLine {
   lineSubTotal: number;
 }
 
+const printOrder = (order: any) => {
+  const existingIframe = document.getElementById('printOrderIframe');
+  if (existingIframe) {
+    document.body.removeChild(existingIframe);
+  }
+
+  const iframe = document.createElement('iframe');
+  iframe.id = 'printOrderIframe';
+  iframe.style.position = 'absolute';
+  iframe.style.top = '-10000px';
+  iframe.style.left = '-10000px';
+  iframe.style.width = '210mm'; // A4 width
+  iframe.style.opacity = '0';
+  iframe.style.pointerEvents = 'none';
+  
+  document.body.appendChild(iframe);
+  const doc = iframe.contentWindow?.document;
+  if (!doc) return;
+
+  const orderDateStr = new Date(order.orderDate).toLocaleDateString('en-IN');
+  const deliveryDateStr = order.deliveryDate ? new Date(order.deliveryDate).toLocaleDateString('en-IN') : 'N/A';
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Sales Order - ${order.orderNo || order.orderNumber}</title>
+        <style>
+          body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 20px;
+            color: #333;
+            font-size: 14px;
+          }
+          .header {
+            text-align: center;
+            border-bottom: 2px solid #2b579a;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+          }
+          .shop-name {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2b579a;
+            margin: 0;
+            text-transform: uppercase;
+          }
+          .title {
+            font-size: 18px;
+            font-weight: bold;
+            margin: 5px 0 0 0;
+            letter-spacing: 1px;
+          }
+          .info-table {
+            width: 100%;
+            margin-bottom: 20px;
+            border-collapse: collapse;
+          }
+          .info-table td {
+            padding: 5px;
+            vertical-align: top;
+          }
+          .info-title {
+            font-weight: bold;
+            color: #555;
+            width: 150px;
+          }
+          .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 25px;
+          }
+          .items-table th, .items-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+          }
+          .items-table th {
+            background-color: #f2f2f2;
+            color: #2b579a;
+            font-weight: bold;
+          }
+          .text-right {
+            text-align: right;
+          }
+          .text-center {
+            text-align: center;
+          }
+          .summary-container {
+            float: right;
+            width: 300px;
+            margin-bottom: 30px;
+          }
+          .summary-line {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            font-size: 13px;
+          }
+          .summary-line.total {
+            font-size: 16px;
+            font-weight: bold;
+            border-top: 1px solid #333;
+            padding-top: 8px;
+            color: #2b579a;
+          }
+          .footer {
+            margin-top: 50px;
+            clear: both;
+            border-top: 1px solid #eee;
+            padding-top: 15px;
+          }
+          .terms {
+            font-size: 11px;
+            color: #777;
+            width: 60%;
+            float: left;
+          }
+          .signatures {
+            float: right;
+            width: 35%;
+            text-align: center;
+            margin-top: 20px;
+          }
+          .sig-line {
+            border-top: 1px solid #999;
+            margin-top: 40px;
+            padding-top: 5px;
+            font-weight: bold;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1 class="shop-name">SRI GAYATHRI TRADERS</h1>
+          <div class="title">SALES ORDER</div>
+        </div>
+
+        <table class="info-table">
+          <tr>
+            <td>
+              <div><span class="info-title">Order Number:</span> <strong>${order.orderNo || order.orderNumber}</strong></div>
+              <div><span class="info-title">Order Date:</span> ${orderDateStr}</div>
+              <div><span class="info-title">Expected Delivery:</span> <strong>${deliveryDateStr}</strong></div>
+              <div><span class="info-title">Status:</span> <span style="text-transform: uppercase;">${order.status}</span></div>
+            </td>
+            <td style="text-align: right;">
+              <div><strong>Customer Details:</strong></div>
+              <div>Name: ${order.customer || order.buyerName || 'Walk-in Customer'}</div>
+              ${order.mobileNo ? `<div>Phone: ${order.mobileNo}</div>` : ''}
+              ${order.address ? `<div>Address: ${order.address}</div>` : ''}
+            </td>
+          </tr>
+        </table>
+
+        <table class="items-table">
+          <thead>
+            <tr>
+              <th style="width: 5%;" class="text-center">#</th>
+              <th style="width: 15%;">Item Code</th>
+              <th>Description</th>
+              <th style="width: 10%;">Color</th>
+              <th style="width: 10%;">Size</th>
+              <th style="width: 10%;" class="text-center">Qty Ordered</th>
+              <th style="width: 12%;" class="text-right">Unit Price</th>
+              <th style="width: 10%;" class="text-center">Disc %</th>
+              <th style="width: 15%;" class="text-right">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${order.items.map((item: any, idx: number) => `
+              <tr>
+                <td class="text-center">${idx + 1}</td>
+                <td>${item.itemCode || '-'}</td>
+                <td>${item.itemDescription || item.itemName || 'Unknown Item'}</td>
+                <td>${item.color || '-'}</td>
+                <td>${item.size || '-'}</td>
+                <td class="text-center">${item.quantityOrdered || item.orderedQty}</td>
+                <td class="text-right">₹${Number(item.unitPrice).toFixed(2)}</td>
+                <td class="text-center">${item.discountPercentage || item.discount || 0}%</td>
+                <td class="text-right">₹${Number(item.lineSubTotal || item.lineTotal).toFixed(2)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+
+        <div class="summary-container">
+          <div class="summary-line">
+            <span>Subtotal:</span>
+            <span>₹${Number(order.summary?.subtotal || order.subtotal).toFixed(2)}</span>
+          </div>
+          ${(order.summary?.cgst || order.cgst) > 0 ? `
+          <div class="summary-line">
+            <span>CGST:</span>
+            <span>₹${Number(order.summary?.cgst || order.cgst).toFixed(2)}</span>
+          </div>` : ''}
+          ${(order.summary?.sgst || order.sgst) > 0 ? `
+          <div class="summary-line">
+            <span>SGST:</span>
+            <span>₹${Number(order.summary?.sgst || order.sgst).toFixed(2)}</span>
+          </div>` : ''}
+          ${(order.summary?.igst || order.igst) > 0 ? `
+          <div class="summary-line">
+            <span>IGST:</span>
+            <span>₹${Number(order.summary?.igst || order.igst).toFixed(2)}</span>
+          </div>` : ''}
+          <div class="summary-line">
+            <span>Rounding:</span>
+            <span>₹${Number(order.summary?.rounding || order.roundOff || 0).toFixed(2)}</span>
+          </div>
+          <div class="summary-line total">
+            <span>Grand Total:</span>
+            <span>₹${Number(order.summary?.grandTotal || order.grandTotal).toFixed(2)}</span>
+          </div>
+          <div class="summary-line" style="font-weight: bold; color: #15803d; border-top: 1px dashed #ddd; padding-top: 4px;">
+            <span>Advance Paid:</span>
+            <span>₹${Number(order.advancePaid || 0).toFixed(2)}</span>
+          </div>
+          <div class="summary-line" style="font-weight: bold; color: #b91c1c;">
+            <span>Balance Due:</span>
+            <span>₹${Number(order.balanceAmount || (order.summary?.grandTotal - order.advancePaid) || 0).toFixed(2)}</span>
+          </div>
+        </div>
+
+        <div class="footer">
+          <div class="terms">
+            <strong>Terms & Conditions:</strong>
+            <ol style="margin: 5px 0; padding-left: 15px;">
+              <li>Goods once ordered cannot be cancelled or returned.</li>
+              <li>Expected delivery dates are estimates subject to transport availability.</li>
+              <li>Balance amount must be cleared prior to or at the time of final delivery.</li>
+            </ol>
+          </div>
+
+          <div class="signatures">
+            <div class="sig-line">Authorized Signature</div>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  doc.open();
+  doc.write(htmlContent);
+  doc.close();
+
+  setTimeout(() => {
+    if (iframe.contentWindow) {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+    }
+  }, 250);
+};
+
 const SalesOrder = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { setToolbarActions, setGlobalNotification } = useOutletContext<{ setToolbarActions?: any, setGlobalNotification?: any }>() || {};
+  
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
 
   // --- Left Pane State ---
-  const [status, setStatus] = useState<'OPEN' | 'PENDING' | 'FULFILLED' | 'CANCELLED'>('OPEN');
+  const [status, setStatus] = useState<string>('Open');
   const [orderNo, setOrderNo] = useState('SO-AUTO');
   const [orderDate, setOrderDate] = useState(new Date().toISOString().split('T')[0]);
   const [customer, setCustomer] = useState('');
+  const [mobileNo, setMobileNo] = useState('');
+  const [address, setAddress] = useState('');
   const [deliveryDate, setDeliveryDate] = useState('');
-  const [paymentTerms, setPaymentTerms] = useState('NET 30 DAYS');
-  const [isInterstate, setIsInterstate] = useState(false); // Used to toggle IGST vs CGST/SGST
+  const [salesman, setSalesman] = useState('');
+  const [isInterstate, setIsInterstate] = useState(false);
+  const [advancePaid, setAdvancePaid] = useState<number | string>(0);
+  const [paymentMode, setPaymentMode] = useState('Cash');
+  const [remarks, setRemarks] = useState('');
+  const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(true);
+
+  // Customer financial info
+  const [creditLimit, setCreditLimit] = useState(0);
+  const [currentBalance, setCurrentBalance] = useState(0);
 
   // --- Right Pane State ---
   const [lineItems, setLineItems] = useState<SalesOrderItemLine[]>([]);
@@ -48,8 +316,11 @@ const SalesOrder = () => {
     sgst: 0,
     igst: 0,
     rounding: 0,
-    grandTotal: 0
+    grandTotal: 0,
+    discount: 0
   });
+
+  const isReadOnly = status === 'Completed' || status === 'Cancelled';
 
   // Fetch initial data
   useEffect(() => {
@@ -60,7 +331,7 @@ const SalesOrder = () => {
       })
       .catch(err => console.error("Failed to fetch products", err));
 
-    fetch(`${Api}/ledgers/search`)
+    fetch(`${Api}/ledgers/search?group=Customers`)
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) setAvailableCustomers(data);
@@ -70,59 +341,88 @@ const SalesOrder = () => {
     const orderToEdit = location.state?.orderToEdit;
     if (orderToEdit) {
       setEditingOrderId(orderToEdit._id || orderToEdit.id);
-      setStatus(orderToEdit.status || 'OPEN');
-      setOrderNo(orderToEdit.orderNo);
+      setStatus(orderToEdit.status || 'Open');
+      setOrderNo(orderToEdit.orderNumber || orderToEdit.orderNo);
       setOrderDate(new Date(orderToEdit.orderDate).toISOString().split('T')[0]);
-      setCustomer(orderToEdit.customer || '');
-      setDeliveryDate(orderToEdit.deliveryDate ? new Date(orderToEdit.deliveryDate).toISOString().split('T')[0] : '');
-      setPaymentTerms(orderToEdit.paymentTerms || 'NET 30 DAYS');
-      setIsInterstate(orderToEdit.isInterstate || false);
+      setCustomer(orderToEdit.buyerName || orderToEdit.customer || '');
+      setMobileNo(orderToEdit.mobileNo || '');
+      setAddress(orderToEdit.address || '');
+      setDeliveryDate(orderToEdit.expectedDeliveryDate ? new Date(orderToEdit.expectedDeliveryDate).toISOString().split('T')[0] : '');
+      setIsInterstate(orderToEdit.cgst === 0 && orderToEdit.igst > 0);
+      setAdvancePaid(orderToEdit.advancePaid || 0);
+      setPaymentMode(orderToEdit.paymentMode || 'Cash');
+      setRemarks(orderToEdit.remarks || '');
+      setSalesman(orderToEdit.salesman || '');
 
-      // Fetch items of the order
-      fetch(`${Api}/sales/orders/${orderToEdit._id || orderToEdit.id}`)
+      // Load items
+      const loadedItems = (orderToEdit.items || []).map((item: any, idx: number) => ({
+        lineId: item.id || String(Math.random()),
+        orderId: item.salesOrderId || '',
+        lineIndex: idx + 1,
+        productId: item.productId || undefined,
+        itemCode: item.itemCode || '',
+        itemDescription: item.itemName || item.itemDescription || '',
+        color: item.color || '',
+        size: item.size || '',
+        quantityOrdered: item.orderedQty || item.quantityOrdered || 0,
+        quantityFulfilled: item.deliveredQty || item.quantityFulfilled || 0,
+        unitPrice: item.unitPrice || 0,
+        discountPercentage: item.discount || item.discountPercentage || 0,
+        taxableAmount: item.lineTotal || item.taxableAmount || 0,
+        taxRatePercentage: item.tax || item.taxRatePercentage || 18,
+        cgstAmount: 0,
+        sgstAmount: 0,
+        igstAmount: 0,
+        lineSubTotal: item.lineTotal || item.lineSubTotal || 0
+      }));
+      setLineItems(loadedItems);
+    } else {
+      // Fetch auto sequence order number
+      fetch(`${Api}/sales/orders/next-sequence`)
         .then(res => res.json())
         .then(data => {
-          if (data && Array.isArray(data.items)) {
-            setLineItems(data.items.map((item: any) => ({
-              lineId: item.lineId || String(Math.random()),
-              orderId: item.salesOrderId || '',
-              lineIndex: item.lineIndex || 0,
-              itemCode: item.itemCode || '',
-              itemDescription: item.itemDescription || '',
-              quantityOrdered: item.quantityOrdered || 0,
-              quantityFulfilled: item.quantityFulfilled || 0,
-              unitPrice: item.unitPrice || 0,
-              discountPercentage: item.discountPercentage || 0,
-              taxableAmount: item.taxableAmount || 0,
-              taxRatePercentage: item.taxRatePercentage || 18,
-              cgstAmount: item.cgstAmount || 0,
-              sgstAmount: item.sgstAmount || 0,
-              igstAmount: item.igstAmount || 0,
-              lineSubTotal: item.lineSubTotal || 0
-            })));
-          }
+          if (data.orderNo) setOrderNo(data.orderNo);
         })
-        .catch(err => console.error("Failed to fetch order items:", err));
-    } else {
+        .catch(err => console.error("Error fetching order number sequence", err));
+
       // Initialize with one empty row
       handleAddRow();
     }
   }, [location.state]);
 
-  // --- Math Matrix Engine ---
+  // Load customer metadata on selection
+  useEffect(() => {
+    if (!customer) {
+      setCreditLimit(0);
+      setCurrentBalance(0);
+      return;
+    }
+    const matched = availableCustomers.find(c => c.accountName === customer);
+    if (matched) {
+      setMobileNo(matched.mobileNo || '');
+      setAddress(matched.address || '');
+      setCreditLimit(matched.creditLimit || 0);
+      setCurrentBalance(matched.openingBalance || 0);
+    }
+  }, [customer, availableCustomers]);
+
+  // Summary and tax calculation engine
   useEffect(() => {
     let tSubtotal = 0;
     let tCgst = 0;
     let tSgst = 0;
     let tIgst = 0;
+    let tDiscount = 0;
 
     const updatedItems = lineItems.map(item => {
       const qty = Number(item.quantityOrdered) || 0;
       const price = Number(item.unitPrice) || 0;
-      const disc = Number(item.discountPercentage) || 0;
+      const discPercent = Number(item.discountPercentage) || 0;
       const taxRate = Number(item.taxRatePercentage) || 0;
 
-      const taxableAmount = (qty * price) * (1 - (disc / 100));
+      const baseAmount = qty * price;
+      const discAmt = baseAmount * (discPercent / 100);
+      const taxableAmount = baseAmount - discAmt;
       const taxAmount = taxableAmount * (taxRate / 100);
       
       let cgstAmt = 0;
@@ -142,6 +442,7 @@ const SalesOrder = () => {
       tCgst += cgstAmt;
       tSgst += sgstAmt;
       tIgst += igstAmt;
+      tDiscount += discAmt;
 
       return {
         ...item,
@@ -152,10 +453,6 @@ const SalesOrder = () => {
         lineSubTotal
       };
     });
-
-    // Prevent infinite loop by only updating if values actually changed
-    // In a real app we might use a ref to prevent looping, or carefully manage dependencies.
-    // For simplicity, we just aggregate the totals.
     
     const rawTotal = tSubtotal + tCgst + tSgst + tIgst;
     const roundedTotal = Math.round(rawTotal);
@@ -167,20 +464,23 @@ const SalesOrder = () => {
       sgst: tSgst,
       igst: tIgst,
       rounding: roundingDiff,
-      grandTotal: roundedTotal
+      grandTotal: roundedTotal,
+      discount: tDiscount
     });
-
-  }, [lineItems, isInterstate]); // Need to ensure this doesn't cause infinite render if we map inside
+  }, [lineItems, isInterstate]);
 
   const generateUUID = () => Math.random().toString(36).substring(2, 15);
 
   const handleAddRow = () => {
+    if (isReadOnly) return;
     const newLine: SalesOrderItemLine = {
       lineId: generateUUID(),
       orderId: orderNo,
       lineIndex: lineItems.length + 1,
       itemCode: '',
       itemDescription: '',
+      color: '',
+      size: '',
       quantityOrdered: 1,
       quantityFulfilled: 0,
       unitPrice: 0,
@@ -196,21 +496,27 @@ const SalesOrder = () => {
   };
 
   const handleRemoveRow = (lineId: string) => {
+    if (isReadOnly) return;
     setLineItems(prev => prev.filter(item => item.lineId !== lineId).map((item, index) => ({...item, lineIndex: index + 1})));
   };
 
   const handleItemChange = (lineId: string, field: keyof SalesOrderItemLine, value: any) => {
+    if (isReadOnly) return;
     setLineItems(prev => prev.map(item => {
       if (item.lineId !== lineId) return item;
 
       const updated = { ...item, [field]: value };
 
-      // Auto-populate description and price if itemCode changes
       if (field === 'itemCode' && value) {
-        const product = availableProducts.find(p => p.itemCode === value || p.code === value || p.name === value);
+        const product = availableProducts.find(p => p.itemCode === value || p.barcode === value || p.name === value);
         if (product) {
+          updated.productId = product.id || product._id;
+          updated.itemCode = product.itemCode || '';
           updated.itemDescription = product.name || '';
           updated.unitPrice = product.price || 0;
+          updated.taxRatePercentage = product.taxPercent || 18;
+          updated.size = product.size || '';
+          updated.color = product.variety || '';
         }
       }
 
@@ -219,15 +525,19 @@ const SalesOrder = () => {
   };
 
   const handleSave = async () => {
-    if (setGlobalNotification) {
-      setGlobalNotification({msg: "Saving Sales Order...", type: 'success'});
+    if (isReadOnly) {
+      if (setGlobalNotification) setGlobalNotification({msg: "Completed or Cancelled orders are read-only.", type: 'error'});
+      return;
     }
 
-    // Validation
     const validItems = lineItems.filter(item => Number(item.quantityOrdered) > 0 && item.itemCode);
     if (validItems.length === 0) {
       if (setGlobalNotification) setGlobalNotification({msg: "Cannot save: Please add at least one valid item.", type: 'error'});
       return;
+    }
+
+    if (setGlobalNotification) {
+      setGlobalNotification({msg: "Saving Sales Order...", type: 'info'});
     }
 
     try {
@@ -235,12 +545,17 @@ const SalesOrder = () => {
         orderNo,
         orderDate,
         customer,
+        mobileNo,
+        address,
         deliveryDate,
-        paymentTerms,
         status,
         isInterstate,
         summary,
-        items: validItems
+        items: validItems,
+        advancePaid: Number(advancePaid) || 0,
+        paymentMode,
+        remarks,
+        salesman
       };
 
       const url = editingOrderId ? `${Api}/sales/orders/${editingOrderId}` : `${Api}/sales/orders`;
@@ -255,12 +570,9 @@ const SalesOrder = () => {
 
       if (data.success) {
         if (setGlobalNotification) {
-          setGlobalNotification({msg: `Sales Order Saved Successfully! ${editingOrderId ? '' : '(Stock Committed)'}`, type: 'success'});
+          setGlobalNotification({msg: `Sales Order Saved Successfully!`, type: 'success'});
         }
-        setStatus('PENDING'); // Lock the state
-        if (editingOrderId) {
-          setTimeout(() => navigate('/sales-register'), 1500);
-        }
+        setTimeout(() => navigate('/sales-register'), 1000);
       } else {
         if (setGlobalNotification) {
           setGlobalNotification({msg: "Failed to save: " + data.error, type: 'error'});
@@ -269,9 +581,50 @@ const SalesOrder = () => {
     } catch (err) {
       console.error(err);
       if (setGlobalNotification) {
-        setGlobalNotification({msg: "Network Error: Could not reach backend server.", type: 'error'});
+        setGlobalNotification({msg: "Error saving sales order.", type: 'error'});
       }
     }
+  };
+
+  const handleConvertToBill = () => {
+    if (status === 'Cancelled') {
+      if (setGlobalNotification) setGlobalNotification({msg: "Cancelled orders cannot be converted.", type: 'error'});
+      return;
+    }
+    // Compile order payload for POS checkout
+    const orderPayload = {
+      id: editingOrderId,
+      orderNumber: orderNo,
+      buyerName: customer || 'CASH CUSTOMER',
+      mobileNo,
+      address,
+      items: lineItems.map(item => ({
+        productId: item.productId,
+        itemCode: item.itemCode,
+        itemName: item.itemDescription,
+        qty: Math.max(0, (Number(item.quantityOrdered) || 0) - item.quantityFulfilled),
+        rate: Number(item.unitPrice) || 0,
+        discPercent: Number(item.discountPercentage) || 0
+      }))
+    };
+    navigate('/sales-bill', { state: { orderToConvert: orderPayload } });
+  };
+
+  const triggerPrint = () => {
+    const printPayload = {
+      orderNo,
+      orderDate,
+      customer,
+      mobileNo,
+      address,
+      deliveryDate,
+      status,
+      summary,
+      advancePaid,
+      balanceAmount: Math.max(0, summary.grandTotal - Number(advancePaid)),
+      items: lineItems
+    };
+    printOrder(printPayload);
   };
 
   // --- Hotkeys ---
@@ -280,302 +633,455 @@ const SalesOrder = () => {
       if (e.ctrlKey && e.key.toLowerCase() === 's') {
         e.preventDefault();
         handleSave();
-      } else if (e.ctrlKey && e.key.toLowerCase() === 'n') {
+      } else if (e.ctrlKey && e.key.toLowerCase() === 'p') {
         e.preventDefault();
-        setLineItems([]);
-        handleAddRow();
-        setCustomer('');
+        triggerPrint();
+      } else if (e.ctrlKey && e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        handleConvertToBill();
       } else if (e.key === 'Escape') {
-        // Clear focus or abort
+        e.preventDefault();
+        navigate('/sales-register');
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [lineItems, status, orderNo, orderDate, customer, mobileNo, address, deliveryDate, summary, advancePaid, paymentMode, remarks, salesman]);
 
   return (
-    <div className="flex h-full bg-slate-50 overflow-hidden text-slate-800">
+    <div className="flex flex-col h-full bg-slate-55 overflow-hidden text-slate-800">
       
-      {/* LEFT PANE: Order Meta-Data & Status */}
-      <div className="w-[350px] flex-shrink-0 bg-white border-r border-slate-200 shadow-[2px_0_10px_rgba(0,0,0,0.02)] flex flex-col h-full z-10 relative">
-        <div className="p-5 flex-1 overflow-y-auto">
-          
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-bold text-slate-800 tracking-tight flex items-center gap-2">
-              Order Details
-            </h2>
-            <div className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-              status === 'OPEN' ? 'bg-blue-100 text-blue-700' :
-              status === 'PENDING' ? 'bg-orange-100 text-orange-700' :
-              status === 'FULFILLED' ? 'bg-green-100 text-green-700' :
-              'bg-red-100 text-red-700'
-            }`}>
-              {status}
-            </div>
-          </div>
+      {/* TOOLBAR */}
+      <div className="bg-white border-b border-slate-200 px-4 py-2 flex items-center justify-between flex-shrink-0">
+        <div className="flex items-center space-x-3">
+          <button 
+            onClick={() => navigate('/sales-register')}
+            className="p-1.5 hover:bg-slate-100 rounded-md transition-colors"
+            title="Back (ESC)"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <h1 className="text-lg font-bold text-slate-800">
+            {editingOrderId ? `Edit Sales Order: ${orderNo}` : 'New Sales Order'}
+          </h1>
+        </div>
 
-          <div className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Order No.</label>
-              <input 
-                type="text" 
-                value={orderNo} 
-                onChange={e => setOrderNo(e.target.value)}
-                className="w-full border border-slate-300 text-slate-800 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all bg-slate-50 outline-none" 
-              />
-            </div>
-            
-            <div>
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Order Date</label>
-              <div className="relative">
-                <Calendar className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <div className="flex items-center space-x-2">
+          <button 
+            onClick={triggerPrint} 
+            className="flex items-center space-x-1 px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-sm font-semibold rounded-md shadow-sm transition-all"
+            title="Print Order (CTRL+P)"
+          >
+            <Printer className="w-4 h-4" />
+            <span>Print (Ctrl+P)</span>
+          </button>
+
+          {!isReadOnly && editingOrderId && (
+            <button 
+              onClick={handleConvertToBill}
+              className="flex items-center space-x-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-md shadow-sm transition-all"
+              title="Convert to Bill (CTRL+B)"
+            >
+              <FileText className="w-4 h-4" />
+              <span>Convert to Bill (Ctrl+B)</span>
+            </button>
+          )}
+
+          {!isReadOnly && (
+            <button 
+              onClick={handleSave} 
+              className="flex items-center space-x-1 px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-md shadow-sm shadow-blue-500/10 transition-all"
+              title="Save Order (CTRL+S)"
+            >
+              <span>Save (Ctrl+S)</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* LEFT PANEL: METADATA */}
+        <div className={`flex-shrink-0 bg-white border-r border-slate-200 overflow-y-auto flex flex-col justify-between transition-all duration-300 ${isLeftPanelOpen ? 'w-[320px] p-4 space-y-4' : 'w-0 p-0 overflow-hidden border-r-0'}`}>
+          {isLeftPanelOpen && (
+            <div className="space-y-4">
+              <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+                <span className="text-xs font-bold text-slate-400 uppercase">Fulfillment Status</span>
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                  status === 'Open' ? 'bg-blue-100 text-blue-700 border border-blue-200' :
+                  status === 'Partial' ? 'bg-orange-100 text-orange-700 border border-orange-200' :
+                  status === 'Completed' ? 'bg-green-100 text-green-700 border border-green-200' :
+                  'bg-red-100 text-red-700 border border-red-200'
+                }`}>
+                  {status}
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Order Number</label>
+                <input 
+                  type="text" 
+                  value={orderNo} 
+                  onChange={e => setOrderNo(e.target.value)}
+                  disabled={isReadOnly}
+                  className="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm font-semibold outline-none focus:border-blue-500 bg-slate-50 disabled:opacity-75"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Order Date</label>
                 <input 
                   type="date" 
                   value={orderDate} 
                   onChange={e => setOrderDate(e.target.value)}
-                  className="w-full border border-slate-300 text-slate-800 rounded-lg pl-9 pr-3 py-2 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none" 
+                  disabled={isReadOnly}
+                  className="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm outline-none focus:border-blue-500"
                 />
               </div>
-            </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Customer</label>
-              <select 
-                value={customer} 
-                onChange={e => setCustomer(e.target.value)}
-                className="w-full border border-slate-300 text-slate-800 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none bg-white"
-              >
-                <option value="">Search Customers...</option>
-                {availableCustomers.map((c, i) => (
-                  <option key={i} value={c.accountName}>{c.accountName}</option>
-                ))}
-              </select>
-            </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Customer / Client</label>
+                <select 
+                  value={customer} 
+                  onChange={e => setCustomer(e.target.value)}
+                  disabled={isReadOnly}
+                  className="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm bg-white outline-none focus:border-blue-500"
+                >
+                  <option value="">Walk-in Cash Customer</option>
+                  {availableCustomers.map(c => (
+                    <option key={c.id || c._id} value={c.accountName}>{c.accountName}</option>
+                  ))}
+                </select>
+              </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Expected Delivery</label>
-               <div className="relative">
-                <Calendar className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              {customer && (
+                <div className="bg-slate-50 border border-slate-200 p-2.5 rounded-md space-y-1.5 text-xs text-slate-600">
+                  <div className="flex justify-between">
+                    <span>Credit Limit:</span>
+                    <span className="font-semibold text-slate-800">₹{creditLimit.toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Current Bal:</span>
+                    <span className={`font-semibold ${currentBalance > creditLimit ? 'text-red-600' : 'text-slate-800'}`}>
+                      ₹{currentBalance.toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Customer Phone</label>
+                <input 
+                  type="text" 
+                  value={mobileNo} 
+                  onChange={e => setMobileNo(e.target.value)}
+                  disabled={isReadOnly}
+                  className="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm outline-none focus:border-blue-500"
+                  placeholder="Phone No"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Expected Delivery Date</label>
                 <input 
                   type="date" 
                   value={deliveryDate} 
                   onChange={e => setDeliveryDate(e.target.value)}
-                  className="w-full border border-slate-300 text-slate-800 rounded-lg pl-9 pr-3 py-2 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none" 
+                  disabled={isReadOnly}
+                  className="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Sales Person</label>
+                <input 
+                  type="text" 
+                  value={salesman} 
+                  onChange={e => setSalesman(e.target.value)}
+                  disabled={isReadOnly}
+                  className="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm outline-none focus:border-blue-500"
+                  placeholder="Name"
+                />
+              </div>
+
+              <div className="pt-2">
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={isInterstate} 
+                    onChange={() => setIsInterstate(!isInterstate)} 
+                    disabled={isReadOnly}
+                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4" 
+                  />
+                  <span className="text-sm font-semibold text-slate-700">Interstate (Apply IGST)</span>
+                </label>
+              </div>
+            </div>
+          )}
+
+          {isLeftPanelOpen && (
+            <div className="bg-slate-900 p-4 rounded-lg text-white">
+              <span className="block text-[10px] uppercase font-bold text-slate-400">Total Order Value</span>
+              <div className="text-2xl font-black text-blue-400">
+                ₹{summary.grandTotal.toLocaleString('en-IN')}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Toggle Button for Left Panel */}
+        <button 
+          onClick={() => setIsLeftPanelOpen(!isLeftPanelOpen)}
+          className="absolute top-1/2 -translate-y-1/2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 w-4 h-16 flex items-center justify-center rounded-r-md shadow-md cursor-pointer z-50 focus:outline-none transition-all duration-300"
+          style={{ left: isLeftPanelOpen ? '320px' : '0px' }}
+          title={isLeftPanelOpen ? "Hide Details" : "Show Details"}
+        >
+          <span className="text-xs font-black">{isLeftPanelOpen ? '‹' : '›'}</span>
+        </button>
+
+        {/* RIGHT PANEL: TRANSACTION MATRIX & DETAILS */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Matrix table wrapper */}
+          <div className="flex-1 overflow-auto p-4">
+            <div className="bg-white border border-slate-200 rounded-lg overflow-x-auto shadow-sm">
+              <table className="w-full text-left border-collapse min-w-[1200px]">
+                <thead>
+                  <tr className="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-wider font-bold border-b border-slate-200">
+                    <th className="p-2 w-10 text-center">#</th>
+                    <th className="p-2 w-44">Item Code</th>
+                    <th className="p-2">Item Description</th>
+                    <th className="p-2 w-28">Color</th>
+                    <th className="p-2 w-24">Size</th>
+                    <th className="p-2 w-24 text-center">Ordered Qty</th>
+                    <th className="p-2 w-24 text-center bg-slate-50/50">Delivered</th>
+                    <th className="p-2 w-28 text-right">Unit Price</th>
+                    <th className="p-2 w-20 text-center">Disc %</th>
+                    <th className="p-2 w-28 text-right">Subtotal</th>
+                    <th className="p-2 w-10"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-sm">
+                  {lineItems.map((item, idx) => {
+                    const baseAmount = (Number(item.quantityOrdered) || 0) * (Number(item.unitPrice) || 0);
+                    const discAmt = baseAmount * ((Number(item.discountPercentage) || 0) / 100);
+                    const subtotal = baseAmount - discAmt;
+
+                    return (
+                      <tr key={item.lineId} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="p-2 text-center text-slate-400 font-bold">{idx + 1}</td>
+                        <td className="p-2">
+                          <input 
+                            type="text" 
+                            value={item.itemCode}
+                            onChange={e => handleItemChange(item.lineId, 'itemCode', e.target.value)}
+                            disabled={isReadOnly}
+                            placeholder="Search Code..."
+                            className="w-full bg-transparent border border-slate-200 rounded px-2 py-1 focus:border-blue-500 outline-none"
+                          />
+                        </td>
+                        <td className="p-2">
+                          <input 
+                            type="text" 
+                            value={item.itemDescription}
+                            onChange={e => handleItemChange(item.lineId, 'itemDescription', e.target.value)}
+                            disabled={isReadOnly}
+                            placeholder="Description"
+                            className="w-full bg-transparent border border-slate-200 rounded px-2 py-1 focus:border-blue-500 outline-none"
+                          />
+                        </td>
+                        <td className="p-2">
+                          <input 
+                            type="text" 
+                            value={item.color}
+                            onChange={e => handleItemChange(item.lineId, 'color', e.target.value)}
+                            disabled={isReadOnly}
+                            placeholder="Color"
+                            className="w-full bg-transparent border border-slate-200 rounded px-2 py-1 focus:border-blue-500 outline-none"
+                          />
+                        </td>
+                        <td className="p-2">
+                          <input 
+                            type="text" 
+                            value={item.size}
+                            onChange={e => handleItemChange(item.lineId, 'size', e.target.value)}
+                            disabled={isReadOnly}
+                            placeholder="Size"
+                            className="w-full bg-transparent border border-slate-200 rounded px-2 py-1 focus:border-blue-500 outline-none text-center"
+                          />
+                        </td>
+                        <td className="p-2">
+                          <input 
+                            type="number" 
+                            value={item.quantityOrdered}
+                            onChange={e => handleItemChange(item.lineId, 'quantityOrdered', e.target.value)}
+                            disabled={isReadOnly}
+                            min="1"
+                            className="w-full bg-transparent border border-slate-200 rounded px-2 py-1 text-center outline-none focus:border-blue-500"
+                          />
+                        </td>
+                        <td className="p-2 text-center font-mono text-slate-500 bg-slate-50/30">
+                          {item.quantityFulfilled}
+                        </td>
+                        <td className="p-2">
+                          <input 
+                            type="number" 
+                            value={item.unitPrice}
+                            onChange={e => handleItemChange(item.lineId, 'unitPrice', e.target.value)}
+                            disabled={isReadOnly}
+                            min="0"
+                            className="w-full bg-transparent border border-slate-200 rounded px-2 py-1 text-right outline-none focus:border-blue-500"
+                          />
+                        </td>
+                        <td className="p-2">
+                          <input 
+                            type="number" 
+                            value={item.discountPercentage}
+                            onChange={e => handleItemChange(item.lineId, 'discountPercentage', e.target.value)}
+                            disabled={isReadOnly}
+                            min="0"
+                            max="100"
+                            className="w-full bg-transparent border border-slate-200 rounded px-2 py-1 text-center outline-none focus:border-blue-500"
+                          />
+                        </td>
+                        <td className="p-2 text-right font-semibold font-mono text-slate-800">
+                          ₹{subtotal.toFixed(2)}
+                        </td>
+                        <td className="p-2 text-center">
+                          {!isReadOnly && lineItems.length > 1 && (
+                            <button 
+                              onClick={() => handleRemoveRow(item.lineId)}
+                              className="text-slate-300 hover:text-red-600 transition-colors"
+                            >
+                              <Trash2 className="w-4.5 h-4.5" />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+
+              {!isReadOnly && (
+                <div className="bg-slate-50 border-t border-slate-100 p-2.5">
+                  <button 
+                    onClick={handleAddRow}
+                    className="text-xs font-bold text-blue-600 hover:text-blue-800 transition-colors flex items-center space-x-1"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Row</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* LOWER WORKFLOW & TOTALS SECTION */}
+          <div className="bg-white border-t border-slate-200 p-4 grid grid-cols-1 md:grid-cols-3 gap-6 flex-shrink-0">
+            {/* Remarks and details */}
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Remarks / Delivery Notes</label>
+                <textarea 
+                  value={remarks} 
+                  onChange={e => setRemarks(e.target.value)}
+                  disabled={isReadOnly}
+                  className="w-full border border-slate-300 rounded-md p-2 text-xs outline-none focus:border-blue-500"
+                  rows={2}
+                  placeholder="Enter comments..."
                 />
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Payment Terms</label>
-              <select 
-                value={paymentTerms} 
-                onChange={e => setPaymentTerms(e.target.value)}
-                className="w-full border border-slate-300 text-slate-800 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none bg-white"
-              >
-                <option value="NET 15 DAYS">NET 15 DAYS</option>
-                <option value="NET 30 DAYS">NET 30 DAYS</option>
-                <option value="Cash on Delivery">Cash on Delivery</option>
-                <option value="Advance Payment">Advance Payment</option>
-              </select>
-            </div>
-            
-            <div className="pt-2">
-              <label className="flex items-center space-x-2 cursor-pointer">
-                <input type="checkbox" checked={isInterstate} onChange={() => setIsInterstate(!isInterstate)} className="rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
-                <span className="text-sm font-medium text-slate-700">Interstate Sale (Apply IGST)</span>
-              </label>
-            </div>
-          </div>
-        </div>
-
-        {/* Grand Total Box (Bottom of Left Pane) */}
-        <div className="bg-[#1e293b] p-6 text-white relative overflow-hidden">
-          <div className="absolute -right-4 -top-10 w-32 h-32 bg-white/5 rounded-full blur-2xl"></div>
-          <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Grand Total</span>
-          <div className="text-4xl font-bold tracking-tight">
-            ₹{summary.grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-          </div>
-        </div>
-      </div>
-
-      {/* RIGHT PANE: Transaction Matrix & Summary Stack */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden">
-        
-        {/* Matrix Area */}
-        <div className="flex-1 overflow-auto p-6 bg-slate-50/50">
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse min-w-[900px]">
-                <thead>
-                  <tr className="bg-slate-50/80 border-b border-slate-200 text-xs uppercase tracking-wider text-slate-500">
-                    <th className="px-3 py-3 font-semibold text-center w-10">#</th>
-                    <th className="px-3 py-3 font-semibold w-40">Item Code</th>
-                    <th className="px-3 py-3 font-semibold">Description</th>
-                    <th className="px-3 py-3 font-semibold w-24 text-center">Qty</th>
-                    <th className="px-3 py-3 font-semibold w-28 text-right">Unit Price</th>
-                    <th className="px-3 py-3 font-semibold w-20 text-center">Disc %</th>
-                    <th className="px-3 py-3 font-semibold w-28 text-right">Taxable</th>
-                    <th className="px-3 py-3 font-semibold w-24 text-center">Tax %</th>
-                    <th className="px-3 py-3 font-semibold w-32 text-right">Subtotal</th>
-                    <th className="px-3 py-3 font-semibold w-12 text-center"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {lineItems.map((item, index) => {
-                    
-                    // On-the-fly calculations for read-only fields
-                    const qty = Number(item.quantityOrdered) || 0;
-                    const price = Number(item.unitPrice) || 0;
-                    const disc = Number(item.discountPercentage) || 0;
-                    const taxRate = Number(item.taxRatePercentage) || 0;
-
-                    const taxableAmount = (qty * price) * (1 - (disc / 100));
-                    const taxAmount = taxableAmount * (taxRate / 100);
-                    const subtotal = taxableAmount + taxAmount;
-
-                    return (
-                      <tr key={item.lineId} className="hover:bg-blue-50/30 transition-colors group">
-                        <td className="px-3 py-2 text-center text-sm font-medium text-slate-400">{item.lineIndex}</td>
-                        <td className="px-3 py-2">
-                          <input 
-                            type="text" 
-                            className="w-full border-none bg-transparent focus:ring-2 focus:ring-blue-500 rounded text-sm text-slate-800 font-medium outline-none p-1 placeholder-slate-300"
-                            value={item.itemCode}
-                            onChange={(e) => handleItemChange(item.lineId, 'itemCode', e.target.value)}
-                            placeholder="Code/Search"
-                          />
-                        </td>
-                        <td className="px-3 py-2">
-                          <input 
-                            type="text" 
-                            className="w-full border-none bg-transparent focus:ring-2 focus:ring-blue-500 rounded text-sm text-slate-700 outline-none p-1 placeholder-slate-300"
-                            value={item.itemDescription}
-                            onChange={(e) => handleItemChange(item.lineId, 'itemDescription', e.target.value)}
-                            placeholder="Item Description"
-                          />
-                        </td>
-                        <td className="px-3 py-2">
-                          <input 
-                            type="number" 
-                            className="w-full border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 rounded-md p-1.5 text-sm text-slate-800 outline-none transition-all text-center"
-                            value={item.quantityOrdered}
-                            onChange={(e) => handleItemChange(item.lineId, 'quantityOrdered', e.target.value)}
-                            min="1"
-                          />
-                        </td>
-                        <td className="px-3 py-2">
-                           <input 
-                            type="number" 
-                            className="w-full border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 rounded-md p-1.5 text-sm text-slate-800 outline-none transition-all text-right"
-                            value={item.unitPrice}
-                            onChange={(e) => handleItemChange(item.lineId, 'unitPrice', e.target.value)}
-                          />
-                        </td>
-                        <td className="px-3 py-2">
-                           <input 
-                            type="number" 
-                            className="w-full border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 rounded-md p-1.5 text-sm text-slate-800 outline-none transition-all text-center"
-                            value={item.discountPercentage}
-                            onChange={(e) => handleItemChange(item.lineId, 'discountPercentage', e.target.value)}
-                          />
-                        </td>
-                        <td className="px-3 py-2 text-right text-sm text-slate-600 font-medium">
-                          {taxableAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </td>
-                        <td className="px-3 py-2">
-                           <select 
-                            className="w-full border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 rounded-md p-1.5 text-sm text-slate-800 outline-none transition-all bg-white text-center"
-                            value={item.taxRatePercentage}
-                            onChange={(e) => handleItemChange(item.lineId, 'taxRatePercentage', e.target.value)}
-                          >
-                            <option value="0">0%</option>
-                            <option value="5">5%</option>
-                            <option value="12">12%</option>
-                            <option value="18">18%</option>
-                            <option value="28">28%</option>
-                          </select>
-                        </td>
-                        <td className="px-3 py-2 text-right text-sm font-bold text-slate-800">
-                          {subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </td>
-                        <td className="px-3 py-2 text-center">
-                          <button 
-                            onClick={() => handleRemoveRow(item.lineId)}
-                            className="text-slate-300 hover:text-red-500 hover:bg-red-50 p-1.5 rounded transition-all opacity-0 group-hover:opacity-100"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-            
-            <div className="p-3 border-t border-slate-100 bg-slate-50/50">
-              <button 
-                onClick={handleAddRow}
-                className="text-sm font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1.5 transition-colors px-3 py-1.5 rounded-md hover:bg-blue-100/50 border border-transparent hover:border-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-              >
-                <Plus className="w-4 h-4" /> Add Row
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Bottom Summary Stack */}
-        <div className="bg-white border-t border-slate-200 p-6 shadow-[0_-4px_10px_rgba(0,0,0,0.02)] z-10 flex justify-between items-end">
-          
-          <div className="flex gap-4">
-             <button onClick={handleSave} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg shadow-sm shadow-blue-600/20 transition-all focus:ring-4 focus:ring-blue-600/30">
-               Save Order (CTRL+S)
-             </button>
-             <button className="bg-white border border-slate-300 text-slate-700 font-semibold py-2 px-6 rounded-lg hover:bg-slate-50 transition-all focus:ring-4 focus:ring-slate-200">
-               Convert to Bill
-             </button>
-          </div>
-
-          <div className="w-[300px] flex flex-col space-y-2 text-sm">
-            <div className="flex justify-between items-center text-slate-600">
-              <span className="font-medium">Subtotal (before Tax):</span>
-              <span className="font-semibold text-slate-800">₹{summary.subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-            </div>
-            
-            {!isInterstate && (
-              <>
-                <div className="flex justify-between items-center text-slate-600">
-                  <span className="font-medium">Add CGST:</span>
-                  <span className="font-semibold text-slate-800">₹{summary.cgst.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            {/* Advance payment inputs */}
+            <div className="bg-slate-50 border border-slate-200 p-3 rounded-lg space-y-3">
+              <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider border-b border-slate-200 pb-1.5 flex items-center space-x-1">
+                <span>Advance Details</span>
+              </h3>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <label className="block font-semibold text-slate-500 mb-1">Advance Paid</label>
+                  <input 
+                    type="number" 
+                    value={advancePaid} 
+                    onChange={e => setAdvancePaid(Number(e.target.value) || 0)}
+                    disabled={isReadOnly}
+                    min="0"
+                    max={summary.grandTotal}
+                    className="w-full border border-slate-300 rounded-md px-2 py-1 font-mono text-sm outline-none focus:border-blue-500"
+                  />
                 </div>
-                <div className="flex justify-between items-center text-slate-600">
-                  <span className="font-medium">Add SGST:</span>
-                  <span className="font-semibold text-slate-800">₹{summary.sgst.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <div>
+                  <label className="block font-semibold text-slate-500 mb-1">Payment Mode</label>
+                  <select 
+                    value={paymentMode} 
+                    onChange={e => setPaymentMode(e.target.value)}
+                    disabled={isReadOnly}
+                    className="w-full border border-slate-300 rounded-md px-2 py-1 outline-none bg-white focus:border-blue-500"
+                  >
+                    <option value="Cash">Cash</option>
+                    <option value="UPI">UPI</option>
+                    <option value="Card">Card</option>
+                    <option value="Bank">Bank Transfer</option>
+                  </select>
                 </div>
-              </>
-            )}
-
-            {isInterstate && (
-              <div className="flex justify-between items-center text-slate-600">
-                <span className="font-medium">Add IGST:</span>
-                <span className="font-semibold text-slate-800">₹{summary.igst.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
-            )}
-
-            <div className="flex justify-between items-center text-slate-500 pb-2 border-b border-slate-200">
-              <span className="font-medium">Rounding:</span>
-              <span>{summary.rounding > 0 ? '+' : ''}{summary.rounding.toFixed(2)}</span>
+              <div className="flex justify-between items-center text-xs font-bold text-red-600 border-t border-slate-200 pt-2">
+                <span>Remaining Balance:</span>
+                <span className="font-mono text-sm">
+                  ₹{Math.max(0, summary.grandTotal - Number(advancePaid)).toFixed(2)}
+                </span>
+              </div>
             </div>
 
-            <div className="flex justify-between items-center pt-1 text-lg">
-              <span className="font-bold text-slate-800">GRAND TOTAL:</span>
-              <span className="font-black text-blue-700">₹{summary.grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+            {/* Totals panel */}
+            <div className="space-y-1.5 text-xs text-slate-600">
+              <div className="flex justify-between">
+                <span>Subtotal (before tax):</span>
+                <span className="font-semibold text-slate-800 font-mono">₹{summary.subtotal.toFixed(2)}</span>
+              </div>
+              
+              {summary.discount > 0 && (
+                <div className="flex justify-between text-green-700">
+                  <span>Line Discount:</span>
+                  <span className="font-semibold font-mono">-₹{summary.discount.toFixed(2)}</span>
+                </div>
+              )}
+
+              {!isInterstate && (
+                <>
+                  <div className="flex justify-between">
+                    <span>CGST:</span>
+                    <span className="font-semibold text-slate-800 font-mono">₹{summary.cgst.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>SGST:</span>
+                    <span className="font-semibold text-slate-800 font-mono">₹{summary.sgst.toFixed(2)}</span>
+                  </div>
+                </>
+              )}
+
+              {isInterstate && (
+                <div className="flex justify-between">
+                  <span>IGST:</span>
+                  <span className="font-semibold text-slate-800 font-mono">₹{summary.igst.toFixed(2)}</span>
+                </div>
+              )}
+
+              <div className="flex justify-between text-slate-400 border-b border-slate-100 pb-1.5">
+                <span>Rounding Difference:</span>
+                <span className="font-mono">{summary.rounding > 0 ? '+' : ''}{summary.rounding.toFixed(2)}</span>
+              </div>
+
+              <div className="flex justify-between items-center pt-1.5 text-base text-slate-900 font-bold">
+                <span>GRAND TOTAL:</span>
+                <span className="text-lg font-black text-blue-700 font-mono">
+                  ₹{summary.grandTotal.toFixed(2)}
+                </span>
+              </div>
             </div>
           </div>
-
         </div>
       </div>
-
     </div>
   );
 };

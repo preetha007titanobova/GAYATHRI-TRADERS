@@ -39,6 +39,7 @@ const Layout = () => {
   const [ownerWhatsApp, setOwnerWhatsApp] = useState(() => localStorage.getItem('close_day_whatsapp') || '+919876543210');
   const [ownerEmail, setOwnerEmail] = useState(() => localStorage.getItem('close_day_email') || 'titanobovapvt@gmail.com');
   const [isOwnerSettingsModalOpen, setIsOwnerSettingsModalOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   
   // Security PIN/Password State
   const [ownerPin, setOwnerPin] = useState(() => localStorage.getItem('owner_details_pin') || '1234');
@@ -445,7 +446,7 @@ const Layout = () => {
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden relative">
         {/* Left/Center Split Content (Outlet handles the POS Checkout form) */}
         <div className="flex-1 overflow-auto bg-[#d1e8e2] p-2">
           <Outlet context={{ 
@@ -458,8 +459,18 @@ const Layout = () => {
           }} />
         </div>
 
+        {/* Toggle Tab Button */}
+        <button 
+          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+          className="absolute top-1/2 -translate-y-1/2 bg-white border border-gray-400 hover:bg-blue-50 text-blue-900 w-4 h-16 flex items-center justify-center rounded-l-md shadow-md cursor-pointer z-50 focus:outline-none transition-all duration-300"
+          style={{ right: isSidebarOpen ? '192px' : '0px' }}
+          title={isSidebarOpen ? "Hide Sidebar" : "Show Sidebar"}
+        >
+          <span className="text-xs font-black">{isSidebarOpen ? '›' : '‹'}</span>
+        </button>
+
         {/* Right-Hand Sidebar Menu */}
-        <div className="w-48 bg-white border-l border-gray-400 flex flex-col">
+        <div className={`bg-white border-l border-gray-400 flex flex-col transition-all duration-300 ${isSidebarOpen ? 'w-48' : 'w-0 overflow-hidden border-l-0'}`}>
           <div className="flex-1 overflow-y-auto">
             <ul className="text-sm font-semibold text-blue-900">
               {[
