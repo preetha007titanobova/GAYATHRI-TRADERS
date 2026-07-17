@@ -103,11 +103,25 @@ export const getDailyStockStatus = async (dateStr: string): Promise<any[]> => {
     }
   });
 
+  const db = await getDb();
+  const purchaseBills = await db.collection('PurchaseBill').find({
+    date: { $gte: startOfDay }
+  }).toArray();
+  const purchaseBillMap = new Map(purchaseBills.map(b => [b._id.toString(), b]));
+
+  const purchaseItems = await db.collection('PurchaseItem').find({
+    purchaseBillId: { $in: purchaseBills.map(b => b._id) }
+  }).toArray();
+  for (const item of purchaseItems) {
+    item.purchaseBill = purchaseBillMap.get(item.purchaseBillId?.toString()) || null;
+  }
+
   return products.map(product => {
     const prodId = product.id;
 
     const productSales = salesItems.filter(item => item.productId === prodId);
     const productReturns = salesReturnItems.filter(item => item.productId === prodId);
+    const productPurchases = purchaseItems.filter(item => item.productId?.toString() === prodId || (item.itemCode === product.itemCode));
 
     let outwardToday = 0;
     let inwardToday = 0;
@@ -132,6 +146,17 @@ export const getDailyStockStatus = async (dateStr: string): Promise<any[]> => {
           inwardToday += item.returnQty || 0;
         } else if (returnDate > endOfDay) {
           inwardAfterToday += item.returnQty || 0;
+        }
+      }
+    }
+
+    for (const item of productPurchases) {
+      if (item.purchaseBill) {
+        const purchaseDate = new Date(item.purchaseBill.date);
+        if (purchaseDate >= startOfDay && purchaseDate <= endOfDay) {
+          inwardToday += item.qty || 0;
+        } else if (purchaseDate > endOfDay) {
+          inwardAfterToday += item.qty || 0;
         }
       }
     }
@@ -179,11 +204,20 @@ export const getStockRegisterReport = async (): Promise<any[]> => {
     item.salesReturn = salesReturnMap.get(item.salesReturnId) || null;
   }
 
+  const db = await getDb();
+  const purchaseItems = await db.collection('PurchaseItem').find({}).toArray();
+  const purchaseBills = await db.collection('PurchaseBill').find({}).toArray();
+  const purchaseBillMap = new Map(purchaseBills.map(b => [b._id.toString(), b]));
+  for (const item of purchaseItems) {
+    item.purchaseBill = purchaseBillMap.get(item.purchaseBillId?.toString()) || null;
+  }
+
   return products.map(product => {
     const prodId = product.id;
 
     const prodSales = salesItems.filter(item => item.productId === prodId);
     const prodReturns = salesReturnItems.filter(item => item.productId === prodId);
+    const prodPurchases = purchaseItems.filter(item => item.productId?.toString() === prodId || (item.itemCode === product.itemCode));
 
     const dbMovements: any[] = [];
 
@@ -210,6 +244,20 @@ export const getStockRegisterReport = async (): Promise<any[]> => {
           vchNo: item.salesReturn.returnNo,
           particulars: item.salesReturn.customerName,
           inward: item.returnQty,
+          outward: 0
+        });
+      }
+    }
+
+    for (const item of prodPurchases) {
+      if (item.purchaseBill) {
+        dbMovements.push({
+          id: item._id.toString(),
+          date: item.purchaseBill.date,
+          vchType: 'Purchase',
+          vchNo: item.purchaseBill.voucherNo,
+          particulars: item.purchaseBill.supplierName,
+          inward: item.qty,
           outward: 0
         });
       }

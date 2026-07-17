@@ -123,6 +123,13 @@ const StockRegister = () => {
           setSelectedItem(data[0].id || data[0]._id);
         }
       }
+
+      // Fetch purchase bills from DB
+      const pbRes = await fetch(`${Api}/purchase-bills`);
+      if (pbRes.ok) {
+        const pbData = await pbRes.json();
+        setLocalPurchaseBills(pbData);
+      }
     } catch (err) {
       console.error("Failed to fetch stock register report", err);
       setGlobalNotification({ msg: 'Failed to retrieve stock data.', type: 'error' });
@@ -135,7 +142,7 @@ const StockRegister = () => {
     fetchReportData();
   }, []);
 
-  // Sync damages and local purchase bills from localStorage
+  // Sync damages from localStorage
   const syncLocalStorage = () => {
     const storedDmg = localStorage.getItem('billing_damages');
     if (storedDmg) {
@@ -143,14 +150,6 @@ const StockRegister = () => {
         setDamages(JSON.parse(storedDmg));
       } catch (e) {
         console.error("Error parsing billing_damages", e);
-      }
-    }
-    const storedBills = localStorage.getItem('billing_purchase_bills');
-    if (storedBills) {
-      try {
-        setLocalPurchaseBills(JSON.parse(storedBills));
-      } catch (e) {
-        console.error("Error parsing billing_purchase_bills", e);
       }
     }
   };

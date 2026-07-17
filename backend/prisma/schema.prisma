@@ -50,6 +50,7 @@ model Product {
   updatedAt     DateTime  @updatedAt
   salesItems    SalesItem[]
   salesReturnItems SalesReturnItem[]
+  purchaseItems PurchaseItem[]
 }
 
 model SalesBill {
@@ -157,3 +158,43 @@ model SalesReturnItem {
   disposition     String   // "Return to Warehouse" | "Quarantine & Scrap"
   subtotal        Float
 }
+
+model PurchaseBill {
+  id                String         @id @default(auto()) @map("_id") @db.ObjectId
+  voucherNo         String         @unique
+  date              DateTime       @default(now())
+  supplierInvoiceNo String?
+  supplierName      String
+  supplierGstin     String?
+  taxableAmt        Float
+  cgst              Float
+  sgst              Float
+  igst              Float
+  otherCharges      Float
+  netPayable        Float
+  status            String         @default("Paid") // Paid | Credit
+  type              String         @default("Local") // Local | Central
+  paymentMode       String         @default("Cash") // Cash | Credit
+  items             PurchaseItem[]
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+}
+
+model PurchaseItem {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  purchaseBillId String       @db.ObjectId
+  purchaseBill   PurchaseBill @relation(fields: [purchaseBillId], references: [id], onDelete: Cascade)
+  productId      String?      @db.ObjectId
+  product        Product?     @relation(fields: [productId], references: [id])
+  itemCode       String
+  itemName       String
+  size           String?
+  variety        String?
+  category       String?
+  qty            Float
+  rate           Float
+  taxPercent     Float
+  discPercent    Float        @default(0)
+  total          Float
+}
+
