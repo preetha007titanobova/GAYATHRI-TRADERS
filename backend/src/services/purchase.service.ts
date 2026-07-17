@@ -65,8 +65,8 @@ export const createPurchaseBill = async (data: any): Promise<any> => {
       // Check if product exists in DB by itemCode
       let product = null;
       if (item.itemCode) {
-        product = await prisma.product.findUnique({
-          where: { itemCode: item.itemCode }
+        product = await prisma.product.findFirst({
+          where: { itemCode: { equals: item.itemCode.trim(), mode: 'insensitive' } }
         });
       }
 
@@ -238,8 +238,8 @@ export const updatePurchaseBill = async (id: string, data: any): Promise<boolean
 
       let product = null;
       if (item.itemCode) {
-        product = await prisma.product.findUnique({
-          where: { itemCode: item.itemCode }
+        product = await prisma.product.findFirst({
+          where: { itemCode: { equals: item.itemCode.trim(), mode: 'insensitive' } }
         });
       }
 
@@ -390,8 +390,8 @@ export const createPurchaseReturn = async (data: any): Promise<any> => {
       // Decrement stock in DB since we are returning products to vendor
       let product = null;
       if (item.itemCode) {
-        product = await prisma.product.findUnique({
-          where: { itemCode: item.itemCode }
+        product = await prisma.product.findFirst({
+          where: { itemCode: { equals: item.itemCode.trim(), mode: 'insensitive' } }
         });
       }
 
@@ -534,8 +534,8 @@ export const updatePurchaseReturn = async (id: string, data: any): Promise<boole
 
       let product = null;
       if (item.itemCode) {
-        product = await prisma.product.findUnique({
-          where: { itemCode: item.itemCode }
+        product = await prisma.product.findFirst({
+          where: { itemCode: { equals: item.itemCode.trim(), mode: 'insensitive' } }
         });
       }
 
