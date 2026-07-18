@@ -16,6 +16,7 @@ interface Product {
   department?: string;
   variety?: string;
   size?: string;
+  factory?: string;
 }
 
 const ItemMaster = () => {
@@ -32,6 +33,7 @@ const ItemMaster = () => {
   const [department, setDepartment] = useState('Womens');
   const [variety, setVariety] = useState('');
   const [size, setSize] = useState('');
+  const [factory, setFactory] = useState('');
 
   const [products, setProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -79,7 +81,8 @@ const ItemMaster = () => {
           stock: p.stock || 0,
           department: p.department || '',
           variety: p.variety || '',
-          size: p.size || ''
+          size: p.size || '',
+          factory: p.factory || ''
         })));
       }
     } catch (err) {
@@ -109,6 +112,7 @@ const ItemMaster = () => {
     setDepartment('Womens');
     setVariety('');
     setSize('');
+    setFactory('');
     fetchNextCode();
   };
 
@@ -126,6 +130,7 @@ const ItemMaster = () => {
     setDepartment(product.department || 'Womens');
     setVariety(product.variety || '');
     setSize(product.size || '');
+    setFactory(product.factory || '');
   };
 
   const handleDelete = async () => {
@@ -189,7 +194,8 @@ const ItemMaster = () => {
       stock: openingStock,
       department,
       variety,
-      size
+      size,
+      factory
     };
 
     try {
@@ -365,6 +371,11 @@ const ItemMaster = () => {
                 <input type="text" className="px-3 py-1 bg-white border border-slate-300 rounded text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow" value={size} onChange={e => setSize(e.target.value)} placeholder="e.g. M, L, XL, 32" />
               </div>
 
+              <div className="flex flex-col col-span-3">
+                <label className="text-xs font-medium text-slate-600 mb-1">Factory / Brand Name</label>
+                <input type="text" className="px-3 py-1 bg-white border border-slate-300 rounded text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow" value={factory} onChange={e => setFactory(e.target.value)} placeholder="e.g. Surya Exports, SK Textiles" />
+              </div>
+
               <div className="col-span-3 border-b border-slate-100 my-1"></div>
 
               <div className="flex flex-col">
@@ -454,6 +465,7 @@ const ItemMaster = () => {
                   <th className="px-4 py-2.5 font-medium border-b border-slate-200">Category</th>
                   <th className="px-4 py-2.5 font-medium border-b border-slate-200">Variety</th>
                   <th className="px-4 py-2.5 font-medium border-b border-slate-200">Size</th>
+                  <th className="px-4 py-2.5 font-medium border-b border-slate-200">Factory</th>
                   <th className="px-4 py-2.5 font-medium border-b border-slate-200">UOM</th>
                   <th className="px-4 py-2.5 font-medium text-right border-b border-slate-200">Stock</th>
                   <th className="px-4 py-2.5 font-medium text-right border-b border-slate-200">Purchase Rate</th>
@@ -476,8 +488,9 @@ const ItemMaster = () => {
                           <div>{product.name}</div>
                         </td>
                         <td className="px-4 py-2.5 whitespace-nowrap">{product.department} </td>
-                        <td className="px-4 py-2.5 whitespace-nowrap">{product.variety} </td>
+                         <td className="px-4 py-2.5 whitespace-nowrap">{product.variety} </td>
                         <td className="px-4 py-2.5 whitespace-nowrap">{product.size}</td>
+                        <td className="px-4 py-2.5 whitespace-nowrap text-slate-500">{product.factory}</td>
                         <td className="px-4 py-2.5 whitespace-nowrap">{product.uom}</td>
                         <td className="px-4 py-2.5 whitespace-nowrap text-right">{product.stock}</td>
                         <td className="px-4 py-2.5 whitespace-nowrap text-right">{product.purchaseRate}</td>
@@ -488,7 +501,7 @@ const ItemMaster = () => {
                   })
                 ) : (
                   <tr>
-                    <td colSpan={6} className="px-4 py-10 text-center text-slate-400">
+                    <td colSpan={11} className="px-4 py-10 text-center text-slate-400">
                       No products found.
                     </td>
                   </tr>

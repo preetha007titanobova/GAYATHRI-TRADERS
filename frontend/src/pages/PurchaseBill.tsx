@@ -8,19 +8,24 @@ import Api from '../Api';
 interface PurchaseItem {
   id: string;
   itemCode: string;
+  itemName: string;
   size: string;
   variety: string;
   category: string;
   itemDesc: string;
   hsn: string;
+  factory: string;
   qty: number;
   unitPrice: number;
+  salesRate: number;
+  mrp: number;
   discPercent: number;
   taxPercent: number;
   cgstAmt: number;
   sgstAmt: number;
   igstAmt: number;
   total: number;
+  isManualItem?: boolean;
 }
 
 const PurchaseBill = () => {
@@ -188,6 +193,37 @@ const PurchaseBill = () => {
     };
   };
 
+  // Generate a unique sequential item code for a row
+  const generateCodeForRow = async (rowId: string) => {
+    try {
+      const res = await fetch(`${Api}/products/next-code`);
+      if (res.ok) {
+        const data = await res.json();
+        let code = data.itemCode || 'ITM-1001';
+        
+        const match = code.match(/^(ITM-)(\d+)$/);
+        if (match) {
+          const prefix = match[1];
+          let num = parseInt(match[2]);
+          
+          while (
+            items.some(item => item.itemCode?.toUpperCase() === `${prefix}${num}`) ||
+            dbProducts.some(p => p.itemCode?.toUpperCase() === `${prefix}${num}`)
+          ) {
+            num++;
+          }
+          code = `${prefix}${num}`;
+        }
+        
+        updateItem(rowId, 'itemCode', code);
+      }
+    } catch (err) {
+      console.error("Error generating item code:", err);
+      const fallbackNum = Math.floor(1000 + Math.random() * 9000);
+      updateItem(rowId, 'itemCode', `ITM-${fallbackNum}`);
+    }
+  };
+
   // Handle Item Row Update
   const updateItem = (id: string, field: keyof PurchaseItem, value: any) => {
     setItems(prev => prev.map(item => {
@@ -199,13 +235,17 @@ const PurchaseBill = () => {
       if (field === 'itemCode') {
         const prod = dbProducts.find(p => p.itemCode?.toLowerCase() === value.trim().toLowerCase());
         if (prod) {
+          updated.itemName = prod.name || '';
           updated.itemDesc = prod.name || '';
           updated.hsn = prod.barcode || '';
           updated.unitPrice = prod.purchaseRate || 0;
+          updated.salesRate = prod.price || 0;
+          updated.mrp = prod.mrp || 0;
           updated.taxPercent = prod.taxPercent || 18;
           updated.size = prod.size || '';
           updated.variety = prod.variety || '';
           updated.category = prod.department || 'None';
+          updated.factory = prod.factory || '';
         }
       }
 
@@ -222,8 +262,8 @@ const PurchaseBill = () => {
   const addRow = () => {
     setItems([...items, {
       id: Math.random().toString(),
-      itemCode: '', size: '', variety: '', category: 'None', itemDesc: '', hsn: '', qty: 1, unitPrice: 0, discPercent: 0,
-      taxPercent: 18, cgstAmt: 0, sgstAmt: 0, igstAmt: 0, total: 0
+      itemCode: '', itemName: '', size: '', variety: '', category: 'None', itemDesc: '', hsn: '', factory: '', qty: 1, unitPrice: 0, salesRate: 0, mrp: 0, discPercent: 0,
+      taxPercent: 18, cgstAmt: 0, sgstAmt: 0, igstAmt: 0, total: 0, isManualItem: false
     }]);
   };
 
@@ -236,11 +276,14 @@ const PurchaseBill = () => {
     fetchNextVoucher();
     setItems([]);
     setVendorId('');
+    setVendorName('');
+    setGstin('');
+    setSupplyPlace('Tamil Nadu');
     navigate('/purchase-bill', { state: null, replace: true });
   };
 
   // Keyboard navigation for fast data entry
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>, idx: number, field: string) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>, _idx?: number, _field?: string) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       const formElements = Array.from(
@@ -281,23 +324,31 @@ const PurchaseBill = () => {
     }
 
     if (bill.items && Array.isArray(bill.items)) {
-      const mapped = bill.items.map((i: any) => ({
-        id: i.id || Math.random().toString(),
-        itemCode: i.itemCode,
-        size: i.size || '',
-        variety: i.variety || '',
-        category: i.category || 'None',
-        itemDesc: i.itemName || i.itemDesc || '',
-        hsn: i.hsn || '',
-        qty: i.qty || i.purchasedQty || 0,
-        unitPrice: i.rate || i.unitPrice || 0,
-        discPercent: i.discPercent || 0,
-        taxPercent: i.taxPercent || 18,
-        cgstAmt: i.cgst || 0,
-        sgstAmt: i.sgst || 0,
-        igstAmt: i.igst || 0,
-        total: i.total || 0
-      }));
+      const mapped = bill.items.map((i: any) => {
+        const prod = dbProducts.find(p => p.itemCode?.toLowerCase() === i.itemCode?.toLowerCase());
+        return {
+          id: i.id || Math.random().toString(),
+          itemCode: i.itemCode,
+          itemName: i.itemName || i.itemDesc || i.itemCode,
+          size: i.size || '',
+          variety: i.variety || '',
+          category: i.category || 'None',
+          itemDesc: i.itemName || i.itemDesc || '',
+          hsn: i.hsn || '',
+          factory: i.factory || prod?.factory || '',
+          qty: i.qty || i.purchasedQty || 0,
+          unitPrice: i.rate || i.unitPrice || 0,
+          salesRate: i.salesRate || prod?.price || i.rate || i.unitPrice || 0,
+          mrp: i.mrp || prod?.mrp || i.rate || i.unitPrice || 0,
+          discPercent: i.discPercent || 0,
+          taxPercent: i.taxPercent || 18,
+          cgstAmt: i.cgst || 0,
+          sgstAmt: i.sgst || 0,
+          igstAmt: i.igst || 0,
+          total: i.total || 0,
+          isManualItem: !prod
+        };
+      });
       setItems(mapped);
     }
     setGlobalNotification({ msg: `Voucher ${bill.voucherNo} loaded for editing`, type: 'info' });
@@ -328,8 +379,11 @@ const PurchaseBill = () => {
 
   // Save/Update Handler
   const handleSaveBill = async () => {
-    if (!vendorId || items.length === 0) {
-      return setGlobalNotification({ msg: 'Please select vendor and add at least one item.', type: 'error' });
+    if (!vendorId) {
+      return setGlobalNotification({ msg: 'Please select vendor.', type: 'error' });
+    }
+    if (items.length === 0) {
+      return setGlobalNotification({ msg: 'Please add at least one item.', type: 'error' });
     }
     
     if (items.some(i => !i.itemCode.trim())) {
@@ -358,8 +412,11 @@ const PurchaseBill = () => {
         size: i.size,
         variety: i.variety,
         category: i.category,
+        factory: i.factory,
         qty: i.qty,
         rate: i.unitPrice,
+        salesRate: i.salesRate || i.unitPrice,
+        mrp: i.mrp || i.unitPrice,
         taxPercent: i.taxPercent,
         discPercent: i.discPercent,
         total: i.total
@@ -569,13 +626,17 @@ const PurchaseBill = () => {
                   <thead className="bg-[#2b579a] text-white sticky top-0 z-10">
                     <tr>
                       <th className="border-r border-gray-400 p-1.5 w-8 text-center font-semibold">S.No</th>
-                      <th className="border-r border-gray-400 p-1.5 w-24 font-semibold">Item Code</th>
+                      <th className="border-r border-gray-400 p-1.5 w-48 font-semibold">Select Product (Master)</th>
+                      <th className="border-r border-gray-400 p-1.5 w-28 font-semibold">Item Code</th>
                       <th className="border-r border-gray-400 p-1.5 w-16 font-semibold">Dress Size</th>
                       <th className="border-r border-gray-400 p-1.5 w-24 font-semibold">Variety</th>
                       <th className="border-r border-gray-400 p-1.5 w-24 font-semibold">Category</th>
                       <th className="border-r border-gray-400 p-1.5 font-semibold">Description</th>
+                      <th className="border-r border-gray-400 p-1.5 w-24 font-semibold">Factory</th>
                       <th className="border-r border-gray-400 p-1.5 w-16 font-semibold text-right">Qty</th>
                       <th className="border-r border-gray-400 p-1.5 w-20 font-semibold text-right">Unit Price</th>
+                      <th className="border-r border-gray-400 p-1.5 w-20 font-semibold text-right">Sales Price</th>
+                      <th className="border-r border-gray-400 p-1.5 w-20 font-semibold text-right">MRP</th>
                       <th className="border-r border-gray-400 p-1.5 w-12 font-semibold text-right">Disc %</th>
                       <th className="border-r border-gray-400 p-1.5 w-12 font-semibold text-right">Tax %</th>
                       <th className="border-r border-gray-400 p-1.5 w-20 font-semibold text-right">Total Amt</th>
@@ -585,22 +646,78 @@ const PurchaseBill = () => {
                   <tbody>
                     {items.length === 0 && (
                       <tr>
-                        <td colSpan={12} className="p-6 text-center text-gray-400 italic">No items added. Use Enter key for quick navigation.</td>
+                        <td colSpan={16} className="p-6 text-center text-gray-400 italic">No items added. Use Enter key for quick navigation.</td>
                       </tr>
                     )}
                     {items.map((item, idx) => (
                       <tr key={item.id} className="border-b border-gray-300 hover:bg-yellow-50 focus-within:bg-blue-50 transition-colors">
                         <td className="border-r border-gray-300 p-1 text-center text-gray-500 bg-gray-50">{idx + 1}</td>
+                        <td className="border-r border-gray-300 p-0 w-48">
+                          {item.isManualItem ? (
+                            <div className="flex items-center p-1 bg-white">
+                              <input 
+                                type="text" 
+                                value={item.itemName || ''} 
+                                onChange={e => updateItem(item.id, 'itemName', e.target.value)} 
+                                placeholder="Enter Item Name..."
+                                className="w-full bg-transparent focus:outline-none text-xs font-semibold text-gray-800"
+                              />
+                              <button 
+                                type="button"
+                                onClick={() => updateItem(item.id, 'isManualItem', false)} 
+                                className="text-blue-600 hover:text-blue-800 text-[10px] font-bold px-1.5 py-0.5 hover:bg-blue-50 rounded ml-1 transition-colors"
+                                title="Switch to master catalog selection list"
+                              >
+                                List
+                              </button>
+                            </div>
+                          ) : (
+                            <select
+                              value={item.itemCode || ''}
+                              onChange={e => {
+                                const code = e.target.value;
+                                if (code === 'MANUAL') {
+                                  updateItem(item.id, 'isManualItem', true);
+                                  updateItem(item.id, 'itemCode', '');
+                                  updateItem(item.id, 'itemName', '');
+                                } else if (!code) {
+                                  updateItem(item.id, 'itemCode', '');
+                                } else {
+                                  updateItem(item.id, 'itemCode', code);
+                                }
+                              }}
+                              className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-xs font-semibold text-gray-800"
+                            >
+                              <option value="">-- Select Product --</option>
+                              <option value="MANUAL" className="text-blue-600 font-bold bg-blue-50">+ Type Manually...</option>
+                              {dbProducts.map(p => (
+                                <option key={p.id} value={p.itemCode}>
+                                  {p.itemCode} - {p.name} {p.size ? `(${p.size})` : ''}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                        </td>
                         <td className="border-r border-gray-300 p-0">
-                          <input 
-                            type="text" 
-                            list="item-catalog"
-                            value={item.itemCode} 
-                            onChange={e => updateItem(item.id, 'itemCode', e.target.value)} 
-                            onKeyDown={e => handleKeyDown(e, idx, 'itemCode')}
-                            className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none uppercase" 
-                            placeholder="ITM..." 
-                          />
+                          <div className="flex items-center relative pr-1">
+                            <input 
+                              type="text" 
+                              list="item-catalog"
+                              value={item.itemCode} 
+                              onChange={e => updateItem(item.id, 'itemCode', e.target.value)} 
+                              onKeyDown={e => handleKeyDown(e, idx, 'itemCode')}
+                              className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none uppercase pr-8 text-xs font-mono" 
+                              placeholder="ITM..." 
+                            />
+                            <button
+                              onClick={() => generateCodeForRow(item.id)}
+                              type="button"
+                              className="absolute right-1 px-1 py-0.5 text-[9px] font-bold bg-blue-100 hover:bg-blue-200 active:bg-blue-300 text-blue-700 rounded transition-colors shadow-sm"
+                              title="Auto-generate item code"
+                            >
+                              Gen
+                            </button>
+                          </div>
                         </td>
                         <td className="border-r border-gray-300 p-0">
                           <input 
@@ -646,6 +763,16 @@ const PurchaseBill = () => {
                         </td>
                         <td className="border-r border-gray-300 p-0">
                           <input 
+                            type="text" 
+                            value={item.factory} 
+                            onChange={e => updateItem(item.id, 'factory', e.target.value)} 
+                            onKeyDown={e => handleKeyDown(e, idx, 'factory')}
+                            className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none" 
+                            placeholder="Factory Name"
+                          />
+                        </td>
+                        <td className="border-r border-gray-300 p-0">
+                          <input 
                             type="number" 
                             value={item.qty === 0 ? '' : item.qty} 
                             onChange={e => updateItem(item.id, 'qty', Number(e.target.value))} 
@@ -661,6 +788,26 @@ const PurchaseBill = () => {
                             onChange={e => updateItem(item.id, 'unitPrice', Number(e.target.value))} 
                             onKeyDown={e => handleKeyDown(e, idx, 'unitPrice')}
                             className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-right" 
+                          />
+                        </td>
+                        <td className="border-r border-gray-300 p-0">
+                          <input 
+                            type="number" 
+                            value={item.salesRate === 0 ? '' : item.salesRate} 
+                            onChange={e => updateItem(item.id, 'salesRate', Number(e.target.value))} 
+                            onKeyDown={e => handleKeyDown(e, idx, 'salesRate')}
+                            className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-right font-semibold text-indigo-700" 
+                            placeholder="0.00"
+                          />
+                        </td>
+                        <td className="border-r border-gray-300 p-0">
+                          <input 
+                            type="number" 
+                            value={item.mrp === 0 ? '' : item.mrp} 
+                            onChange={e => updateItem(item.id, 'mrp', Number(e.target.value))} 
+                            onKeyDown={e => handleKeyDown(e, idx, 'mrp')}
+                            className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-right text-gray-700" 
+                            placeholder="0.00"
                           />
                         </td>
                         <td className="border-r border-gray-300 p-0">

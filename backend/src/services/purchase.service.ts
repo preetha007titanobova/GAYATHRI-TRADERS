@@ -82,9 +82,12 @@ export const createPurchaseBill = async (data: any): Promise<any> => {
               increment: Math.round(qty)
             },
             purchaseRate: rate,
+            price: item.salesRate ? Number(item.salesRate) : product.price,
+            mrp: item.mrp ? Number(item.mrp) : product.mrp,
             size: item.size || product.size,
             variety: item.variety || product.variety,
             department: item.category || item.department || product.department,
+            factory: item.factory || product.factory,
           }
         });
       } else {
@@ -96,13 +99,14 @@ export const createPurchaseBill = async (data: any): Promise<any> => {
             barcode: item.itemCode, // Default barcode to itemCode
             uom: 'Piece', // Default UOM
             purchaseRate: rate,
-            price: rate, // Default sales rate to purchase rate initially
-            mrp: rate,
+            price: Number(item.salesRate || rate),
+            mrp: Number(item.mrp || rate),
             taxPercent: taxPercent,
             stock: Math.round(qty),
             department: item.category || item.department || 'None',
             variety: item.variety || '',
-            size: item.size || ''
+            size: item.size || '',
+            factory: item.factory || ''
           }
         });
         productId = new ObjectId(newProduct.id);
@@ -116,6 +120,7 @@ export const createPurchaseBill = async (data: any): Promise<any> => {
         size: item.size || '',
         variety: item.variety || '',
         category: item.category || item.department || 'None',
+        factory: item.factory || '',
         qty: qty,
         rate: rate,
         taxPercent: taxPercent,
@@ -253,9 +258,12 @@ export const updatePurchaseBill = async (id: string, data: any): Promise<boolean
               increment: Math.round(qty)
             },
             purchaseRate: rate,
+            price: item.salesRate ? Number(item.salesRate) : product.price,
+            mrp: item.mrp ? Number(item.mrp) : product.mrp,
             size: item.size || product.size,
             variety: item.variety || product.variety,
             department: item.category || item.department || product.department,
+            factory: item.factory || product.factory,
           }
         });
       } else {
@@ -266,13 +274,14 @@ export const updatePurchaseBill = async (id: string, data: any): Promise<boolean
             barcode: item.itemCode,
             uom: 'Piece',
             purchaseRate: rate,
-            price: rate,
-            mrp: rate,
+            price: Number(item.salesRate || rate),
+            mrp: Number(item.mrp || rate),
             taxPercent: taxPercent,
             stock: Math.round(qty),
             department: item.category || item.department || 'None',
             variety: item.variety || '',
-            size: item.size || ''
+            size: item.size || '',
+            factory: item.factory || ''
           }
         });
         productId = new ObjectId(newProduct.id);
@@ -286,6 +295,7 @@ export const updatePurchaseBill = async (id: string, data: any): Promise<boolean
         size: item.size || '',
         variety: item.variety || '',
         category: item.category || item.department || 'None',
+        factory: item.factory || '',
         qty: qty,
         rate: rate,
         taxPercent: taxPercent,
