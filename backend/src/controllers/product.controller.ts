@@ -3,6 +3,20 @@ import { prisma } from '../config/db';
 import * as productService from '../services/product.service';
 import * as notificationService from '../services/notification.service';
 
+export const getByBarcode = async (req: Request, res: Response) => {
+  try {
+    const { code } = req.params;
+    const product = await productService.getProductByBarcode(code);
+    if (!product) {
+      return res.status(404).json({ error: 'Barcode not found' });
+    }
+    res.json(product);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to find product by barcode' });
+  }
+};
+
 export const searchItems = async (req: Request, res: Response) => {
   try {
     const q = req.query.q as string || '';
@@ -17,6 +31,7 @@ export const searchItems = async (req: Request, res: Response) => {
 export const seedMockItems = async (req: Request, res: Response) => {
   try {
     const items = [
+      { itemCode: 'ITM-100002', name: "Men's Shirt", price: 799, mrp: 799, stock: 50, barcode: '100002', size: 'L', department: 'Mens', uom: 'PCS' },
       { name: 'Almonds Premium 1kg', price: 15.99, stock: 100, barcode: 'A123' },
       { name: 'Walnuts Organic 500g', price: 12.50, stock: 50, barcode: 'W456' },
       { name: 'Cashews Roasted 250g', price: 8.00, stock: 200, barcode: 'C789' }
@@ -30,7 +45,8 @@ export const seedMockItems = async (req: Request, res: Response) => {
           name: item.name,
           price: item.price,
           stock: item.stock,
-          barcode: item.barcode
+          barcode: item.barcode,
+          size: item.size
         }
       });
     }

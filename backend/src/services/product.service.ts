@@ -2,20 +2,77 @@ import { ObjectId } from 'mongodb';
 import { prisma, getDb } from '../config/db';
 import { Product } from '../models/product.model';
 
-export const searchItems = async (q: string): Promise<any[]> => {
-  return await prisma.product.findMany({
-    where: {
-      OR: [
-        { name: { contains: q, mode: 'insensitive' } },
-        { itemCode: { contains: q, mode: 'insensitive' } },
-        { barcode: { contains: q, mode: 'insensitive' } },
-        { variety: { contains: q, mode: 'insensitive' } },
-        { department: { contains: q, mode: 'insensitive' } },
-        { size: { contains: q, mode: 'insensitive' } }
-      ]
-    },
-    take: 100
+export const getProductByBarcode = async (barcode: string): Promise<any> => {
+  const db = await getDb();
+  let product = await db.collection('Product').findOne({
+    $or: [{ barcode: barcode }, { itemCode: barcode }]
   });
+  if (!product) {
+    product = await prisma.product.findFirst({
+      where: {
+        OR: [{ barcode: barcode }, { itemCode: barcode }]
+      }
+    });
+  }
+  return product;
+};
+
+export const searchItems = async (q: string): Promise<any[]> => {
+  const db = await getDb();
+  let mongoItems: any[] = [];
+  if (!q) {
+    mongoItems = await db.collection('Product').find({}).limit(100).toArray();
+  } else {
+    const regex = new RegExp(q, 'i');
+    mongoItems = await db.collection('Product').find({
+      $or: [
+        { name: regex },
+        { itemCode: regex },
+        { barcode: regex },
+        { variety: regex },
+        { department: regex },
+        { size: regex }
+      ]
+    }).limit(100).toArray();
+  }
+
+  let prismaItems: any[] = [];
+  try {
+    prismaItems = await prisma.product.findMany({
+      where: q ? {
+        OR: [
+          { name: { contains: q, mode: 'insensitive' } },
+          { itemCode: { contains: q, mode: 'insensitive' } },
+          { barcode: { contains: q, mode: 'insensitive' } },
+          { variety: { contains: q, mode: 'insensitive' } },
+          { department: { contains: q, mode: 'insensitive' } },
+          { size: { contains: q, mode: 'insensitive' } }
+        ]
+      } : undefined,
+      take: 100
+    });
+  } catch (e) {
+    console.error("Prisma product search error:", e);
+  }
+
+  const map = new Map();
+  [...prismaItems, ...mongoItems].forEach((item: any) => {
+    const id = item._id?.toString() || item.id;
+    if (!map.has(id)) {
+      map.set(id, {
+        ...item,
+        id,
+        _id: id,
+        barcode: item.barcode || '',
+        itemCode: item.itemCode || '',
+        size: item.size || '',
+        price: item.price || 0,
+        stock: item.stock || 0
+      });
+    }
+  });
+
+  return Array.from(map.values());
 };
 
 export const getNextProductCode = async (): Promise<string> => {

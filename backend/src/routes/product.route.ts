@@ -4,6 +4,7 @@ import * as productController from '../controllers/product.controller';
 const router = Router();
 
 router.get('/search', productController.searchItems);
+router.get('/barcode/:code', productController.getByBarcode);
 router.get('/daily-status', productController.getDailyStockStatus);
 router.get('/stock-register-report', productController.getStockRegisterReport);
 router.post('/close-day', productController.closeDay);
