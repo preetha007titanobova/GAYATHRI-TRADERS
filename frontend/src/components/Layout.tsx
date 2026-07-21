@@ -304,7 +304,9 @@ const Layout = () => {
       '/statistic-report': 'Statistic Report',
       '/trial-b-s': 'Trial B & S',
       '/p-l-statment': 'P & L Statment',
-      '/balance-sheet': 'Balance Sheet'
+      '/balance-sheet': 'Balance Sheet',
+      '/staff-master': 'Staff Master (Admin)',
+      '/staff-attendance': 'Staff Attendance'
     };
     return routeTitles[pathname] || 'Dashboard';
   };
@@ -374,10 +376,16 @@ const Layout = () => {
         <div className="relative">
           <span onClick={() => toggleMenu('Master')} className={`px-3 py-1 cursor-pointer select-none rounded ${activeMenu === 'Master' ? 'bg-blue-200 shadow-inner' : 'hover:bg-blue-100'}`}>Master</span>
           {activeMenu === 'Master' && (
-            <div className="absolute top-full left-0 mt-1 bg-white border border-gray-400 shadow-xl w-48 flex flex-col py-1 z-50">
+            <div className="absolute top-full left-0 mt-1 bg-white border border-gray-400 shadow-xl w-52 flex flex-col py-1 z-50">
                <Link to="/ledger-master" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Ledger Master</Link>
                <Link to="/item-master" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Item Master</Link>
                <Link to="/barcode-generation" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Barcode Generation</Link>
+               <div className="border-t border-gray-300 my-1"></div>
+               <Link to="/staff-master" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium flex items-center justify-between">
+                 <span>Staff Master (Admin)</span>
+                 <Lock size={12} className="text-amber-600" />
+               </Link>
+               <Link to="/staff-attendance" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Staff Attendance</Link>
                <div className="border-t border-gray-300 my-1"></div>
                <Link to="/backup" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Backup</Link>
             </div>
@@ -492,14 +500,6 @@ const Layout = () => {
         </div>
           <div className="flex space-x-1">
           <button 
-            onClick={handleLockScreen}
-            className="flex flex-col items-center justify-center p-1 bg-amber-600 hover:bg-amber-700 text-white rounded min-w-[70px] focus:outline-none transition-colors shadow cursor-pointer"
-            title="Lock Screen"
-          >
-            <Lock size={16} />
-            <span className="text-[10px] mt-1 font-bold">LOCK SCREEN</span>
-          </button>
-          <button 
             onClick={() => {
               setEnteredPin('');
               setPinError('');
@@ -563,6 +563,9 @@ const Layout = () => {
                 { name: 'Purchase Bill', path: '/purchase-bill' },
                 { name: 'Pur. Return', path: '/pur-return' },
                 { name: 'Pur. Register', path: '/pur-register' },
+                // STAFF & ATTENDANCE
+                { name: 'Staff Master (Admin)', path: '/staff-master' },
+                { name: 'Staff Attendance', path: '/staff-attendance' },
                 { name: 'Stock Status', path: '/stock-status' },
                 { name: 'Daily Stock Status', path: '/daily-stock-status' },
                 { name: 'Stock Register', path: '/stock-register' },
