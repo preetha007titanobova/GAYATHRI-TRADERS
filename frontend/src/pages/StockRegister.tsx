@@ -30,6 +30,7 @@ interface Product {
   price?: number;
   stock?: number;
   openingBalance?: number;
+  pendingOrderQty?: number;
   movements?: StockMove[];
 }
 
@@ -839,7 +840,14 @@ const StockRegister = () => {
                         <td className="border-r border-gray-200 p-2 text-right font-mono text-orange-600 bg-orange-50/15">
                           {p.damages > 0 ? p.damages : ''}
                         </td>
-                        <td className="border-r border-gray-200 p-2 text-right font-mono text-blue-700 bg-blue-50/20 font-black">{p.closingStock}</td>
+                        <td className="border-r border-gray-200 p-2 text-right font-mono text-blue-700 bg-blue-50/20 font-black">
+                          <div>{p.closingStock}</div>
+                          {Number(p.pendingOrderQty) > 0 && (
+                            <div className="text-[10px] text-amber-600 font-bold whitespace-nowrap leading-none mt-1">
+                              ({p.pendingOrderQty} {p.uom || 'PCS'} in sales order)
+                            </div>
+                          )}
+                        </td>
                         
                         <td className="p-2 text-center">
                           <button

@@ -23,7 +23,8 @@ export const createSalesBill = async (data: any): Promise<any> => {
   const {
     invoiceNo, invDate, payDays, buyerName, address, eType,
     mobileNo, gstNo, printIn, invFormat, invoiceFormat, totalQty, totalAmount,
-    cgst, sgst, roundOff, netAmount, remarks, shippingAddress, items, salesman, paymentMode
+    cgst, sgst, roundOff, netAmount, remarks, shippingAddress, items, salesman, paymentMode,
+    fromSalesOrderId
   } = data;
 
   const db = await getDb();
@@ -49,6 +50,7 @@ export const createSalesBill = async (data: any): Promise<any> => {
     shippingAddress,
     salesman,
     paymentMode: paymentMode || 'Cash',
+    fromSalesOrderId: fromSalesOrderId ? new ObjectId(fromSalesOrderId as string) : null,
     createdAt: new Date(),
     updatedAt: new Date()
   });
@@ -105,6 +107,32 @@ export const createSalesBill = async (data: any): Promise<any> => {
         }
       }
 
+      // If this bill is generated from a Sales Order, update unfulfilled quantity
+      if (fromSalesOrderId) {
+        const orderItem = await prisma.salesOrderItem.findFirst({
+          where: {
+            salesOrderId: fromSalesOrderId,
+            OR: [
+              { productId: productId?.toString() },
+              { itemCode: item.itemCode || item.itemDesc },
+              { itemName: item.itemName }
+            ]
+          }
+        });
+
+        if (orderItem) {
+          const newDelivered = Math.min(orderItem.orderedQty, orderItem.deliveredQty + qty);
+          const newPending = Math.max(0, orderItem.orderedQty - newDelivered);
+          await prisma.salesOrderItem.update({
+            where: { id: orderItem.id },
+            data: {
+              deliveredQty: newDelivered,
+              pendingQty: newPending
+            }
+          });
+        }
+      }
+
       itemsToInsert.push({
         salesBillId: billResult.insertedId,
         itemName: item.itemName,
@@ -119,6 +147,27 @@ export const createSalesBill = async (data: any): Promise<any> => {
       });
     }
     await db.collection('SalesItem').insertMany(itemsToInsert);
+  }
+
+  // Update overall Sales Order status based on all items' remaining pending quantities
+  if (fromSalesOrderId) {
+    const remainingItems = await prisma.salesOrderItem.findMany({
+      where: { salesOrderId: fromSalesOrderId }
+    });
+    const totalPending = remainingItems.reduce((sum, it) => sum + it.pendingQty, 0);
+    const totalDelivered = remainingItems.reduce((sum, it) => sum + it.deliveredQty, 0);
+
+    let newStatus = 'Open';
+    if (totalPending === 0) {
+      newStatus = 'Completed';
+    } else if (totalDelivered > 0) {
+      newStatus = 'Partial';
+    }
+
+    await db.collection('SalesOrder').updateOne(
+      { _id: new ObjectId(fromSalesOrderId as string) },
+      { $set: { status: newStatus, updatedAt: new Date() } }
+    );
   }
 
   return { id: billResult.insertedId.toString(), invoiceNo };
@@ -340,222 +389,7 @@ export const getSalesBillByInvoiceNo = async (invoiceNo: string): Promise<any> =
   return { ...bill, items: itemsWithBarcode };
 };
 
-export const createSalesOrder = async (data: any): Promise<any> => {
-  const { orderNo, orderDate, customer, deliveryDate, paymentTerms, status, isInterstate, summary, items } = data;
-  const db = await getDb();
 
-  const orderResult = await db.collection('SalesOrder').insertOne({
-    orderNo,
-    orderDate: new Date(orderDate),
-    customer,
-    deliveryDate: deliveryDate ? new Date(deliveryDate) : null,
-    paymentTerms,
-    status: status || 'OPEN',
-    isInterstate,
-    subtotal: summary?.subtotal || 0,
-    cgst: summary?.cgst || 0,
-    sgst: summary?.sgst || 0,
-    igst: summary?.igst || 0,
-    rounding: summary?.rounding || 0,
-    grandTotal: summary?.grandTotal || 0,
-    createdAt: new Date(),
-    updatedAt: new Date()
-  });
-
-  if (items && items.length > 0) {
-    const itemsToInsert = items.map((item: any) => ({
-      salesOrderId: orderResult.insertedId,
-      orderNo,
-      lineId: item.lineId,
-      lineIndex: item.lineIndex,
-      itemCode: item.itemCode,
-      itemDescription: item.itemDescription,
-      quantityOrdered: Number(item.quantityOrdered) || 0,
-      quantityFulfilled: Number(item.quantityFulfilled) || 0,
-      unitPrice: Number(item.unitPrice) || 0,
-      discountPercentage: Number(item.discountPercentage) || 0,
-      taxableAmount: Number(item.taxableAmount) || 0,
-      taxRatePercentage: Number(item.taxRatePercentage) || 0,
-      cgstAmount: Number(item.cgstAmount) || 0,
-      sgstAmount: Number(item.sgstAmount) || 0,
-      igstAmount: Number(item.igstAmount) || 0,
-      lineSubTotal: Number(item.lineSubTotal) || 0
-    }));
-    await db.collection('SalesOrderItem').insertMany(itemsToInsert);
-
-    for (const item of itemsToInsert) {
-      if (item.quantityOrdered > 0 && (item.itemCode || item.itemDescription)) {
-        await prisma.product.updateMany({
-          where: {
-            OR: [
-              { itemCode: item.itemCode },
-              { barcode: item.itemCode },
-              { name: item.itemDescription }
-            ]
-          },
-          data: {
-            committedStock: {
-              increment: item.quantityOrdered
-            }
-          }
-        });
-      }
-    }
-  }
-
-  return { id: orderResult.insertedId.toString(), orderNo };
-};
-
-export const searchSalesOrders = async (q: string): Promise<any[]> => {
-  const db = await getDb();
-  let query: any = {};
-  if (q) {
-    query.$or = [
-      { orderNo: { $regex: q, $options: 'i' } },
-      { customer: { $regex: q, $options: 'i' } }
-    ];
-  }
-  return await db.collection('SalesOrder').find(query).sort({ createdAt: -1 }).limit(100).toArray();
-};
-
-export const getSalesOrderDetails = async (id: string): Promise<any> => {
-  const db = await getDb();
-  const orderId = new ObjectId(id as string);
-  const order = await db.collection('SalesOrder').findOne({ _id: orderId });
-  if (!order) return null;
-  const items = await db.collection('SalesOrderItem').find({ salesOrderId: orderId }).toArray();
-  return { ...order, items };
-};
-
-export const updateSalesOrder = async (id: string, data: any): Promise<boolean> => {
-  const { orderNo, orderDate, customer, deliveryDate, paymentTerms, status, isInterstate, summary, items } = data;
-  const db = await getDb();
-  const orderId = new ObjectId(id as string);
-
-  // Revert old stock commitment
-  const oldItems = await db.collection('SalesOrderItem').find({ salesOrderId: orderId }).toArray();
-  for (const item of oldItems) {
-    if (item.quantityOrdered > 0 && (item.itemCode || item.itemDescription)) {
-      await prisma.product.updateMany({
-        where: {
-          OR: [
-            { itemCode: item.itemCode },
-            { barcode: item.itemCode },
-            { name: item.itemDescription }
-          ]
-        },
-        data: {
-          committedStock: {
-            decrement: item.quantityOrdered
-          }
-        }
-      });
-    }
-  }
-
-  // Update Order header
-  const updateResult = await db.collection('SalesOrder').updateOne(
-    { _id: orderId },
-    {
-      $set: {
-        orderNo,
-        orderDate: new Date(orderDate),
-        customer,
-        deliveryDate: deliveryDate ? new Date(deliveryDate) : null,
-        paymentTerms,
-        status: status || 'OPEN',
-        isInterstate,
-        subtotal: summary?.subtotal || 0,
-        cgst: summary?.cgst || 0,
-        sgst: summary?.sgst || 0,
-        igst: summary?.igst || 0,
-        rounding: summary?.rounding || 0,
-        grandTotal: summary?.grandTotal || 0,
-        updatedAt: new Date()
-      }
-    }
-  );
-
-  if (updateResult.matchedCount === 0) {
-    return false;
-  }
-
-  // Delete and Insert new items
-  await db.collection('SalesOrderItem').deleteMany({ salesOrderId: orderId });
-
-  if (items && items.length > 0) {
-    const itemsToInsert = items.map((item: any) => ({
-      salesOrderId: orderId,
-      orderNo,
-      lineId: item.lineId,
-      lineIndex: item.lineIndex,
-      itemCode: item.itemCode,
-      itemDescription: item.itemDescription,
-      quantityOrdered: Number(item.quantityOrdered) || 0,
-      quantityFulfilled: Number(item.quantityFulfilled) || 0,
-      unitPrice: Number(item.unitPrice) || 0,
-      discountPercentage: Number(item.discountPercentage) || 0,
-      taxableAmount: Number(item.taxableAmount) || 0,
-      taxRatePercentage: Number(item.taxRatePercentage) || 0,
-      cgstAmount: Number(item.cgstAmount) || 0,
-      sgstAmount: Number(item.sgstAmount) || 0,
-      igstAmount: Number(item.igstAmount) || 0,
-      lineSubTotal: Number(item.lineSubTotal) || 0
-    }));
-    await db.collection('SalesOrderItem').insertMany(itemsToInsert);
-
-    // Apply new commitments
-    for (const item of itemsToInsert) {
-      if (item.quantityOrdered > 0 && (item.itemCode || item.itemDescription)) {
-        await prisma.product.updateMany({
-          where: {
-            OR: [
-              { itemCode: item.itemCode },
-              { barcode: item.itemCode },
-              { name: item.itemDescription }
-            ]
-          },
-          data: {
-            committedStock: {
-              increment: item.quantityOrdered
-            }
-          }
-        });
-      }
-    }
-  }
-
-  return true;
-};
-
-export const deleteSalesOrder = async (id: string): Promise<boolean> => {
-  const db = await getDb();
-  const orderId = new ObjectId(id as string);
-
-  const items = await db.collection('SalesOrderItem').find({ salesOrderId: orderId }).toArray();
-  for (const item of items) {
-    if (item.quantityOrdered > 0 && (item.itemCode || item.itemDescription)) {
-      await prisma.product.updateMany({
-        where: {
-          OR: [
-            { itemCode: item.itemCode },
-            { barcode: item.itemCode },
-            { name: item.itemDescription }
-          ]
-        },
-        data: {
-          committedStock: {
-            decrement: item.quantityOrdered
-          }
-        }
-      });
-    }
-  }
-
-  await db.collection('SalesOrderItem').deleteMany({ salesOrderId: orderId });
-  const result = await db.collection('SalesOrder').deleteOne({ _id: orderId });
-  return result.deletedCount > 0;
-};
 
 export const getNextSalesReturnSequence = async (): Promise<string> => {
   const db = await getDb();
@@ -1062,6 +896,19 @@ export const getStockLedger = async (productId: string): Promise<any> => {
     item.salesReturn = salesReturnMap.get(item.salesReturnId) || null;
   }
 
+  // Virtual Movements (Sales Orders)
+  const orderItems = await prisma.salesOrderItem.findMany({
+    where: {
+      productId,
+      salesOrder: {
+        status: { in: ['Open', 'Partial'] }
+      }
+    },
+    include: {
+      salesOrder: true
+    }
+  }) as any[];
+
   let movements = [];
 
   for (const item of salesItems) {
@@ -1090,6 +937,20 @@ export const getStockLedger = async (productId: string): Promise<any> => {
         outward: 0,
         disposition: item.disposition,
         reason: item.salesReturn.reason
+      });
+    }
+  }
+
+  for (const item of orderItems) {
+    if (item.salesOrder) {
+      movements.push({
+        id: item.id,
+        date: item.salesOrder.orderDate,
+        vchType: 'Sales Order',
+        vchNo: item.salesOrder.orderNumber,
+        particulars: `Ordered by: ${item.salesOrder.buyerName} (Pending: ${item.pendingQty} ${product.uom || 'PCS'} in sales order)`,
+        inward: 0,
+        outward: 0
       });
     }
   }
@@ -1188,4 +1049,276 @@ export const getReturnsByInvoice = async (invoiceNo: string): Promise<any[]> => 
     r.items = await db.collection('SalesReturnItem').find({ salesReturnId: r._id }).toArray();
   }
   return returns;
+};
+
+// --- Sales Order Services ---
+
+export const getNextSalesOrderSequence = async (): Promise<string> => {
+  const lastOrder = await prisma.salesOrder.findFirst({
+    orderBy: { createdAt: 'desc' }
+  });
+
+  let nextNum = 1;
+  if (lastOrder && lastOrder.orderNumber.startsWith('SO-')) {
+    const parts = lastOrder.orderNumber.split('-');
+    const parsed = parseInt(parts[2] || '0');
+    if (!isNaN(parsed)) {
+      nextNum = parsed + 1;
+    }
+  }
+
+  const year = new Date().getFullYear();
+  return `SO-${year}-${nextNum.toString().padStart(4, '0')}`;
+};
+
+export const createSalesOrder = async (data: any): Promise<any> => {
+  const {
+    orderNo, orderDate, customer, deliveryDate, status, isInterstate,
+    summary, items, mobileNo, address, remarks, salesman, advancePaid, paymentMode
+  } = data;
+
+  const db = await getDb();
+  const orderNumber = orderNo && orderNo !== 'SO-AUTO' ? orderNo : await getNextSalesOrderSequence();
+
+  let customerId = null;
+  if (customer) {
+    const ledger = await prisma.ledger.findFirst({
+      where: { accountName: customer }
+    });
+    if (ledger) {
+      customerId = new ObjectId(ledger.id);
+    }
+  }
+
+  const advance = Number(advancePaid) || 0;
+  const grandTotal = Number(summary.grandTotal) || 0;
+  const balanceAmount = Math.max(0, grandTotal - advance);
+
+  let parsedOrderDate = orderDate ? new Date(orderDate) : new Date();
+  if (isNaN(parsedOrderDate.getTime())) parsedOrderDate = new Date();
+
+  let parsedDeliveryDate = deliveryDate ? new Date(deliveryDate) : parsedOrderDate;
+  if (isNaN(parsedDeliveryDate.getTime())) parsedDeliveryDate = parsedOrderDate;
+
+  const orderResult = await db.collection('SalesOrder').insertOne({
+    orderNumber,
+    customerId,
+    buyerName: customer || 'CASH CUSTOMER',
+    mobileNo: mobileNo || '',
+    address: address || '',
+    orderDate: parsedOrderDate,
+    expectedDeliveryDate: parsedDeliveryDate,
+    status: status || 'Open',
+    subtotal: Number(summary.subtotal) || 0,
+    discount: Number(summary.discount) || 0,
+    cgst: Number(summary.cgst) || 0,
+    sgst: Number(summary.sgst) || 0,
+    roundOff: Number(summary.rounding) || 0,
+    grandTotal,
+    advancePaid: advance,
+    balanceAmount,
+    remarks,
+    salesman,
+    paymentMode: paymentMode || 'Cash',
+    createdAt: new Date(),
+    updatedAt: new Date()
+  });
+
+  if (items && items.length > 0) {
+    const itemsToInsert = [];
+    for (const item of items) {
+      let productId = item.productId ? new ObjectId(item.productId as string) : null;
+      if (!productId && item.itemCode) {
+        const prod = await prisma.product.findUnique({
+          where: { itemCode: item.itemCode }
+        });
+        if (prod) {
+          productId = new ObjectId(prod.id);
+        }
+      }
+
+      const qty = Number(item.quantityOrdered) || 0;
+      itemsToInsert.push({
+        salesOrderId: orderResult.insertedId,
+        productId,
+        itemCode: item.itemCode,
+        itemName: item.itemDescription || item.itemName,
+        color: item.color || null,
+        size: item.size || null,
+        orderedQty: qty,
+        deliveredQty: 0,
+        pendingQty: qty,
+        unitPrice: Number(item.unitPrice) || 0,
+        discount: Number(item.discountPercentage) || 0,
+        tax: Number(item.taxRatePercentage) || 0,
+        lineTotal: Number(item.lineSubTotal) || 0
+      });
+    }
+    await db.collection('SalesOrderItem').insertMany(itemsToInsert);
+  }
+
+  return { id: orderResult.insertedId.toString(), orderNumber };
+};
+
+export const searchSalesOrders = async (q: string): Promise<any[]> => {
+  const orders = await prisma.salesOrder.findMany({
+    where: {
+      OR: [
+        { orderNumber: { contains: q, mode: 'insensitive' } },
+        { buyerName: { contains: q, mode: 'insensitive' } },
+        { mobileNo: { contains: q, mode: 'insensitive' } }
+      ]
+    },
+    include: {
+      items: true
+    },
+    orderBy: { createdAt: 'desc' }
+  });
+  return orders;
+};
+
+export const getSalesOrderDetails = async (id: string): Promise<any> => {
+  const order = await prisma.salesOrder.findUnique({
+    where: { id },
+    include: {
+      items: true
+    }
+  });
+  return order;
+};
+
+export const updateSalesOrder = async (id: string, data: any): Promise<boolean> => {
+  const {
+    orderNo, orderDate, customer, deliveryDate, status, isInterstate,
+    summary, items, mobileNo, address, remarks, salesman, advancePaid, paymentMode
+  } = data;
+
+  const db = await getDb();
+  const orderId = new ObjectId(id);
+
+  const existingOrder = await prisma.salesOrder.findUnique({
+    where: { id }
+  });
+
+  if (!existingOrder) return false;
+  if (existingOrder.status === 'Completed' || existingOrder.status === 'Cancelled') {
+    throw new Error('Completed or Cancelled orders cannot be modified.');
+  }
+
+  let customerId = null;
+  if (customer) {
+    const ledger = await prisma.ledger.findFirst({
+      where: { accountName: customer }
+    });
+    if (ledger) {
+      customerId = new ObjectId(ledger.id);
+    }
+  }
+
+  const advance = Number(advancePaid) || 0;
+  const grandTotal = Number(summary.grandTotal) || 0;
+  const balanceAmount = Math.max(0, grandTotal - advance);
+
+  let parsedOrderDate = orderDate ? new Date(orderDate) : new Date();
+  if (isNaN(parsedOrderDate.getTime())) parsedOrderDate = new Date();
+
+  let parsedDeliveryDate = deliveryDate ? new Date(deliveryDate) : parsedOrderDate;
+  if (isNaN(parsedDeliveryDate.getTime())) parsedDeliveryDate = parsedOrderDate;
+
+  await db.collection('SalesOrder').updateOne(
+    { _id: orderId },
+    {
+      $set: {
+        orderNumber: orderNo || existingOrder.orderNumber,
+        customerId,
+        buyerName: customer || 'CASH CUSTOMER',
+        mobileNo: mobileNo || '',
+        address: address || '',
+        orderDate: parsedOrderDate,
+        expectedDeliveryDate: parsedDeliveryDate,
+        status: status || existingOrder.status,
+        subtotal: Number(summary.subtotal) || 0,
+        discount: Number(summary.discount) || 0,
+        cgst: Number(summary.cgst) || 0,
+        sgst: Number(summary.sgst) || 0,
+        roundOff: Number(summary.rounding) || 0,
+        grandTotal,
+        advancePaid: advance,
+        balanceAmount,
+        remarks,
+        salesman,
+        paymentMode: paymentMode || 'Cash',
+        updatedAt: new Date()
+      }
+    }
+  );
+
+  // Delete existing items
+  await db.collection('SalesOrderItem').deleteMany({ salesOrderId: orderId });
+
+  if (items && items.length > 0) {
+    const itemsToInsert = [];
+    for (const item of items) {
+      let productId = item.productId ? new ObjectId(item.productId as string) : null;
+      if (!productId && item.itemCode) {
+        const prod = await prisma.product.findUnique({
+          where: { itemCode: item.itemCode }
+        });
+        if (prod) {
+          productId = new ObjectId(prod.id);
+        }
+      }
+
+      const qty = Number(item.quantityOrdered) || 0;
+      const delivered = Number(item.quantityFulfilled) || 0;
+      itemsToInsert.push({
+        salesOrderId: orderId,
+        productId,
+        itemCode: item.itemCode,
+        itemName: item.itemDescription || item.itemName,
+        color: item.color || null,
+        size: item.size || null,
+        orderedQty: qty,
+        deliveredQty: delivered,
+        pendingQty: Math.max(0, qty - delivered),
+        unitPrice: Number(item.unitPrice) || 0,
+        discount: Number(item.discountPercentage) || 0,
+        tax: Number(item.taxRatePercentage) || 0,
+        lineTotal: Number(item.lineSubTotal) || 0
+      });
+    }
+    await db.collection('SalesOrderItem').insertMany(itemsToInsert);
+  }
+
+  return true;
+};
+
+export const deleteSalesOrder = async (id: string): Promise<boolean> => {
+  const db = await getDb();
+  const orderId = new ObjectId(id);
+  
+  await db.collection('SalesOrderItem').deleteMany({ salesOrderId: orderId });
+  const result = await db.collection('SalesOrder').deleteOne({ _id: orderId });
+  return result.deletedCount > 0;
+};
+
+export const cancelSalesOrder = async (id: string, data: any): Promise<boolean> => {
+  const { cancelReason, cancelledBy } = data;
+  const db = await getDb();
+  const orderId = new ObjectId(id);
+
+  const result = await db.collection('SalesOrder').updateOne(
+    { _id: orderId },
+    {
+      $set: {
+        status: 'Cancelled',
+        cancelReason: cancelReason || 'User request',
+        cancelledBy: cancelledBy || 'System',
+        cancelDate: new Date(),
+        updatedAt: new Date()
+      }
+    }
+  );
+
+  return result.matchedCount > 0;
 };

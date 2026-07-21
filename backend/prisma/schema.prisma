@@ -52,6 +52,7 @@ model Product {
   salesItems    SalesItem[]
   salesReturnItems SalesReturnItem[]
   purchaseItems PurchaseItem[]
+  salesOrderItems SalesOrderItem[]
 }
 
 model SalesBill {
@@ -200,3 +201,50 @@ model PurchaseItem {
   total          Float
 }
 
+model SalesOrder {
+  id                   String           @id @default(auto()) @map("_id") @db.ObjectId
+  orderNumber          String           @unique
+  customerId           String?          @db.ObjectId
+  buyerName            String
+  mobileNo             String?
+  address              String?
+  orderDate            DateTime         @default(now())
+  expectedDeliveryDate DateTime
+  status               String           @default("Open") // Open, Partial, Completed, Cancelled
+  subtotal             Float            @default(0)
+  discount             Float            @default(0)
+  cgst                 Float            @default(0)
+  sgst                 Float            @default(0)
+  roundOff             Float            @default(0)
+  grandTotal           Float            @default(0)
+  advancePaid          Float            @default(0)
+  balanceAmount        Float            @default(0)
+  remarks              String?
+  salesman             String?
+  paymentMode          String?          @default("Cash")
+  cancelReason         String?
+  cancelDate           DateTime?
+  cancelledBy          String?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  items                SalesOrderItem[]
+}
+
+model SalesOrderItem {
+  id           String     @id @default(auto()) @map("_id") @db.ObjectId
+  salesOrderId String     @db.ObjectId
+  salesOrder   SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  productId    String?    @db.ObjectId
+  product      Product?   @relation(fields: [productId], references: [id])
+  itemCode     String?
+  itemName     String
+  color        String?
+  size         String?
+  orderedQty   Float
+  deliveredQty Float      @default(0)
+  pendingQty   Float
+  unitPrice    Float
+  discount     Float      @default(0)
+  tax          Float      @default(0)
+  lineTotal    Float
+}

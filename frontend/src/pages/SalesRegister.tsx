@@ -1,10 +1,264 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useOutletContext, useNavigate, useLocation } from 'react-router-dom';
 import type { ToolbarActions } from '../components/Layout';
-import { Search, Calendar, X } from 'lucide-react';
+import { Search, Calendar, X, Eye, Edit, Printer, FileText, Trash2 } from 'lucide-react';
 import Api from '../Api';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+
+const printOrder = (order: any) => {
+  const existingIframe = document.getElementById('printOrderIframe');
+  if (existingIframe) {
+    document.body.removeChild(existingIframe);
+  }
+
+  const iframe = document.createElement('iframe');
+  iframe.id = 'printOrderIframe';
+  iframe.style.position = 'absolute';
+  iframe.style.top = '-10000px';
+  iframe.style.left = '-10000px';
+  iframe.style.width = '210mm'; // A4 width
+  iframe.style.opacity = '0';
+  iframe.style.pointerEvents = 'none';
+  
+  document.body.appendChild(iframe);
+  const doc = iframe.contentWindow?.document;
+  if (!doc) return;
+
+  const orderDateStr = new Date(order.orderDate).toLocaleDateString('en-IN');
+  const deliveryDateStr = order.expectedDeliveryDate ? new Date(order.expectedDeliveryDate).toLocaleDateString('en-IN') : 'N/A';
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Sales Order - ${order.orderNo || order.orderNumber}</title>
+        <style>
+          body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 20px;
+            color: #333;
+            font-size: 14px;
+          }
+          .header {
+            text-align: center;
+            border-bottom: 2px solid #2b579a;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+          }
+          .shop-name {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2b579a;
+            margin: 0;
+            text-transform: uppercase;
+          }
+          .title {
+            font-size: 18px;
+            font-weight: bold;
+            margin: 5px 0 0 0;
+            letter-spacing: 1px;
+          }
+          .info-table {
+            width: 100%;
+            margin-bottom: 20px;
+            border-collapse: collapse;
+          }
+          .info-table td {
+            padding: 5px;
+            vertical-align: top;
+          }
+          .info-title {
+            font-weight: bold;
+            color: #555;
+            width: 150px;
+          }
+          .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 25px;
+          }
+          .items-table th, .items-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+          }
+          .items-table th {
+            background-color: #f2f2f2;
+            color: #2b579a;
+            font-weight: bold;
+          }
+          .text-right {
+            text-align: right;
+          }
+          .text-center {
+            text-align: center;
+          }
+          .summary-container {
+            float: right;
+            width: 300px;
+            margin-bottom: 30px;
+          }
+          .summary-line {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            font-size: 13px;
+          }
+          .summary-line.total {
+            font-size: 16px;
+            font-weight: bold;
+            border-top: 1px solid #333;
+            padding-top: 8px;
+            color: #2b579a;
+          }
+          .footer {
+            margin-top: 50px;
+            clear: both;
+            border-top: 1px solid #eee;
+            padding-top: 15px;
+          }
+          .terms {
+            font-size: 11px;
+            color: #777;
+            width: 60%;
+            float: left;
+          }
+          .signatures {
+            float: right;
+            width: 35%;
+            text-align: center;
+            margin-top: 20px;
+          }
+          .sig-line {
+            border-top: 1px solid #999;
+            margin-top: 40px;
+            padding-top: 5px;
+            font-weight: bold;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1 class="shop-name">SRI GAYATHRI TRADERS</h1>
+          <div class="title">SALES ORDER</div>
+        </div>
+
+        <table class="info-table">
+          <tr>
+            <td>
+              <div><span class="info-title">Order Number:</span> <strong>${order.orderNo || order.orderNumber}</strong></div>
+              <div><span class="info-title">Order Date:</span> ${orderDateStr}</div>
+              <div><span class="info-title">Expected Delivery:</span> <strong>${deliveryDateStr}</strong></div>
+              <div><span class="info-title">Status:</span> <span style="text-transform: uppercase;">${order.status}</span></div>
+            </td>
+            <td style="text-align: right;">
+              <div><strong>Customer Details:</strong></div>
+              <div>Name: ${order.customer || order.buyerName || 'Walk-in Customer'}</div>
+              ${order.mobileNo ? `<div>Phone: ${order.mobileNo}</div>` : ''}
+              ${order.address ? `<div>Address: ${order.address}</div>` : ''}
+            </td>
+          </tr>
+        </table>
+
+        <table class="items-table">
+          <thead>
+            <tr>
+              <th style="width: 5%;" class="text-center">#</th>
+              <th style="width: 15%;">Item Code</th>
+              <th>Description</th>
+              <th style="width: 10%;">Color</th>
+              <th style="width: 10%;">Size</th>
+              <th style="width: 10%;" class="text-center">Qty Ordered</th>
+              <th style="width: 12%;" class="text-right">Unit Price</th>
+              <th style="width: 10%;" class="text-center">Disc %</th>
+              <th style="width: 15%;" class="text-right">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${order.items.map((item: any, idx: number) => `
+              <tr>
+                <td class="text-center">${idx + 1}</td>
+                <td>${item.itemCode || '-'}</td>
+                <td>${item.itemDescription || item.itemName || 'Unknown Item'}</td>
+                <td>${item.color || '-'}</td>
+                <td>${item.size || '-'}</td>
+                <td class="text-center">${item.quantityOrdered || item.orderedQty}</td>
+                <td class="text-right">₹${Number(item.unitPrice).toFixed(2)}</td>
+                <td class="text-center">${item.discountPercentage || item.discount || 0}%</td>
+                <td class="text-right">₹${Number(item.lineSubTotal || item.lineTotal).toFixed(2)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+
+        <div class="summary-container">
+          <div class="summary-line">
+            <span>Subtotal:</span>
+            <span>₹${Number(order.summary?.subtotal || order.subtotal).toFixed(2)}</span>
+          </div>
+          ${(order.summary?.cgst || order.cgst) > 0 ? `
+          <div class="summary-line">
+            <span>CGST:</span>
+            <span>₹${Number(order.summary?.cgst || order.cgst).toFixed(2)}</span>
+          </div>` : ''}
+          ${(order.summary?.sgst || order.sgst) > 0 ? `
+          <div class="summary-line">
+            <span>SGST:</span>
+            <span>₹${Number(order.summary?.sgst || order.sgst).toFixed(2)}</span>
+          </div>` : ''}
+          ${(order.summary?.igst || order.igst) > 0 ? `
+          <div class="summary-line">
+            <span>IGST:</span>
+            <span>₹${Number(order.summary?.igst || order.igst).toFixed(2)}</span>
+          </div>` : ''}
+          <div class="summary-line">
+            <span>Rounding:</span>
+            <span>₹${Number(order.summary?.rounding || order.roundOff || 0).toFixed(2)}</span>
+          </div>
+          <div class="summary-line total">
+            <span>Grand Total:</span>
+            <span>₹${Number(order.summary?.grandTotal || order.grandTotal).toFixed(2)}</span>
+          </div>
+          <div class="summary-line" style="font-weight: bold; color: #15803d; border-top: 1px dashed #ddd; padding-top: 4px;">
+            <span>Advance Paid:</span>
+            <span>₹${Number(order.advancePaid || 0).toFixed(2)}</span>
+          </div>
+          <div class="summary-line" style="font-weight: bold; color: #b91c1c;">
+            <span>Balance Due:</span>
+            <span>₹${Number(order.balanceAmount || (order.summary?.grandTotal - order.advancePaid) || 0).toFixed(2)}</span>
+          </div>
+        </div>
+
+        <div class="footer">
+          <div class="terms">
+            <strong>Terms & Conditions:</strong>
+            <ol style="margin: 5px 0; padding-left: 15px;">
+              <li>Goods once ordered cannot be cancelled or returned.</li>
+              <li>Expected delivery dates are estimates subject to transport availability.</li>
+              <li>Balance amount must be cleared prior to or at the time of final delivery.</li>
+            </ol>
+          </div>
+
+          <div class="signatures">
+            <div class="sig-line">Authorized Signature</div>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  doc.open();
+  doc.write(htmlContent);
+  doc.close();
+
+  setTimeout(() => {
+    if (iframe.contentWindow) {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+    }
+  }, 250);
+};
 
 const SalesRegister = () => {
   const {
@@ -37,6 +291,9 @@ const SalesRegister = () => {
   const [detailModalLoading, setDetailModalLoading] = useState(false);
   const [detailModalData, setDetailModalData] = useState<any | null>(null);
   const [detailModalType, setDetailModalType] = useState<'bill' | 'order' | 'return'>('bill');
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deletingOrder, setDeletingOrder] = useState<any | null>(null);
+  const [deleteReason, setDeleteReason] = useState('');
 
   const handleOpenDetailModal = async (type: 'bill' | 'order' | 'return', rec: any) => {
     setDetailModalOpen(true);
@@ -544,11 +801,14 @@ const SalesRegister = () => {
                   <th className="border-r border-b border-gray-400 p-2 font-bold w-12 text-center">#</th>
                   <th className="border-r border-b border-gray-400 p-2 font-bold">Order No</th>
                   <th className="border-r border-b border-gray-400 p-2 font-bold">Date</th>
-                  <th className="border-r border-b border-gray-400 p-2 font-bold">Customer Name</th>
-                  <th className="border-r border-b border-gray-400 p-2 font-bold">Delivery Date</th>
-                  <th className="border-r border-b border-gray-400 p-2 font-bold">Terms</th>
-                  <th className="border-r border-b border-gray-400 p-2 font-bold text-right">Grand Total</th>
-                  <th className="border-b border-gray-400 p-2 font-bold text-center">Status</th>
+                  <th className="border-r border-b border-gray-400 p-2 font-bold">Customer</th>
+                  <th className="border-r border-b border-gray-400 p-2 font-bold text-center">Items</th>
+                  <th className="border-r border-b border-gray-400 p-2 font-bold text-center">Qty</th>
+                  <th className="border-r border-b border-gray-400 p-2 font-bold text-right">Total</th>
+                  <th className="border-r border-b border-gray-400 p-2 font-bold text-right">Advance</th>
+                  <th className="border-r border-b border-gray-400 p-2 font-bold text-right">Balance</th>
+                  <th className="border-r border-b border-gray-400 p-2 font-bold text-center">Status</th>
+                  <th className="border-b border-gray-400 p-2 font-bold text-center">Action</th>
                 </tr>
               )}
               {activeTab === 'returns' && (
@@ -568,11 +828,11 @@ const SalesRegister = () => {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={9} className="p-4 text-center text-gray-500 font-semibold">Loading data...</td>
+                  <td colSpan={11} className="p-4 text-center text-gray-500 font-semibold">Loading data...</td>
                 </tr>
               ) : filteredRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="p-4 text-center text-gray-500 font-semibold">No records found for the selected date range.</td>
+                  <td colSpan={11} className="p-4 text-center text-gray-500 font-semibold">No records found for the selected date range.</td>
                 </tr>
               ) : (
                 filteredRecords.map((rec, index) => {
@@ -608,6 +868,96 @@ const SalesRegister = () => {
                       </tr>
                     );
                   } else if (activeTab === 'orders') {
+                    const itemsCount = rec.items?.length || 0;
+                    const totalQty = rec.items?.reduce((sum: number, item: any) => sum + (item.orderedQty || 0), 0) || 0;
+                    
+                    const handleCancelClick = async (e: React.MouseEvent) => {
+                      e.stopPropagation();
+                      if (rec.status === 'Completed' || rec.status === 'Cancelled') return;
+                      const reason = window.prompt("Enter reason for cancelling this sales order:");
+                      if (reason !== null) {
+                        try {
+                          const res = await fetch(`${Api}/sales/orders/${rec._id}/cancel`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ cancelReason: reason, cancelledBy: 'Owner' })
+                          });
+                          const resData = await res.json();
+                          if (resData.success) {
+                            setGlobalNotification({ msg: 'Order cancelled successfully.', type: 'success' });
+                            fetchRecords();
+                          } else {
+                            setGlobalNotification({ msg: 'Failed to cancel: ' + resData.error, type: 'error' });
+                          }
+                        } catch (err) {
+                          console.error(err);
+                          setGlobalNotification({ msg: 'Error cancelling order.', type: 'error' });
+                        }
+                      }
+                    };
+
+                    const handlePrintClick = (e: React.MouseEvent) => {
+                      e.stopPropagation();
+                      const printPayload = {
+                        orderNo: rec.orderNumber || rec.orderNo,
+                        orderDate: rec.orderDate,
+                        customer: rec.buyerName || rec.customer,
+                        mobileNo: rec.mobileNo,
+                        address: rec.address,
+                        expectedDeliveryDate: rec.expectedDeliveryDate,
+                        status: rec.status,
+                        summary: {
+                          subtotal: rec.subtotal,
+                          cgst: rec.cgst,
+                          sgst: rec.sgst,
+                          igst: rec.igst,
+                          rounding: rec.roundOff,
+                          grandTotal: rec.grandTotal
+                        },
+                        advancePaid: rec.advancePaid,
+                        balanceAmount: rec.balanceAmount,
+                        items: rec.items?.map((it: any) => ({
+                          itemCode: it.itemCode,
+                          itemDescription: it.itemName,
+                          color: it.color,
+                          size: it.size,
+                          quantityOrdered: it.orderedQty,
+                          quantityFulfilled: it.deliveredQty,
+                          unitPrice: it.unitPrice,
+                          discountPercentage: it.discount,
+                          lineSubTotal: it.lineTotal
+                        })) || []
+                      };
+                      printOrder(printPayload);
+                    };
+
+                    const handleConvertClick = (e: React.MouseEvent) => {
+                      e.stopPropagation();
+                      if (rec.status === 'Completed' || rec.status === 'Cancelled') return;
+                      const orderPayload = {
+                        id: rec._id || rec.id,
+                        orderNumber: rec.orderNumber || rec.orderNo,
+                        buyerName: rec.buyerName || rec.customer || 'CASH CUSTOMER',
+                        mobileNo: rec.mobileNo,
+                        address: rec.address,
+                        items: rec.items?.map((it: any) => ({
+                          productId: it.productId,
+                          itemCode: it.itemCode,
+                          itemName: it.itemName,
+                          qty: Math.max(0, (it.orderedQty || 0) - (it.deliveredQty || 0)),
+                          rate: it.unitPrice || 0,
+                          discPercent: it.discount || 0
+                        })) || []
+                      };
+                      navigate('/sales-bill', { state: { orderToConvert: orderPayload } });
+                    };
+
+                    const handleEditClick = (e: React.MouseEvent) => {
+                      e.stopPropagation();
+                      if (rec.status === 'Completed' || rec.status === 'Cancelled') return;
+                      navigate('/sales-order', { state: { orderToEdit: rec } });
+                    };
+
                     return (
                       <tr
                         key={rec._id}
@@ -623,19 +973,72 @@ const SalesRegister = () => {
                             handleOpenDetailModal('order', rec);
                           }}
                         >
-                          {rec.orderNo}
+                          {rec.orderNumber || rec.orderNo}
                         </td>
                         <td className="border-r border-gray-300 p-1.5">{new Date(rec.orderDate).toLocaleDateString()}</td>
-                        <td className="border-r border-gray-300 p-1.5">{rec.customer || 'CASH CUSTOMER'}</td>
-                        <td className="border-r border-gray-300 p-1.5">{rec.deliveryDate ? new Date(rec.deliveryDate).toLocaleDateString() : '-'}</td>
-                        <td className="border-r border-gray-300 p-1.5">{rec.paymentTerms || '-'}</td>
-                        <td className="border-r border-gray-300 p-1.5 text-right font-mono font-bold text-green-700">₹{rec.grandTotal?.toFixed(2) || '0.00'}</td>
-                        <td className="p-1.5 text-center">
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${rec.status === 'FULFILLED' ? 'bg-green-100 text-green-800 border-green-300' :
-                              rec.status === 'PENDING' ? 'bg-orange-100 text-orange-800 border-orange-300' :
-                                rec.status === 'CANCELLED' ? 'bg-red-100 text-red-800 border-red-300' :
+                        <td className="border-r border-gray-300 p-1.5">
+                          <div>{rec.buyerName || rec.customer || 'CASH CUSTOMER'}</div>
+                          {rec.mobileNo && <div className="text-[10px] text-gray-400">Mob: {rec.mobileNo}</div>}
+                        </td>
+                        <td className="border-r border-gray-300 p-1.5 text-center font-mono">{itemsCount}</td>
+                        <td className="border-r border-gray-300 p-1.5 text-center font-mono">{totalQty}</td>
+                        <td className="border-r border-gray-300 p-1.5 text-right font-mono font-bold text-slate-800">₹{rec.grandTotal?.toFixed(2) || '0.00'}</td>
+                        <td className="border-r border-gray-300 p-1.5 text-right font-mono text-green-700">₹{rec.advancePaid?.toFixed(2) || '0.00'}</td>
+                        <td className="border-r border-gray-300 p-1.5 text-right font-mono text-red-600">₹{rec.balanceAmount?.toFixed(2) || '0.00'}</td>
+                        <td className="border-r border-gray-300 p-1.5 text-center">
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${rec.status === 'Completed' || rec.status === 'FULFILLED' ? 'bg-green-100 text-green-800 border-green-300' :
+                              rec.status === 'Partial' || rec.status === 'PENDING' ? 'bg-orange-100 text-orange-800 border-orange-300' :
+                                rec.status === 'Cancelled' ? 'bg-red-100 text-red-800 border-red-300' :
                                   'bg-blue-100 text-blue-800 border-blue-300'
-                            }`}>{rec.status || 'OPEN'}</span>
+                            }`}>{rec.status || 'Open'}</span>
+                        </td>
+                        <td className="p-1.5 text-center space-x-1.5 whitespace-nowrap">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleOpenDetailModal('order', rec); }}
+                            className="inline-flex items-center justify-center p-1 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-600 rounded transition-colors"
+                            title="View"
+                          >
+                            <Eye size={14} />
+                          </button>
+                          {rec.status !== 'Completed' && rec.status !== 'Cancelled' && (
+                            <button
+                              onClick={handleEditClick}
+                              className="inline-flex items-center justify-center p-1 bg-yellow-50 hover:bg-yellow-100 border border-yellow-200 text-yellow-600 rounded transition-colors"
+                              title="Edit"
+                            >
+                              <Edit size={14} />
+                            </button>
+                          )}
+                          <button
+                            onClick={handlePrintClick}
+                            className="inline-flex items-center justify-center p-1 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 rounded transition-colors"
+                            title="Print"
+                          >
+                            <Printer size={14} />
+                          </button>
+                          {rec.status !== 'Completed' && rec.status !== 'Cancelled' && (
+                            <>
+                              <button
+                                onClick={handleConvertClick}
+                                className="inline-flex items-center justify-center p-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-600 rounded transition-colors"
+                                title="Convert"
+                              >
+                                <FileText size={14} />
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDeletingOrder(rec);
+                                  setDeleteReason('');
+                                  setDeleteModalOpen(true);
+                                }}
+                                className="inline-flex items-center justify-center p-1 bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 rounded transition-colors"
+                                title="Delete"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </>
+                          )}
                         </td>
                       </tr>
                     );
@@ -1143,6 +1546,19 @@ const SalesRegister = () => {
                           </div>
                         </div>
                       )}
+
+                      {detailModalType === 'order' && (
+                        <div className="border-t border-slate-200 pt-2 mt-2 space-y-1">
+                          <div className="flex justify-between text-green-700 font-semibold">
+                            <span>Advance Paid:</span>
+                            <span className="font-mono">₹{(detailModalData.advancePaid || 0).toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between text-red-600 font-semibold">
+                            <span>Balance Due:</span>
+                            <span className="font-mono">₹{(detailModalData.balanceAmount || 0).toFixed(2)}</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </>
@@ -1170,6 +1586,109 @@ const SalesRegister = () => {
               </button>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* Sales Order Delete Confirmation Modal */}
+      {deleteModalOpen && deletingOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-lg shadow-2xl border border-gray-200 max-w-md w-full flex flex-col overflow-hidden">
+            <div className="bg-red-600 text-white px-4 py-3 flex justify-between items-center">
+              <h3 className="text-sm font-bold">Delete Sales Order: {deletingOrder.orderNumber || deletingOrder.orderNo}</h3>
+              <button onClick={() => setDeleteModalOpen(false)} className="text-white hover:bg-red-700 p-1 rounded">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="p-4 space-y-4 text-slate-800 text-sm">
+              <p className="font-semibold text-slate-700">Do you want to delete this Sales Order?</p>
+              
+              {/* Item codes display */}
+              <div className="bg-slate-50 border border-slate-200 p-3 rounded-md space-y-1.5 max-h-40 overflow-y-auto">
+                <div className="text-xs font-bold text-slate-500 uppercase pb-1 border-b border-slate-200">Items in this order:</div>
+                {deletingOrder.items?.map((it: any, idx: number) => (
+                  <div key={idx} className="flex justify-between text-xs font-medium">
+                    <span className="font-mono text-blue-700">{it.itemCode || '-'}</span>
+                    <span className="text-slate-600 truncate max-w-[180px]">{it.itemName || it.itemDescription}</span>
+                    <span className="text-slate-500">Qty: {it.orderedQty || it.qty}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">Reason for Deletion</label>
+                <textarea
+                  value={deleteReason}
+                  onChange={e => setDeleteReason(e.target.value)}
+                  placeholder="Enter comments/reason..."
+                  rows={2}
+                  className="w-full border border-slate-300 rounded p-2 focus:border-red-500 focus:outline-none text-xs"
+                />
+              </div>
+            </div>
+            <div className="bg-slate-50 px-4 py-3 border-t border-slate-200 flex justify-between items-center">
+              <button 
+                onClick={() => {
+                  setDeleteModalOpen(false);
+                  const orderPayload = {
+                    id: deletingOrder._id || deletingOrder.id,
+                    orderNumber: deletingOrder.orderNumber || deletingOrder.orderNo,
+                    buyerName: deletingOrder.buyerName || deletingOrder.customer || 'CASH CUSTOMER',
+                    mobileNo: deletingOrder.mobileNo,
+                    address: deletingOrder.address,
+                    items: deletingOrder.items?.map((it: any) => ({
+                      productId: it.productId,
+                      itemCode: it.itemCode,
+                      itemName: it.itemName || it.itemDescription,
+                      qty: Math.max(0, (it.orderedQty || 0) - (it.deliveredQty || 0)),
+                      rate: it.unitPrice || 0,
+                      discPercent: it.discount || 0
+                    })) || []
+                  };
+                  navigate('/sales-bill', { state: { orderToConvert: orderPayload } });
+                }}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded text-xs font-bold shadow-sm cursor-pointer"
+              >
+                Convert to Bill
+              </button>
+              <div className="flex space-x-2">
+                <button 
+                  onClick={() => setDeleteModalOpen(false)}
+                  className="bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 px-3 py-1.5 rounded text-xs font-medium cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={async () => {
+                    if (!deleteReason) {
+                      setGlobalNotification({ msg: 'Please provide a deletion reason.', type: 'error' });
+                      return;
+                    }
+                    try {
+                      const res = await fetch(`${Api}/sales/orders/${deletingOrder._id || deletingOrder.id}/cancel`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ cancelReason: deleteReason, cancelledBy: 'Owner' })
+                      });
+                      const data = await res.json();
+                      if (data.success) {
+                        setDeleteModalOpen(false);
+                        setGlobalNotification({ msg: 'Sales Order deleted successfully.', type: 'success' });
+                        fetchRecords();
+                      } else {
+                        setGlobalNotification({ msg: 'Failed to delete order: ' + data.error, type: 'error' });
+                      }
+                    } catch (err) {
+                      console.error(err);
+                      setGlobalNotification({ msg: 'Error deleting order.', type: 'error' });
+                    }
+                  }}
+                  className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded text-xs font-bold shadow-sm cursor-pointer"
+                >
+                  Confirm Delete
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

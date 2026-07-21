@@ -74,6 +74,16 @@ export const getSalesBillByInvoiceNo = async (req: Request, res: Response) => {
   }
 };
 
+export const getNextSalesOrderSequence = async (req: Request, res: Response) => {
+  try {
+    const orderNo = await salesService.getNextSalesOrderSequence();
+    res.json({ orderNo });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to generate order sequence' });
+  }
+};
+
 export const createSalesOrder = async (req: Request, res: Response) => {
   try {
     const order = await salesService.createSalesOrder(req.body);
@@ -120,6 +130,20 @@ export const updateSalesOrder = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error("Update Sales Order Error:", error);
     res.status(500).json({ error: 'Failed to update sales order', details: error.message });
+  }
+};
+
+export const cancelSalesOrder = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const success = await salesService.cancelSalesOrder(id as string, req.body);
+    if (!success) {
+      return res.status(404).json({ error: 'Sales order not found' });
+    }
+    res.json({ success: true, message: 'Sales Order cancelled successfully' });
+  } catch (error: any) {
+    console.error("Cancel Sales Order Error:", error);
+    res.status(500).json({ error: 'Failed to cancel sales order', details: error.message });
   }
 };
 

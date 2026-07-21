@@ -24,13 +24,16 @@ const POSCheckout = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const incomingPayload = location.state?.quotationPayload;
+  const orderToConvert = location.state?.orderToConvert;
+
   const [editingBillId, setEditingBillId] = useState<string | null>(null);
+  const [fromSalesOrderId, setFromSalesOrderId] = useState<string | null>(null);
 
   // --- State for Document Input Panel ---
   const [invoiceNo, setInvoiceNo] = useState('Loading...'); // Fetched from backend
   const [invDate, setInvDate] = useState(new Date().toISOString().split('T')[0]);
   const [payDays, setPayDays] = useState(0);
-  const [buyerName, setBuyerName] = useState(incomingPayload?.buyerName || '');
+  const [buyerName, setBuyerName] = useState(incomingPayload?.buyerName || orderToConvert?.buyerName || '');
   const [salesman, setSalesman] = useState('');
   const [paymentMode, setPaymentMode] = useState('Cash');
   const [rapidBarcode, setRapidBarcode] = useState('');
@@ -47,9 +50,9 @@ const POSCheckout = () => {
   const [upiTxnId, setUpiTxnId] = useState('');
   const rapidInputRef = useRef<HTMLInputElement>(null);
   const [availableCustomers, setAvailableCustomers] = useState<any[]>([]);
-  const [address, setAddress] = useState('');
+  const [address, setAddress] = useState(orderToConvert?.address || '');
   const [eType, setEType] = useState('Local');
-  const [mobileNo, setMobileNo] = useState('');
+  const [mobileNo, setMobileNo] = useState(orderToConvert?.mobileNo || '');
   const [gstNo, setGstNo] = useState('');
   const [printIn, setPrintIn] = useState('Blank A4');
   const [invoiceFormat, setInvoiceFormat] = useState('GSTFormat Full Page');
@@ -86,25 +89,38 @@ const POSCheckout = () => {
   }, [availableCustomers, customerSearch]);
 
   // --- State for Data Entry Grid ---
-  const initialGridData = incomingPayload?.items?.length > 0
-    ? incomingPayload.items.map((item: any, idx: number) => {
-      const baseAmount = item.qty * item.rate;
-      const discAmt = (baseAmount * item.discPercent) / 100;
-      return {
-        id: idx + 1,
-        itemName: item.itemName,
-        itemDesc: item.itemDesc,
-        qty: item.qty,
-        uom: 'PCS',
-        rate: item.rate,
-        discPercent: item.discPercent,
-        discAmt: discAmt,
-        amount: baseAmount - discAmt
-      };
-    })
-    : [{ id: 1, itemName: '', itemDesc: '', qty: 0, uom: '', rate: 0, discPercent: 0, discAmt: 0, amount: 0 }];
+  const initialGridData = useMemo(() => {
+    const payload = incomingPayload || orderToConvert;
+    if (payload?.items?.length > 0) {
+      return payload.items.map((item: any, idx: number) => {
+        const qty = Number(item.qty) || Number(item.quantityOrdered) || 0;
+        const rate = Number(item.rate) || Number(item.unitPrice) || 0;
+        const discPercent = Number(item.discPercent) || Number(item.discountPercentage) || 0;
+        const baseAmount = qty * rate;
+        const discAmt = (baseAmount * discPercent) / 100;
+        return {
+          id: idx + 1,
+          itemName: item.itemName || item.itemDescription || '',
+          itemDesc: item.itemDesc || item.itemCode || '',
+          qty,
+          uom: item.uom || 'PCS',
+          rate,
+          discPercent,
+          discAmt: discAmt,
+          amount: baseAmount - discAmt
+        };
+      });
+    }
+    return [{ id: 1, itemName: '', itemDesc: '', qty: 0, uom: '', rate: 0, discPercent: 0, discAmt: 0, amount: 0 }];
+  }, [incomingPayload, orderToConvert]);
 
   const [gridData, setGridData] = useState<GridRow[]>(initialGridData);
+
+  useEffect(() => {
+    if (initialGridData.length > 0 && (initialGridData[0].itemName !== '' || initialGridData.length > 1)) {
+      setGridData(initialGridData);
+    }
+  }, [initialGridData]);
 
   // --- Totals State ---
   const [totalQty, setTotalQty] = useState(0);
@@ -199,6 +215,13 @@ const POSCheckout = () => {
           if (data.invoiceNo) setInvoiceNo(data.invoiceNo);
         })
         .catch(err => console.error("Error fetching invoice no:", err));
+
+      if (orderToConvert) {
+        setFromSalesOrderId(orderToConvert.id || orderToConvert._id || null);
+        setBuyerName(orderToConvert.buyerName || '');
+        setMobileNo(orderToConvert.mobileNo || '');
+        setAddress(orderToConvert.address || '');
+      }
     }
   }, [location.state]);
 
@@ -546,6 +569,7 @@ const POSCheckout = () => {
       favourDiscount: Number(favourDiscount) || 0,
       cgst, sgst, roundOff, netAmount,
       salesman, paymentMode,
+      fromSalesOrderId,
       items: validItems.map(item => ({
         itemName: item.itemName,
         itemDesc: item.itemDesc,

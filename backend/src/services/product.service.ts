@@ -73,6 +73,53 @@ export const searchItems = async (q: string): Promise<any[]> => {
   });
 
   return Array.from(map.values());
+export const searchItems = async (q: string): Promise<any[]> => {
+  const products = await prisma.product.findMany({
+    where: {
+      OR: [
+        { name: { contains: q, mode: 'insensitive' } },
+        { itemCode: { contains: q, mode: 'insensitive' } },
+        { barcode: { contains: q, mode: 'insensitive' } },
+        { variety: { contains: q, mode: 'insensitive' } },
+        { department: { contains: q, mode: 'insensitive' } },
+        { size: { contains: q, mode: 'insensitive' } }
+      ]
+    },
+    take: 100
+  });
+
+  const pendingItems = await prisma.salesOrderItem.groupBy({
+    by: ['productId', 'itemCode', 'itemName'],
+    where: {
+      salesOrder: {
+        status: { in: ['Open', 'Partial'] }
+      }
+    },
+    _sum: {
+      pendingQty: true
+    }
+  });
+
+  const pendingMap = new Map<string, number>();
+  const pendingByCodeMap = new Map<string, number>();
+  const pendingByNameMap = new Map<string, number>();
+
+  for (const item of pendingItems) {
+    const qty = item._sum.pendingQty || 0;
+    if (qty > 0) {
+      if (item.productId) pendingMap.set(item.productId, qty);
+      if (item.itemCode) pendingByCodeMap.set(item.itemCode, qty);
+      if (item.itemName) pendingByNameMap.set(item.itemName.toLowerCase(), qty);
+    }
+  }
+
+  return products.map((p: any) => {
+    const qty = pendingMap.get(p.id) || pendingByCodeMap.get(p.itemCode || '') || pendingByNameMap.get(p.name.toLowerCase()) || 0;
+    return {
+      ...p,
+      pendingOrderQty: qty
+    };
+  });
 };
 
 export const getNextProductCode = async (): Promise<string> => {
@@ -171,6 +218,30 @@ export const getDailyStockStatus = async (dateStr: string): Promise<any[]> => {
   }).toArray();
   for (const item of purchaseItems) {
     item.purchaseBill = purchaseBillMap.get(item.purchaseBillId?.toString()) || null;
+  // Dynamic Sales Order pending quantities
+  const pendingItems = await prisma.salesOrderItem.groupBy({
+    by: ['productId', 'itemCode', 'itemName'],
+    where: {
+      salesOrder: {
+        status: { in: ['Open', 'Partial'] }
+      }
+    },
+    _sum: {
+      pendingQty: true
+    }
+  });
+
+  const pendingMap = new Map<string, number>();
+  const pendingByCodeMap = new Map<string, number>();
+  const pendingByNameMap = new Map<string, number>();
+
+  for (const item of pendingItems) {
+    const qty = item._sum.pendingQty || 0;
+    if (qty > 0) {
+      if (item.productId) pendingMap.set(item.productId, qty);
+      if (item.itemCode) pendingByCodeMap.set(item.itemCode, qty);
+      if (item.itemName) pendingByNameMap.set(item.itemName.toLowerCase(), qty);
+    }
   }
 
   return products.map(product => {
@@ -221,6 +292,7 @@ export const getDailyStockStatus = async (dateStr: string): Promise<any[]> => {
     const currentStock = product.stock || 0;
     const closingStock = currentStock - inwardAfterToday + outwardAfterToday;
     const openingStock = closingStock - inwardToday + outwardToday;
+    const pendingOrderQty = pendingMap.get(product.id) || pendingByCodeMap.get(product.itemCode || '') || pendingByNameMap.get(product.name.toLowerCase()) || 0;
 
     return {
       id: product.id,
@@ -233,6 +305,7 @@ export const getDailyStockStatus = async (dateStr: string): Promise<any[]> => {
       inwardToday,
       outwardToday,
       closingStock,
+      pendingOrderQty,
       valuation: closingStock * (product.purchaseRate || 0)
     };
   });
@@ -267,6 +340,30 @@ export const getStockRegisterReport = async (): Promise<any[]> => {
   const purchaseBillMap = new Map(purchaseBills.map(b => [b._id.toString(), b]));
   for (const item of purchaseItems) {
     item.purchaseBill = purchaseBillMap.get(item.purchaseBillId?.toString()) || null;
+  // Dynamic Sales Order pending quantities
+  const pendingItems = await prisma.salesOrderItem.groupBy({
+    by: ['productId', 'itemCode', 'itemName'],
+    where: {
+      salesOrder: {
+        status: { in: ['Open', 'Partial'] }
+      }
+    },
+    _sum: {
+      pendingQty: true
+    }
+  });
+
+  const pendingMap = new Map<string, number>();
+  const pendingByCodeMap = new Map<string, number>();
+  const pendingByNameMap = new Map<string, number>();
+
+  for (const item of pendingItems) {
+    const qty = item._sum.pendingQty || 0;
+    if (qty > 0) {
+      if (item.productId) pendingMap.set(item.productId, qty);
+      if (item.itemCode) pendingByCodeMap.set(item.itemCode, qty);
+      if (item.itemName) pendingByNameMap.set(item.itemName.toLowerCase(), qty);
+    }
   }
 
   return products.map(product => {
@@ -326,6 +423,7 @@ export const getStockRegisterReport = async (): Promise<any[]> => {
     const totalOutward = dbMovements.reduce((sum, m) => sum + m.outward, 0);
 
     const calculatedOpeningBalance = (product.stock || 0) - totalInward + totalOutward;
+    const pendingOrderQty = pendingMap.get(product.id) || pendingByCodeMap.get(product.itemCode || '') || pendingByNameMap.get(product.name.toLowerCase()) || 0;
 
     return {
       id: product.id,
@@ -339,6 +437,7 @@ export const getStockRegisterReport = async (): Promise<any[]> => {
       price: product.price || 0,
       dbStock: product.stock || 0,
       openingBalance: calculatedOpeningBalance,
+      pendingOrderQty,
       movements: dbMovements
     };
   });
