@@ -282,6 +282,7 @@ const SalesRegister = () => {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [preset, setPreset] = useState('all');
+  const [selectedPaymentMode, setSelectedPaymentMode] = useState('all');
 
   // WhatsApp Share State
   const [sharing, setSharing] = useState(false);
@@ -349,23 +350,22 @@ const SalesRegister = () => {
       setStartDate(dStr);
       setEndDate(dStr);
     } else if (val === 'this-week') {
-      const startOfWeek = new Date(today);
-      const day = today.getDay();
-      const diff = today.getDate() - day + (day === 0 ? -6 : 1);
-      startOfWeek.setDate(diff);
-      const endOfWeek = new Date(startOfWeek);
-      endOfWeek.setDate(startOfWeek.getDate() + 6);
-      setStartDate(formatDate(startOfWeek));
-      setEndDate(formatDate(endOfWeek));
+      const first = today.getDate() - today.getDay();
+      const firstDay = new Date(today.setDate(first));
+      const lastDay = new Date();
+      setStartDate(formatDate(firstDay));
+      setEndDate(formatDate(lastDay));
     } else if (val === 'this-month') {
-      const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-      const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-      setStartDate(formatDate(startOfMonth));
-      setEndDate(formatDate(endOfMonth));
+      const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+      const lastDay = new Date();
+      setStartDate(formatDate(firstDay));
+      setEndDate(formatDate(lastDay));
     } else if (val === 'fin-year') {
-      const year = today.getMonth() >= 3 ? today.getFullYear() : today.getFullYear() - 1;
-      setStartDate(`${year}-04-01`);
-      setEndDate(`${year + 1}-03-31`);
+      const currentYear = today.getFullYear();
+      const currentMonth = today.getMonth() + 1;
+      const startYr = currentMonth >= 4 ? currentYear : currentYear - 1;
+      setStartDate(`${startYr}-04-01`);
+      setEndDate(`${startYr + 1}-03-31`);
     }
   };
 
@@ -405,9 +405,10 @@ const SalesRegister = () => {
     fetchRecords();
   }, [searchQuery, activeTab]);
 
-  // Date Filtering logic on frontend
+  // Date and Payment Mode Filtering logic on frontend
   const filteredRecords = useMemo(() => {
     return records.filter(rec => {
+      // Date filter
       const dateVal = new Date(rec.invDate || rec.orderDate || rec.returnDate);
       if (startDate) {
         const sDate = new Date(startDate);
@@ -419,9 +420,38 @@ const SalesRegister = () => {
         eDate.setHours(23, 59, 59, 999);
         if (dateVal > eDate) return false;
       }
+
+      // Payment Mode Dropdown filter
+      const mode = (rec.paymentMode || rec.refundMethod || 'Cash').toLowerCase();
+      if (selectedPaymentMode !== 'all') {
+        const selMode = selectedPaymentMode.toLowerCase();
+        if (selMode === 'cash' && !mode.includes('cash')) return false;
+        if (selMode === 'upi' && !mode.includes('upi') && !mode.includes('online')) return false;
+        if (selMode === 'card' && !mode.includes('card') && !mode.includes('bank')) return false;
+        if (selMode === 'credit' && !mode.includes('credit') && !mode.includes('ledger')) return false;
+      }
+
+      // Client-side text search (for payment mode or invoice/customer)
+      if (searchQuery && searchQuery.trim() !== '') {
+        const q = searchQuery.toLowerCase().trim();
+        const invNo = (rec.invoiceNo || rec.orderNo || rec.returnNo || '').toLowerCase();
+        const buyer = (rec.buyerName || rec.customer || rec.customerName || '').toLowerCase();
+        const mob = (rec.mobileNo || '').toLowerCase();
+        const payMode = (rec.paymentMode || rec.refundMethod || 'Cash').toLowerCase();
+
+        const matchInv = invNo.includes(q);
+        const matchBuyer = buyer.includes(q);
+        const matchMob = mob.includes(q);
+        const matchPayMode = payMode.includes(q) || (q === 'upi' && (payMode.includes('online') || payMode.includes('upi')));
+
+        if (!matchInv && !matchBuyer && !matchMob && !matchPayMode) {
+          return false;
+        }
+      }
+
       return true;
     });
-  }, [records, startDate, endDate, activeTab]);
+  }, [records, startDate, endDate, selectedPaymentMode, searchQuery, activeTab]);
 
   // Fetch customer details when a row is selected or a customer filter is set
   useEffect(() => {
@@ -547,11 +577,12 @@ const SalesRegister = () => {
     let rows: any[][] = [];
 
     if (activeTab === 'bills') {
-      headers = ["Invoice No", "Date", "Customer Name", "Gross Amt", "Tax Amt", "Net Amt"];
+      headers = ["Invoice No", "Date", "Customer Name", "Pay Mode", "Gross Amt", "Tax Amt", "Net Amt"];
       rows = filteredRecords.map(rec => [
         rec.invoiceNo,
         new Date(rec.invDate).toLocaleDateString(),
         rec.buyerName || 'CASH CUSTOMER',
+        rec.paymentMode || 'Cash',
         `₹${(rec.totalAmount || 0).toFixed(2)}`,
         `₹${((rec.cgst || 0) + (rec.sgst || 0)).toFixed(2)}`,
         `₹${(rec.netAmount || 0).toFixed(2)}`
@@ -613,11 +644,12 @@ const SalesRegister = () => {
       let rows: any[][] = [];
 
       if (activeTab === 'bills') {
-        headers = ["Invoice No", "Date", "Customer Name", "Gross Amt", "Tax Amt", "Net Amt"];
+        headers = ["Invoice No", "Date", "Customer Name", "Pay Mode", "Gross Amt", "Tax Amt", "Net Amt"];
         rows = filteredRecords.map(rec => [
           rec.invoiceNo,
           new Date(rec.invDate).toLocaleDateString(),
           rec.buyerName || 'CASH CUSTOMER',
+          rec.paymentMode || 'Cash',
           `₹${(rec.totalAmount || 0).toFixed(2)}`,
           `₹${((rec.cgst || 0) + (rec.sgst || 0)).toFixed(2)}`,
           `₹${(rec.netAmount || 0).toFixed(2)}`
@@ -726,14 +758,28 @@ const SalesRegister = () => {
             />
           </div>
 
-          {/* Customer filter dropdown removed - now searchable directly from search input */}
+          {/* Payment Mode Filter Dropdown */}
+          <div className="flex items-center space-x-1.5 text-xs bg-slate-50 border border-gray-300 p-1 rounded-md shadow-sm">
+            <span className="font-bold text-[#2b579a] flex items-center pl-1">💳 Pay Mode:</span>
+            <select
+              value={selectedPaymentMode}
+              onChange={e => setSelectedPaymentMode(e.target.value)}
+              className="bg-white border border-gray-300 rounded px-1.5 py-0.5 text-xs font-bold text-gray-700 focus:outline-none cursor-pointer"
+            >
+              <option value="all">All Payment Modes</option>
+              <option value="cash">💵 Cash Pay</option>
+              <option value="upi">📱 UPI / Online Pay</option>
+              <option value="card">💳 Card / Bank</option>
+              <option value="credit">📜 Credit / Ledger</option>
+            </select>
+          </div>
 
           <div className="relative">
             <input
               ref={searchInputRef}
               type="text"
-              placeholder={`Search...`}
-              className="border border-gray-400 pl-8 pr-2 py-1 text-sm rounded focus:outline-none focus:border-blue-500 w-44 shadow-inner"
+              placeholder={`Search bill, UPI, Cash...`}
+              className="border border-gray-400 pl-8 pr-2 py-1 text-sm rounded focus:outline-none focus:border-blue-500 w-48 shadow-inner"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -790,6 +836,7 @@ const SalesRegister = () => {
                   <th className="border-r border-b border-gray-400 p-2 font-bold">Invoice No</th>
                   <th className="border-r border-b border-gray-400 p-2 font-bold font-semibold">Date</th>
                   <th className="border-r border-b border-gray-400 p-2 font-bold">Customer Name</th>
+                  <th className="border-r border-b border-gray-400 p-2 font-bold text-center">Pay Mode</th>
                   <th className="border-r border-b border-gray-400 p-2 font-bold text-right">Gross Amt</th>
                   <th className="border-r border-b border-gray-400 p-2 font-bold text-right">Tax Amt</th>
                   <th className="border-r border-b border-gray-400 p-2 font-bold text-right">Net Amt</th>
@@ -859,6 +906,22 @@ const SalesRegister = () => {
                         </td>
                         <td className="border-r border-gray-300 p-1.5">{new Date(rec.invDate).toLocaleDateString()}</td>
                         <td className="border-r border-gray-300 p-1.5">{rec.buyerName || 'CASH CUSTOMER'}</td>
+                        <td className="border-r border-gray-300 p-1.5 text-center">
+                          {(() => {
+                            const mode = rec.paymentMode || 'Cash';
+                            if (mode.includes('UPI') || mode.includes('Online')) {
+                              return <span className="bg-blue-100 text-blue-800 text-[10px] font-extrabold px-2 py-0.5 rounded border border-blue-300">📱 UPI / Online</span>;
+                            } else if (mode.includes('Card')) {
+                              return <span className="bg-purple-100 text-purple-800 text-[10px] font-extrabold px-2 py-0.5 rounded border border-purple-300">💳 Card</span>;
+                            } else if (mode.includes('Bank')) {
+                              return <span className="bg-amber-100 text-amber-800 text-[10px] font-extrabold px-2 py-0.5 rounded border border-amber-300">🏦 Bank</span>;
+                            } else if (mode.includes('Credit') || mode.includes('Ledger')) {
+                              return <span className="bg-rose-100 text-rose-800 text-[10px] font-extrabold px-2 py-0.5 rounded border border-rose-300">📜 Credit</span>;
+                            } else {
+                              return <span className="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2 py-0.5 rounded border border-emerald-300">💵 Cash</span>;
+                            }
+                          })()}
+                        </td>
                         <td className="border-r border-gray-300 p-1.5 text-right font-mono">₹{rec.totalAmount?.toFixed(2) || '0.00'}</td>
                         <td className="border-r border-gray-300 p-1.5 text-right font-mono text-red-600">₹{taxAmt.toFixed(2)}</td>
                         <td className="border-r border-gray-300 p-1.5 text-right font-mono font-bold text-green-700">₹{rec.netAmount?.toFixed(2) || '0.00'}</td>

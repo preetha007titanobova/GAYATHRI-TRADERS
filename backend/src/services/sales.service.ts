@@ -360,12 +360,14 @@ export const searchSalesBills = async (q: string): Promise<any[]> => {
   if (q) {
     query.$or = [
       { invoiceNo: { $regex: q, $options: 'i' } },
-      { buyerName: { $regex: q, $options: 'i' } }
+      { buyerName: { $regex: q, $options: 'i' } },
+      { paymentMode: { $regex: q, $options: 'i' } },
+      { mobileNo: { $regex: q, $options: 'i' } }
     ];
   }
   let cursor = db.collection('SalesBill').find(query).sort({ createdAt: -1 });
   if (!q) {
-    cursor = cursor.limit(50);
+    cursor = cursor.limit(100);
   }
   return await cursor.toArray();
 };
@@ -546,7 +548,9 @@ export const searchSalesReturns = async (q: string): Promise<any[]> => {
   if (q) {
     query.$or = [
       { returnNo: { $regex: q, $options: 'i' } },
-      { customerName: { $regex: q, $options: 'i' } }
+      { customerName: { $regex: q, $options: 'i' } },
+      { paymentMode: { $regex: q, $options: 'i' } },
+      { refundMethod: { $regex: q, $options: 'i' } }
     ];
   }
   return await db.collection('SalesReturn').find(query).sort({ createdAt: -1 }).limit(100).toArray();
