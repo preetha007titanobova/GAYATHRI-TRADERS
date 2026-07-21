@@ -1,6 +1,13 @@
 import { PrismaClient } from '@prisma/client';
 import { MongoClient } from 'mongodb';
 import dotenv from 'dotenv';
+import dns from 'dns';
+
+try {
+  dns.setServers(['8.8.8.8', '1.1.1.1', '8.8.4.4']);
+} catch (e) {
+  console.warn('Could not set custom DNS servers:', e);
+}
 
 dotenv.config();
 
