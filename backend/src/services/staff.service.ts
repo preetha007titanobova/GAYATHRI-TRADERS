@@ -1,0 +1,241 @@
+import { ObjectId } from 'mongodb';
+import { getDb } from '../config/db';
+import { Staff } from '../models/staff.model';
+
+export const getNextStaffCode = async (): Promise<string> => {
+  const db = await getDb();
+  const lastStaff = await db.collection('Staff').find().sort({ createdAt: -1 }).limit(1).toArray();
+  
+  let nextNum = 1;
+  if (lastStaff && lastStaff.length > 0 && lastStaff[0].staffCode) {
+    const parts = lastStaff[0].staffCode.split('-');
+    const currentNum = parseInt(parts[1] || '0');
+    if (!isNaN(currentNum)) {
+      nextNum = currentNum + 1;
+    }
+  }
+  return `STF-${nextNum.toString().padStart(3, '0')}`;
+};
+
+export const searchStaff = async (q?: string, status?: string): Promise<Staff[]> => {
+  const db = await getDb();
+  let query: any = {};
+  if (q) {
+    query.$or = [
+      { name: { $regex: q, $options: 'i' } },
+      { staffCode: { $regex: q, $options: 'i' } },
+      { mobileNo: { $regex: q, $options: 'i' } },
+      { role: { $regex: q, $options: 'i' } },
+      { biometricId: { $regex: q, $options: 'i' } }
+    ];
+  }
+  if (status) {
+    query.status = status;
+  }
+  return (await db.collection('Staff').find(query).sort({ createdAt: -1 }).toArray()) as unknown as Staff[];
+};
+
+export const createStaff = async (data: Staff): Promise<any> => {
+  const db = await getDb();
+  const result = await db.collection('Staff').insertOne({
+    staffCode: data.staffCode,
+    name: data.name,
+    role: data.role || 'Salesman',
+    mobileNo: data.mobileNo || '',
+    email: data.email || '',
+    salary: Number(data.salary) || 0,
+    dailyRate: Number(data.dailyRate) || 0,
+    shiftInTime: data.shiftInTime || '09:00 AM',
+    shiftOutTime: data.shiftOutTime || '06:00 PM',
+    shiftHours: Number(data.shiftHours) || 8,
+    joiningDate: data.joiningDate ? new Date(data.joiningDate) : new Date(),
+    status: data.status || 'Active',
+    biometricId: data.biometricId || data.staffCode,
+    biometricCredentialId: data.biometricCredentialId || '',
+    biometricEnrolled: !!data.biometricId || !!data.biometricCredentialId,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  });
+  return result;
+};
+
+export const updateStaff = async (id: string, data: Staff): Promise<boolean> => {
+  const db = await getDb();
+  const result = await db.collection('Staff').updateOne(
+    { _id: new ObjectId(id as string) },
+    {
+      $set: {
+        staffCode: data.staffCode,
+        name: data.name,
+        role: data.role,
+        mobileNo: data.mobileNo,
+        email: data.email,
+        salary: Number(data.salary) || 0,
+        dailyRate: Number(data.dailyRate) || 0,
+        shiftInTime: data.shiftInTime || '09:00 AM',
+        shiftOutTime: data.shiftOutTime || '06:00 PM',
+        shiftHours: Number(data.shiftHours) || 8,
+        joiningDate: data.joiningDate ? new Date(data.joiningDate) : new Date(),
+        status: data.status,
+        biometricId: data.biometricId || data.staffCode,
+        biometricCredentialId: data.biometricCredentialId || '',
+        biometricEnrolled: !!data.biometricId || !!data.biometricCredentialId,
+        updatedAt: new Date()
+      }
+    }
+  );
+  return result.matchedCount > 0;
+};
+
+export const deleteStaff = async (id: string): Promise<boolean> => {
+  const db = await getDb();
+  const result = await db.collection('Staff').deleteOne({ _id: new ObjectId(id as string) });
+  return result.deletedCount > 0;
+};
+
+// --- Attendance Services ---
+
+export const getAttendanceByDate = async (dateStr: string): Promise<any[]> => {
+  const db = await getDb();
+  const activeStaff = await db.collection('Staff').find({ status: 'Active' }).sort({ name: 1 }).toArray();
+  const records = await db.collection('StaffAttendance').find({ dateStr: dateStr }).toArray();
+
+  const attendanceMap = new Map();
+  records.forEach(r => {
+    attendanceMap.set(r.staffId.toString(), r);
+  });
+
+  return activeStaff.map(s => {
+    const sId = s._id.toString();
+    const existing = attendanceMap.get(sId);
+    return {
+      staffId: sId,
+      staffCode: s.staffCode,
+      staffName: s.name,
+      role: s.role,
+      shiftInTime: s.shiftInTime || '09:00 AM',
+      shiftOutTime: s.shiftOutTime || '06:00 PM',
+      shiftHours: s.shiftHours || 8,
+      biometricId: s.biometricId || s.staffCode,
+      biometricEnrolled: !!s.biometricEnrolled || !!s.biometricId,
+      dateStr,
+      status: existing ? existing.status : 'Present',
+      checkIn: existing ? (existing.checkIn !== undefined ? existing.checkIn : '09:05 AM') : '09:05 AM',
+      checkOut: existing ? (existing.checkOut !== undefined ? existing.checkOut : '06:15 PM') : '06:15 PM',
+      workHours: existing ? existing.workHours || '' : '',
+      ot: existing ? existing.ot || '' : '',
+      remarks: existing ? existing.remarks || '' : '',
+      verificationMethod: existing ? existing.verificationMethod || 'Biometric' : 'Biometric',
+      attendanceId: existing ? existing._id.toString() : null
+    };
+  });
+};
+
+export const saveBulkAttendance = async (dateStr: string, records: any[]): Promise<boolean> => {
+  const db = await getDb();
+  
+  for (const rec of records) {
+    const filter = { staffId: new ObjectId(rec.staffId as string), dateStr: dateStr };
+    const update = {
+      $set: {
+        staffId: new ObjectId(rec.staffId as string),
+        staffName: rec.staffName,
+        staffCode: rec.staffCode,
+        dateStr: dateStr,
+        date: new Date(`${dateStr}T00:00:00.000Z`),
+        status: rec.status,
+        checkIn: rec.checkIn || '',
+        checkOut: rec.checkOut || '',
+        workHours: rec.workHours || '',
+        ot: rec.ot || '',
+        remarks: rec.remarks || '',
+        verificationMethod: rec.verificationMethod || 'Biometric',
+        updatedAt: new Date()
+      },
+      $setOnInsert: {
+        createdAt: new Date()
+      }
+    };
+    await db.collection('StaffAttendance').updateOne(filter, update, { upsert: true });
+  }
+  return true;
+};
+
+export const processBiometricPunch = async (identifier: string, dateStr: string): Promise<any> => {
+  const db = await getDb();
+  
+  let staff = await db.collection('Staff').findOne({
+    $or: [
+      { staffCode: identifier },
+      { biometricId: identifier },
+      { _id: ObjectId.isValid(identifier) ? new ObjectId(identifier) : null }
+    ],
+    status: 'Active'
+  });
+
+  if (!staff) {
+    return { success: false, message: `No active staff record found matching biometric scan / ID: "${identifier}"` };
+  }
+
+  const staffIdObj = staff._id;
+  const staffIdStr = staffIdObj.toString();
+  const filter = { staffId: staffIdObj, dateStr };
+  
+  const existing = await db.collection('StaffAttendance').findOne(filter);
+
+  const now = new Date();
+  let hours = now.getHours();
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  hours = hours ? hours : 12;
+  const formattedTime = `${String(hours).padStart(2, '0')}:${minutes} ${ampm}`;
+
+  let action: 'check-in' | 'check-out' = 'check-in';
+  let checkIn = formattedTime;
+  let checkOut = '';
+
+  if (existing && existing.checkIn && !existing.checkOut) {
+    action = 'check-out';
+    checkIn = existing.checkIn;
+    checkOut = formattedTime;
+  } else if (existing && existing.checkIn && existing.checkOut) {
+    action = 'check-in';
+    checkIn = formattedTime;
+    checkOut = '';
+  }
+
+  const update = {
+    $set: {
+      staffId: staffIdObj,
+      staffName: staff.name,
+      staffCode: staff.staffCode,
+      dateStr: dateStr,
+      date: new Date(`${dateStr}T00:00:00.000Z`),
+      status: 'Present',
+      ...(action === 'check-in' ? { checkIn, checkOut: '' } : { checkOut }),
+      verificationMethod: 'Biometric',
+      updatedAt: new Date()
+    },
+    $setOnInsert: {
+      createdAt: new Date()
+    }
+  };
+
+  await db.collection('StaffAttendance').updateOne(filter, update, { upsert: true });
+
+  return {
+    success: true,
+    action,
+    time: formattedTime,
+    staff: {
+      id: staffIdStr,
+      staffCode: staff.staffCode,
+      name: staff.name,
+      role: staff.role
+    },
+    message: action === 'check-in' 
+      ? `Biometric Verified! ${staff.name} Checked IN at ${formattedTime}`
+      : `Biometric Verified! ${staff.name} Checked OUT at ${formattedTime}`
+  };
+};

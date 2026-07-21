@@ -24,6 +24,8 @@ import StatisticReport from './pages/StatisticReport';
 import TrialBS from './pages/TrialBS';
 import PLStatement from './pages/PLStatement';
 import BalanceSheet from './pages/BalanceSheet';
+import StaffMaster from './pages/StaffMaster';
+import StaffAttendance from './pages/StaffAttendance';
 import ModernErpLayout from './pages/ModernErpLayout';
 
 function App() {
@@ -40,6 +42,10 @@ function App() {
           <Route path="barcode-generation" element={<BarcodeGeneration />} />
           <Route path="backup" element={<Backup />} />
           
+          {/* Admin & Staff */}
+          <Route path="staff-master" element={<StaffMaster />} />
+          <Route path="staff-attendance" element={<StaffAttendance />} />
+          
           {/* Sales */}
           <Route path="quotation" element={<Quotation />} />
           <Route path="sales-order" element={<SalesOrder />} />
@@ -52,9 +58,6 @@ function App() {
           <Route path="purchase-bill" element={<PurchaseBill />} />
           <Route path="pur-return" element={<PurReturn />} />
           <Route path="pur-register" element={<PurRegister />} />
-          
-          {/* Accounts */}
-        
           
           {/* Stock */}
           <Route path="stock-status" element={<StockStatus />} />

@@ -248,3 +248,33 @@ model SalesOrderItem {
   tax          Float      @default(0)
   lineTotal    Float
 }
+
+model Staff {
+  id           String            @id @default(auto()) @map("_id") @db.ObjectId
+  staffCode    String            @unique
+  name         String
+  role         String            @default("Salesman")
+  mobileNo     String?
+  email        String?
+  salary       Float             @default(0)
+  dailyRate    Float             @default(0)
+  joiningDate  DateTime          @default(now())
+  status       String            @default("Active")
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  attendances  StaffAttendance[]
+}
+
+model StaffAttendance {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  staffId   String   @db.ObjectId
+  staff     Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  date      DateTime @default(now())
+  status    String   @default("Present")
+  checkIn   String?
+  checkOut  String?
+  remarks   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+

@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { Outlet, Link, useLocation } from 'react-router-dom';
-import { Plus, Edit, Trash2, ArrowLeft, ArrowRight, Search, Printer, Mail, Paperclip, MessageSquare, Power, TrendingUp } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
+import { Edit, Power, TrendingUp, Lock, Unlock, ChevronDown, ChevronUp } from 'lucide-react';
 import Api from '../Api';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -33,6 +33,7 @@ const Layout = () => {
     isRetailBill: false
   });
   const location = useLocation();
+  const navigate = useNavigate();
 
   const [isCloseDayModalOpen, setIsCloseDayModalOpen] = useState(false);
   const [closeDayLoading, setCloseDayLoading] = useState(false);
@@ -46,6 +47,53 @@ const Layout = () => {
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
   const [enteredPin, setEnteredPin] = useState('');
   const [pinError, setPinError] = useState('');
+
+  // Lock Screen & Locked Routes State
+  const [isAppLocked, setIsAppLocked] = useState(false);
+  const [isLockSectionOpen, setIsLockSectionOpen] = useState(true);
+  const [unlockedReports, setUnlockedReports] = useState<Record<string, boolean>>({});
+  const [pendingLockedPath, setPendingLockedPath] = useState<string | null>(null);
+  const [reportPinInput, setReportPinInput] = useState('');
+  const [reportPinError, setReportPinError] = useState('');
+
+  const lockedPaths = ['/statistic-report', '/trial-b-s', '/p-l-statment', '/balance-sheet'];
+
+  useEffect(() => {
+    if (lockedPaths.includes(location.pathname) && !unlockedReports[location.pathname]) {
+      setPendingLockedPath(location.pathname);
+      setReportPinInput('');
+      setReportPinError('');
+    } else {
+      setPendingLockedPath(null);
+    }
+  }, [location.pathname, unlockedReports]);
+
+  const handleVerifyReportPin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (reportPinInput === ownerPin) {
+      if (pendingLockedPath) {
+        setUnlockedReports(prev => ({ ...prev, [pendingLockedPath]: true }));
+        setPendingLockedPath(null);
+      }
+      setReportPinInput('');
+      setReportPinError('');
+    } else {
+      setReportPinError('Invalid PIN! Access Denied.');
+    }
+  };
+
+  const handleCancelReportPin = () => {
+    setPendingLockedPath(null);
+    navigate('/sales-bill');
+  };
+
+  const handleLockScreen = () => {
+    setIsAppLocked(true);
+    setUnlockedReports({});
+    setEnteredPin('');
+    setPinError('');
+    closeMenu();
+  };
 
   const saveOwnerSettings = (whatsapp: string, email: string, newPin?: string) => {
     localStorage.setItem('close_day_whatsapp', whatsapp);
@@ -256,14 +304,13 @@ const Layout = () => {
       '/statistic-report': 'Statistic Report',
       '/trial-b-s': 'Trial B & S',
       '/p-l-statment': 'P & L Statment',
-      '/balance-sheet': 'Balance Sheet'
+      '/balance-sheet': 'Balance Sheet',
+      '/staff-master': 'Staff Master (Admin)',
+      '/staff-attendance': 'Staff Attendance'
     };
     return routeTitles[pathname] || 'Dashboard';
   };
 
-  const currentYear = new Date().getFullYear();
-  const currentMonth = new Date().getMonth();
-  const displayYear = currentMonth < 3 ? `${currentYear - 1}-${currentYear}` : `${currentYear}-${currentYear + 1}`;
 
   React.useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
@@ -329,10 +376,16 @@ const Layout = () => {
         <div className="relative">
           <span onClick={() => toggleMenu('Master')} className={`px-3 py-1 cursor-pointer select-none rounded ${activeMenu === 'Master' ? 'bg-blue-200 shadow-inner' : 'hover:bg-blue-100'}`}>Master</span>
           {activeMenu === 'Master' && (
-            <div className="absolute top-full left-0 mt-1 bg-white border border-gray-400 shadow-xl w-48 flex flex-col py-1 z-50">
+            <div className="absolute top-full left-0 mt-1 bg-white border border-gray-400 shadow-xl w-52 flex flex-col py-1 z-50">
                <Link to="/ledger-master" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Ledger Master</Link>
                <Link to="/item-master" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Item Master</Link>
                <Link to="/barcode-generation" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Barcode Generation</Link>
+               <div className="border-t border-gray-300 my-1"></div>
+               <Link to="/staff-master" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium flex items-center justify-between">
+                 <span>Staff Master (Admin)</span>
+                 <Lock size={12} className="text-amber-600" />
+               </Link>
+               <Link to="/staff-attendance" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Staff Attendance</Link>
                <div className="border-t border-gray-300 my-1"></div>
                <Link to="/backup" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Backup</Link>
             </div>
@@ -385,13 +438,36 @@ const Layout = () => {
         <div className="relative">
           <span onClick={() => toggleMenu('Report')} className={`px-3 py-1 cursor-pointer select-none rounded ${activeMenu === 'Report' ? 'bg-blue-200 shadow-inner' : 'hover:bg-blue-100'}`}>Report</span>
           {activeMenu === 'Report' && (
-            <div className="absolute top-full left-0 mt-1 bg-white border border-gray-400 shadow-xl w-48 flex flex-col py-1 z-50">
+            <div className="absolute top-full left-0 mt-1 bg-white border border-gray-400 shadow-xl w-52 flex flex-col py-1 z-50">
                <Link to="/view-ledger" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">View Ledger</Link>
-               <Link to="/statistic-report" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Statistic Report</Link>
                <div className="border-t border-gray-300 my-1"></div>
-               <Link to="/trial-b-s" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Trial B & S</Link>
-               <Link to="/p-l-statment" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">P & L Statement</Link>
-               <Link to="/balance-sheet" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Balance Sheet</Link>
+               <div className="px-3 py-1 text-xs font-bold text-amber-900 bg-amber-100 flex items-center justify-between border-y border-amber-300">
+                 <span className="flex items-center space-x-1">
+                   <Lock size={12} className="text-amber-800" />
+                   <span>Lock Screen Modules</span>
+                 </span>
+               </div>
+               <Link to="/statistic-report" onClick={closeMenu} className="px-5 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium flex items-center justify-between text-xs">
+                 <span>Statistic Report</span>
+                 <Lock size={12} className="text-amber-600" />
+               </Link>
+               <Link to="/trial-b-s" onClick={closeMenu} className="px-5 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium flex items-center justify-between text-xs">
+                 <span>Trial B & S</span>
+                 <Lock size={12} className="text-amber-600" />
+               </Link>
+               <Link to="/p-l-statment" onClick={closeMenu} className="px-5 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium flex items-center justify-between text-xs">
+                 <span>P & L Statement</span>
+                 <Lock size={12} className="text-amber-600" />
+               </Link>
+               <Link to="/balance-sheet" onClick={closeMenu} className="px-5 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium flex items-center justify-between text-xs">
+                 <span>Balance Sheet</span>
+                 <Lock size={12} className="text-amber-600" />
+               </Link>
+               <div className="border-t border-gray-300 my-1"></div>
+               <button onClick={handleLockScreen} className="w-full text-left px-4 py-1.5 hover:bg-red-600 hover:text-white text-red-700 font-bold cursor-pointer flex items-center space-x-2">
+                 <Lock size={14} />
+                 <span>Lock Screen</span>
+               </button>
             </div>
           )}
         </div>
@@ -487,14 +563,13 @@ const Layout = () => {
                 { name: 'Purchase Bill', path: '/purchase-bill' },
                 { name: 'Pur. Return', path: '/pur-return' },
                 { name: 'Pur. Register', path: '/pur-register' },
+                // STAFF & ATTENDANCE
+                { name: 'Staff Master (Admin)', path: '/staff-master' },
+                { name: 'Staff Attendance', path: '/staff-attendance' },
                 { name: 'Stock Status', path: '/stock-status' },
                 { name: 'Daily Stock Status', path: '/daily-stock-status' },
                 { name: 'Stock Register', path: '/stock-register' },
-                { name: 'View Ledger', path: '/view-ledger' },
-                { name: 'Statistic Report', path: '/statistic-report' },
-                { name: 'Trial B & S', path: '/trial-b-s' },
-                { name: 'P & L Statment', path: '/p-l-statment' },
-                { name: 'Balance Sheet', path: '/balance-sheet' }
+                { name: 'View Ledger', path: '/view-ledger' }
               ].map((item, idx) => {
                 const isActive = location.pathname === item.path || (location.pathname === '/' && item.path === '/sales-register'); // default to sales register
                 return (
@@ -510,6 +585,75 @@ const Layout = () => {
                 );
               })}
             </ul>
+
+            {/* Lock Screen Accordion Section */}
+            <div className="mt-3 border-t-2 border-amber-400 bg-amber-50/70 py-1">
+              <div 
+                onClick={() => setIsLockSectionOpen(!isLockSectionOpen)}
+                className="px-3 py-1.5 bg-amber-200/90 hover:bg-amber-300/80 border-b border-amber-300 flex items-center justify-between text-amber-950 font-bold text-xs cursor-pointer select-none transition-colors"
+              >
+                <span className="flex items-center space-x-1.5">
+                  <Lock size={13} className="text-amber-800" />
+                  <span>Lock Screen</span>
+                </span>
+                <div className="flex items-center space-x-1.5">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleLockScreen();
+                    }}
+                    className="text-[9px] bg-red-600 hover:bg-red-700 text-white px-1.5 py-0.5 rounded font-black cursor-pointer shadow transition-colors"
+                    title="Lock System Screen"
+                  >
+                    LOCK
+                  </button>
+                  {isLockSectionOpen ? (
+                    <ChevronUp size={14} className="text-amber-900" />
+                  ) : (
+                    <ChevronDown size={14} className="text-amber-900" />
+                  )}
+                </div>
+              </div>
+
+              {isLockSectionOpen && (
+                <>
+                  <div className="py-0.5">
+                    {[
+                      { name: 'Statistic Report', path: '/statistic-report' },
+                      { name: 'Trial B & S', path: '/trial-b-s' },
+                      { name: 'P & L Statment', path: '/p-l-statment' },
+                      { name: 'Balance Sheet', path: '/balance-sheet' }
+                    ].map((item, idx) => {
+                      const isActive = location.pathname === item.path;
+                      return (
+                        <Link 
+                          key={idx} 
+                          to={item.path} 
+                          className={`px-3 py-1 cursor-pointer border-b border-amber-200/50 transition-colors flex items-center justify-between text-xs ${
+                            isActive ? 'bg-[#2b579a] text-white font-bold' : 'hover:bg-amber-100 text-blue-950 font-semibold'
+                          }`}
+                        >
+                          <span>{item.name}</span>
+                          <span title="PIN Protected Screen">
+                            <Lock size={11} className={isActive ? 'text-amber-300' : 'text-amber-700'} />
+                          </span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+
+                  <div className="p-1 px-2 mt-1">
+                    <button
+                      onClick={handleLockScreen}
+                      className="w-full text-center px-2 py-1.5 cursor-pointer rounded bg-red-600 hover:bg-red-700 text-white font-bold text-xs flex items-center justify-center space-x-1.5 shadow transition-colors"
+                    >
+                      <Lock size={13} />
+                      <span>Lock Screen</span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
           {/* <div className="p-2 border-t border-gray-400 bg-gray-100">
             <button className="w-full bg-black text-white font-bold py-2 text-sm hover:bg-gray-800 shadow shadow-gray-500">
@@ -792,6 +936,113 @@ const Layout = () => {
                   className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded text-sm transition-colors border border-blue-700 shadow"
                 >
                   Verify PIN
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* System Full Lock Screen Modal */}
+      {isAppLocked && (
+        <div className="fixed inset-0 bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center z-[999] p-4 text-white animate-in fade-in duration-200">
+          <div className="bg-white/10 border border-white/20 backdrop-blur-lg rounded-2xl p-8 max-w-md w-full shadow-2xl text-center flex flex-col items-center">
+            <div className="bg-blue-600/30 p-4 rounded-full mb-4 border border-blue-400/40 text-blue-300 shadow-inner">
+              <Lock size={44} />
+            </div>
+            <h2 className="text-xl font-bold tracking-tight text-white mb-1">SRI GAYATHRI TRADERS</h2>
+            <p className="text-xs text-blue-200 uppercase font-bold tracking-wider mb-6">System Screen Locked</p>
+            
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              if (enteredPin === ownerPin) {
+                setIsAppLocked(false);
+                setEnteredPin('');
+                setPinError('');
+              } else {
+                setPinError('Invalid PIN! Access Denied.');
+              }
+            }} className="w-full space-y-4">
+              <div>
+                <input
+                  type="password"
+                  autoFocus
+                  value={enteredPin}
+                  onChange={(e) => {
+                    setEnteredPin(e.target.value);
+                    if (pinError) setPinError('');
+                  }}
+                  placeholder="Enter PIN to Unlock"
+                  className="w-full px-4 py-3 bg-black/50 border border-white/30 rounded-xl text-center text-xl font-bold tracking-widest text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-inner"
+                />
+                {pinError && <p className="text-xs text-red-400 font-bold mt-2">{pinError}</p>}
+              </div>
+              <button
+                type="submit"
+                className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-lg transition-colors border border-blue-400/50 flex items-center justify-center space-x-2 cursor-pointer"
+              >
+                <Unlock size={18} />
+                <span>Unlock Application</span>
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Locked Screen PIN Verification Modal */}
+      {pendingLockedPath && !isAppLocked && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-[130] p-4">
+          <div className="bg-white border border-gray-400 shadow-2xl rounded-lg w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="bg-[#2b579a] text-white p-3 font-bold flex justify-between items-center">
+              <span className="flex items-center space-x-2">
+                <Lock size={16} className="text-amber-300" />
+                <span>Locked Screen - Security PIN Required</span>
+              </span>
+              <button 
+                onClick={handleCancelReportPin}
+                className="text-white hover:text-red-300 font-bold focus:outline-none cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <form onSubmit={handleVerifyReportPin} className="p-4 space-y-4 text-left">
+              <p className="text-xs text-gray-700 font-semibold">
+                Access to <span className="text-blue-900 font-bold">{getPageTitle(pendingLockedPath)}</span> is protected. Enter security PIN to unlock.
+              </p>
+              
+              <div>
+                <input 
+                  type="password"
+                  required
+                  autoFocus
+                  value={reportPinInput}
+                  onChange={e => {
+                    setReportPinInput(e.target.value);
+                    if (reportPinError) setReportPinError('');
+                  }}
+                  placeholder="Enter PIN (Default 1234)"
+                  className="w-full border border-gray-300 rounded px-2.5 py-2 text-center text-lg tracking-widest focus:outline-none focus:ring-1 focus:ring-blue-500 font-bold bg-white text-black"
+                />
+                {reportPinError && (
+                  <p className="text-xs text-red-600 font-bold mt-1.5 text-center">{reportPinError}</p>
+                )}
+              </div>
+              
+              <div className="flex space-x-3 pt-1">
+                <button
+                  type="button"
+                  onClick={handleCancelReportPin}
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 rounded text-sm transition-colors border border-gray-300 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-bold py-2 rounded text-sm transition-colors border border-amber-700 shadow flex items-center justify-center space-x-1 cursor-pointer"
+                >
+                  <Unlock size={14} />
+                  <span>Unlock Screen</span>
                 </button>
               </div>
             </form>
