@@ -207,7 +207,7 @@ const StockStatus = () => {
                 </tr>
               ) : (
                 filteredStock.map((item, idx) => {
-                  const qty = item.stock || 0;
+                  const qty = Math.max(0, item.stock || 0);
                   const minReorder = item.minReorder || 10; // Defaulting to 10 if not set
                   const isLow = qty < minReorder;
                   const { totalQty: dmgQty, reasons: dmgReasons } = getProductDamages(item.id || item._id || '', item.itemCode || '');

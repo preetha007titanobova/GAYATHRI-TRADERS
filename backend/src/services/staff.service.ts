@@ -26,7 +26,8 @@ export const searchStaff = async (q?: string, status?: string): Promise<Staff[]>
       { staffCode: { $regex: q, $options: 'i' } },
       { mobileNo: { $regex: q, $options: 'i' } },
       { role: { $regex: q, $options: 'i' } },
-      { biometricId: { $regex: q, $options: 'i' } }
+      { biometricId: { $regex: q, $options: 'i' } },
+      { biometricId2: { $regex: q, $options: 'i' } }
     ];
   }
   if (status) {
@@ -50,9 +51,12 @@ export const createStaff = async (data: Staff): Promise<any> => {
     shiftHours: Number(data.shiftHours) || 8,
     joiningDate: data.joiningDate ? new Date(data.joiningDate) : new Date(),
     status: data.status || 'Active',
-    biometricId: data.biometricId || data.staffCode,
+    biometricId: data.biometricId || `FP1-${data.staffCode}`,
     biometricCredentialId: data.biometricCredentialId || '',
     biometricEnrolled: !!data.biometricId || !!data.biometricCredentialId,
+    biometricId2: data.biometricId2 || `FP2-${data.staffCode}`,
+    biometricCredentialId2: data.biometricCredentialId2 || '',
+    biometricEnrolled2: !!data.biometricId2 || !!data.biometricCredentialId2,
     createdAt: new Date(),
     updatedAt: new Date()
   });
@@ -77,9 +81,12 @@ export const updateStaff = async (id: string, data: Staff): Promise<boolean> => 
         shiftHours: Number(data.shiftHours) || 8,
         joiningDate: data.joiningDate ? new Date(data.joiningDate) : new Date(),
         status: data.status,
-        biometricId: data.biometricId || data.staffCode,
+        biometricId: data.biometricId || `FP1-${data.staffCode}`,
         biometricCredentialId: data.biometricCredentialId || '',
         biometricEnrolled: !!data.biometricId || !!data.biometricCredentialId,
+        biometricId2: data.biometricId2 || `FP2-${data.staffCode}`,
+        biometricCredentialId2: data.biometricCredentialId2 || '',
+        biometricEnrolled2: !!data.biometricId2 || !!data.biometricCredentialId2,
         updatedAt: new Date()
       }
     }
@@ -116,8 +123,10 @@ export const getAttendanceByDate = async (dateStr: string): Promise<any[]> => {
       shiftInTime: s.shiftInTime || '09:00 AM',
       shiftOutTime: s.shiftOutTime || '06:00 PM',
       shiftHours: s.shiftHours || 8,
-      biometricId: s.biometricId || s.staffCode,
+      biometricId: s.biometricId || `FP1-${s.staffCode}`,
       biometricEnrolled: !!s.biometricEnrolled || !!s.biometricId,
+      biometricId2: s.biometricId2 || `FP2-${s.staffCode}`,
+      biometricEnrolled2: !!s.biometricEnrolled2 || !!s.biometricId2,
       dateStr,
       status: existing ? existing.status : 'Present',
       checkIn: existing ? (existing.checkIn !== undefined ? existing.checkIn : '09:05 AM') : '09:05 AM',
@@ -162,6 +171,7 @@ export const saveBulkAttendance = async (dateStr: string, records: any[]): Promi
 };
 
 // Helper to calculate hours, OT, and status from Biometric In & Out times
+// OT Rule: OT is calculated ONLY IF extra worked duration is >= 1 full hour (60 mins) beyond shiftHours!
 const calculateBiometricMetrics = (
   checkInStr: string,
   checkOutStr: string,
@@ -208,7 +218,8 @@ const calculateBiometricMetrics = (
 
   const targetMins = shiftHours * 60;
   let ot = '-';
-  if (diffMins > targetMins) {
+  // OT is calculated ONLY IF extra worked time is >= 60 minutes (1 hour)
+  if (diffMins >= targetMins + 60) {
     const otMins = diffMins - targetMins;
     const otH = Math.floor(otMins / 60);
     const otM = otMins % 60;
@@ -229,13 +240,14 @@ export const processBiometricPunch = async (identifier: string, dateStr: string)
     $or: [
       { staffCode: identifier },
       { biometricId: identifier },
+      { biometricId2: identifier },
       { _id: ObjectId.isValid(identifier) ? new ObjectId(identifier) : null }
     ],
     status: 'Active'
   });
 
   if (!staff) {
-    return { success: false, message: `No active staff record found matching biometric scan / ID: "${identifier}"` };
+    return { success: false, message: `No active staff record found matching fingerprint scan / ID: "${identifier}"` };
   }
 
   const staffIdObj = staff._id;

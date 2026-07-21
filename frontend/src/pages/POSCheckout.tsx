@@ -274,11 +274,42 @@ const POSCheckout = () => {
       const prodName = product.name || "Men's Shirt";
       const prodSize = product.size || 'L';
       const prodPrice = Number(product.price) || 799;
-      const initialStock = typeof product.stock === 'number' ? product.stock : 50;
-      const updatedStock = Math.max(0, initialStock - 1);
+      const initialStock = typeof product.stock === 'number' ? product.stock : 0;
 
-      // Instantly update product stock in memory
-      product.stock = updatedStock;
+      // Prevent negative stock: Check if stock is 0 or insufficient
+      if (initialStock <= 0) {
+        if (setGlobalNotification) {
+          setGlobalNotification({
+            msg: `❌ Cannot add "${prodName}"! Available stock is 0. Stock cannot go negative.`,
+            type: 'error'
+          });
+          setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
+        }
+        setRapidBarcode('');
+        return;
+      }
+
+      // Calculate total quantity of this barcode/product already added to the bill
+      let currentQtyInGrid = 0;
+      gridData.forEach(r => {
+        if (r.itemName === prodName || (r.itemDesc && r.itemDesc.trim().toLowerCase() === cleanCode.toLowerCase())) {
+          currentQtyInGrid += Number(r.qty || 0);
+        }
+      });
+
+      if (currentQtyInGrid + 1 > initialStock) {
+        if (setGlobalNotification) {
+          setGlobalNotification({
+            msg: `⚠️ Stock Limit Reached! Barcode "${cleanCode}" (${prodName}) has only ${initialStock} items in stock. Cannot add ${currentQtyInGrid + 1} items.`,
+            type: 'error'
+          });
+          setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
+        }
+        setRapidBarcode('');
+        return;
+      }
+
+      const updatedStock = Math.max(0, initialStock - (currentQtyInGrid + 1));
 
       // Update Live Scanned Item Banner Feedback
       setScannedFeedback({
@@ -563,6 +594,38 @@ const POSCheckout = () => {
 
   const executeSave = async (validItems: any[]) => {
     setConfirmModalState({ isOpen: false, action: null });
+
+    // Stock Check: Ensure no item quantity exceeds available physical stock
+    for (const item of validItems) {
+      const match = availableProducts.find(p =>
+        p.name === item.itemName ||
+        (p.itemCode && p.itemCode === item.itemDesc) ||
+        (p.barcode && p.barcode === item.itemDesc)
+      );
+      if (match) {
+        const avail = typeof match.stock === 'number' ? match.stock : 0;
+        if (avail <= 0) {
+          if (setGlobalNotification) {
+            setGlobalNotification({
+              msg: `Cannot save bill! "${item.itemName}" is out of stock (Available: 0). Stock cannot go negative.`,
+              type: 'error'
+            });
+            setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
+          }
+          return;
+        }
+        if (item.qty > avail) {
+          if (setGlobalNotification) {
+            setGlobalNotification({
+              msg: `Cannot save bill! "${item.itemName}" requested quantity (${item.qty}) exceeds available stock (${avail}). Stock cannot go negative.`,
+              type: 'error'
+            });
+            setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
+          }
+          return;
+        }
+      }
+    }
 
     const payload = {
       invoiceNo, invDate, payDays, buyerName, address, eType,
@@ -873,6 +936,29 @@ const POSCheckout = () => {
         if (row.id !== id) return row;
 
         let updatedRow = { ...row, [field]: field === 'itemName' || field === 'itemDesc' || field === 'uom' ? value : Number(value) };
+
+        // Real-time Stock Restriction Check on Manual Qty Input
+        if (field === 'qty') {
+          const requestedQty = Number(value) || 0;
+          const match = availableProducts.find(p =>
+            p.name === updatedRow.itemName ||
+            (p.itemCode && p.itemCode.toLowerCase() === (updatedRow.itemDesc || '').toLowerCase()) ||
+            (p.barcode && p.barcode.toLowerCase() === (updatedRow.itemDesc || '').toLowerCase())
+          );
+          if (match) {
+            const availStock = typeof match.stock === 'number' ? match.stock : 0;
+            if (requestedQty > availStock) {
+              if (setGlobalNotification) {
+                setGlobalNotification({
+                  msg: `⚠️ Stock Limit Reached! Barcode "${match.barcode || match.itemCode}" (${match.name}) has only ${availStock} items in stock. Quantity restricted to ${availStock}.`,
+                  type: 'error'
+                });
+                setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
+              }
+              updatedRow.qty = availStock;
+            }
+          }
+        }
 
         let baseAmount = updatedRow.qty * updatedRow.rate;
         if (field === 'discPercent') {
@@ -1200,20 +1286,20 @@ const POSCheckout = () => {
         </div>
 
         <label className="legacy-label text-right">Inv No</label>
-        <input type="text" className="legacy-input col-span-2 font-bold py-0.5 font-mono" value={invoiceNo} disabled />
+        <input type="text" className="legacy-input col-span-1 font-bold py-0.5 font-mono text-center" value={invoiceNo} disabled />
 
         <label className="legacy-label text-right">Inv Date</label>
         <input type="date" className="legacy-input col-span-2 py-0.5 font-bold" value={invDate} onChange={e => setInvDate(e.target.value)} />
 
         <label className="legacy-label text-right">E.Type</label>
-        <select className="legacy-input col-span-2 py-0.5 font-bold" value={eType} onChange={e => setEType(e.target.value)}>
+        <select className="legacy-input col-span-1.5 py-0.5 font-bold" value={eType} onChange={e => setEType(e.target.value)}>
           <option>Local</option>
           <option>Interstate</option>
         </select>
 
         <label className="legacy-label text-right flex items-center justify-end font-bold text-gray-800">
           <MessageSquare size={13} className="mr-1 text-emerald-600" />
-          Mobile / WA
+          Mobile
         </label>
         <div className="col-span-2 relative flex items-center">
           <input
@@ -1239,9 +1325,9 @@ const POSCheckout = () => {
         <input type="text" className="legacy-input col-span-2 bg-yellow-50 py-0.5 font-bold" value={salesman} onChange={e => setSalesman(e.target.value)} placeholder="Billed By" />
 
         <label className="legacy-label text-right text-blue-900 font-bold">Pay Mode</label>
-        <div className="col-span-3 flex items-center space-x-1">
+        <div className="col-span-4 flex items-center space-x-1 min-w-0">
           <select
-            className="legacy-input flex-1 font-bold py-0.5 border-blue-500 bg-blue-50 focus:bg-yellow-50 text-xs"
+            className="legacy-input min-w-0 flex-1 font-bold py-0.5 border-blue-500 bg-blue-50 focus:bg-yellow-50 text-xs truncate"
             value={paymentMode}
             onChange={e => {
               const mode = e.target.value;
@@ -1262,7 +1348,7 @@ const POSCheckout = () => {
             <button
               type="button"
               onClick={() => setPaymentMode('Cash')}
-              className={`py-0.5 px-1 rounded text-[10px] font-extrabold transition-all border ${paymentMode === 'Cash' ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-emerald-50 border-gray-300'}`}
+              className={`py-0.5 px-1.5 rounded text-[10px] font-extrabold transition-all border ${paymentMode === 'Cash' ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-emerald-50 border-gray-300'}`}
             >
               💵 Cash
             </button>
@@ -1272,7 +1358,7 @@ const POSCheckout = () => {
                 setPaymentMode('UPI / Online Pay');
                 setShowUpiModal(true);
               }}
-              className={`py-0.5 py-1 rounded text-[10px] font-extrabold transition-all border ${paymentMode.includes('UPI') || paymentMode.includes('Online') ? 'bg-blue-600 text-white border-blue-700 shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-blue-50 border-gray-300'}`}
+              className={`py-0.5 px-1.5 rounded text-[10px] font-extrabold transition-all border ${paymentMode.includes('UPI') || paymentMode.includes('Online') ? 'bg-blue-600 text-white border-blue-700 shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-blue-50 border-gray-300'}`}
             >
               📱 Online
             </button>
