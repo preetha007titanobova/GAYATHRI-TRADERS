@@ -161,6 +161,67 @@ export const saveBulkAttendance = async (dateStr: string, records: any[]): Promi
   return true;
 };
 
+// Helper to calculate hours, OT, and status from Biometric In & Out times
+const calculateBiometricMetrics = (
+  checkInStr: string,
+  checkOutStr: string,
+  shiftInTime = '09:00 AM',
+  shiftHours = 8
+) => {
+  const parseToMinutes = (str: string) => {
+    if (!str) return null;
+    let s = str.trim().toUpperCase();
+    const isPM = s.includes('PM');
+    const isAM = s.includes('AM');
+    s = s.replace(/AM|PM/g, '').trim();
+
+    const parts = s.split(':');
+    if (parts.length < 2) return null;
+
+    let h = parseInt(parts[0], 10);
+    let m = parseInt(parts[1], 10);
+    if (isNaN(h) || isNaN(m)) return null;
+
+    if (isPM && h < 12) h += 12;
+    if (isAM && h === 12) h = 0;
+
+    return h * 60 + m;
+  };
+
+  const checkInMins = parseToMinutes(checkInStr);
+  const checkOutMins = parseToMinutes(checkOutStr);
+  const shiftInMins = parseToMinutes(shiftInTime) || 540;
+
+  let status = 'Present';
+  if (checkInMins !== null && checkInMins > shiftInMins + 15) {
+    status = 'Late';
+  }
+
+  if (checkInMins === null || checkOutMins === null || checkOutMins <= checkInMins) {
+    return { workHours: '-', ot: '-', status };
+  }
+
+  const diffMins = checkOutMins - checkInMins;
+  const h = Math.floor(diffMins / 60);
+  const m = diffMins % 60;
+  const workHours = m > 0 ? `${h}h ${m}m` : `${h}h`;
+
+  const targetMins = shiftHours * 60;
+  let ot = '-';
+  if (diffMins > targetMins) {
+    const otMins = diffMins - targetMins;
+    const otH = Math.floor(otMins / 60);
+    const otM = otMins % 60;
+    ot = otM > 0 ? `${otH}h ${otM}m` : `${otH}h`;
+  }
+
+  if (diffMins < 240) {
+    status = 'Half Day';
+  }
+
+  return { workHours, ot, status };
+};
+
 export const processBiometricPunch = async (identifier: string, dateStr: string): Promise<any> => {
   const db = await getDb();
   
@@ -205,6 +266,8 @@ export const processBiometricPunch = async (identifier: string, dateStr: string)
     checkOut = '';
   }
 
+  const metrics = calculateBiometricMetrics(checkIn, checkOut, staff.shiftInTime || '09:00 AM', staff.shiftHours || 8);
+
   const update = {
     $set: {
       staffId: staffIdObj,
@@ -212,8 +275,11 @@ export const processBiometricPunch = async (identifier: string, dateStr: string)
       staffCode: staff.staffCode,
       dateStr: dateStr,
       date: new Date(`${dateStr}T00:00:00.000Z`),
-      status: 'Present',
-      ...(action === 'check-in' ? { checkIn, checkOut: '' } : { checkOut }),
+      status: metrics.status,
+      checkIn,
+      checkOut,
+      workHours: metrics.workHours,
+      ot: metrics.ot,
       verificationMethod: 'Biometric',
       updatedAt: new Date()
     },
@@ -228,6 +294,9 @@ export const processBiometricPunch = async (identifier: string, dateStr: string)
     success: true,
     action,
     time: formattedTime,
+    workHours: metrics.workHours,
+    ot: metrics.ot,
+    status: metrics.status,
     staff: {
       id: staffIdStr,
       staffCode: staff.staffCode,
@@ -235,7 +304,7 @@ export const processBiometricPunch = async (identifier: string, dateStr: string)
       role: staff.role
     },
     message: action === 'check-in' 
-      ? `Biometric Verified! ${staff.name} Checked IN at ${formattedTime}`
-      : `Biometric Verified! ${staff.name} Checked OUT at ${formattedTime}`
+      ? `Biometric Entry Recorded! ${staff.name} Checked IN at ${formattedTime} (${metrics.status})`
+      : `Biometric Exit Recorded! ${staff.name} Checked OUT at ${formattedTime} (Total Hours: ${metrics.workHours}${metrics.ot !== '-' ? `, OT: +${metrics.ot}` : ''})`
   };
 };
