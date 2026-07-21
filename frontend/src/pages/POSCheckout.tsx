@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useOutletContext, useLocation, useNavigate } from 'react-router-dom';
-import { Plus, Edit, Trash2, ArrowLeft, ArrowRight, Search, Printer, Mail, Paperclip, MessageSquare } from 'lucide-react';
+import { Plus, Edit, Trash2, ArrowLeft, ArrowRight, Search, Printer, Mail, Paperclip, MessageSquare, Download, Send, QrCode, CreditCard, Smartphone, CheckCircle, Sparkles, MessageCircle, FileText, Zap } from 'lucide-react';
 import { printReceipt } from '../utils/printReceipt';
+import { downloadPdfBill } from '../utils/downloadPdfBill';
+import { sendWhatsAppBill } from '../utils/whatsappHelper';
 import Api from '../Api';
 
 // Types for our grid
@@ -38,7 +40,11 @@ const POSCheckout = () => {
     size: string;
     price: number;
     stock: number;
+    uom?: string;
+    dept?: string;
   } | null>(null);
+  const [showUpiModal, setShowUpiModal] = useState(false);
+  const [upiTxnId, setUpiTxnId] = useState('');
   const rapidInputRef = useRef<HTMLInputElement>(null);
   const [availableCustomers, setAvailableCustomers] = useState<any[]>([]);
   const [address, setAddress] = useState('');
@@ -257,7 +263,9 @@ const POSCheckout = () => {
         name: prodName,
         size: prodSize,
         price: prodPrice,
-        stock: updatedStock
+        stock: updatedStock,
+        uom: product.uom || 'PCS',
+        dept: product.department || product.variety || 'General'
       });
 
       // Update grid table
@@ -667,6 +675,103 @@ const POSCheckout = () => {
     setTimeout(() => {
       if (setGlobalNotification) setGlobalNotification({ msg: '', type: '' });
     }, 3000);
+  };
+
+  // --- PDF & WhatsApp Handlers ---
+  const getBillPayloadData = () => {
+    const validItems = gridData.filter(row => row.itemName && row.qty > 0);
+    return {
+      invoiceNo,
+      invDate,
+      buyerName: buyerName || 'CASH CUSTOMER',
+      mobileNo,
+      address,
+      gstNo,
+      paymentMode,
+      salesman,
+      items: validItems,
+      totalQty,
+      totalAmount,
+      favourDiscount: Number(favourDiscount) || 0,
+      cgstPercent,
+      sgstPercent,
+      cgst,
+      sgst,
+      roundOff,
+      netAmount
+    };
+  };
+
+  const handleDownloadPDF = () => {
+    const validItems = gridData.filter(row => row.itemName && row.qty > 0);
+    if (validItems.length === 0) {
+      if (setGlobalNotification) {
+        setGlobalNotification({ msg: "Please add at least one item to download the PDF bill.", type: 'error' });
+        setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
+      }
+      return;
+    }
+    const billData = getBillPayloadData();
+    const fileName = downloadPdfBill(billData);
+    if (setGlobalNotification) {
+      setGlobalNotification({ msg: `📥 PDF Bill ${fileName} generated & downloaded successfully!`, type: 'success' });
+      setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3500);
+    }
+  };
+
+  const handleSendWhatsApp = () => {
+    const validItems = gridData.filter(row => row.itemName && row.qty > 0);
+    if (validItems.length === 0) {
+      if (setGlobalNotification) {
+        setGlobalNotification({ msg: "Please add at least one item before sending WhatsApp bill.", type: 'error' });
+        setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
+      }
+      return;
+    }
+
+    if (!mobileNo) {
+      if (setGlobalNotification) {
+        setGlobalNotification({ msg: "Please enter customer mobile number to send WhatsApp bill.", type: 'error' });
+        setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
+      }
+      return;
+    }
+
+    const billData = getBillPayloadData();
+    const result = sendWhatsAppBill(billData, undefined, true);
+    if (result.success) {
+      if (setGlobalNotification) {
+        setGlobalNotification({ msg: `⚡ WhatsApp App opened instantly for customer (+${result.phone})!`, type: 'success' });
+        setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3500);
+      }
+    } else {
+      if (setGlobalNotification) {
+        setGlobalNotification({ msg: `❌ ${result.error}`, type: 'error' });
+        setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
+      }
+    }
+  };
+
+  const handleSaveDownloadAndWhatsApp = async () => {
+    const validItems = gridData.filter(row => row.itemName && row.qty > 0 && row.rate > 0);
+    if (validItems.length === 0) {
+      if (setGlobalNotification) {
+        setGlobalNotification({ msg: "Please add at least one valid item to save and send bill.", type: 'error' });
+        setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
+      }
+      return;
+    }
+
+    // 1. Download PDF
+    handleDownloadPDF();
+
+    // 2. Open WhatsApp if mobile exists
+    if (mobileNo) {
+      handleSendWhatsApp();
+    }
+
+    // 3. Save Bill
+    executeSave(validItems);
   };
 
   // --- Global Toolbar Wiring (Layout Bridge) ---
@@ -1082,8 +1187,29 @@ const POSCheckout = () => {
         {/* <label className="legacy-label text-right">Address</label>
           <input type="text" className="legacy-input col-span-3 py-0.5" value={address} onChange={e => setAddress(e.target.value)} /> */}
 
-        <label className="legacy-label text-right">Mobile</label>
-        <input type="text" className="legacy-input col-span-2 py-0.5" value={mobileNo} onChange={e => setMobileNo(e.target.value)} />
+        <label className="legacy-label text-right flex items-center justify-end font-bold text-emerald-800">
+          <MessageSquare size={13} className="mr-1 text-emerald-600" />
+          Mobile / WA
+        </label>
+        <div className="col-span-2 relative flex items-center">
+          <input
+            type="text"
+            className="legacy-input w-full py-0.5 font-mono font-bold text-emerald-950 bg-emerald-50/40 border-emerald-300 focus:bg-yellow-50 focus:border-emerald-500 pr-6"
+            value={mobileNo}
+            onChange={e => setMobileNo(e.target.value)}
+            placeholder="Mobile / WhatsApp..."
+          />
+          {mobileNo && (
+            <button
+              type="button"
+              onClick={handleSendWhatsApp}
+              title="Send Bill via WhatsApp"
+              className="absolute right-1 top-1/2 -translate-y-1/2 bg-emerald-600 hover:bg-emerald-700 text-white p-0.5 rounded shadow text-[10px] transition-all"
+            >
+              <Send size={10} />
+            </button>
+          )}
+        </div>
 
         <label className="legacy-label text-right">Salesman</label>
         <input type="text" className="legacy-input col-span-2 bg-yellow-50 py-0.5" value={salesman} onChange={e => setSalesman(e.target.value)} placeholder="Billed By" />
@@ -1110,7 +1236,7 @@ const POSCheckout = () => {
       )}
 
       {/* 3. Data Entry Grid */}
-      <div className="flex-1 min-h-[400px] bg-white border border-gray-400 overflow-auto mx-1">
+      <div className="flex-1 min-h-[100px] bg-white border border-gray-400 overflow-auto mx-1">
         <table className="w-full text-left border-collapse">
           <thead>
             <tr>
@@ -1187,14 +1313,23 @@ const POSCheckout = () => {
             </div>
           </div>
 
-          <div className="flex space-x-2 mt-auto pb-1">
-            <button className="legacy-button py-1 hover:bg-gray-200 transition-colors" onClick={handleExportCSV}>Export</button>
-            <button className="legacy-button py-1 hover:bg-gray-200 transition-colors" onClick={() => handlePrintAction('Packing List')}>Packing List</button>
-            <button className="legacy-button py-1 hover:bg-gray-200 transition-colors" onClick={() => handlePrintAction('Receipt')}>Receipt</button>
+          <div className="flex flex-wrap gap-1.5 mt-auto pb-1 items-center">
+            <button type="button" className="legacy-button py-1 hover:bg-gray-200 transition-colors" onClick={handleExportCSV}>Export CSV</button>
+            <button type="button" className="legacy-button py-1 bg-blue-50 border-blue-300 hover:bg-blue-100 text-blue-900 font-bold flex items-center space-x-1" onClick={handleDownloadPDF}>
+              <Download size={13} className="text-blue-700" />
+              <span>Download PDF Bill</span>
+            </button>
+            <button type="button" className="legacy-button py-1 bg-emerald-50 border-emerald-400 hover:bg-emerald-100 text-emerald-900 font-bold flex items-center space-x-1" onClick={handleSendWhatsApp}>
+              <MessageSquare size={13} className="text-emerald-700" />
+              <span>WhatsApp Bill</span>
+            </button>
             <div className="flex-1"></div>
-            <button id="save-button" className="legacy-button py-1 bg-blue-100 font-bold border-blue-400 hover:bg-blue-200 focus:ring-2 focus:ring-blue-600 focus:outline-none transition-all" onClick={handleSaveClick}>Save</button>
-            <button className="legacy-button py-1 bg-red-100 font-bold border-red-400 hover:bg-red-200 transition-colors" onClick={handleCancelClick}>Cancel</button>
-            <button className="legacy-button py-1 hover:bg-gray-200 transition-colors" onClick={() => handlePrintAction('Challan')}>Print Challan</button>
+            <button type="button" className="legacy-button py-1 bg-purple-600 text-white font-extrabold border-purple-700 hover:bg-purple-700 shadow-sm transition-all flex items-center space-x-1" onClick={handleSaveDownloadAndWhatsApp}>
+              <Zap size={13} className="text-yellow-300 fill-yellow-300" />
+              <span>Save + PDF + WhatsApp</span>
+            </button>
+            <button id="save-button" type="button" className="legacy-button py-1 bg-blue-600 text-white font-bold border-blue-700 hover:bg-blue-700 shadow transition-all" onClick={handleSaveClick}>Save Only</button>
+            <button type="button" className="legacy-button py-1 bg-red-100 font-bold border-red-400 hover:bg-red-200 transition-colors" onClick={handleCancelClick}>Cancel</button>
           </div>
         </div>
 
@@ -1245,13 +1380,45 @@ const POSCheckout = () => {
           <div className="col-span-4 border-t border-gray-400 my-0.5"></div>
 
           <label className="legacy-label col-span-2 text-right text-blue-900 font-bold">Pay Mode</label>
-          <select className="legacy-input col-span-2 font-bold py-0.5" value={paymentMode} onChange={e => setPaymentMode(e.target.value)}>
-            <option>Cash</option>
-            <option>UPI</option>
-            <option>Credit Card</option>
-            <option>Bank Transfer</option>
-            <option>Split / Other</option>
-          </select>
+          <div className="col-span-2 flex flex-col space-y-1">
+            <select
+              className="legacy-input w-full font-bold py-0.5 border-blue-500 bg-blue-50 focus:bg-yellow-50 text-xs"
+              value={paymentMode}
+              onChange={e => {
+                const mode = e.target.value;
+                setPaymentMode(mode);
+                if (mode.includes('UPI') || mode.includes('Online')) {
+                  setShowUpiModal(true);
+                }
+              }}
+            >
+              <option value="Cash">💵 Cash Pay</option>
+              <option value="UPI / Online Pay">📱 Online Pay (UPI / QR)</option>
+              <option value="Credit Card">💳 Credit Card</option>
+              <option value="Debit Card">💳 Debit Card</option>
+              <option value="Bank Transfer">🏦 Bank Transfer</option>
+              <option value="Credit / Ledger">📜 Credit / Account</option>
+            </select>
+            <div className="flex space-x-1">
+              <button
+                type="button"
+                onClick={() => setPaymentMode('Cash')}
+                className={`flex-1 py-0.5 px-1 rounded text-[10px] font-extrabold transition-all border ${paymentMode === 'Cash' ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-emerald-50 border-gray-300'}`}
+              >
+                💵 Cash
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPaymentMode('UPI / Online Pay');
+                  setShowUpiModal(true);
+                }}
+                className={`flex-1 py-0.5 px-1 rounded text-[10px] font-extrabold transition-all border ${paymentMode.includes('UPI') || paymentMode.includes('Online') ? 'bg-blue-600 text-white border-blue-700 shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-blue-50 border-gray-300'}`}
+              >
+                📱 Online
+              </button>
+            </div>
+          </div>
 
           <label className="legacy-label col-span-2 text-right text-blue-900">Amt Tendered</label>
           <input
@@ -1415,6 +1582,83 @@ const POSCheckout = () => {
               >
                 {confirmModalState.yesText || "Yes, Save"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* UPI / Online Payment Modal */}
+      {showUpiModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70]" onClick={() => setShowUpiModal(false)}>
+          <div className="bg-white shadow-2xl w-[420px] rounded-lg border border-blue-300 overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-blue-900 to-indigo-900 text-white px-4 py-3 flex justify-between items-center">
+              <div className="flex items-center space-x-2">
+                <QrCode size={20} className="text-yellow-400" />
+                <span className="font-bold text-base">Online Payment (UPI QR)</span>
+              </div>
+              <button onClick={() => setShowUpiModal(false)} className="text-white hover:text-red-300 font-bold text-lg">✕</button>
+            </div>
+            
+            <div className="p-5 flex flex-col items-center text-center space-y-3 bg-slate-50">
+              <div className="bg-white p-3 border-2 border-dashed border-blue-400 rounded-xl shadow-md flex flex-col items-center">
+                {/* Simulated UPI QR Code */}
+                <div className="w-44 h-44 bg-white p-2 border border-gray-300 rounded flex flex-col items-center justify-center relative">
+                  <div className="grid grid-cols-6 gap-1.5 w-full h-full p-1 bg-gray-900 rounded opacity-90">
+                    <div className="bg-white col-span-2 row-span-2 rounded-xs border-2 border-gray-900 p-1"><div className="bg-gray-900 w-full h-full"></div></div>
+                    <div className="bg-white col-span-2 row-span-2 col-start-5 rounded-xs border-2 border-gray-900 p-1"><div className="bg-gray-900 w-full h-full"></div></div>
+                    <div className="bg-white col-span-2 row-span-2 row-start-5 rounded-xs border-2 border-gray-900 p-1"><div className="bg-gray-900 w-full h-full"></div></div>
+                    <div className="bg-yellow-400 col-span-2 row-span-2 col-start-3 row-start-3 rounded-full flex items-center justify-center text-[9px] font-black text-blue-950">UPI</div>
+                  </div>
+                </div>
+                <p className="text-[11px] font-bold text-gray-500 mt-1">Scan using PhonePe / Google Pay / Paytm</p>
+              </div>
+
+              <div className="w-full bg-blue-50 border border-blue-200 p-2.5 rounded-md text-left text-xs font-mono">
+                <div className="flex justify-between text-gray-700 mb-1">
+                  <span>Merchant UPI ID:</span>
+                  <strong className="text-blue-900 font-bold select-all">srigayathritraders@upi</strong>
+                </div>
+                <div className="flex justify-between text-gray-900 font-bold text-sm border-t border-blue-200 pt-1">
+                  <span>Amount Payable:</span>
+                  <strong className="text-emerald-700 text-base">₹{netAmount.toFixed(2)}</strong>
+                </div>
+              </div>
+
+              <div className="w-full text-left">
+                <label className="text-xs font-bold text-gray-700 block mb-1">UPI Transaction Ref / UTR No (Optional)</label>
+                <input
+                  type="text"
+                  className="w-full px-3 py-1.5 border border-gray-300 rounded font-mono text-xs focus:ring-2 focus:ring-blue-500 outline-none"
+                  placeholder="e.g. 420918736122"
+                  value={upiTxnId}
+                  onChange={e => setUpiTxnId(e.target.value)}
+                />
+              </div>
+
+              <div className="flex space-x-2 w-full pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowUpiModal(false)}
+                  className="flex-1 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold rounded text-xs transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPaymentMode('UPI / Online Pay');
+                    setShowUpiModal(false);
+                    if (setGlobalNotification) {
+                      setGlobalNotification({ msg: `✓ Online Payment of ₹${netAmount.toFixed(2)} confirmed!`, type: 'success' });
+                      setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
+                    }
+                  }}
+                  className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded text-xs shadow transition-all flex items-center justify-center space-x-1"
+                >
+                  <CheckCircle size={14} />
+                  <span>Confirm Payment</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
