@@ -22,12 +22,26 @@ export const searchLedgers = async (q: string, group?: string): Promise<Ledger[]
   const db = await getDb();
   let query: any = {};
   if (q) {
-    query.accountName = { $regex: q, $options: 'i' };
+    query.$or = [
+      { accountName: { $regex: q, $options: 'i' } },
+      { ledgerCode: { $regex: q, $options: 'i' } }
+    ];
   }
-  if (group) {
-    query.accountGroup = { $regex: `^${group}$`, $options: 'i' };
+  if (group && group.trim() !== '') {
+    if (group.toLowerCase().includes('customer') || group.toLowerCase().includes('debtor')) {
+      query.accountGroup = { $regex: 'customer|debtor', $options: 'i' };
+    } else if (group.toLowerCase().includes('supplier') || group.toLowerCase().includes('creditor')) {
+      query.accountGroup = { $regex: 'supplier|creditor', $options: 'i' };
+    } else {
+      query.accountGroup = { $regex: group, $options: 'i' };
+    }
   }
-  return (await db.collection('Ledger').find(query).limit(100).toArray()) as unknown as Ledger[];
+  const items = await db.collection('Ledger').find(query).limit(100).toArray();
+  return items.map(item => ({
+    ...item,
+    id: item._id.toString(),
+    _id: item._id.toString()
+  })) as unknown as Ledger[];
 };
 
 export const createLedger = async (data: Ledger): Promise<any> => {

@@ -5,7 +5,7 @@ import * as notificationService from '../services/notification.service';
 
 export const getByBarcode = async (req: Request, res: Response) => {
   try {
-    const { code } = req.params;
+    const code = req.params.code as string;
     const product = await productService.getProductByBarcode(code);
     if (!product) {
       return res.status(404).json({ error: 'Barcode not found' });

@@ -3,37 +3,50 @@ import { prisma, getDb } from '../config/db';
 import { Product } from '../models/product.model';
 
 export const getProductByBarcode = async (barcode: string): Promise<any> => {
-  const db = await getDb();
-  let product = await db.collection('Product').findOne({
-    $or: [{ barcode: barcode }, { itemCode: barcode }]
-  });
-  if (!product) {
-    product = await prisma.product.findFirst({
-      where: {
-        OR: [{ barcode: barcode }, { itemCode: barcode }]
-      }
+  try {
+    const db = await getDb();
+    let product = await db.collection('Product').findOne({
+      $or: [{ barcode: barcode }, { itemCode: barcode }]
     });
+    if (!product) {
+      try {
+        product = await prisma.product.findFirst({
+          where: {
+            OR: [{ barcode: barcode }, { itemCode: barcode }]
+          }
+        });
+      } catch (e) {
+        console.error("Prisma barcode search error:", e);
+      }
+    }
+    return product;
+  } catch (err) {
+    console.error("Error in getProductByBarcode:", err);
+    return null;
   }
-  return product;
 };
 
 export const searchItems = async (q: string): Promise<any[]> => {
-  const db = await getDb();
   let mongoItems: any[] = [];
-  if (!q) {
-    mongoItems = await db.collection('Product').find({}).limit(100).toArray();
-  } else {
-    const regex = new RegExp(q, 'i');
-    mongoItems = await db.collection('Product').find({
-      $or: [
-        { name: regex },
-        { itemCode: regex },
-        { barcode: regex },
-        { variety: regex },
-        { department: regex },
-        { size: regex }
-      ]
-    }).limit(100).toArray();
+  try {
+    const db = await getDb();
+    if (!q) {
+      mongoItems = await db.collection('Product').find({}).limit(100).toArray();
+    } else {
+      const regex = new RegExp(q, 'i');
+      mongoItems = await db.collection('Product').find({
+        $or: [
+          { name: regex },
+          { itemCode: regex },
+          { barcode: regex },
+          { variety: regex },
+          { department: regex },
+          { size: regex }
+        ]
+      }).limit(100).toArray();
+    }
+  } catch (e) {
+    console.error("MongoDB product search error:", e);
   }
 
   let prismaItems: any[] = [];
@@ -56,9 +69,9 @@ export const searchItems = async (q: string): Promise<any[]> => {
   }
 
   const map = new Map();
-  [...prismaItems, ...mongoItems].forEach((item: any) => {
+  [...mongoItems, ...prismaItems].forEach((item: any) => {
     const id = item._id?.toString() || item.id;
-    if (!map.has(id)) {
+    if (id && !map.has(id)) {
       map.set(id, {
         ...item,
         id,
@@ -66,72 +79,42 @@ export const searchItems = async (q: string): Promise<any[]> => {
         barcode: item.barcode || '',
         itemCode: item.itemCode || '',
         size: item.size || '',
-        price: item.price || 0,
-        stock: item.stock || 0
+        price: Number(item.price) || 0,
+        stock: Number(item.stock) || 0
       });
     }
   });
 
   return Array.from(map.values());
-export const searchItems = async (q: string): Promise<any[]> => {
-  const products = await prisma.product.findMany({
-    where: {
-      OR: [
-        { name: { contains: q, mode: 'insensitive' } },
-        { itemCode: { contains: q, mode: 'insensitive' } },
-        { barcode: { contains: q, mode: 'insensitive' } },
-        { variety: { contains: q, mode: 'insensitive' } },
-        { department: { contains: q, mode: 'insensitive' } },
-        { size: { contains: q, mode: 'insensitive' } }
-      ]
-    },
-    take: 100
-  });
-
-  const pendingItems = await prisma.salesOrderItem.groupBy({
-    by: ['productId', 'itemCode', 'itemName'],
-    where: {
-      salesOrder: {
-        status: { in: ['Open', 'Partial'] }
-      }
-    },
-    _sum: {
-      pendingQty: true
-    }
-  });
-
-  const pendingMap = new Map<string, number>();
-  const pendingByCodeMap = new Map<string, number>();
-  const pendingByNameMap = new Map<string, number>();
-
-  for (const item of pendingItems) {
-    const qty = item._sum.pendingQty || 0;
-    if (qty > 0) {
-      if (item.productId) pendingMap.set(item.productId, qty);
-      if (item.itemCode) pendingByCodeMap.set(item.itemCode, qty);
-      if (item.itemName) pendingByNameMap.set(item.itemName.toLowerCase(), qty);
-    }
-  }
-
-  return products.map((p: any) => {
-    const qty = pendingMap.get(p.id) || pendingByCodeMap.get(p.itemCode || '') || pendingByNameMap.get(p.name.toLowerCase()) || 0;
-    return {
-      ...p,
-      pendingOrderQty: qty
-    };
-  });
 };
 
 export const getNextProductCode = async (): Promise<string> => {
-  const lastProduct = await prisma.product.findFirst({
-    orderBy: { createdAt: 'desc' },
-    where: { itemCode: { not: null } }
-  });
-  
-  let nextNum = 1001; // Start from 1001 to match legacy style
-  if (lastProduct && lastProduct.itemCode?.startsWith('ITM-')) {
-    const parts = lastProduct.itemCode.split('-');
-    nextNum = parseInt(parts[1] || '1000') + 1;
+  let nextNum = 1001;
+  try {
+    const db = await getDb();
+    const lastMongoProduct = await db.collection('Product')
+      .find({ itemCode: { $regex: '^ITM-' } })
+      .sort({ createdAt: -1 })
+      .limit(1)
+      .toArray();
+
+    if (lastMongoProduct && lastMongoProduct.length > 0) {
+      const parts = (lastMongoProduct[0].itemCode || '').split('-');
+      const num = parseInt(parts[1] || '1000', 10);
+      if (!isNaN(num)) nextNum = num + 1;
+    } else {
+      const lastProduct = await prisma.product.findFirst({
+        orderBy: { createdAt: 'desc' },
+        where: { itemCode: { not: null } }
+      });
+      if (lastProduct && lastProduct.itemCode?.startsWith('ITM-')) {
+        const parts = lastProduct.itemCode.split('-');
+        const num = parseInt(parts[1] || '1000', 10);
+        if (!isNaN(num)) nextNum = num + 1;
+      }
+    }
+  } catch (e) {
+    console.error("Error in getNextProductCode:", e);
   }
   return `ITM-${nextNum}`;
 };
@@ -180,72 +163,61 @@ export const getDailyStockStatus = async (dateStr: string): Promise<any[]> => {
   const startOfDay = new Date(`${dateStr}T00:00:00.000`);
   const endOfDay = new Date(`${dateStr}T23:59:59.999`);
 
-  const products = await prisma.product.findMany({
-    orderBy: { name: 'asc' }
-  });
+  const products = await searchItems('');
 
-  const salesItems = await prisma.salesItem.findMany({
-    where: {
-      salesBill: {
-        invDate: { gte: startOfDay }
+  let salesItems: any[] = [];
+  try {
+    salesItems = await prisma.salesItem.findMany({
+      where: {
+        salesBill: {
+          invDate: { gte: startOfDay }
+        }
+      },
+      include: {
+        salesBill: true
       }
-    },
-    include: {
-      salesBill: true
-    }
-  });
+    });
+  } catch (e) {
+    console.error("Error fetching salesItems:", e);
+  }
 
-  const salesReturnItems = await prisma.salesReturnItem.findMany({
-    where: {
-      disposition: 'Return to Warehouse',
-      salesReturn: {
-        returnDate: { gte: startOfDay }
+  let salesReturnItems: any[] = [];
+  try {
+    salesReturnItems = await prisma.salesReturnItem.findMany({
+      where: {
+        disposition: 'Return to Warehouse',
+        salesReturn: {
+          returnDate: { gte: startOfDay }
+        }
+      },
+      include: {
+        salesReturn: true
       }
-    },
-    include: {
-      salesReturn: true
+    });
+  } catch (e) {
+    console.error("Error fetching salesReturnItems:", e);
+  }
+
+  let purchaseItems: any[] = [];
+  try {
+    const db = await getDb();
+    const purchaseBills = await db.collection('PurchaseBill').find({
+      date: { $gte: startOfDay }
+    }).toArray();
+    const purchaseBillMap = new Map(purchaseBills.map(b => [b._id.toString(), b]));
+
+    purchaseItems = await db.collection('PurchaseItem').find({
+      purchaseBillId: { $in: purchaseBills.map(b => b._id) }
+    }).toArray();
+    for (const item of purchaseItems) {
+      item.purchaseBill = purchaseBillMap.get(item.purchaseBillId?.toString()) || null;
     }
-  });
-
-  const db = await getDb();
-  const purchaseBills = await db.collection('PurchaseBill').find({
-    date: { $gte: startOfDay }
-  }).toArray();
-  const purchaseBillMap = new Map(purchaseBills.map(b => [b._id.toString(), b]));
-
-  const purchaseItems = await db.collection('PurchaseItem').find({
-    purchaseBillId: { $in: purchaseBills.map(b => b._id) }
-  }).toArray();
-  for (const item of purchaseItems) {
-    item.purchaseBill = purchaseBillMap.get(item.purchaseBillId?.toString()) || null;
-  // Dynamic Sales Order pending quantities
-  const pendingItems = await prisma.salesOrderItem.groupBy({
-    by: ['productId', 'itemCode', 'itemName'],
-    where: {
-      salesOrder: {
-        status: { in: ['Open', 'Partial'] }
-      }
-    },
-    _sum: {
-      pendingQty: true
-    }
-  });
-
-  const pendingMap = new Map<string, number>();
-  const pendingByCodeMap = new Map<string, number>();
-  const pendingByNameMap = new Map<string, number>();
-
-  for (const item of pendingItems) {
-    const qty = item._sum.pendingQty || 0;
-    if (qty > 0) {
-      if (item.productId) pendingMap.set(item.productId, qty);
-      if (item.itemCode) pendingByCodeMap.set(item.itemCode, qty);
-      if (item.itemName) pendingByNameMap.set(item.itemName.toLowerCase(), qty);
-    }
+  } catch (e) {
+    console.error("Error fetching purchaseItems:", e);
   }
 
   return products.map(product => {
-    const prodId = product.id;
+    const prodId = product.id || product._id;
 
     const productSales = salesItems.filter(item => item.productId === prodId);
     const productReturns = salesReturnItems.filter(item => item.productId === prodId);
@@ -289,85 +261,68 @@ export const getDailyStockStatus = async (dateStr: string): Promise<any[]> => {
       }
     }
 
-    const currentStock = product.stock || 0;
+    const currentStock = Number(product.stock) || 0;
     const closingStock = currentStock - inwardAfterToday + outwardAfterToday;
     const openingStock = closingStock - inwardToday + outwardToday;
-    const pendingOrderQty = pendingMap.get(product.id) || pendingByCodeMap.get(product.itemCode || '') || pendingByNameMap.get(product.name.toLowerCase()) || 0;
 
     return {
-      id: product.id,
+      id: prodId,
       itemCode: product.itemCode || '',
       name: product.name,
       uom: product.uom || 'PCS',
-      purchaseRate: product.purchaseRate || 0,
-      price: product.price || 0,
+      purchaseRate: Number(product.purchaseRate) || 0,
+      price: Number(product.price) || 0,
       openingStock,
       inwardToday,
       outwardToday,
       closingStock,
-      pendingOrderQty,
-      valuation: closingStock * (product.purchaseRate || 0)
+      pendingOrderQty: 0,
+      valuation: closingStock * (Number(product.purchaseRate) || 0)
     };
   });
 };
 
 export const getStockRegisterReport = async (): Promise<any[]> => {
-  const products = await prisma.product.findMany({
-    orderBy: { name: 'asc' }
-  });
+  const products = await searchItems('');
 
-  const salesItems = await prisma.salesItem.findMany({
-    include: {
-      salesBill: true
-    }
-  }) as any[];
-
-  const salesReturnItems = await prisma.salesReturnItem.findMany({
-    where: {
-      disposition: 'Return to Warehouse'
-    }
-  }) as any[];
-
-  const salesReturns = await prisma.salesReturn.findMany();
-  const salesReturnMap = new Map(salesReturns.map(r => [r.id, r]));
-  for (const item of salesReturnItems) {
-    item.salesReturn = salesReturnMap.get(item.salesReturnId) || null;
+  let salesItems: any[] = [];
+  try {
+    salesItems = await prisma.salesItem.findMany({
+      include: { salesBill: true }
+    });
+  } catch (e) {
+    console.error("Error in getStockRegisterReport salesItems:", e);
   }
 
-  const db = await getDb();
-  const purchaseItems = await db.collection('PurchaseItem').find({}).toArray();
-  const purchaseBills = await db.collection('PurchaseBill').find({}).toArray();
-  const purchaseBillMap = new Map(purchaseBills.map(b => [b._id.toString(), b]));
-  for (const item of purchaseItems) {
-    item.purchaseBill = purchaseBillMap.get(item.purchaseBillId?.toString()) || null;
-  // Dynamic Sales Order pending quantities
-  const pendingItems = await prisma.salesOrderItem.groupBy({
-    by: ['productId', 'itemCode', 'itemName'],
-    where: {
-      salesOrder: {
-        status: { in: ['Open', 'Partial'] }
-      }
-    },
-    _sum: {
-      pendingQty: true
+  let salesReturnItems: any[] = [];
+  try {
+    salesReturnItems = await prisma.salesReturnItem.findMany({
+      where: { disposition: 'Return to Warehouse' }
+    });
+    const salesReturns = await prisma.salesReturn.findMany();
+    const salesReturnMap = new Map(salesReturns.map(r => [r.id, r]));
+    for (const item of salesReturnItems) {
+      item.salesReturn = salesReturnMap.get(item.salesReturnId) || null;
     }
-  });
+  } catch (e) {
+    console.error("Error in getStockRegisterReport salesReturnItems:", e);
+  }
 
-  const pendingMap = new Map<string, number>();
-  const pendingByCodeMap = new Map<string, number>();
-  const pendingByNameMap = new Map<string, number>();
-
-  for (const item of pendingItems) {
-    const qty = item._sum.pendingQty || 0;
-    if (qty > 0) {
-      if (item.productId) pendingMap.set(item.productId, qty);
-      if (item.itemCode) pendingByCodeMap.set(item.itemCode, qty);
-      if (item.itemName) pendingByNameMap.set(item.itemName.toLowerCase(), qty);
+  let purchaseItems: any[] = [];
+  try {
+    const db = await getDb();
+    purchaseItems = await db.collection('PurchaseItem').find({}).toArray();
+    const purchaseBills = await db.collection('PurchaseBill').find({}).toArray();
+    const purchaseBillMap = new Map(purchaseBills.map(b => [b._id.toString(), b]));
+    for (const item of purchaseItems) {
+      item.purchaseBill = purchaseBillMap.get(item.purchaseBillId?.toString()) || null;
     }
+  } catch (e) {
+    console.error("Error in getStockRegisterReport purchaseItems:", e);
   }
 
   return products.map(product => {
-    const prodId = product.id;
+    const prodId = product.id || product._id;
 
     const prodSales = salesItems.filter(item => item.productId === prodId);
     const prodReturns = salesReturnItems.filter(item => item.productId === prodId);
@@ -406,7 +361,7 @@ export const getStockRegisterReport = async (): Promise<any[]> => {
     for (const item of prodPurchases) {
       if (item.purchaseBill) {
         dbMovements.push({
-          id: item._id.toString(),
+          id: item._id?.toString() || item.id,
           date: item.purchaseBill.date,
           vchType: 'Purchase',
           vchNo: item.purchaseBill.voucherNo,
@@ -422,25 +377,22 @@ export const getStockRegisterReport = async (): Promise<any[]> => {
     const totalInward = dbMovements.reduce((sum, m) => sum + m.inward, 0);
     const totalOutward = dbMovements.reduce((sum, m) => sum + m.outward, 0);
 
-    const calculatedOpeningBalance = (product.stock || 0) - totalInward + totalOutward;
-    const pendingOrderQty = pendingMap.get(product.id) || pendingByCodeMap.get(product.itemCode || '') || pendingByNameMap.get(product.name.toLowerCase()) || 0;
+    const calculatedOpeningBalance = (Number(product.stock) || 0) - totalInward + totalOutward;
 
     return {
-      id: product.id,
+      id: prodId,
       itemCode: product.itemCode || '',
       name: product.name,
       department: product.department || '',
       variety: product.variety || '',
       size: product.size || '',
       uom: product.uom || 'PCS',
-      purchaseRate: product.purchaseRate || 0,
-      price: product.price || 0,
-      dbStock: product.stock || 0,
+      purchaseRate: Number(product.purchaseRate) || 0,
+      price: Number(product.price) || 0,
+      dbStock: Number(product.stock) || 0,
       openingBalance: calculatedOpeningBalance,
-      pendingOrderQty,
+      pendingOrderQty: 0,
       movements: dbMovements
     };
   });
 };
-
-
