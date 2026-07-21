@@ -137,6 +137,7 @@ export const createSalesBill = async (data: any): Promise<any> => {
         salesBillId: billResult.insertedId,
         itemName: item.itemName,
         itemDesc: item.itemDesc,
+        size: item.size || product?.size || null,
         qty: qty,
         uom: item.uom,
         rate: Number(item.rate) || 0,
@@ -303,6 +304,7 @@ export const updateSalesBill = async (id: string, data: any): Promise<boolean> =
         salesBillId: billId,
         itemName: item.itemName,
         itemDesc: item.itemDesc,
+        size: item.size || product?.size || null,
         qty: qty,
         uom: item.uom,
         rate: Number(item.rate) || 0,
@@ -360,12 +362,14 @@ export const searchSalesBills = async (q: string): Promise<any[]> => {
   if (q) {
     query.$or = [
       { invoiceNo: { $regex: q, $options: 'i' } },
-      { buyerName: { $regex: q, $options: 'i' } }
+      { buyerName: { $regex: q, $options: 'i' } },
+      { paymentMode: { $regex: q, $options: 'i' } },
+      { mobileNo: { $regex: q, $options: 'i' } }
     ];
   }
   let cursor = db.collection('SalesBill').find(query).sort({ createdAt: -1 });
   if (!q) {
-    cursor = cursor.limit(50);
+    cursor = cursor.limit(100);
   }
   return await cursor.toArray();
 };
@@ -375,18 +379,27 @@ export const getSalesBillByInvoiceNo = async (invoiceNo: string): Promise<any> =
   const bill = await db.collection('SalesBill').findOne({ invoiceNo });
   if (!bill) return null;
   const items = await db.collection('SalesItem').find({ salesBillId: bill._id }).toArray();
-  const itemsWithBarcode = [];
+  const itemsWithDetails = [];
   for (const item of items) {
     let barcode = '';
+    let size = item.size || '';
+    let prod = null;
     if (item.productId) {
-      const prod = await db.collection('Product').findOne({ _id: new ObjectId(item.productId as string) });
-      if (prod) {
-        barcode = prod.barcode || '';
-      }
+      prod = await db.collection('Product').findOne({ _id: new ObjectId(item.productId as string) });
     }
-    itemsWithBarcode.push({ ...item, barcode });
+    if (!prod && item.itemDesc) {
+      prod = await db.collection('Product').findOne({ itemCode: item.itemDesc });
+    }
+    if (!prod && item.itemName) {
+      prod = await db.collection('Product').findOne({ name: item.itemName });
+    }
+    if (prod) {
+      barcode = prod.barcode || prod.itemCode || '';
+      if (!size) size = prod.size || '';
+    }
+    itemsWithDetails.push({ ...item, barcode, size: size || '-' });
   }
-  return { ...bill, items: itemsWithBarcode };
+  return { ...bill, items: itemsWithDetails };
 };
 
 
@@ -546,7 +559,9 @@ export const searchSalesReturns = async (q: string): Promise<any[]> => {
   if (q) {
     query.$or = [
       { returnNo: { $regex: q, $options: 'i' } },
-      { customerName: { $regex: q, $options: 'i' } }
+      { customerName: { $regex: q, $options: 'i' } },
+      { paymentMode: { $regex: q, $options: 'i' } },
+      { refundMethod: { $regex: q, $options: 'i' } }
     ];
   }
   return await db.collection('SalesReturn').find(query).sort({ createdAt: -1 }).limit(100).toArray();
@@ -897,17 +912,22 @@ export const getStockLedger = async (productId: string): Promise<any> => {
   }
 
   // Virtual Movements (Sales Orders)
-  const orderItems = await prisma.salesOrderItem.findMany({
-    where: {
-      productId,
-      salesOrder: {
-        status: { in: ['Open', 'Partial'] }
+  let orderItems: any[] = [];
+  try {
+    orderItems = await (prisma as any).salesOrderItem?.findMany({
+      where: {
+        productId,
+        salesOrder: {
+          status: { in: ['Open', 'Partial'] }
+        }
+      },
+      include: {
+        salesOrder: true
       }
-    },
-    include: {
-      salesOrder: true
-    }
-  }) as any[];
+    }) || [];
+  } catch (e) {
+    console.error("Error fetching salesOrderItems in getStockLedger:", e);
+  }
 
   let movements = [];
 
@@ -1161,30 +1181,53 @@ export const createSalesOrder = async (data: any): Promise<any> => {
 };
 
 export const searchSalesOrders = async (q: string): Promise<any[]> => {
-  const orders = await prisma.salesOrder.findMany({
-    where: {
-      OR: [
-        { orderNumber: { contains: q, mode: 'insensitive' } },
-        { buyerName: { contains: q, mode: 'insensitive' } },
-        { mobileNo: { contains: q, mode: 'insensitive' } }
+  const db = await getDb();
+  let filter: any = {};
+  if (q) {
+    const regex = new RegExp(q, 'i');
+    filter = {
+      $or: [
+        { orderNumber: regex },
+        { buyerName: regex },
+        { mobileNo: regex }
       ]
-    },
-    include: {
-      items: true
-    },
-    orderBy: { createdAt: 'desc' }
-  });
-  return orders;
+    };
+  }
+  const orders = await db.collection('SalesOrder').find(filter).sort({ createdAt: -1 }).toArray();
+  const orderIds = orders.map(o => o._id);
+  const items = await db.collection('SalesOrderItem').find({ salesOrderId: { $in: orderIds } }).toArray();
+  const itemMap = new Map<string, any[]>();
+  for (const item of items) {
+    const key = item.salesOrderId?.toString();
+    if (!itemMap.has(key)) itemMap.set(key, []);
+    itemMap.get(key)!.push({ ...item, id: item._id?.toString() });
+  }
+
+  return orders.map(o => ({
+    ...o,
+    id: o._id.toString(),
+    _id: o._id.toString(),
+    items: itemMap.get(o._id.toString()) || []
+  }));
 };
 
 export const getSalesOrderDetails = async (id: string): Promise<any> => {
-  const order = await prisma.salesOrder.findUnique({
-    where: { id },
-    include: {
-      items: true
-    }
-  });
-  return order;
+  const db = await getDb();
+  let order = null;
+  try {
+    order = await db.collection('SalesOrder').findOne({ _id: new ObjectId(id) });
+  } catch (e) {
+    order = await db.collection('SalesOrder').findOne({ orderNumber: id });
+  }
+  if (!order) return null;
+
+  const items = await db.collection('SalesOrderItem').find({ salesOrderId: order._id }).toArray();
+  return {
+    ...order,
+    id: order._id.toString(),
+    _id: order._id.toString(),
+    items: items.map(i => ({ ...i, id: i._id?.toString() }))
+  };
 };
 
 export const updateSalesOrder = async (id: string, data: any): Promise<boolean> => {
@@ -1196,9 +1239,7 @@ export const updateSalesOrder = async (id: string, data: any): Promise<boolean> 
   const db = await getDb();
   const orderId = new ObjectId(id);
 
-  const existingOrder = await prisma.salesOrder.findUnique({
-    where: { id }
-  });
+  const existingOrder = await db.collection('SalesOrder').findOne({ _id: orderId });
 
   if (!existingOrder) return false;
   if (existingOrder.status === 'Completed' || existingOrder.status === 'Cancelled') {
@@ -1207,16 +1248,14 @@ export const updateSalesOrder = async (id: string, data: any): Promise<boolean> 
 
   let customerId = null;
   if (customer) {
-    const ledger = await prisma.ledger.findFirst({
-      where: { accountName: customer }
-    });
+    const ledger = await db.collection('Ledger').findOne({ accountName: customer });
     if (ledger) {
-      customerId = new ObjectId(ledger.id);
+      customerId = ledger._id;
     }
   }
 
   const advance = Number(advancePaid) || 0;
-  const grandTotal = Number(summary.grandTotal) || 0;
+  const grandTotal = Number(summary?.grandTotal) || Number(data.grandTotal) || 0;
   const balanceAmount = Math.max(0, grandTotal - advance);
 
   let parsedOrderDate = orderDate ? new Date(orderDate) : new Date();
@@ -1237,11 +1276,11 @@ export const updateSalesOrder = async (id: string, data: any): Promise<boolean> 
         orderDate: parsedOrderDate,
         expectedDeliveryDate: parsedDeliveryDate,
         status: status || existingOrder.status,
-        subtotal: Number(summary.subtotal) || 0,
-        discount: Number(summary.discount) || 0,
-        cgst: Number(summary.cgst) || 0,
-        sgst: Number(summary.sgst) || 0,
-        roundOff: Number(summary.rounding) || 0,
+        subtotal: Number(summary?.subtotal) || 0,
+        discount: Number(summary?.discount) || 0,
+        cgst: Number(summary?.cgst) || 0,
+        sgst: Number(summary?.sgst) || 0,
+        roundOff: Number(summary?.rounding) || 0,
         grandTotal,
         advancePaid: advance,
         balanceAmount,
@@ -1261,16 +1300,14 @@ export const updateSalesOrder = async (id: string, data: any): Promise<boolean> 
     for (const item of items) {
       let productId = item.productId ? new ObjectId(item.productId as string) : null;
       if (!productId && item.itemCode) {
-        const prod = await prisma.product.findUnique({
-          where: { itemCode: item.itemCode }
-        });
+        const prod = await db.collection('Product').findOne({ itemCode: item.itemCode });
         if (prod) {
-          productId = new ObjectId(prod.id);
+          productId = prod._id;
         }
       }
 
-      const qty = Number(item.quantityOrdered) || 0;
-      const delivered = Number(item.quantityFulfilled) || 0;
+      const qty = Number(item.quantityOrdered) || Number(item.orderedQty) || 0;
+      const delivered = Number(item.quantityFulfilled) || Number(item.deliveredQty) || 0;
       itemsToInsert.push({
         salesOrderId: orderId,
         productId,
@@ -1284,7 +1321,7 @@ export const updateSalesOrder = async (id: string, data: any): Promise<boolean> 
         unitPrice: Number(item.unitPrice) || 0,
         discount: Number(item.discountPercentage) || 0,
         tax: Number(item.taxRatePercentage) || 0,
-        lineTotal: Number(item.lineSubTotal) || 0
+        lineTotal: Number(item.lineSubTotal) || Number(item.lineTotal) || 0
       });
     }
     await db.collection('SalesOrderItem').insertMany(itemsToInsert);

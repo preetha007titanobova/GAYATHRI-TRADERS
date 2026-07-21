@@ -36,6 +36,7 @@ const DailyStockStatus = () => {
 
   const [selectedDate, setSelectedDate] = useState(getTodayStr());
   const [inventory, setInventory] = useState<DailyStockItem[]>([]);
+  const [dailySales, setDailySales] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [hideZero, setHideZero] = useState(false);
@@ -59,9 +60,55 @@ const DailyStockStatus = () => {
     }
   };
 
+  const fetchDailySales = async () => {
+    try {
+      const res = await fetch(`${Api}/sales/search`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          const filtered = data.filter(bill => {
+            if (!bill.invDate) return false;
+            const billDate = new Date(bill.invDate).toISOString().split('T')[0];
+            return billDate === selectedDate;
+          });
+          setDailySales(filtered);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch daily sales for payment summary", err);
+    }
+  };
+
   useEffect(() => {
     fetchDailyStatus();
+    fetchDailySales();
   }, [selectedDate]);
+
+  const paymentSummary = useMemo(() => {
+    let cash = 0;
+    let upi = 0;
+    let card = 0;
+    let credit = 0;
+    let total = 0;
+
+    dailySales.forEach(bill => {
+      const mode = bill.paymentMode || 'Cash';
+      const amt = Number(bill.netAmount) || Number(bill.totalAmount) || 0;
+      total += amt;
+
+      if (mode.includes('UPI') || mode.includes('Online')) {
+        upi += amt;
+      } else if (mode.includes('Card') || mode.includes('Bank')) {
+        card += amt;
+      } else if (mode.includes('Credit') || mode.includes('Ledger')) {
+        credit += amt;
+      } else {
+        cash += amt;
+      }
+    });
+
+    return { cash, upi, card, credit, total, count: dailySales.length };
+  }, [dailySales]);
 
   useEffect(() => {
     setToolbarActions({
@@ -385,6 +432,42 @@ const DailyStockStatus = () => {
           </button>
         </div>
 
+      </div>
+
+      {/* DAILY SALES PAYMENT METHODS SUMMARY BANNER */}
+      <div className="bg-white p-2.5 border border-gray-400 shadow-sm rounded mb-2 flex items-center justify-between text-xs print:hidden">
+        <div className="flex items-center space-x-2 font-bold text-gray-700">
+          <span className="text-[#2b579a] font-extrabold uppercase tracking-wider text-[11px] flex items-center">
+            <FileText size={14} className="mr-1 text-blue-600" /> Daily Sales Payment Method Breakdown ({paymentSummary.count} Bills):
+          </span>
+        </div>
+
+        <div className="flex items-center space-x-2.5 font-semibold flex-wrap">
+          <div className="bg-emerald-50 border border-emerald-300 px-2.5 py-1 rounded-md text-emerald-800 flex items-center space-x-1">
+            <span>💵 Cash:</span>
+            <span className="font-mono font-bold text-sm">₹{paymentSummary.cash.toFixed(2)}</span>
+          </div>
+
+          <div className="bg-blue-50 border border-blue-300 px-2.5 py-1 rounded-md text-blue-800 flex items-center space-x-1">
+            <span>📱 UPI / Online:</span>
+            <span className="font-mono font-bold text-sm">₹{paymentSummary.upi.toFixed(2)}</span>
+          </div>
+
+          <div className="bg-purple-50 border border-purple-300 px-2.5 py-1 rounded-md text-purple-800 flex items-center space-x-1">
+            <span>💳 Card / Bank:</span>
+            <span className="font-mono font-bold text-sm">₹{paymentSummary.card.toFixed(2)}</span>
+          </div>
+
+          <div className="bg-rose-50 border border-rose-300 px-2.5 py-1 rounded-md text-rose-800 flex items-center space-x-1">
+            <span>📜 Credit / Ledger:</span>
+            <span className="font-mono font-bold text-sm">₹{paymentSummary.credit.toFixed(2)}</span>
+          </div>
+
+          <div className="bg-[#1e3f70] text-white px-3 py-1 rounded-md font-bold flex items-center space-x-1 shadow-inner">
+            <span className="text-[11px] uppercase tracking-wider text-blue-200">Total Sales:</span>
+            <span className="font-mono text-sm text-yellow-300 font-extrabold">₹{paymentSummary.total.toFixed(2)}</span>
+          </div>
+        </div>
       </div>
 
       {/* DATA GRID */}

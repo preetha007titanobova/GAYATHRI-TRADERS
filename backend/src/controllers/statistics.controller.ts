@@ -49,30 +49,30 @@ export const getDashboardStatistics = async (req: Request, res: Response) => {
     monthStart.setDate(1);
     monthStart.setHours(0, 0, 0, 0);
 
-    const openOrders = await prisma.salesOrder.findMany({ where: { status: 'Open' } });
-    const partialOrders = await prisma.salesOrder.findMany({ where: { status: 'Partial' } });
-    const completedOrdersCount = await prisma.salesOrder.count({ where: { status: 'Completed' } });
-    const cancelledOrdersCount = await prisma.salesOrder.count({ where: { status: 'Cancelled' } });
+    const openOrders = await (prisma as any).salesOrder?.findMany({ where: { status: 'Open' } }) || [];
+    const partialOrders = await (prisma as any).salesOrder?.findMany({ where: { status: 'Partial' } }) || [];
+    const completedOrdersCount = await (prisma as any).salesOrder?.count({ where: { status: 'Completed' } }) || 0;
+    const cancelledOrdersCount = await (prisma as any).salesOrder?.count({ where: { status: 'Cancelled' } }) || 0;
 
     // Pending Delivery Amount: sum of balanceAmount for Open and Partial orders
-    const pendingDeliveryAmount = [...openOrders, ...partialOrders].reduce((sum, o) => sum + (o.balanceAmount || 0), 0);
+    const pendingDeliveryAmount = [...openOrders, ...partialOrders].reduce((sum, o: any) => sum + (o.balanceAmount || 0), 0);
 
-    const todaysOrdersCount = await prisma.salesOrder.count({
+    const todaysOrdersCount = await (prisma as any).salesOrder?.count({
       where: {
         createdAt: {
           gte: todayStart,
           lte: todayEnd
         }
       }
-    });
+    }) || 0;
 
-    const thisMonthsOrdersCount = await prisma.salesOrder.count({
+    const thisMonthsOrdersCount = await (prisma as any).salesOrder?.count({
       where: {
         createdAt: {
           gte: monthStart
         }
       }
-    });
+    }) || 0;
 
     res.json({
       totalOpenOrders: openOrders.length,

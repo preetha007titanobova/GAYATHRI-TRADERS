@@ -34,7 +34,7 @@ export async function setupDatabase() {
     await prisma.$runCommandRaw({ create: "Ledger" });
     console.log("Ledger collection ready");
   } catch (e: any) {
-    if (e.code !== 48) { // 48 = NamespaceExists
+    if (e.code !== 48) {
       console.log("Setup note:", e.message);
     }
   }
@@ -47,5 +47,40 @@ export async function setupDatabase() {
     console.log("Ledger indexes ready");
   } catch (e: any) {
     console.log("Index setup note:", e.message);
+  }
+
+  // Ensure Product collection and indexes for fast barcode scanning
+  try {
+    const db = await getDb();
+    await db.collection('Product').createIndex({ barcode: 1 });
+    await db.collection('Product').createIndex({ itemCode: 1 });
+    console.log("Product barcode indexes created/ready");
+
+    // Seed sample product 100002 if missing
+    const existing = await db.collection('Product').findOne({
+      $or: [{ barcode: '100002' }, { itemCode: 'ITM-100002' }]
+    });
+
+    if (!existing) {
+      await db.collection('Product').insertOne({
+        itemCode: 'ITM-100002',
+        name: "Men's Shirt",
+        barcode: '100002',
+        size: 'L',
+        department: 'Mens',
+        variety: 'Formal',
+        uom: 'PCS',
+        purchaseRate: 450,
+        price: 799,
+        mrp: 799,
+        taxPercent: 5,
+        stock: 50,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+      console.log("Seeded default barcode product 100002 (Men's Shirt, Size: L, Price: 799)");
+    }
+  } catch (e: any) {
+    console.log("Product database setup note:", e.message);
   }
 }

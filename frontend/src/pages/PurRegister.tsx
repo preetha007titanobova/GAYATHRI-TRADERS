@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext, useNavigate } from 'react-router-dom';
 import type { ToolbarActions } from '../components/Layout';
 import { Search, Calendar, Filter, FileText, AlertCircle, Eye } from 'lucide-react';
 import Modal from '../components/Modal';
@@ -15,6 +15,9 @@ interface LineItem {
   rate: number;
   taxPercent: number;
   total: number;
+  size?: string;
+  variety?: string;
+  category?: string;
 }
 
 interface PurchaseRecord {
@@ -37,6 +40,7 @@ interface PurchaseRecord {
 }
 
 const PurRegister = () => {
+  const navigate = useNavigate();
   const { 
     setToolbarActions, 
     setGlobalNotification, 
@@ -64,22 +68,61 @@ const PurRegister = () => {
   // Modal State
   const [selectedRecord, setSelectedRecord] = useState<PurchaseRecord | null>(null);
 
+  const handleEditBill = (record: PurchaseRecord) => {
+    setSelectedRecord(null);
+    navigate('/purchase-bill', { state: { editBill: record } });
+  };
+
+  const handleDeleteBill = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this purchase bill? This will revert the physical stock of all items.")) return;
+    try {
+      const res = await fetch(`${Api}/purchase-bills/${id}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      if (data.success) {
+        setGlobalNotification({ msg: "Purchase Bill deleted successfully!", type: 'success' });
+        setSelectedRecord(null);
+        // Reload bills
+        fetch(`${Api}/purchase-bills`)
+          .then(res => res.json())
+          .then(data => {
+            if (Array.isArray(data)) {
+              setAllData(data);
+              setDisplayedData(data);
+            }
+          });
+      } else {
+        setGlobalNotification({ msg: "Failed to delete: " + data.error, type: 'error' });
+      }
+    } catch (err) {
+      console.error(err);
+      setGlobalNotification({ msg: "Network error deleting purchase bill.", type: 'error' });
+    }
+  };
+
   // Load Data on Mount
   useEffect(() => {
-    // Load Bills
-    const storedBills = localStorage.getItem('billing_purchase_bills');
-    if (storedBills) {
-      const parsed = JSON.parse(storedBills);
-      setAllData(parsed);
-      setDisplayedData(parsed); // Show all initially or let user fetch
-    }
+    // Load Bills from DB
+    fetch(`${Api}/purchase-bills`)
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setAllData(data);
+          setDisplayedData(data);
+        }
+      })
+      .catch(err => console.error("Error loading purchase bills", err));
 
-    // Load Suppliers for dropdown
-    const storedVendors = localStorage.getItem('billing_vendors');
-    if (storedVendors) {
-      const parsedVendors = JSON.parse(storedVendors);
-      setSuppliersList(['All', ...parsedVendors.map((v: any) => v.name)]);
-    }
+    // Load Suppliers for dropdown from DB Ledgers
+    fetch(`${Api}/ledgers/search?group=Suppliers`)
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setSuppliersList(['All', ...data.map((v: any) => v.accountName)]);
+        }
+      })
+      .catch(err => console.error("Error loading suppliers list", err));
   }, []);
 
   // --- ACTIONS ---
@@ -464,8 +507,22 @@ const PurRegister = () => {
                </table>
             </div>
 
-            <div className="flex justify-end pt-2">
-               <button onClick={() => setSelectedRecord(null)} className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded font-semibold transition-colors">
+             <div className="flex justify-between items-center pt-4 border-t border-gray-200 mt-4">
+               <div className="flex space-x-2">
+                 <button 
+                   onClick={() => handleDeleteBill(selectedRecord.id)} 
+                   className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded font-semibold transition-colors text-xs"
+                 >
+                   Delete Bill
+                 </button>
+                 <button 
+                   onClick={() => handleEditBill(selectedRecord)} 
+                   className="px-3 py-1.5 bg-[#2b579a] hover:bg-blue-800 text-white rounded font-semibold transition-colors text-xs"
+                 >
+                   Edit Bill
+                 </button>
+               </div>
+               <button onClick={() => setSelectedRecord(null)} className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded font-semibold transition-colors text-xs">
                  Close
                </button>
             </div>

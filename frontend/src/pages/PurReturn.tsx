@@ -3,10 +3,11 @@ import { useOutletContext } from 'react-router-dom';
 import type { ToolbarActions } from '../components/Layout';
 import { Trash2, AlertCircle } from 'lucide-react';
 import { printReceipt } from '../utils/printReceipt';
+import Api from '../Api';
 
 // Models
 interface ReturnItem {
-  id: string; // using itemCode as basic id for mock
+  id: string; 
   itemCode: string;
   itemDesc: string;
   batchNo: string;
@@ -24,9 +25,9 @@ interface ReturnItem {
 }
 
 const REASONS = [
-  'Damaged Goods',
-  'Expired Stock',
-  'Incorrect Item',
+  'Damaged Items',
+  'Incorrect Items Delivered',
+  'Quality Not Up to Standard',
   'Excess Quantity',
   'Price Difference',
   'Others'
@@ -38,7 +39,7 @@ const SETTLEMENT_MODES = [
   'Bank Transfer'
 ];
 
-const COMPANY_STATE = 'Tamil Nadu'; // Mock company state for GST calculation
+const COMPANY_STATE = 'Tamil Nadu'; 
 
 const PurReturn = () => {
   const { setToolbarActions, setGlobalNotification } = useOutletContext<{
@@ -46,18 +47,16 @@ const PurReturn = () => {
     setGlobalNotification: (notif: {msg: string, type: 'error' | 'success' | 'info' | ''}) => void;
   }>();
 
-  // Load Invoices from Local Storage
+  // Invoices & Saved Returns
   const [invoices, setInvoices] = useState<any[]>([]);
-
-  useEffect(() => {
-    const storedBills = localStorage.getItem('billing_purchase_bills');
-    if (storedBills) {
-      setInvoices(JSON.parse(storedBills));
-    }
-  }, []);
+  const [savedReturns, setSavedReturns] = useState<any[]>([]);
+  
+  // Selection/Edit State
+  const [selectedReturnId, setSelectedReturnId] = useState('');
+  const [editingReturnId, setEditingReturnId] = useState<string | null>(null);
 
   // Header State
-  const [returnNo, setReturnNo] = useState('PR-' + Math.floor(Math.random() * 10000));
+  const [returnNo, setReturnNo] = useState('PR-1001');
   const [returnDate, setReturnDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState('');
   const [reason, setReason] = useState(REASONS[0]);
@@ -71,42 +70,135 @@ const PurReturn = () => {
   // Footer State
   const [settlementMode, setSettlementMode] = useState(SETTLEMENT_MODES[0]);
 
-  // Load items when invoice changes
+  // Load Invoices from database
+  const fetchInvoices = async () => {
+    try {
+      const res = await fetch(`${Api}/purchase-bills`);
+      if (res.ok) {
+        const data = await res.json();
+        setInvoices(data);
+      }
+    } catch (err) {
+      console.error("Error loading invoices", err);
+    }
+  };
+
+  // Load Saved Returns from database
+  const fetchSavedReturns = async () => {
+    try {
+      const res = await fetch(`${Api}/purchase-bills/returns`);
+      if (res.ok) {
+        const data = await res.json();
+        setSavedReturns(data);
+      }
+    } catch (err) {
+      console.error("Error loading purchase returns", err);
+    }
+  };
+
+  // Fetch next Debit Note number from database
+  const fetchNextReturnVoucher = async () => {
+    try {
+      const res = await fetch(`${Api}/purchase-bills/returns/next-voucher`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.returnNo) {
+          setReturnNo(data.returnNo);
+        }
+      }
+    } catch (err) {
+      console.error("Error loading next return voucher", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchInvoices();
+    fetchSavedReturns();
+    fetchNextReturnVoucher();
+  }, []);
+
+  // Row Calculation Helper
+  const calculateReturnItem = (item: ReturnItem, supplierState: string) => {
+    const qtyToCalc = isNaN(item.returnQty) ? 0 : item.returnQty;
+    const rate = isNaN(item.unitPrice) ? 0 : item.unitPrice;
+    
+    const baseVal = qtyToCalc * rate;
+    const afterDisc = baseVal - (baseVal * (item.discPercent / 100));
+    
+    const isInterstate = supplierState.toLowerCase() !== COMPANY_STATE.toLowerCase();
+    
+    let igstAmt = 0;
+    let cgstAmt = 0;
+    let sgstAmt = 0;
+
+    if (isInterstate) {
+      igstAmt = afterDisc * (item.taxPercent / 100);
+    } else {
+      cgstAmt = afterDisc * ((item.taxPercent / 2) / 100);
+      sgstAmt = afterDisc * ((item.taxPercent / 2) / 100);
+    }
+
+    return {
+      ...item,
+      taxableAmt: afterDisc,
+      cgstAmt,
+      sgstAmt,
+      igstAmt,
+      totalAmt: afterDisc + cgstAmt + sgstAmt + igstAmt
+    };
+  };
+
+  // Load items when invoice changes or when entering edit mode
   useEffect(() => {
     if (selectedInvoiceId) {
-      const invoice = invoices.find(inv => inv.id === selectedInvoiceId);
+      const invoice = invoices.find(inv => inv.id === selectedInvoiceId || inv.voucherNo === selectedInvoiceId);
       if (invoice) {
+        const supplierState = invoice.type === 'Local' ? COMPANY_STATE : 'Other State';
         setVendorDetails({
           name: invoice.supplierName,
-          gstin: invoice.supplierGstin,
-          state: invoice.type === 'Local' ? COMPANY_STATE : 'Other State'
+          gstin: invoice.supplierGstin || '',
+          state: supplierState
         });
         
-        const initialItems: ReturnItem[] = (invoice.items || []).map((item: any) => ({
-          id: Math.random().toString(),
-          itemCode: item.itemCode,
-          itemDesc: item.itemDesc,
-          batchNo: item.batchNo || 'N/A',
-          purchasedQty: item.purchasedQty || item.qty || 0,
-          unitPrice: item.unitPrice || item.rate || 0,
-          discPercent: item.discPercent || 0,
-          taxPercent: item.taxPercent || 0,
-          returnQty: 0,
-          taxableAmt: 0,
-          cgstAmt: 0,
-          sgstAmt: 0,
-          igstAmt: 0,
-          totalAmt: 0
-        }));
+        const initialItems: ReturnItem[] = (invoice.items || []).map((item: any) => {
+          let initialReturnQty = 0;
+          if (editingReturnId) {
+            const activeReturn = savedReturns.find(r => r.id === editingReturnId);
+            if (activeReturn && activeReturn.items) {
+              const matchedItem = activeReturn.items.find((i: any) => i.itemCode?.toLowerCase() === item.itemCode?.toLowerCase());
+              if (matchedItem) {
+                initialReturnQty = matchedItem.returnQty;
+              }
+            }
+          }
+
+          const rawItem: ReturnItem = {
+            id: Math.random().toString(),
+            itemCode: item.itemCode,
+            itemDesc: item.itemName || item.itemDesc || '',
+            batchNo: item.batchNo || 'N/A',
+            purchasedQty: item.purchasedQty || item.qty || 0,
+            unitPrice: item.unitPrice || item.rate || 0,
+            discPercent: item.discPercent || 0,
+            taxPercent: item.taxPercent || 18,
+            returnQty: initialReturnQty,
+            taxableAmt: 0,
+            cgstAmt: 0,
+            sgstAmt: 0,
+            igstAmt: 0,
+            totalAmt: 0
+          };
+          return calculateReturnItem(rawItem, supplierState);
+        });
         setItems(initialItems);
       }
     } else {
       setVendorDetails({ name: '', gstin: '', state: '' });
       setItems([]);
     }
-  }, [selectedInvoiceId, invoices]);
+  }, [selectedInvoiceId, invoices, editingReturnId, savedReturns]);
 
-  // Calculate row values
+  // Handle Return Quantities or Price changes in the grid
   const updateItem = (id: string, field: keyof ReturnItem, value: any) => {
     setItems(prev => prev.map(item => {
       if (item.id !== id) return item;
@@ -124,30 +216,7 @@ const PurReturn = () => {
          }
       }
 
-      // Calculations
-      const qtyToCalc = isNaN(updated.returnQty) ? 0 : updated.returnQty;
-      const rate = isNaN(updated.unitPrice) ? 0 : updated.unitPrice;
-      
-      const baseVal = qtyToCalc * rate;
-      const afterDisc = baseVal - (baseVal * (updated.discPercent / 100));
-      
-      updated.taxableAmt = afterDisc;
-      
-      const isInterstate = vendorDetails.state.toLowerCase() !== COMPANY_STATE.toLowerCase();
-      
-      if (isInterstate) {
-        updated.igstAmt = afterDisc * (updated.taxPercent / 100);
-        updated.cgstAmt = 0;
-        updated.sgstAmt = 0;
-      } else {
-        updated.igstAmt = 0;
-        updated.cgstAmt = afterDisc * ((updated.taxPercent / 2) / 100);
-        updated.sgstAmt = afterDisc * ((updated.taxPercent / 2) / 100);
-      }
-      
-      updated.totalAmt = updated.taxableAmt + updated.cgstAmt + updated.sgstAmt + updated.igstAmt;
-      
-      return updated;
+      return calculateReturnItem(updated, vendorDetails.state);
     }));
   };
 
@@ -166,10 +235,131 @@ const PurReturn = () => {
   const netReturnAmount = Math.round(rawTotal);
 
   const clearForm = () => {
-    setReturnNo('PR-' + Math.floor(Math.random() * 10000));
+    fetchNextReturnVoucher();
+    setSelectedReturnId('');
+    setEditingReturnId(null);
     setSelectedInvoiceId('');
     setReason(REASONS[0]);
     setSettlementMode(SETTLEMENT_MODES[0]);
+  };
+
+  // Handle Return select for editing
+  const handleSelectReturn = (id: string) => {
+    setSelectedReturnId(id);
+    if (!id) {
+      clearForm();
+      return;
+    }
+
+    const ret = savedReturns.find(r => r.id === id);
+    if (ret) {
+      setEditingReturnId(ret.id);
+      setReturnNo(ret.returnNo);
+      setReturnDate(ret.returnDate ? ret.returnDate.split('T')[0] : '');
+      setReason(ret.reason);
+      setSettlementMode(ret.settlementMode);
+      
+      // Select the original invoice
+      const matchingInv = invoices.find(inv => inv.voucherNo === ret.originalInvoice || inv.id === ret.originalInvoice);
+      if (matchingInv) {
+        setSelectedInvoiceId(matchingInv.id || matchingInv.voucherNo);
+      }
+    }
+  };
+
+  // Save/Update Return handler
+  const handleSaveReturn = async () => {
+    if (!selectedInvoiceId) {
+      return setGlobalNotification({ msg: 'Please select an Original Purchase Invoice.', type: 'error' });
+    }
+    
+    const hasErrors = items.some(i => i.error);
+    if (hasErrors) {
+      return setGlobalNotification({ msg: 'Please fix validation errors in the item grid before saving.', type: 'error' });
+    }
+
+    const validReturnItems = items.filter(i => i.returnQty > 0);
+    if (validReturnItems.length === 0) {
+       return setGlobalNotification({ msg: 'Please enter a valid return quantity for at least one item.', type: 'error' });
+    }
+
+    const invoice = invoices.find(inv => inv.id === selectedInvoiceId || inv.voucherNo === selectedInvoiceId);
+
+    const payload = {
+      returnNo,
+      returnDate,
+      originalInvoice: invoice?.voucherNo || selectedInvoiceId,
+      customerName: vendorDetails.name,
+      reason,
+      settlementMode,
+      grossTotal,
+      cgst: totalCgst,
+      sgst: totalSgst,
+      igst: totalIgst,
+      roundOff: roundedOff,
+      netReturnAmount,
+      items: validReturnItems.map(i => ({
+        itemCode: i.itemCode,
+        itemName: i.itemDesc,
+        itemDesc: i.itemDesc,
+        batchNo: i.batchNo,
+        purchasedQty: i.purchasedQty,
+        returnQty: i.returnQty,
+        unitPrice: i.unitPrice,
+        taxPercent: i.taxPercent,
+        discPercent: i.discPercent,
+        totalAmt: i.totalAmt
+      }))
+    };
+
+    try {
+      const url = editingReturnId 
+        ? `${Api}/purchase-bills/returns/${editingReturnId}` 
+        : `${Api}/purchase-bills/returns`;
+      const method = editingReturnId ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.success) {
+        setGlobalNotification({ msg: `Debit Note ${returnNo} saved to database successfully and stock reduced!`, type: 'success' });
+        clearForm();
+        fetchSavedReturns();
+      } else {
+        setGlobalNotification({ msg: 'Error saving purchase return: ' + data.error, type: 'error' });
+      }
+    } catch (err) {
+      console.error(err);
+      setGlobalNotification({ msg: 'Network error saving purchase return.', type: 'error' });
+    }
+  };
+
+  // Delete Return Handler
+  const handleDeleteReturn = async () => {
+    if (!editingReturnId) {
+      return setGlobalNotification({ msg: 'Please select an existing Debit Note to delete.', type: 'error' });
+    }
+    if (!window.confirm("Are you sure you want to delete this purchase return? This will restore the product stock.")) return;
+
+    try {
+      const res = await fetch(`${Api}/purchase-bills/returns/${editingReturnId}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      if (data.success) {
+        setGlobalNotification({ msg: 'Purchase return deleted successfully and stock restored.', type: 'success' });
+        clearForm();
+        fetchSavedReturns();
+      } else {
+        setGlobalNotification({ msg: 'Failed to delete: ' + data.error, type: 'error' });
+      }
+    } catch (err) {
+      console.error(err);
+      setGlobalNotification({ msg: 'Network error deleting purchase return.', type: 'error' });
+    }
   };
 
   useEffect(() => {
@@ -178,27 +368,8 @@ const PurReturn = () => {
         clearForm();
         setGlobalNotification({ msg: 'Ready for new Purchase Return.', type: 'info' });
       },
-      onSave: () => {
-        if (!selectedInvoiceId) {
-          return setGlobalNotification({ msg: 'Please select an Original Purchase Invoice.', type: 'error' });
-        }
-        
-        const hasErrors = items.some(i => i.error);
-        if (hasErrors) {
-          return setGlobalNotification({ msg: 'Please fix validation errors in the item grid before saving.', type: 'error' });
-        }
-
-        const validReturnItems = items.filter(i => i.returnQty > 0);
-        if (validReturnItems.length === 0) {
-           return setGlobalNotification({ msg: 'Please enter a valid return quantity for at least one item.', type: 'error' });
-        }
-
-        setGlobalNotification({ msg: `Debit Note ${returnNo} saved successfully for ${validReturnItems.length} items!`, type: 'success' });
-        clearForm();
-      },
-      onDelete: () => {
-        setGlobalNotification({ msg: 'Delete function is mocked.', type: 'info' });
-      },
+      onSave: handleSaveReturn,
+      onDelete: handleDeleteReturn,
       onPrint: () => {
         setGlobalNotification({ msg: 'Printing Debit Note...', type: 'info' });
         const formattedItems = items.map(item => ({
@@ -222,10 +393,33 @@ const PurReturn = () => {
       }
     });
     return () => setToolbarActions({});
-  }, [setToolbarActions, setGlobalNotification, returnNo, selectedInvoiceId, items]);
+  }, [setToolbarActions, setGlobalNotification, returnNo, selectedInvoiceId, items, editingReturnId, returnDate, vendorDetails, settlementMode, grossTotal, totalCgst, totalSgst, netReturnAmount, roundedOff]);
 
   return (
     <div className="flex flex-col h-full bg-[#f0f9f4] p-2 overflow-hidden">
+      
+      {/* Selection row for edit/delete */}
+      <div className="bg-blue-50 border border-blue-200 p-2 shadow-sm rounded mb-2 flex-shrink-0 flex items-center justify-between">
+        <div className="flex items-center space-x-3 w-1/2">
+          <label className="text-xs font-bold text-[#1e3f70] whitespace-nowrap">Edit Saved Return:</label>
+          <select 
+            value={selectedReturnId} 
+            onChange={e => handleSelectReturn(e.target.value)} 
+            className="w-full border border-blue-400 p-1 rounded text-sm focus:border-blue-500 bg-white font-semibold text-gray-700"
+          >
+            <option value="">-- New Purchase Return (Create Mode) --</option>
+            {savedReturns.map(ret => (
+              <option key={ret.id} value={ret.id}>{ret.returnNo} - {ret.customerName} (Refund: ₹{ret.netReturnAmount})</option>
+            ))}
+          </select>
+        </div>
+        {editingReturnId && (
+          <div className="text-xs font-bold text-blue-700 bg-blue-100 border border-blue-200 px-3 py-1 rounded">
+            Editing Mode: {returnNo}
+          </div>
+        )}
+      </div>
+
       {/* Top Metadata Header */}
       <div className="bg-white p-3 border border-gray-400 shadow-sm rounded mb-2 flex-shrink-0">
         <div className="flex justify-between items-center mb-3">
@@ -246,13 +440,13 @@ const PurReturn = () => {
           </div>
           <div className="col-span-2">
             <label className="block text-xs font-bold text-gray-700 mb-1">Original Purchase Invoice No</label>
-            <select value={selectedInvoiceId} onChange={e => setSelectedInvoiceId(e.target.value)} className="w-full border border-gray-400 p-1 rounded text-sm focus:border-blue-500">
+            <select value={selectedInvoiceId} onChange={e => setSelectedInvoiceId(e.target.value)} className="w-full border border-gray-400 p-1 rounded text-sm focus:border-blue-500 bg-white">
               <option value="">-- Select Original Invoice --</option>
               {invoices.length === 0 ? (
                  <option disabled>No saved purchase bills found</option>
               ) : (
                 invoices.map(inv => (
-                  <option key={inv.id} value={inv.id}>{inv.voucherNo} (Dated: {inv.date}) - {inv.supplierName}</option>
+                  <option key={inv.id} value={inv.id}>{inv.voucherNo} (Dated: {inv.date ? inv.date.split('T')[0] : ''}) - {inv.supplierName}</option>
                 ))
               )}
             </select>
@@ -269,7 +463,7 @@ const PurReturn = () => {
           </div>
           <div>
             <label className="block text-xs font-bold text-gray-700 mb-1">Reason for Return</label>
-             <select value={reason} onChange={e => setReason(e.target.value)} className="w-full border border-gray-400 p-1 rounded text-sm focus:border-blue-500">
+              <select value={reason} onChange={e => setReason(e.target.value)} className="w-full border border-gray-400 p-1 rounded text-sm focus:border-blue-500 bg-white">
               {REASONS.map(r => <option key={r} value={r}>{r}</option>)}
             </select>
           </div>
@@ -358,16 +552,43 @@ const PurReturn = () => {
       </div>
 
       {/* Financial Summary Card (Bottom Panel) */}
-      <div className="flex space-x-2 flex-shrink-0">
-         <div className="flex-1 bg-white border border-gray-400 p-3 rounded shadow-sm flex flex-col justify-center">
-             <label className="block text-xs font-bold text-gray-700 mb-1">Settlement Mode</label>
-             <select value={settlementMode} onChange={e => setSettlementMode(e.target.value)} className="w-full max-w-xs border border-gray-400 p-1.5 rounded text-sm focus:border-blue-500 bg-gray-50 font-semibold text-gray-700">
-               {SETTLEMENT_MODES.map(m => <option key={m} value={m}>{m}</option>)}
-             </select>
-             <p className="text-[11px] text-gray-500 mt-2">Adjusted in Accounts Payable automatically on Save if 'Adjust in Supplier Ledger' is chosen.</p>
+      <div className="flex space-x-2 flex-shrink-0 items-stretch">
+         <div className="flex-1 bg-white border border-gray-400 p-3 rounded shadow-sm flex flex-col justify-between">
+             <div>
+               <label className="block text-xs font-bold text-gray-700 mb-1">Settlement Mode</label>
+               <select value={settlementMode} onChange={e => setSettlementMode(e.target.value)} className="w-full max-w-xs border border-gray-400 p-1.5 rounded text-sm focus:border-blue-500 bg-gray-50 font-semibold text-gray-700">
+                 {SETTLEMENT_MODES.map(m => <option key={m} value={m}>{m}</option>)}
+               </select>
+               <p className="text-[11px] text-gray-500 mt-2">Adjusted in Accounts Payable automatically on Save if 'Adjust in Supplier Ledger' is chosen.</p>
+             </div>
+
+             <div className="flex space-x-2 mt-4 pt-3 border-t border-gray-100">
+               <button 
+                 onClick={handleSaveReturn}
+                 className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded shadow-sm text-xs transition-colors flex items-center space-x-1.5"
+               >
+                 <span>{editingReturnId ? '✓ Update Return' : '💾 Save Return'}</span>
+               </button>
+               
+               <button 
+                 onClick={clearForm}
+                 className="px-4 py-2.5 bg-white border border-gray-300 text-gray-700 hover:bg-slate-50 font-semibold rounded shadow-sm text-xs transition-colors"
+               >
+                 Clear
+               </button>
+
+               {editingReturnId && (
+                 <button 
+                   onClick={handleDeleteReturn}
+                   className="px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded shadow-sm text-xs transition-colors"
+                 >
+                   Delete
+                 </button>
+               )}
+             </div>
          </div>
 
-         <div className="w-[600px] bg-[#1e3f70] text-white p-3 border border-[#142d54] shadow-md rounded flex flex-col justify-between">
+         <div className="w-[500px] bg-[#1e3f70] text-white p-3 border border-[#142d54] shadow-md rounded flex flex-col justify-between">
            <div className="grid grid-cols-5 gap-4 text-sm font-bold text-right border-b border-[#2b579a] pb-2 mb-2">
             <div>
               <span className="block text-[11px] uppercase tracking-wider text-blue-200 mb-1">Gross Total</span>

@@ -8,6 +8,7 @@ router.get('/next-invoice', salesController.getNextInvoice);
 router.post('/', salesController.createSalesBill);
 router.put('/:id', salesController.updateSalesBill);
 router.delete('/:id', salesController.deleteSalesBill);
+router.get('/search', salesController.searchSalesBills);
 router.get('/bills/search', salesController.searchSalesBills);
 router.get('/bills/:invoiceNo', salesController.getSalesBillByInvoiceNo);
 
