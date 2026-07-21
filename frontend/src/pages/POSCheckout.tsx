@@ -1351,21 +1351,11 @@ const POSCheckout = () => {
           </div>
 
           <div className="flex flex-wrap gap-1.5 mt-auto pb-1 items-center">
-            <button type="button" className="legacy-button py-1 hover:bg-gray-200 transition-colors" onClick={handleExportCSV}>Export CSV</button>
-            <button type="button" className="legacy-button py-1 bg-blue-50 border-blue-300 hover:bg-blue-100 text-blue-900 font-bold flex items-center space-x-1" onClick={handleDownloadPDF}>
-              <Download size={13} className="text-blue-700" />
-              <span>Download PDF Bill</span>
-            </button>
-            <button type="button" className="legacy-button py-1 bg-emerald-50 border-emerald-400 hover:bg-emerald-100 text-emerald-900 font-bold flex items-center space-x-1" onClick={handleSendWhatsApp}>
-              <MessageSquare size={13} className="text-emerald-700" />
-              <span>WhatsApp Bill</span>
-            </button>
             <div className="flex-1"></div>
             <button type="button" className="legacy-button py-1 bg-purple-600 text-white font-extrabold border-purple-700 hover:bg-purple-700 shadow-sm transition-all flex items-center space-x-1" onClick={handleSaveDownloadAndWhatsApp}>
               <Zap size={13} className="text-yellow-300 fill-yellow-300" />
               <span>Save + PDF + WhatsApp</span>
             </button>
-            <button id="save-button" type="button" className="legacy-button py-1 bg-blue-600 text-white font-bold border-blue-700 hover:bg-blue-700 shadow transition-all" onClick={handleSaveClick}>Save Only</button>
             <button type="button" className="legacy-button py-1 bg-red-100 font-bold border-red-400 hover:bg-red-200 transition-colors" onClick={handleCancelClick}>Cancel</button>
           </div>
         </div>
