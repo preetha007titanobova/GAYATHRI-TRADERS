@@ -1206,7 +1206,7 @@ const POSCheckout = () => {
         <label className="legacy-label text-right">Inv Date</label>
         <input type="date" className="legacy-input col-span-2 py-0.5" value={invDate} onChange={e => setInvDate(e.target.value)} />
 
-        <label className="legacy-label text-right">E.Type</label>
+        <label className="legacy-label text-right" >E.Type</label>
         <select className="legacy-input col-span-2 py-0.5" value={eType} onChange={e => setEType(e.target.value)}>
           <option>Local</option>
           <option>Interstate</option>
@@ -1241,6 +1241,46 @@ const POSCheckout = () => {
 
         <label className="legacy-label text-right">Salesman</label>
         <input type="text" className="legacy-input col-span-2 bg-yellow-50 py-0.5" value={salesman} onChange={e => setSalesman(e.target.value)} placeholder="Billed By" />
+             <label className="legacy-label col-span-2 text-right text-blue-900 font-bold">Pay Mode</label>
+          <div className="col-span-2 flex flex-col space-y-1">
+            <select
+              className="legacy-input w-full font-bold py-0.5 border-blue-500 bg-blue-50 focus:bg-yellow-50 text-xs"
+              value={paymentMode}
+              onChange={e => {
+                const mode = e.target.value;
+                setPaymentMode(mode);
+                if (mode.includes('UPI') || mode.includes('Online')) {
+                  setShowUpiModal(true);
+                }
+              }}
+            >
+              <option value="Cash">💵 Cash Pay</option>
+              <option value="UPI / Online Pay">📱 Online Pay (UPI / QR)</option>
+              <option value="Credit Card">💳 Credit Card</option>
+              <option value="Debit Card">💳 Debit Card</option>
+              <option value="Bank Transfer">🏦 Bank Transfer</option>
+              <option value="Credit / Ledger">📜 Credit / Account</option>
+            </select>
+            <div className="flex space-x-1">
+              <button
+                type="button"
+                onClick={() => setPaymentMode('Cash')}
+                className={`flex-1 py-0.5 px-1 rounded text-[10px] font-extrabold transition-all border ${paymentMode === 'Cash' ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-emerald-50 border-gray-300'}`}
+              >
+                💵 Cash
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPaymentMode('UPI / Online Pay');
+                  setShowUpiModal(true);
+                }}
+                className={`flex-1 py-0.5 px-1 rounded text-[10px] font-extrabold transition-all border ${paymentMode.includes('UPI') || paymentMode.includes('Online') ? 'bg-blue-600 text-white border-blue-700 shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-blue-50 border-gray-300'}`}
+              >
+                📱 Online
+              </button>
+            </div>
+          </div>
       </div>
 
       {/* Selected Customer Status Banner */}
@@ -1264,7 +1304,7 @@ const POSCheckout = () => {
       )}
 
       {/* 3. Data Entry Grid */}
-      <div className="flex-1 min-h-[100px] bg-white border border-gray-400 overflow-auto mx-1">
+      <div className="flex-1 min-h-[200px] bg-white border border-gray-400 overflow-auto mx-1">
         <table className="w-full text-left border-collapse">
           <thead>
             <tr>
@@ -1350,6 +1390,8 @@ const POSCheckout = () => {
             </div>
           </div>
 
+          
+
           <div className="flex flex-wrap gap-1.5 mt-auto pb-1 items-center">
             <div className="flex-1"></div>
             <button type="button" className="legacy-button py-1 bg-purple-600 text-white font-extrabold border-purple-700 hover:bg-purple-700 shadow-sm transition-all flex items-center space-x-1" onClick={handleSaveDownloadAndWhatsApp}>
@@ -1405,48 +1447,6 @@ const POSCheckout = () => {
           <input type="text" className="legacy-input col-span-2 text-right text-sm font-bold bg-[#e6f2ff] border-blue-500 text-blue-900 py-0.5" value={netAmount.toFixed(2)} disabled />
 
           <div className="col-span-4 border-t border-gray-400 my-0.5"></div>
-
-          <label className="legacy-label col-span-2 text-right text-blue-900 font-bold">Pay Mode</label>
-          <div className="col-span-2 flex flex-col space-y-1">
-            <select
-              className="legacy-input w-full font-bold py-0.5 border-blue-500 bg-blue-50 focus:bg-yellow-50 text-xs"
-              value={paymentMode}
-              onChange={e => {
-                const mode = e.target.value;
-                setPaymentMode(mode);
-                if (mode.includes('UPI') || mode.includes('Online')) {
-                  setShowUpiModal(true);
-                }
-              }}
-            >
-              <option value="Cash">💵 Cash Pay</option>
-              <option value="UPI / Online Pay">📱 Online Pay (UPI / QR)</option>
-              <option value="Credit Card">💳 Credit Card</option>
-              <option value="Debit Card">💳 Debit Card</option>
-              <option value="Bank Transfer">🏦 Bank Transfer</option>
-              <option value="Credit / Ledger">📜 Credit / Account</option>
-            </select>
-            <div className="flex space-x-1">
-              <button
-                type="button"
-                onClick={() => setPaymentMode('Cash')}
-                className={`flex-1 py-0.5 px-1 rounded text-[10px] font-extrabold transition-all border ${paymentMode === 'Cash' ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-emerald-50 border-gray-300'}`}
-              >
-                💵 Cash
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setPaymentMode('UPI / Online Pay');
-                  setShowUpiModal(true);
-                }}
-                className={`flex-1 py-0.5 px-1 rounded text-[10px] font-extrabold transition-all border ${paymentMode.includes('UPI') || paymentMode.includes('Online') ? 'bg-blue-600 text-white border-blue-700 shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-blue-50 border-gray-300'}`}
-              >
-                📱 Online
-              </button>
-            </div>
-          </div>
-
           <label className="legacy-label col-span-2 text-right text-blue-900">Amt Tendered</label>
           <input
             id="tendered-input"
