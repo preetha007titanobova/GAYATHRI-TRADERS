@@ -449,6 +449,7 @@ const POSCheckout = () => {
         ...row,
         itemName: product.name,
         itemDesc: product.itemCode || product.barcode || '',
+        size: product.size || '',
         uom: product.uom || 'PCS',
         rate: product.price || 0,
         qty: row.qty === 0 ? 1 : row.qty
@@ -573,6 +574,7 @@ const POSCheckout = () => {
       items: validItems.map(item => ({
         itemName: item.itemName,
         itemDesc: item.itemDesc,
+        size: item.size || null,
         qty: item.qty,
         uom: item.uom,
         rate: item.rate,
@@ -930,6 +932,7 @@ const POSCheckout = () => {
             ...row,
             itemName: product.name,
             itemDesc: product.itemCode || product.barcode || '',
+            size: product.size || '',
             uom: product.uom || 'PCS',
             rate: product.price || 0,
             qty: row.qty === 0 ? 1 : row.qty
@@ -1040,6 +1043,7 @@ const POSCheckout = () => {
               id: emptyRowIdx !== -1 ? newGrid[emptyRowIdx].id : Date.now(),
               itemName: product.name,
               itemDesc: product.itemCode || product.barcode || '',
+              size: product.size || '',
               uom: product.uom || 'PCS',
               rate: product.price || 0,
               qty: 1,
@@ -1308,7 +1312,16 @@ const POSCheckout = () => {
                     </div>
                   )}
                 </td>
-                <td className="legacy-grid-cell text-center font-bold text-blue-900 bg-blue-50/50">{row.size || '-'}</td>
+                <td className="legacy-grid-cell p-0">
+                  <input
+                    id={`grid-input-${idx}-size`}
+                    type="text"
+                    placeholder="Size"
+                    className="w-full h-full p-1 text-center border-none outline-none focus:bg-yellow-100 font-bold text-blue-900 bg-blue-50/30"
+                    value={row.size || ''}
+                    onChange={e => handleGridChange(row.id, 'size', e.target.value)}
+                  />
+                </td>
                 <td className="legacy-grid-cell p-0"><input id={`grid-input-${idx}-2`} type="number" className="w-full h-full p-1 text-right border-none outline-none focus:bg-yellow-100 font-bold text-gray-900" value={row.qty || ''} onChange={e => handleGridChange(row.id, 'qty', e.target.value)} onKeyDown={e => handleKeyDown(e, idx, 2, row.id, row.itemName)} /></td>
                 <td className="legacy-grid-cell p-0"><input id={`grid-input-${idx}-3`} type="text" className="w-full h-full p-1 border-none outline-none focus:bg-yellow-100" value={row.uom} onChange={e => handleGridChange(row.id, 'uom', e.target.value)} onKeyDown={e => handleKeyDown(e, idx, 3, row.id, row.itemName)} /></td>
                 <td className="legacy-grid-cell p-0"><input id={`grid-input-${idx}-4`} type="number" step="0.01" className="w-full h-full p-1 text-right border-none outline-none focus:bg-yellow-100 font-bold" value={row.rate || ''} onChange={e => handleGridChange(row.id, 'rate', e.target.value)} onKeyDown={e => handleKeyDown(e, idx, 4, row.id, row.itemName)} /></td>

@@ -1443,6 +1443,7 @@ const SalesRegister = () => {
                               </>
                             ) : (
                               <>
+                                <th className="p-2 text-center">Size</th>
                                 <th className="p-2 text-right">Qty</th>
                                 <th className="p-2">UOM</th>
                                 <th className="p-2 text-right">Rate (₹)</th>
@@ -1493,6 +1494,7 @@ const SalesRegister = () => {
                                   </>
                                 ) : (
                                   <>
+                                    <td className="p-2 text-center font-bold text-blue-900 bg-blue-50/50">{item.size || '-'}</td>
                                     <td className="p-2 text-right font-mono">{item.qty || 0}</td>
                                     <td className="p-2 text-slate-500">{item.uom || 'PCS'}</td>
                                     <td className="p-2 text-right font-mono">₹{(item.rate || 0).toFixed(2)}</td>

@@ -137,6 +137,7 @@ export const createSalesBill = async (data: any): Promise<any> => {
         salesBillId: billResult.insertedId,
         itemName: item.itemName,
         itemDesc: item.itemDesc,
+        size: item.size || product?.size || null,
         qty: qty,
         uom: item.uom,
         rate: Number(item.rate) || 0,
@@ -303,6 +304,7 @@ export const updateSalesBill = async (id: string, data: any): Promise<boolean> =
         salesBillId: billId,
         itemName: item.itemName,
         itemDesc: item.itemDesc,
+        size: item.size || product?.size || null,
         qty: qty,
         uom: item.uom,
         rate: Number(item.rate) || 0,
@@ -377,18 +379,27 @@ export const getSalesBillByInvoiceNo = async (invoiceNo: string): Promise<any> =
   const bill = await db.collection('SalesBill').findOne({ invoiceNo });
   if (!bill) return null;
   const items = await db.collection('SalesItem').find({ salesBillId: bill._id }).toArray();
-  const itemsWithBarcode = [];
+  const itemsWithDetails = [];
   for (const item of items) {
     let barcode = '';
+    let size = item.size || '';
+    let prod = null;
     if (item.productId) {
-      const prod = await db.collection('Product').findOne({ _id: new ObjectId(item.productId as string) });
-      if (prod) {
-        barcode = prod.barcode || '';
-      }
+      prod = await db.collection('Product').findOne({ _id: new ObjectId(item.productId as string) });
     }
-    itemsWithBarcode.push({ ...item, barcode });
+    if (!prod && item.itemDesc) {
+      prod = await db.collection('Product').findOne({ itemCode: item.itemDesc });
+    }
+    if (!prod && item.itemName) {
+      prod = await db.collection('Product').findOne({ name: item.itemName });
+    }
+    if (prod) {
+      barcode = prod.barcode || prod.itemCode || '';
+      if (!size) size = prod.size || '';
+    }
+    itemsWithDetails.push({ ...item, barcode, size: size || '-' });
   }
-  return { ...bill, items: itemsWithBarcode };
+  return { ...bill, items: itemsWithDetails };
 };
 
 
