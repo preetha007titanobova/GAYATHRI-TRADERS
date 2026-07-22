@@ -62,6 +62,38 @@ const POSCheckout = () => {
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [favourDiscount, setFavourDiscount] = useState<number>(0);
 
+  const fetchProducts = () => {
+    fetch(`${Api}/products/search`)
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) setAvailableProducts(data);
+      })
+      .catch(err => console.error("Error fetching products:", err));
+  };
+
+  const fetchNextInvoiceNo = () => {
+    fetch(`${Api}/sales/next-invoice`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.invoiceNo) setInvoiceNo(data.invoiceNo);
+      })
+      .catch(err => console.error("Error fetching invoice no:", err));
+  };
+
+  const resetPageState = () => {
+    setGridData([{ id: Date.now(), itemName: '', itemDesc: '', qty: 0, uom: 'PCS', rate: 0, discPercent: 0, discAmt: 0, amount: 0 }]);
+    setBuyerName('');
+    setCustomerSearch('');
+    setAddress('');
+    setMobileNo('');
+    setGstNo('');
+    setTendered(0);
+    setFavourDiscount(0);
+    setEditingBillId(null);
+    setFromSalesOrderId(null);
+    fetchNextInvoiceNo();
+    fetchProducts();
+  };
   useEffect(() => {
     if (buyerName !== customerSearch) {
       setCustomerSearch(buyerName);
@@ -156,13 +188,7 @@ const POSCheckout = () => {
   const [availableProducts, setAvailableProducts] = useState<any[]>([]);
 
   useEffect(() => {
-    // Fetch available products
-    fetch(`${Api}/products/search`)
-      .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data)) setAvailableProducts(data);
-      })
-      .catch(err => console.error("Error fetching products:", err));
+    fetchProducts();
 
     // Fetch available customers
     fetch(`${Api}/ledgers/search?group=Customers`)
@@ -208,13 +234,7 @@ const POSCheckout = () => {
         })
         .catch(err => console.error("Error fetching full bill details:", err));
     } else {
-      // Fetch next invoice number
-      fetch(`${Api}/sales/next-invoice`)
-        .then(res => res.json())
-        .then(data => {
-          if (data.invoiceNo) setInvoiceNo(data.invoiceNo);
-        })
-        .catch(err => console.error("Error fetching invoice no:", err));
+      fetchNextInvoiceNo();
 
       if (orderToConvert) {
         setFromSalesOrderId(orderToConvert.id || orderToConvert._id || null);
@@ -540,38 +560,28 @@ const POSCheckout = () => {
         }
         return;
       }
-      setConfirmModalState({
-        isOpen: true,
-        title: "Print Bill",
-        message: "Do you want to print the bill before saving?",
-        yesText: "Yes, Print & Save",
-        noText: "No, Save Only",
-        action: () => {
-          const formattedItems = validItems.map(item => ({
-            itemCode: item.itemDesc || item.itemName,
-            itemDesc: item.itemName,
-            qty: item.qty,
-            rate: item.rate,
-            totalAmt: item.amount
-          }));
+      
+      const formattedItems = validItems.map(item => ({
+        itemCode: item.itemDesc || item.itemName,
+        itemDesc: item.itemName,
+        qty: item.qty,
+        rate: item.rate,
+        totalAmt: item.amount
+      }));
 
-          printReceipt(formattedItems, {
-            invoiceNo: invoiceNo,
-            date: invDate,
-            customerName: buyerName,
-            paymentMode: paymentMode,
-            totalQty: totalQty,
-            subTotal: totalAmount,
-            cgst: cgst,
-            sgst: sgst,
-            totalAmount: netAmount
-          });
-          executeSave(validItems);
-        },
-        cancelAction: () => {
-          executeSave(validItems);
-        }
+      printReceipt(formattedItems, {
+        invoiceNo: invoiceNo,
+        date: invDate,
+        customerName: buyerName,
+        paymentMode: paymentMode,
+        totalQty: totalQty,
+        subTotal: totalAmount,
+        cgst: cgst,
+        sgst: sgst,
+        totalAmount: netAmount
       });
+
+      executeSave(validItems);
     }
   };
 
@@ -586,10 +596,7 @@ const POSCheckout = () => {
       return;
     }
 
-    setConfirmModalState({
-      isOpen: true,
-      action: () => executeSave(validItems)
-    });
+    executeSave(validItems);
   };
 
   const executeSave = async (validItems: any[]) => {
@@ -661,7 +668,12 @@ const POSCheckout = () => {
         if (editingBillId) {
           setTimeout(() => navigate('/sales-register'), 1500);
         } else {
-          setTimeout(() => window.location.reload(), 1500);
+          setTimeout(() => {
+            resetPageState();
+            if (rapidInputRef.current) {
+              rapidInputRef.current.focus();
+            }
+          }, 1500);
         }
       } else {
         if (setGlobalNotification) {
