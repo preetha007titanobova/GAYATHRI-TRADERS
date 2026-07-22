@@ -785,7 +785,7 @@ const SalesRegister = () => {
             />
             <Search size={16} className="absolute left-2 top-1.5 text-gray-500" />
           </div>
-          <button onClick={downloadPDF} className="bg-emerald-600 text-white px-3 py-1 text-sm font-semibold rounded hover:bg-emerald-700 shadow border border-emerald-800 transition-colors">Download PDF</button>
+          <button onClick={downloadPDF} className="bg-emerald-600 text-white px-3  text-sm font-semibold rounded hover:bg-emerald-700 shadow border border-emerald-800 transition-colors">Download PDF</button>
           <button
             onClick={handleShareWhatsApp}
             disabled={sharing}
@@ -796,7 +796,6 @@ const SalesRegister = () => {
             </svg>
             {sharing ? 'Sharing...' : 'Share'}
           </button>
-          <button onClick={fetchRecords} className="bg-blue-600 text-white px-3 py-1 text-sm font-semibold rounded hover:bg-blue-700 shadow border border-blue-800">Refresh</button>
         </div>
       </div>
 
