@@ -8,6 +8,7 @@ interface StockItem {
   id?: string;
   _id?: string;
   itemCode: string;
+  vendorItemCode?: string;
   name: string;
   group?: string;
   uom: string;
@@ -111,12 +112,20 @@ const StockStatus = () => {
       if (search) {
         const q = search.toLowerCase();
         const code = item.itemCode?.toLowerCase() || '';
+        const vendorCode = item.vendorItemCode?.toLowerCase() || '';
         const name = item.name?.toLowerCase() || '';
         const department = item.department?.toLowerCase() || '';
         const variety = item.variety?.toLowerCase() || '';
         const size = item.size?.toLowerCase() || '';
 
-        if (!name.includes(q) && !code.includes(q) && !department.includes(q) && !variety.includes(q) && !size.includes(q)) return false;
+        if (
+          !name.includes(q) && 
+          !code.includes(q) && 
+          !vendorCode.includes(q) && 
+          !department.includes(q) && 
+          !variety.includes(q) && 
+          !size.includes(q)
+        ) return false;
       }
       return true;
     });
@@ -178,7 +187,8 @@ const StockStatus = () => {
           <table className="w-full text-left text-sm border-collapse min-w-max">
             <thead className="bg-[#1e3f70] text-white sticky top-0 z-10 shadow-sm">
               <tr>
-                <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-24">Item Code</th>
+                <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-24">Our Item Code</th>
+                <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-24">Vendor Code</th>
                 <th className="border-r border-[#142d54] p-2 text-xs font-semibold">Item Name</th>
                 <th className="px-4 py-2.5 font-medium border-b border-slate-200">Category</th>
                 <th className="px-4 py-2.5 font-medium border-b border-slate-200">Variety</th>
@@ -215,6 +225,7 @@ const StockStatus = () => {
                   return (
                     <tr key={item.id || item._id || idx} className={`border-b border-gray-200 transition-colors ${isLow ? 'bg-red-50/70 hover:bg-red-100/70' : (idx % 2 === 0 ? 'bg-white hover:bg-blue-50' : 'bg-[#fcfdfd] hover:bg-blue-50')}`}>
                       <td className="border-r border-gray-200 p-2 font-mono text-xs font-bold text-gray-600">{item.itemCode}</td>
+                      <td className="border-r border-gray-200 p-2 font-mono text-xs font-semibold text-slate-700">{item.vendorItemCode || '-'}</td>
                       <td className="border-r border-gray-200 p-2 text-gray-800">
                         <div className="font-bold">{item.name} {item.group && <span className="text-[10px] font-normal text-gray-400 ml-2">({item.group})</span>}</div>
                       </td>

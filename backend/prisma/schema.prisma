@@ -47,6 +47,7 @@ model Product {
   variety       String?
   size          String?
   factory       String?
+  vendorItemCode String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   salesItems    SalesItem[]
@@ -196,6 +197,7 @@ model PurchaseItem {
   variety        String?
   category       String?
   factory        String?
+  vendorItemCode String?
   qty            Float
   rate           Float
   taxPercent     Float

@@ -88,6 +88,7 @@ export const createPurchaseBill = async (data: any): Promise<any> => {
             variety: item.variety || product.variety,
             department: item.category || item.department || product.department,
             factory: item.factory || product.factory,
+            vendorItemCode: item.vendorItemCode || product.vendorItemCode,
           }
         });
       } else {
@@ -106,7 +107,8 @@ export const createPurchaseBill = async (data: any): Promise<any> => {
             department: item.category || item.department || 'None',
             variety: item.variety || '',
             size: item.size || '',
-            factory: item.factory || ''
+            factory: item.factory || '',
+            vendorItemCode: item.vendorItemCode || ''
           }
         });
         productId = new ObjectId(newProduct.id);
@@ -121,6 +123,7 @@ export const createPurchaseBill = async (data: any): Promise<any> => {
         variety: item.variety || '',
         category: item.category || item.department || 'None',
         factory: item.factory || '',
+        vendorItemCode: item.vendorItemCode || '',
         qty: qty,
         rate: rate,
         taxPercent: taxPercent,
@@ -264,6 +267,7 @@ export const updatePurchaseBill = async (id: string, data: any): Promise<boolean
             variety: item.variety || product.variety,
             department: item.category || item.department || product.department,
             factory: item.factory || product.factory,
+            vendorItemCode: item.vendorItemCode || product.vendorItemCode,
           }
         });
       } else {
@@ -281,7 +285,8 @@ export const updatePurchaseBill = async (id: string, data: any): Promise<boolean
             department: item.category || item.department || 'None',
             variety: item.variety || '',
             size: item.size || '',
-            factory: item.factory || ''
+            factory: item.factory || '',
+            vendorItemCode: item.vendorItemCode || ''
           }
         });
         productId = new ObjectId(newProduct.id);
@@ -296,6 +301,7 @@ export const updatePurchaseBill = async (id: string, data: any): Promise<boolean
         variety: item.variety || '',
         category: item.category || item.department || 'None',
         factory: item.factory || '',
+        vendorItemCode: item.vendorItemCode || '',
         qty: qty,
         rate: rate,
         taxPercent: taxPercent,

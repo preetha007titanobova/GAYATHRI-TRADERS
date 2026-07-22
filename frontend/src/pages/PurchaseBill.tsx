@@ -8,6 +8,7 @@ import Api from '../Api';
 interface PurchaseItem {
   id: string;
   itemCode: string;
+  vendorItemCode?: string;
   itemName: string;
   size: string;
   variety: string;
@@ -39,6 +40,8 @@ const PurchaseBill = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'split' | 'form-only' | 'table-only'>('split');
   const [billSearchQuery, setBillSearchQuery] = useState('');
+  const [sidebarTab, setSidebarTab] = useState<'bills' | 'items'>('bills');
+  const [itemSearchQuery, setItemSearchQuery] = useState('');
   
   // Header State
   const [billNo, setBillNo] = useState('Loading...');
@@ -246,6 +249,7 @@ const PurchaseBill = () => {
           updated.variety = prod.variety || '';
           updated.category = prod.department || 'None';
           updated.factory = prod.factory || '';
+          updated.vendorItemCode = prod.vendorItemCode || '';
         }
       }
 
@@ -262,7 +266,7 @@ const PurchaseBill = () => {
   const addRow = () => {
     setItems([...items, {
       id: Math.random().toString(),
-      itemCode: '', itemName: '', size: '', variety: '', category: 'None', itemDesc: '', hsn: '', factory: '', qty: 1, unitPrice: 0, salesRate: 0, mrp: 0, discPercent: 0,
+      itemCode: '', vendorItemCode: '', itemName: '', size: '', variety: '', category: 'None', itemDesc: '', hsn: '', factory: '', qty: 1, unitPrice: 0, salesRate: 0, mrp: 0, discPercent: 0,
       taxPercent: 18, cgstAmt: 0, sgstAmt: 0, igstAmt: 0, total: 0, isManualItem: false
     }]);
   };
@@ -329,6 +333,7 @@ const PurchaseBill = () => {
         return {
           id: i.id || Math.random().toString(),
           itemCode: i.itemCode,
+          vendorItemCode: i.vendorItemCode || prod?.vendorItemCode || '',
           itemName: i.itemName || i.itemDesc || i.itemCode,
           size: i.size || '',
           variety: i.variety || '',
@@ -407,6 +412,7 @@ const PurchaseBill = () => {
       paymentMode: 'Cash',
       items: items.map(i => ({
         itemCode: i.itemCode.trim().toUpperCase(),
+        vendorItemCode: i.vendorItemCode ? i.vendorItemCode.trim() : '',
         itemName: i.itemDesc || i.itemCode,
         itemDesc: i.itemDesc,
         size: i.size,
@@ -524,6 +530,57 @@ const PurchaseBill = () => {
     );
   });
 
+  const filteredProducts = dbProducts.filter(p => {
+    const q = itemSearchQuery.toLowerCase();
+    return (
+      (p.name || '').toLowerCase().includes(q) ||
+      (p.itemCode || '').toLowerCase().includes(q) ||
+      (p.barcode || '').toLowerCase().includes(q) ||
+      (p.variety || '').toLowerCase().includes(q) ||
+      (p.department || '').toLowerCase().includes(q) ||
+      (p.vendorItemCode || '').toLowerCase().includes(q)
+    );
+  });
+
+  const addProductFromMaster = (prod: any) => {
+    const existing = items.find(i => i.itemCode?.toLowerCase() === prod.itemCode?.toLowerCase());
+    if (existing) {
+      updateItem(existing.id, 'qty', existing.qty + 1);
+      setGlobalNotification({ msg: `Incremented quantity for ${prod.name}`, type: 'success' });
+      setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 2000);
+      return;
+    }
+
+    const newRow: PurchaseItem = {
+      id: Math.random().toString(),
+      itemCode: prod.itemCode || '',
+      vendorItemCode: prod.vendorItemCode || '',
+      itemName: prod.name || '',
+      size: prod.size || '',
+      variety: prod.variety || '',
+      category: prod.department || 'None',
+      itemDesc: prod.name || '',
+      hsn: prod.barcode || '',
+      factory: prod.factory || '',
+      qty: 1,
+      unitPrice: prod.purchaseRate || 0,
+      salesRate: prod.price || 0,
+      mrp: prod.mrp || 0,
+      discPercent: 0,
+      taxPercent: prod.taxPercent || 18,
+      cgstAmt: 0,
+      sgstAmt: 0,
+      igstAmt: 0,
+      total: 0,
+      isManualItem: false
+    };
+
+    const calculated = calculateItemValues(newRow, supplyPlace);
+    setItems([...items, calculated]);
+    setGlobalNotification({ msg: `Added ${prod.name} from Item Master`, type: 'success' });
+    setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 2000);
+  };
+
   return (
     <div className="flex flex-col h-full bg-[#f0f9f4] relative overflow-hidden">
       
@@ -627,7 +684,8 @@ const PurchaseBill = () => {
                     <tr>
                       <th className="border-r border-gray-400 p-1.5 w-8 text-center font-semibold">S.No</th>
                       <th className="border-r border-gray-400 p-1.5 w-48 font-semibold">Select Product (Master)</th>
-                      <th className="border-r border-gray-400 p-1.5 w-28 font-semibold">Item Code</th>
+                      <th className="border-r border-gray-400 p-1.5 w-28 font-semibold">Our Item Code</th>
+                      <th className="border-r border-gray-400 p-1.5 w-28 font-semibold">Vendor Item Code</th>
                       <th className="border-r border-gray-400 p-1.5 w-16 font-semibold">Dress Size</th>
                       <th className="border-r border-gray-400 p-1.5 w-24 font-semibold">Variety</th>
                       <th className="border-r border-gray-400 p-1.5 w-24 font-semibold">Category</th>
@@ -718,6 +776,16 @@ const PurchaseBill = () => {
                               Gen
                             </button>
                           </div>
+                        </td>
+                        <td className="border-r border-gray-300 p-0">
+                          <input 
+                            type="text" 
+                            value={item.vendorItemCode || ''} 
+                            onChange={e => updateItem(item.id, 'vendorItemCode', e.target.value)} 
+                            onKeyDown={e => handleKeyDown(e, idx, 'vendorItemCode')}
+                            className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none font-mono" 
+                            placeholder="Vendor Code" 
+                          />
                         </td>
                         <td className="border-r border-gray-300 p-0">
                           <input 
@@ -908,80 +976,161 @@ const PurchaseBill = () => {
           </div>
         </div>
 
-        {/* Right Side: Saved Bills Sidebar Table */}
-        <div className={`${viewMode === 'form-only' ? 'hidden' : viewMode === 'table-only' ? 'w-full' : 'w-[36%]'} bg-slate-100 p-3 flex flex-col overflow-hidden`}>
-          <div className="flex-shrink-0 mb-3">
-            <h3 className="text-slate-700 font-bold text-sm mb-2 flex items-center justify-between">
-              <span>Saved Purchase Bills</span>
-              <span className="text-xs bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full">{filteredBills.length} Bills</span>
-            </h3>
-            
-            {/* Search Input */}
-            <div className="relative">
-              <input 
-                type="text" 
-                placeholder="Search voucher, vendor..." 
-                value={billSearchQuery}
-                onChange={e => setBillSearchQuery(e.target.value)}
-                className="w-full bg-white border border-slate-300 p-1.5 pl-8 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 transition-shadow"
-              />
-              <Search size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
+        {/* Right Side: Saved Bills / Item Master Sidebar Panel */}
+        <div className={`${viewMode === 'form-only' ? 'hidden' : viewMode === 'table-only' ? 'w-full' : 'w-[36%]'} bg-slate-100 p-3 flex flex-col overflow-hidden border-l border-gray-300`}>
+          <div className="flex-shrink-0 mb-2">
+            {/* Tabs */}
+            <div className="flex space-x-1 bg-slate-200 p-1 rounded-md border border-slate-300 mb-2">
+              <button
+                onClick={() => setSidebarTab('bills')}
+                className={`flex-1 text-center py-1 text-xs font-bold rounded transition-all ${
+                  sidebarTab === 'bills'
+                    ? 'bg-[#1e3f70] text-white shadow'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-300/50'
+                }`}
+              >
+                Saved Bills ({filteredBills.length})
+              </button>
+              <button
+                onClick={() => setSidebarTab('items')}
+                className={`flex-1 text-center py-1 text-xs font-bold rounded transition-all ${
+                  sidebarTab === 'items'
+                    ? 'bg-[#1e3f70] text-white shadow'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-300/50'
+                }`}
+              >
+                Item Master ({filteredProducts.length})
+              </button>
             </div>
+
+            {/* Search Input depending on active tab */}
+            {sidebarTab === 'bills' ? (
+              <div className="relative">
+                <input 
+                  type="text" 
+                  placeholder="Search voucher, vendor..." 
+                  value={billSearchQuery}
+                  onChange={e => setBillSearchQuery(e.target.value)}
+                  className="w-full bg-white border border-slate-300 p-1.5 pl-8 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 transition-shadow"
+                />
+                <Search size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
+              </div>
+            ) : (
+              <div className="relative">
+                <input 
+                  type="text" 
+                  placeholder="Search code, name, category, variety..." 
+                  value={itemSearchQuery}
+                  onChange={e => setItemSearchQuery(e.target.value)}
+                  className="w-full bg-white border border-slate-300 p-1.5 pl-8 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 transition-shadow"
+                />
+                <Search size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
+              </div>
+            )}
           </div>
 
-          {/* Sidebar Table */}
+          {/* Sidebar Content */}
           <div className="flex-1 overflow-auto border border-slate-200 rounded bg-white">
-            <table className="w-full text-left text-xs border-collapse whitespace-nowrap">
-              <thead className="bg-[#1e3f70] text-white sticky top-0 z-10">
-                <tr>
-                  <th className="p-2 font-semibold">Vch No</th>
-                  <th className="p-2 font-semibold">Vendor</th>
-                  <th className="p-2 font-semibold text-right">Net Payable</th>
-                  <th className="p-2 font-semibold text-center w-16">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredBills.length === 0 ? (
+            {sidebarTab === 'bills' ? (
+              <table className="w-full text-left text-xs border-collapse whitespace-nowrap">
+                <thead className="bg-[#1e3f70] text-white sticky top-0 z-10">
                   <tr>
-                    <td colSpan={4} className="p-6 text-center text-slate-400 italic bg-slate-50">No saved bills found.</td>
+                    <th className="p-2 font-semibold">Vch No</th>
+                    <th className="p-2 font-semibold">Vendor</th>
+                    <th className="p-2 font-semibold text-right">Net Payable</th>
+                    <th className="p-2 font-semibold text-center w-16">Actions</th>
                   </tr>
-                ) : (
-                  filteredBills.map((bill) => (
-                    <tr 
-                      key={bill.id} 
-                      className={`border-b border-slate-200 hover:bg-slate-50 transition-colors ${editingId === bill.id ? 'bg-blue-50/50 font-semibold' : ''}`}
-                    >
-                      <td className="p-2 font-mono text-slate-700">
-                        {bill.voucherNo}
-                        <div className="text-[10px] text-slate-400 font-normal">{bill.date ? bill.date.split('T')[0] : ''}</div>
-                      </td>
-                      <td className="p-2 text-slate-800 max-w-[120px] truncate" title={bill.supplierName}>
-                        {bill.supplierName}
-                      </td>
-                      <td className="p-2 text-right font-mono text-slate-900 font-bold">
-                        ₹ {bill.netPayable?.toFixed(0) || '0'}
-                      </td>
-                      <td className="p-2 text-center flex items-center justify-center space-x-1.5 h-[41px]">
-                        <button 
-                          onClick={() => handleEditBill(bill)}
-                          className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-1 rounded transition-colors"
-                          title="Edit Purchase Bill"
-                        >
-                          <Edit size={14} />
-                        </button>
-                        <button 
-                          onClick={() => handleDeleteBill(bill.id, bill.voucherNo)}
-                          className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1 rounded transition-colors"
-                          title="Delete Purchase Bill"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </td>
+                </thead>
+                <tbody>
+                  {filteredBills.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="p-6 text-center text-slate-400 italic bg-slate-50">No saved bills found.</td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : (
+                    filteredBills.map((bill) => (
+                      <tr 
+                        key={bill.id} 
+                        className={`border-b border-slate-200 hover:bg-slate-50 transition-colors ${editingId === bill.id ? 'bg-blue-50/50 font-semibold' : ''}`}
+                      >
+                        <td className="p-2 font-mono text-slate-700">
+                          {bill.voucherNo}
+                          <div className="text-[10px] text-slate-400 font-normal">{bill.date ? bill.date.split('T')[0] : ''}</div>
+                        </td>
+                        <td className="p-2 text-slate-800 max-w-[120px] truncate" title={bill.supplierName}>
+                          {bill.supplierName}
+                        </td>
+                        <td className="p-2 text-right font-mono text-slate-900 font-bold">
+                          ₹ {bill.netPayable?.toFixed(0) || '0'}
+                        </td>
+                        <td className="p-2 text-center flex items-center justify-center space-x-1.5 h-[41px]">
+                          <button 
+                            onClick={() => handleEditBill(bill)}
+                            className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-1 rounded transition-colors"
+                            title="Edit Purchase Bill"
+                          >
+                            <Edit size={14} />
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteBill(bill.id, bill.voucherNo)}
+                            className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1 rounded transition-colors"
+                            title="Delete Purchase Bill"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            ) : (
+              <table className="w-full text-left text-xs border-collapse whitespace-nowrap">
+                <thead className="bg-[#1e3f70] text-white sticky top-0 z-10">
+                  <tr>
+                    <th className="p-2 font-semibold">Item Code</th>
+                    <th className="p-2 font-semibold">Item Name</th>
+                    <th className="p-2 font-semibold text-right">Stock</th>
+                    <th className="p-2 font-semibold text-center w-12">Add</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredProducts.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="p-6 text-center text-slate-400 italic bg-slate-50">No products found.</td>
+                    </tr>
+                  ) : (
+                    filteredProducts.map((prod) => (
+                      <tr 
+                        key={prod.id || prod._id} 
+                        className="border-b border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer"
+                        onClick={() => addProductFromMaster(prod)}
+                        title="Click to add to purchase bill"
+                      >
+                        <td className="p-2 font-mono text-slate-800">
+                          <div className="text-blue-600 font-bold">{prod.itemCode}</div>
+                          {prod.vendorItemCode && <div className="text-[10px] text-gray-400 font-medium">VC: {prod.vendorItemCode}</div>}
+                        </td>
+                        <td className="p-2 text-slate-800 max-w-[150px] truncate" title={prod.name}>
+                          <div>{prod.name}</div>
+                          {prod.size && <span className="text-[10px] text-gray-500 bg-gray-100 px-1 py-0.2 rounded border mr-1">Size {prod.size}</span>}
+                          {prod.variety && <span className="text-[10px] text-slate-500 italic">{prod.variety}</span>}
+                        </td>
+                        <td className="p-2 text-right font-mono font-bold text-gray-700">{prod.stock}</td>
+                        <td className="p-2 text-center h-[41px]" onClick={e => e.stopPropagation()}>
+                          <button
+                            onClick={() => addProductFromMaster(prod)}
+                            className="bg-green-100 hover:bg-green-200 active:bg-green-300 text-green-700 p-1.5 rounded transition-colors font-bold flex items-center justify-center w-6 h-6 mx-auto"
+                            title="Add Product to Bill"
+                          >
+                            +
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
 

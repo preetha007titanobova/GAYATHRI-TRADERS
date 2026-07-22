@@ -6,13 +6,13 @@ export const getProductByBarcode = async (barcode: string): Promise<any> => {
   try {
     const db = await getDb();
     let product = await db.collection('Product').findOne({
-      $or: [{ barcode: barcode }, { itemCode: barcode }]
+      $or: [{ barcode: barcode }, { itemCode: barcode }, { vendorItemCode: barcode }]
     });
     if (!product) {
       try {
         product = await prisma.product.findFirst({
           where: {
-            OR: [{ barcode: barcode }, { itemCode: barcode }]
+            OR: [{ barcode: barcode }, { itemCode: barcode }, { vendorItemCode: barcode }]
           }
         });
       } catch (e) {
@@ -41,7 +41,8 @@ export const searchItems = async (q: string): Promise<any[]> => {
           { barcode: regex },
           { variety: regex },
           { department: regex },
-          { size: regex }
+          { size: regex },
+          { vendorItemCode: regex }
         ]
       }).limit(100).toArray();
     }
@@ -59,7 +60,8 @@ export const searchItems = async (q: string): Promise<any[]> => {
           { barcode: { contains: q, mode: 'insensitive' } },
           { variety: { contains: q, mode: 'insensitive' } },
           { department: { contains: q, mode: 'insensitive' } },
-          { size: { contains: q, mode: 'insensitive' } }
+          { size: { contains: q, mode: 'insensitive' } },
+          { vendorItemCode: { contains: q, mode: 'insensitive' } }
         ]
       } : undefined,
       take: 100
