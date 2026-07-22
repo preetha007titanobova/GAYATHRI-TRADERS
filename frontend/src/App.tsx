@@ -19,6 +19,7 @@ import ShopSalesBill from './pages/ShopSalesBill';
 import ShopSalesRegister from './pages/ShopSalesRegister';
 
 import StockStatus from './pages/StockStatus';
+import StockValuation from './pages/StockValuation';
 import StockRegister from './pages/StockRegister';
 import DailyStockStatus from './pages/DailyStockStatus';
 import ViewLedger from './pages/ViewLedger';
@@ -65,6 +66,7 @@ function App() {
           
           {/* Stock */}
           <Route path="stock-status" element={<StockStatus />} />
+          <Route path="stock-valuation" element={<StockValuation />} />
           <Route path="stock-register" element={<StockRegister />} />
           <Route path="daily-stock-status" element={<DailyStockStatus />} />
           

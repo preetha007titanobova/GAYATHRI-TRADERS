@@ -53,15 +53,22 @@ const Layout = () => {
   const [reportPinInput, setReportPinInput] = useState('');
   const [reportPinError, setReportPinError] = useState('');
 
-  const lockedPaths = ['/statistic-report', '/trial-b-s', '/p-l-statment', '/balance-sheet'];
+  const lockedPaths = ['/statistic-report', '/trial-b-s', '/p-l-statment', '/balance-sheet', '/stock-valuation'];
 
   useEffect(() => {
-    if (lockedPaths.includes(location.pathname) && !unlockedReports[location.pathname]) {
-      setPendingLockedPath(location.pathname);
-      setReportPinInput('');
-      setReportPinError('');
+    if (lockedPaths.includes(location.pathname)) {
+      if (!unlockedReports[location.pathname]) {
+        setPendingLockedPath(location.pathname);
+        setReportPinInput('');
+        setReportPinError('');
+      } else {
+        setPendingLockedPath(null);
+      }
     } else {
       setPendingLockedPath(null);
+      if (Object.keys(unlockedReports).length > 0) {
+        setUnlockedReports({});
+      }
     }
   }, [location.pathname, unlockedReports]);
 
@@ -316,6 +323,7 @@ const Layout = () => {
       '/journal-entry': 'Journal Entry',
       '/cheque-printing': 'Cheque Printing',
       '/stock-status': 'Stock Status',
+      '/stock-valuation': 'Stock Valuation',
       '/daily-stock-status': 'Daily Stock Status',
       '/stock-register': 'Stock Register',
       '/view-ledger': 'View Ledger',
@@ -447,9 +455,9 @@ const Layout = () => {
           <span onClick={() => toggleMenu('Stock')} className={`px-3 py-1 cursor-pointer select-none rounded ${activeMenu === 'Stock' ? 'bg-blue-200 shadow-inner' : 'hover:bg-blue-100'}`}>Stock</span>
           {activeMenu === 'Stock' && (
             <div className="absolute top-full left-0 mt-1 bg-white border border-gray-400 shadow-xl w-48 flex flex-col py-1 z-50">
-               <Link to="/stock-status" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Stock Status</Link>
-               <Link to="/daily-stock-status" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Daily Stock Status</Link>
-               <Link to="/stock-register" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Stock Register</Link>
+                <Link to="/stock-status" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Stock Status</Link>
+                <Link to="/daily-stock-status" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Daily Stock Status</Link>
+                <Link to="/stock-register" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Stock Register</Link>
             </div>
           )}
         </div>
@@ -481,6 +489,10 @@ const Layout = () => {
                </Link>
                <Link to="/balance-sheet" onClick={closeMenu} className="px-5 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium flex items-center justify-between text-xs">
                  <span>Balance Sheet</span>
+                 <Lock size={12} className="text-amber-600" />
+               </Link>
+               <Link to="/stock-valuation" onClick={closeMenu} className="px-5 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium flex items-center justify-between text-xs">
+                 <span>Stock Valuation</span>
                  <Lock size={12} className="text-amber-600" />
                </Link>
                <div className="border-t border-gray-300 my-1"></div>
@@ -634,7 +646,8 @@ const Layout = () => {
                       { name: 'Statistic Report', path: '/statistic-report' },
                       { name: 'Trial B & S', path: '/trial-b-s' },
                       { name: 'P & L Statment', path: '/p-l-statment' },
-                      { name: 'Balance Sheet', path: '/balance-sheet' }
+                      { name: 'Balance Sheet', path: '/balance-sheet' },
+                      { name: 'Stock Valuation', path: '/stock-valuation' }
                     ].map((item, idx) => {
                       const isActive = location.pathname === item.path;
                       return (
