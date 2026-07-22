@@ -7,6 +7,7 @@ import backupRoutes from './backup.route';
 import statisticsRoutes from './statistics.route';
 import purchaseRoutes from './purchase.route';
 import staffRoutes from './staff.route';
+import shopSalesRoutes from './shopSales.route';
 
 const router = Router();
 
@@ -18,5 +19,6 @@ router.use('/backup', backupRoutes);
 router.use('/statistics', statisticsRoutes);
 router.use('/purchase-bills', purchaseRoutes);
 router.use('/staff', staffRoutes);
+router.use('/shop-sales-bills', shopSalesRoutes);
 
 export default router;

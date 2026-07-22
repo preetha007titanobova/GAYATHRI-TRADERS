@@ -218,12 +218,31 @@ export const getDailyStockStatus = async (dateStr: string): Promise<any[]> => {
     console.error("Error fetching purchaseItems:", e);
   }
 
+  let shopSalesItems: any[] = [];
+  try {
+    const db = await getDb();
+    const shopSalesBills = await db.collection('ShopSalesBill').find({
+      date: { $gte: startOfDay }
+    }).toArray();
+    const shopSalesBillMap = new Map(shopSalesBills.map(b => [b._id.toString(), b]));
+
+    shopSalesItems = await db.collection('ShopSalesItem').find({
+      shopSalesBillId: { $in: shopSalesBills.map(b => b._id) }
+    }).toArray();
+    for (const item of shopSalesItems) {
+      item.shopSalesBill = shopSalesBillMap.get(item.shopSalesBillId?.toString()) || null;
+    }
+  } catch (e) {
+    console.error("Error fetching shopSalesItems:", e);
+  }
+
   return products.map(product => {
     const prodId = product.id || product._id;
 
     const productSales = salesItems.filter(item => item.productId === prodId);
     const productReturns = salesReturnItems.filter(item => item.productId === prodId);
     const productPurchases = purchaseItems.filter(item => item.productId?.toString() === prodId || (item.itemCode === product.itemCode));
+    const productShopSales = shopSalesItems.filter(item => item.productId?.toString() === prodId || (item.itemCode === product.itemCode));
 
     let outwardToday = 0;
     let inwardToday = 0;
@@ -239,6 +258,17 @@ export const getDailyStockStatus = async (dateStr: string): Promise<any[]> => {
         if (invDate >= startOfDay && invDate <= endOfDay) {
           outwardToday += item.qty || 0;
         } else if (invDate > endOfDay) {
+          outwardAfterToday += item.qty || 0;
+        }
+      }
+    }
+
+    for (const item of productShopSales) {
+      if (item.shopSalesBill) {
+        const saleDate = new Date(item.shopSalesBill.date);
+        if (saleDate >= startOfDay && saleDate <= endOfDay) {
+          outwardToday += item.qty || 0;
+        } else if (saleDate > endOfDay) {
           outwardAfterToday += item.qty || 0;
         }
       }
@@ -280,6 +310,17 @@ export const getDailyStockStatus = async (dateStr: string): Promise<any[]> => {
         if (invDate >= startOfDay && invDate <= endOfDay && item.salesBill.paymentMode) {
           if (!soldModes.includes(item.salesBill.paymentMode)) {
             soldModes.push(item.salesBill.paymentMode);
+          }
+        }
+      }
+    });
+
+    productShopSales.forEach(item => {
+      if (item.shopSalesBill) {
+        const saleDate = new Date(item.shopSalesBill.date);
+        if (saleDate >= startOfDay && saleDate <= endOfDay && item.shopSalesBill.paymentMode) {
+          if (!soldModes.includes(item.shopSalesBill.paymentMode)) {
+            soldModes.push(item.shopSalesBill.paymentMode);
           }
         }
       }

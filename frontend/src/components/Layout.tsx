@@ -422,8 +422,10 @@ const Layout = () => {
                <Link to="/sales-order" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Sales Order</Link>
                <Link to="/sales-bill" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Sales Bill</Link>
                <Link to="/sales-return" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Sales Return</Link>
+               <Link to="/shop-sales-bill" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Shop Sales Bill</Link>
                <div className="border-t border-gray-300 my-1"></div>
                <Link to="/sales-register" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Sales Register</Link>
+               <Link to="/shop-sales-register" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Shop Sales Register</Link>
                <Link to="/sales-status" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Sales Status</Link>
             </div>
           )}
@@ -579,6 +581,8 @@ const Layout = () => {
                 { name: 'Sales Order', path: '/sales-order' },
                 { name: 'Sales Bill', path: '/sales-bill' },
                 { name: 'Sales Return', path: '/sales-return' },
+                { name: 'Shop Sales Bill', path: '/shop-sales-bill' },
+                { name: 'Shop Sales Register', path: '/shop-sales-register' },
                 { name: 'Sales Register', path: '/sales-register' },
                 { name: 'Sales Status', path: '/sales-status' },
                 { name: 'Purchase Bill', path: '/purchase-bill' },

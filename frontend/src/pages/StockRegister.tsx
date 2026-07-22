@@ -60,6 +60,7 @@ const StockRegister = () => {
 
   // Local storage state
   const [localPurchaseBills, setLocalPurchaseBills] = useState<any[]>([]);
+  const [localShopSalesBills, setLocalShopSalesBills] = useState<any[]>([]);
   const [damages, setDamages] = useState<Record<string, { qty: number, reason: string }>>({});
   
   // Damages modal state
@@ -131,6 +132,13 @@ const StockRegister = () => {
       if (pbRes.ok) {
         const pbData = await pbRes.json();
         setLocalPurchaseBills(pbData);
+      }
+
+      // Fetch shop sales bills from DB
+      const sbRes = await fetch(`${Api}/shop-sales-bills`);
+      if (sbRes.ok) {
+        const sbData = await sbRes.json();
+        setLocalShopSalesBills(sbData);
       }
     } catch (err) {
       console.error("Failed to fetch stock register report", err);
@@ -205,7 +213,32 @@ const StockRegister = () => {
     }
 
     const dbMovements = product.movements || [];
-    const combinedMovements = [...dbMovements, ...localPurchaseMovements];
+    
+    // Get local shop sales bills
+    const localShopSalesMovements: StockMove[] = [];
+    if (localShopSalesBills.length > 0) {
+      localShopSalesBills.forEach((bill: any) => {
+        if (bill.items && Array.isArray(bill.items)) {
+          bill.items.forEach((sItem: any) => {
+            const isMatch = (itemCode && sItem.itemCode === itemCode) ||
+                            (name && sItem.itemName?.toLowerCase() === name.toLowerCase());
+            if (isMatch) {
+              localShopSalesMovements.push({
+                id: `local-ssb-${bill.voucherNo}-${sItem.itemCode || sItem.itemName}`,
+                date: bill.date,
+                vchType: 'Shop Sale',
+                vchNo: bill.voucherNo,
+                particulars: bill.shopName || 'Shop/Branch',
+                inward: 0,
+                outward: Number(sItem.qty) || 0
+              });
+            }
+          });
+        }
+      });
+    }
+
+    const combinedMovements = [...dbMovements, ...localPurchaseMovements, ...localShopSalesMovements];
     combinedMovements.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     // Filter movements by date safely

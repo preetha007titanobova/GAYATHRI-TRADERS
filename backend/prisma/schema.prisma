@@ -54,6 +54,7 @@ model Product {
   salesReturnItems SalesReturnItem[]
   purchaseItems PurchaseItem[]
   salesOrderItems SalesOrderItem[]
+  shopSalesItems  ShopSalesItem[]
 }
 
 model SalesBill {
@@ -280,5 +281,45 @@ model StaffAttendance {
   remarks   String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model ShopSalesBill {
+  id           String          @id @default(auto()) @map("_id") @db.ObjectId
+  voucherNo    String          @unique
+  date         DateTime        @default(now())
+  shopName     String
+  shopGstin    String?
+  taxableAmt   Float
+  cgst         Float
+  sgst         Float
+  igst         Float           @default(0)
+  otherCharges Float           @default(0)
+  netPayable   Float
+  status       String          @default("Paid")
+  type         String          @default("Local")
+  paymentMode  String?         @default("Cash")
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  items        ShopSalesItem[]
+}
+
+model ShopSalesItem {
+  id              String        @id @default(auto()) @map("_id") @db.ObjectId
+  shopSalesBillId String        @db.ObjectId
+  shopSalesBill   ShopSalesBill @relation(fields: [shopSalesBillId], references: [id], onDelete: Cascade)
+  productId       String?       @db.ObjectId
+  product         Product?      @relation(fields: [productId], references: [id])
+  itemCode        String
+  itemName        String
+  size            String?
+  variety         String?
+  category        String?
+  factory         String?
+  vendorItemCode  String?
+  qty             Float
+  rate            Float
+  taxPercent      Float
+  discPercent     Float         @default(0)
+  total           Float
 }
 
