@@ -27,10 +27,7 @@ const Layout = () => {
   const [isGstCalcOpen, setIsGstCalcOpen] = useState(false);
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [globalSettings, setGlobalSettings] = useState({
-    isSelectedCustomer: false,
-    isChallan: false,
-    isTaxBill: true,
-    isRetailBill: false
+    isSelectedCustomer: false
   });
   const location = useLocation();
   const navigate = useNavigate();
@@ -502,25 +499,15 @@ const Layout = () => {
       </div>
       
 
-        {/* Status Indicators */}
-        <div className="flex space-x-4 items-center bg-[#d1e8e2] px-3 py-1 border border-gray-400 shadow-inner text-sm font-semibold">
-          <label className="flex items-center space-x-1 cursor-pointer">
-            <input type="checkbox" className="form-checkbox" checked={globalSettings.isSelectedCustomer} onChange={e => setGlobalSettings({...globalSettings, isSelectedCustomer: e.target.checked})} />
-            <span>Selected Customer ?</span>
-          </label>
-          <label className="flex items-center space-x-1 cursor-pointer">
-            <input type="checkbox" className="form-checkbox" checked={globalSettings.isChallan} onChange={e => setGlobalSettings({...globalSettings, isChallan: e.target.checked})} />
-            <span>Challan</span>
-          </label>
-          <label className="flex items-center space-x-1 cursor-pointer">
-            <input type="checkbox" className="form-checkbox" checked={globalSettings.isTaxBill} onChange={e => setGlobalSettings({...globalSettings, isTaxBill: e.target.checked})} />
-            <span>Tax Bill</span>
-          </label>
-          <label className="flex items-center space-x-1 cursor-pointer">
-            <input type="checkbox" className="form-checkbox" checked={globalSettings.isRetailBill} onChange={e => setGlobalSettings({...globalSettings, isRetailBill: e.target.checked})} />
-            <span>Retail Bill</span>
-          </label>
-        </div>
+        {/* Status Indicators - Selected Customer appears ONLY on Sales Bill page */}
+        {location.pathname === '/sales-bill' && (
+          <div className="flex space-x-4 items-center bg-[#d1e8e2] px-3 py-1 border border-gray-400 shadow-inner text-sm font-semibold">
+            <label className="flex items-center space-x-1 cursor-pointer">
+              <input type="checkbox" className="form-checkbox" checked={globalSettings.isSelectedCustomer} onChange={e => setGlobalSettings({...globalSettings, isSelectedCustomer: e.target.checked})} />
+              <span>Selected Customer ?</span>
+            </label>
+          </div>
+        )}
           <div className="flex space-x-1">
           <button 
             onClick={() => {

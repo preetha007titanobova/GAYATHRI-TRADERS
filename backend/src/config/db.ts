@@ -54,7 +54,20 @@ export async function setupDatabase() {
     const db = await getDb();
     await db.collection('Product').createIndex({ barcode: 1 });
     await db.collection('Product').createIndex({ itemCode: 1 });
-    console.log("Product barcode indexes created/ready");
+    // Automatically sanitize and reset any negative stock products to 0
+    await db.collection('Product').updateMany(
+      { stock: { $lt: 0 } },
+      { $set: { stock: 0 } }
+    );
+    try {
+      await prisma.product.updateMany({
+        where: { stock: { lt: 0 } },
+        data: { stock: 0 }
+      });
+    } catch (pe) {
+      console.warn("Prisma stock cleanup note:", pe);
+    }
+    console.log("Product database setup & stock non-negative sanitization ready");
 
     // Seed sample product 100002 if missing
     const existing = await db.collection('Product').findOne({

@@ -29,6 +29,34 @@ export const createSalesBill = async (data: any): Promise<any> => {
 
   const db = await getDb();
 
+  // Server-side Stock Validation: Ensure stock never goes negative
+  if (items && items.length > 0) {
+    for (const item of items) {
+      const qty = Number(item.qty) || 0;
+      if (qty <= 0) continue;
+
+      let product = null;
+      if (item.productId) {
+        product = await prisma.product.findUnique({ where: { id: item.productId } });
+      }
+      if (!product && item.itemDesc) {
+        product = await prisma.product.findFirst({
+          where: { OR: [{ itemCode: item.itemDesc }, { barcode: item.itemDesc }] }
+        });
+      }
+      if (!product && item.itemName) {
+        product = await prisma.product.findFirst({ where: { name: item.itemName } });
+      }
+
+      if (product) {
+        const availableStock = Number(product.stock) || 0;
+        if (availableStock < qty) {
+          throw new Error(`Insufficient stock for item "${product.name}". Available: ${availableStock}, Requested: ${qty}`);
+        }
+      }
+    }
+  }
+
   const billResult = await db.collection('SalesBill').insertOne({
     invoiceNo,
     invDate: new Date(invDate),
@@ -85,25 +113,28 @@ export const createSalesBill = async (data: any): Promise<any> => {
       if (product) {
         productId = new ObjectId(product.id);
         if (qty > 0) {
-          await prisma.product.updateMany({
+          const currentStock = Number(product.stock) || 0;
+          const updatedStock = Math.max(0, currentStock - Math.round(qty));
+          await prisma.product.update({
             where: { id: product.id },
-            data: {
-              stock: {
-                decrement: Math.round(qty)
-              }
-            }
+            data: { stock: updatedStock }
           });
+          await db.collection('Product').updateOne(
+            { _id: new ObjectId(product.id) },
+            { $set: { stock: updatedStock } }
+          );
         }
       } else {
         if (qty > 0 && item.itemName) {
-          await prisma.product.updateMany({
-            where: { name: item.itemName },
-            data: {
-              stock: {
-                decrement: Math.round(qty)
-              }
-            }
-          });
+          const p = await db.collection('Product').findOne({ name: item.itemName });
+          if (p) {
+            const currentStock = Number(p.stock) || 0;
+            const updatedStock = Math.max(0, currentStock - Math.round(qty));
+            await db.collection('Product').updateOne(
+              { _id: p._id },
+              { $set: { stock: updatedStock } }
+            );
+          }
         }
       }
 

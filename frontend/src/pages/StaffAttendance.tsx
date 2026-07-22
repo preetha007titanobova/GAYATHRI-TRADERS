@@ -13,6 +13,8 @@ interface AttendanceRecord {
   shiftHours?: number;
   biometricId?: string;
   biometricEnrolled?: boolean;
+  biometricId2?: string;
+  biometricEnrolled2?: boolean;
   dateStr: string;
   status: 'Present' | 'Late' | 'Half Day' | 'Paid Leave' | 'Absent' | 'Leave';
   checkIn: string;
@@ -24,7 +26,7 @@ interface AttendanceRecord {
   attendanceId?: string | null;
 }
 
-// Calculate Work Hours and OT compared to specified Shift Hours
+// Calculate Work Hours and OT (OT is calculated ONLY IF extra hours >= 1 hour / 60 mins)
 const calculateAttendanceMetrics = (checkInStr: string, checkOutStr: string, statusStr: string, shiftHours = 8) => {
   if (['Paid Leave', 'Leave', 'Absent'].includes(statusStr) || !checkInStr || !checkOutStr || checkInStr === '-' || checkOutStr === '-') {
     return { hours: '-', ot: '-' };
@@ -62,9 +64,10 @@ const calculateAttendanceMetrics = (checkInStr: string, checkOutStr: string, sta
   const hoursStr = m > 0 ? `${h}h ${m}m` : `${h}h`;
 
   // Compare against specified shift hours (e.g. 8 hours = 480 mins)
+  // OT is noted ONLY IF extra worked duration is >= 60 minutes (1 hour)
   const targetMins = shiftHours * 60;
   let otStr = '-';
-  if (diffMins > targetMins) {
+  if (diffMins >= targetMins + 60) {
     const otMins = diffMins - targetMins;
     const otH = Math.floor(otMins / 60);
     const otM = otMins % 60;
@@ -261,8 +264,8 @@ const StaffAttendance = () => {
               <tr>
                 <th className="p-2.5 border-b">Employee</th>
                 <th className="p-2.5 border-b text-center">Assigned Shift Timing</th>
-                <th className="p-2.5 border-b text-center">Biometric Check In</th>
-                <th className="p-2.5 border-b text-center">Biometric Check Out</th>
+                <th className="p-2.5 border-b text-center">Biometric Inward</th>
+                <th className="p-2.5 border-b text-center">Biometric Outward</th>
                 <th className="p-2.5 border-b text-center">Hours Worked</th>
                 <th className="p-2.5 border-b text-center">Status</th>
                 <th className="p-2.5 border-b text-center">Overtime (OT)</th>
@@ -293,7 +296,7 @@ const StaffAttendance = () => {
                         <span className="text-[10px] text-gray-500 block font-normal">({targetShiftHours} hrs shift)</span>
                       </td>
 
-                      {/* Biometric Check In */}
+                      {/* Biometric Inward */}
                       <td className="p-2.5 text-center font-mono font-bold text-emerald-800">
                         {item.checkIn && item.checkIn !== '-' ? (
                           <span className="inline-flex items-center space-x-1">
@@ -303,7 +306,7 @@ const StaffAttendance = () => {
                         ) : '-'}
                       </td>
 
-                      {/* Biometric Check Out */}
+                      {/* Biometric Outward */}
                       <td className="p-2.5 text-center font-mono font-bold text-emerald-800">
                         {item.checkOut && item.checkOut !== '-' ? (
                           <span className="inline-flex items-center space-x-1">

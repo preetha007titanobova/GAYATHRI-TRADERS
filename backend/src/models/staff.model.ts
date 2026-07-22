@@ -13,9 +13,12 @@ export interface Staff {
   shiftHours?: number;
   joiningDate?: Date | string;
   status: 'Active' | 'Inactive';
-  biometricId?: string;
+  biometricId?: string;       // Fingerprint 1 ID
   biometricCredentialId?: string;
   biometricEnrolled?: boolean;
+  biometricId2?: string;      // Fingerprint 2 ID
+  biometricCredentialId2?: string;
+  biometricEnrolled2?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
 }

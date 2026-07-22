@@ -19,6 +19,9 @@ export const getProductByBarcode = async (barcode: string): Promise<any> => {
         console.error("Prisma barcode search error:", e);
       }
     }
+    if (product) {
+      product.stock = Math.max(0, Number(product.stock) || 0);
+    }
     return product;
   } catch (err) {
     console.error("Error in getProductByBarcode:", err);
@@ -82,7 +85,7 @@ export const searchItems = async (q: string): Promise<any[]> => {
         itemCode: item.itemCode || '',
         size: item.size || '',
         price: Number(item.price) || 0,
-        stock: Number(item.stock) || 0
+        stock: Math.max(0, Number(item.stock) || 0)
       });
     }
   });
@@ -129,7 +132,7 @@ export const createProduct = async (data: Product): Promise<any> => {
     price: Number(data.price) || 0,
     mrp: Number(data.mrp) || 0,
     taxPercent: Number(data.taxPercent) || 0,
-    stock: Number(data.stock) || 0,
+    stock: Math.max(0, Math.round(Number(data.stock) || 0)),
     createdAt: new Date(),
     updatedAt: new Date()
   });
@@ -147,7 +150,7 @@ export const updateProduct = async (id: string, data: any): Promise<boolean> => 
         price: Number(data.price) || 0,
         mrp: Number(data.mrp) || 0,
         taxPercent: Number(data.taxPercent) || 0,
-        stock: Math.round(Number(data.stock) || 0),
+        stock: Math.max(0, Math.round(Number(data.stock) || 0)),
         updatedAt: new Date()
       }
     }
