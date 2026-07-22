@@ -67,6 +67,7 @@ model SalesBill {
   gstNo       String?
   printIn     String?
   invFormat   String?
+  paymentMode String?  @default("Cash")
 
   totalQty    Float
   totalAmount Float
@@ -130,6 +131,7 @@ model SalesReturn {
   originalInvoice String
   customerName    String
   reason          String
+  paymentMode     String?  @default("Cash")
 
   totalReturnAmount Float
   cgstReturn        Float

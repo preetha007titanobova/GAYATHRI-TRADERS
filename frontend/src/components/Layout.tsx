@@ -131,6 +131,7 @@ const Layout = () => {
       let totalOpening = 0;
       let totalInward = 0;
       let totalOutward = 0;
+      let totalReturns = 0;
       let totalClosing = 0;
       let totalValuation = 0;
       
@@ -138,11 +139,12 @@ const Layout = () => {
         totalOpening += item.openingStock || 0;
         totalInward += item.inwardToday || 0;
         totalOutward += item.outwardToday || 0;
+        totalReturns += item.returnsToday || 0;
         totalClosing += item.closingStock || 0;
         totalValuation += item.valuation || 0;
       });
 
-      const doc = new jsPDF();
+      const doc = new jsPDF({ orientation: 'landscape' });
       doc.setFontSize(16);
       doc.setTextColor(43, 87, 154);
       doc.text('Daily Stock Status Report', 14, 15);
@@ -153,38 +155,56 @@ const Layout = () => {
 
       const headers = [
         "Item Code", 
-        "Item Name", 
+        "Product Name", 
+        "Barcode",
+        "Category",
+        "Size",
         "Unit", 
         "Opening Qty", 
-        "Qty In", 
-        "Qty Out", 
+        "Qty In (Pur)", 
+        "Qty Out (Sold)", 
+        "Returns",
         "Closing Qty", 
         "Pur. Rate (Rs.)", 
-        "Closing Val (Rs.)"
+        "Closing Val (Rs.)",
+        "Status",
+        "Payment Mode"
       ];
       
       const rows = data.map((item: any) => [
         item.itemCode || '',
         item.name || '',
+        item.barcode || '',
+        item.category || '',
+        item.size || '',
         item.uom || 'PCS',
         item.openingStock || 0,
         item.inwardToday || 0,
         item.outwardToday || 0,
+        item.returnsToday || 0,
         item.closingStock || 0,
         (item.purchaseRate || 0).toFixed(2),
-        (item.valuation || 0).toFixed(2)
+        (item.valuation || 0).toFixed(2),
+        item.status || 'Inactive',
+        item.paymentMode || '-'
       ]);
 
       rows.push([
         'TOTAL',
         `${data.length} Items`,
         '',
+        '',
+        '',
+        '',
         (totalOpening || 0).toString(),
         (totalInward || 0).toString(),
         (totalOutward || 0).toString(),
+        (totalReturns || 0).toString(),
         (totalClosing || 0).toString(),
         '',
-        (totalValuation || 0).toFixed(2)
+        (totalValuation || 0).toFixed(2),
+        '',
+        ''
       ]);
 
       autoTable(doc, {
@@ -193,7 +213,7 @@ const Layout = () => {
         body: rows,
         theme: 'grid',
         headStyles: { fillColor: [43, 87, 154] },
-        styles: { fontSize: 8 },
+        styles: { fontSize: 7, cellPadding: 1.5 },
         didParseCell: (cellData) => {
           if (cellData.row.index === rows.length - 1) {
             cellData.cell.styles.fontStyle = 'bold';
@@ -240,8 +260,9 @@ const Layout = () => {
       const whatsappText = `*Sri Gayathri Traders - Close Day Report*\n` +
                            `*Date:* ${formattedDate}\n` +
                            `*Total Items:* ${data.length}\n` +
-                           `*Total Qty In:* ${totalInward}\n` +
-                           `*Total Qty Out:* ${totalOutward}\n` +
+                           `*Total Qty In (Pur):* ${totalInward}\n` +
+                           `*Total Qty Out (Sold):* ${totalOutward}\n` +
+                           `*Total Qty Returned:* ${totalReturns}\n` +
                            `*Total Closing Qty:* ${totalClosing}\n` +
                            `*Total Closing Valuation:* Rs. ${(totalValuation || 0).toFixed(2)}\n\n` +
                            (pdfUrl ? `*Download PDF Report:* ${pdfUrl}\n\n` : '') +
