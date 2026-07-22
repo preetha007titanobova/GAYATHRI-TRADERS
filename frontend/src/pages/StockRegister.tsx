@@ -22,6 +22,7 @@ interface Product {
   _id?: string;
   name: string;
   itemCode: string;
+  vendorItemCode?: string;
   department?: string;
   variety?: string;
   size?: string;
@@ -59,6 +60,7 @@ const StockRegister = () => {
 
   // Local storage state
   const [localPurchaseBills, setLocalPurchaseBills] = useState<any[]>([]);
+  const [localShopSalesBills, setLocalShopSalesBills] = useState<any[]>([]);
   const [damages, setDamages] = useState<Record<string, { qty: number, reason: string }>>({});
   
   // Damages modal state
@@ -130,6 +132,13 @@ const StockRegister = () => {
       if (pbRes.ok) {
         const pbData = await pbRes.json();
         setLocalPurchaseBills(pbData);
+      }
+
+      // Fetch shop sales bills from DB
+      const sbRes = await fetch(`${Api}/shop-sales-bills`);
+      if (sbRes.ok) {
+        const sbData = await sbRes.json();
+        setLocalShopSalesBills(sbData);
       }
     } catch (err) {
       console.error("Failed to fetch stock register report", err);
@@ -204,7 +213,32 @@ const StockRegister = () => {
     }
 
     const dbMovements = product.movements || [];
-    const combinedMovements = [...dbMovements, ...localPurchaseMovements];
+    
+    // Get local shop sales bills
+    const localShopSalesMovements: StockMove[] = [];
+    if (localShopSalesBills.length > 0) {
+      localShopSalesBills.forEach((bill: any) => {
+        if (bill.items && Array.isArray(bill.items)) {
+          bill.items.forEach((sItem: any) => {
+            const isMatch = (itemCode && sItem.itemCode === itemCode) ||
+                            (name && sItem.itemName?.toLowerCase() === name.toLowerCase());
+            if (isMatch) {
+              localShopSalesMovements.push({
+                id: `local-ssb-${bill.voucherNo}-${sItem.itemCode || sItem.itemName}`,
+                date: bill.date,
+                vchType: 'Shop Sale',
+                vchNo: bill.voucherNo,
+                particulars: bill.shopName || 'Shop/Branch',
+                inward: 0,
+                outward: Number(sItem.qty) || 0
+              });
+            }
+          });
+        }
+      });
+    }
+
+    const combinedMovements = [...dbMovements, ...localPurchaseMovements, ...localShopSalesMovements];
     combinedMovements.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     // Filter movements by date safely
@@ -278,6 +312,7 @@ const StockRegister = () => {
       const q = searchQuery.toLowerCase();
       return (
         p.itemCode?.toLowerCase().includes(q) ||
+        p.vendorItemCode?.toLowerCase().includes(q) ||
         p.name?.toLowerCase().includes(q) ||
         p.department?.toLowerCase().includes(q) ||
         p.variety?.toLowerCase().includes(q) ||
@@ -783,7 +818,8 @@ const StockRegister = () => {
               <table className="w-full text-left text-sm border-collapse min-w-max">
                 <thead className="bg-[#1e3f70] text-white sticky top-0 z-10 shadow-sm">
                   <tr>
-                    <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-24">Item Code</th>
+                    <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-24">Our Item Code</th>
+                    <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-24">Vendor Code</th>
                     <th className="border-r border-[#142d54] p-2 text-xs font-semibold">Item Name</th>
                     <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-32">Category</th>
                     <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-32">Variety</th>
@@ -825,6 +861,7 @@ const StockRegister = () => {
                         }`}
                       >
                         <td className="border-r border-gray-200 p-2 font-mono text-xs font-bold text-gray-600">{p.itemCode}</td>
+                        <td className="border-r border-gray-200 p-2 font-mono text-xs font-semibold text-slate-700">{p.vendorItemCode || '-'}</td>
                         <td className="border-r border-gray-200 p-2 text-gray-800 font-semibold">{p.name}</td>
                         <td className="border-r border-gray-200 p-2 text-xs text-gray-600 font-medium">{p.department || '-'}</td>
                         <td className="border-r border-gray-200 p-2 text-xs text-gray-600 font-medium">{p.variety || '-'}</td>

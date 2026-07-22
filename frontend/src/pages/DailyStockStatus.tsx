@@ -1,7 +1,7 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import type { ToolbarActions } from '../components/Layout';
-import { Calendar, PackageSearch, AlertTriangle, Search, FileText } from 'lucide-react';
+import { Calendar, PackageSearch, Search, FileText } from 'lucide-react';
 import Api from '../Api';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -10,14 +10,20 @@ interface DailyStockItem {
   id: string;
   itemCode: string;
   name: string;
+  barcode?: string;
+  category?: string;
+  size?: string;
   uom: string;
   purchaseRate: number;
   price: number;
   openingStock: number;
   inwardToday: number;
   outwardToday: number;
+  returnsToday: number;
   closingStock: number;
   valuation: number;
+  status?: string;
+  paymentMode?: string;
 }
 
 const DailyStockStatus = () => {
@@ -40,6 +46,7 @@ const DailyStockStatus = () => {
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [hideZero, setHideZero] = useState(false);
+  const [salesOnly, setSalesOnly] = useState(true);
 
   const fetchDailyStatus = async () => {
     setLoading(true);
@@ -126,8 +133,12 @@ const DailyStockStatus = () => {
 
   const filteredStock = useMemo(() => {
     return inventory.filter(item => {
+      if (salesOnly && (item.outwardToday <= 0 && item.inwardToday <= 0 && (item.returnsToday || 0) <= 0)) {
+        return false;
+      }
+
       const closing = item.closingStock || 0;
-      if (hideZero && closing <= 0 && item.openingStock <= 0 && item.inwardToday <= 0 && item.outwardToday <= 0) {
+      if (hideZero && closing <= 0 && item.openingStock <= 0 && item.inwardToday <= 0 && item.outwardToday <= 0 && (item.returnsToday || 0) <= 0) {
         return false;
       }
       
@@ -139,7 +150,7 @@ const DailyStockStatus = () => {
       }
       return true;
     });
-  }, [inventory, search, hideZero]);
+  }, [inventory, search, hideZero, salesOnly]);
 
   const totals = useMemo(() => {
     return filteredStock.reduce(
@@ -147,63 +158,77 @@ const DailyStockStatus = () => {
         acc.opening += item.openingStock || 0;
         acc.inward += item.inwardToday || 0;
         acc.outward += item.outwardToday || 0;
+        acc.returns += item.returnsToday || 0;
         acc.closing += item.closingStock || 0;
         acc.valuation += item.valuation || 0;
         return acc;
       },
-      { opening: 0, inward: 0, outward: 0, closing: 0, valuation: 0 }
+      { opening: 0, inward: 0, outward: 0, returns: 0, closing: 0, valuation: 0 }
     );
   }, [filteredStock]);
 
   const downloadPDF = () => {
-    const doc = new jsPDF();
+    const doc = new jsPDF({ orientation: 'landscape' });
     doc.setFontSize(16);
     doc.setTextColor(43, 87, 154);
-    doc.text('Daily Stock Status Report (Complete)', 14, 15);
+    doc.text('Daily Stock Status Report', 14, 15);
     
     doc.setFontSize(10);
     doc.setTextColor(100);
     
     const formattedDate = selectedDate.split('-').reverse().join('-');
     
-    // Calculate complete totals for PDF report
-    const pdfTotals = inventory.reduce(
+    // Calculate totals for PDF report from filtered stock
+    const pdfTotals = filteredStock.reduce(
       (acc, item) => {
         acc.opening += item.openingStock || 0;
         acc.inward += item.inwardToday || 0;
         acc.outward += item.outwardToday || 0;
+        acc.returns += item.returnsToday || 0;
         acc.closing += item.closingStock || 0;
         acc.valuation += item.valuation || 0;
         return acc;
       },
-      { opening: 0, inward: 0, outward: 0, closing: 0, valuation: 0 }
+      { opening: 0, inward: 0, outward: 0, returns: 0, closing: 0, valuation: 0 }
     );
 
     doc.text(`Target Date: ${formattedDate} | Total Valuation: Rs. ${(pdfTotals.valuation || 0).toFixed(2)}`, 14, 22);
 
     const headers = [
       "Item Code", 
-      "Item Name", 
+      "Product Name",
+      "Barcode",
+      "Category",
+      "Size",
       "Unit", 
       "Opening Qty", 
-      "Qty In", 
-      "Qty Out", 
+      "Qty In (Pur)", 
+      "Qty Out (Sold)", 
+      "Returns",
       "Closing Qty", 
       "Pur. Rate (Rs.)", 
-      "Closing Val (Rs.)"
+      "Closing Val (Rs.)",
+      "Status",
+      "Payment Mode"
     ];
     
-    // Map over all inventory items for a complete report
-    const rows = inventory.map(item => [
+    // Map over filteredStock items
+    const rows = filteredStock.map(item => [
       item.itemCode || '',
       item.name || '',
+      item.barcode || '',
+      item.category || '',
+      item.size || '',
       item.uom || 'PCS',
       item.openingStock || 0,
       item.inwardToday || 0,
       item.outwardToday || 0,
+      item.returnsToday || 0,
       item.closingStock || 0,
       (item.purchaseRate || 0).toFixed(2),
-      (item.valuation || 0).toFixed(2)
+      (item.valuation || 0).toFixed(2),
+      item.status || 'Inactive',
+      item.paymentMode || '-'
     ]);
 
     // Summary Row
@@ -211,12 +236,18 @@ const DailyStockStatus = () => {
       'TOTAL',
       `${inventory.length} Items`,
       '',
+      '',
+      '',
+      '',
       (pdfTotals.opening || 0).toString(),
       (pdfTotals.inward || 0).toString(),
       (pdfTotals.outward || 0).toString(),
+      (pdfTotals.returns || 0).toString(),
       (pdfTotals.closing || 0).toString(),
       '',
-      (pdfTotals.valuation || 0).toFixed(2)
+      (pdfTotals.valuation || 0).toFixed(2),
+      '',
+      ''
     ]);
 
     autoTable(doc, {
@@ -225,7 +256,7 @@ const DailyStockStatus = () => {
       body: rows,
       theme: 'grid',
       headStyles: { fillColor: [43, 87, 154] },
-      styles: { fontSize: 8 },
+      styles: { fontSize: 7, cellPadding: 1.5 },
       didParseCell: (data) => {
         if (data.row.index === rows.length - 1) {
           data.cell.styles.fontStyle = 'bold';
@@ -256,7 +287,7 @@ const DailyStockStatus = () => {
     const formattedDate = `${dd}-${mm}-${yyyy}`;
 
     try {
-      const doc = new jsPDF();
+      const doc = new jsPDF({ orientation: 'landscape' });
       doc.setFontSize(16);
       doc.setTextColor(43, 87, 154);
       doc.text('Daily Stock Status Report (Complete)', 14, 15);
@@ -264,54 +295,73 @@ const DailyStockStatus = () => {
       doc.setFontSize(10);
       doc.setTextColor(100);
       
-      const pdfTotals = inventory.reduce(
+      const pdfTotals = filteredStock.reduce(
         (acc, item) => {
           acc.opening += item.openingStock || 0;
           acc.inward += item.inwardToday || 0;
           acc.outward += item.outwardToday || 0;
+          acc.returns += item.returnsToday || 0;
           acc.closing += item.closingStock || 0;
           acc.valuation += item.valuation || 0;
           return acc;
         },
-        { opening: 0, inward: 0, outward: 0, closing: 0, valuation: 0 }
+        { opening: 0, inward: 0, outward: 0, returns: 0, closing: 0, valuation: 0 }
       );
 
       doc.text(`Target Date: ${formattedDate} | Total Valuation: Rs. ${(pdfTotals.valuation || 0).toFixed(2)}`, 14, 22);
 
       const headers = [
         "Item Code", 
-        "Item Name", 
+        "Product Name", 
+        "Barcode",
+        "Category",
+        "Size",
         "Unit", 
         "Opening Qty", 
-        "Qty In", 
-        "Qty Out", 
+        "Qty In (Pur)", 
+        "Qty Out (Sold)", 
+        "Returns",
         "Closing Qty", 
         "Pur. Rate (Rs.)", 
-        "Closing Val (Rs.)"
+        "Closing Val (Rs.)",
+        "Status",
+        "Payment Mode"
       ];
       
-      const rows = inventory.map(item => [
+      const rows = filteredStock.map(item => [
         item.itemCode || '',
         item.name || '',
+        item.barcode || '',
+        item.category || '',
+        item.size || '',
         item.uom || 'PCS',
         item.openingStock || 0,
         item.inwardToday || 0,
         item.outwardToday || 0,
+        item.returnsToday || 0,
         item.closingStock || 0,
         (item.purchaseRate || 0).toFixed(2),
-        (item.valuation || 0).toFixed(2)
+        (item.valuation || 0).toFixed(2),
+        item.status || 'Inactive',
+        item.paymentMode || '-'
       ]);
 
       rows.push([
         'TOTAL',
-        `${inventory.length} Items`,
+        `${filteredStock.length} Items`,
+        '',
+        '',
+        '',
         '',
         (pdfTotals.opening || 0).toString(),
         (pdfTotals.inward || 0).toString(),
         (pdfTotals.outward || 0).toString(),
+        (pdfTotals.returns || 0).toString(),
         (pdfTotals.closing || 0).toString(),
         '',
-        (pdfTotals.valuation || 0).toFixed(2)
+        (pdfTotals.valuation || 0).toFixed(2),
+        '',
+        ''
       ]);
 
       autoTable(doc, {
@@ -320,7 +370,7 @@ const DailyStockStatus = () => {
         body: rows,
         theme: 'grid',
         headStyles: { fillColor: [43, 87, 154] },
-        styles: { fontSize: 8 },
+        styles: { fontSize: 7, cellPadding: 1.5 },
         didParseCell: (data) => {
           if (data.row.index === rows.length - 1) {
             data.cell.styles.fontStyle = 'bold';
@@ -350,8 +400,9 @@ const DailyStockStatus = () => {
       const text = `*Sri Gayathri Traders - Daily Stock Status Report*\n` +
                    `*Date:* ${formattedDate}\n` +
                    `*Total Items:* ${filteredStock.length}\n` +
-                   `*Total Qty In:* ${totals.inward}\n` +
-                   `*Total Qty Out:* ${totals.outward}\n` +
+                   `*Total Qty In (Pur):* ${totals.inward}\n` +
+                   `*Total Qty Out (Sold):* ${totals.outward}\n` +
+                   `*Total Qty Returned:* ${totals.returns}\n` +
                    `*Total Closing Qty:* ${totals.closing}\n` +
                    `*Total Closing Valuation:* Rs. ${(totals.valuation || 0).toFixed(2)}\n\n` +
                    (pdfUrl ? `*Download PDF Report:* ${pdfUrl}\n\n` : '') +
@@ -393,13 +444,24 @@ const DailyStockStatus = () => {
               />
             </div>
 
+            <div className="flex items-center space-x-2 border-r border-gray-300 pr-4">
+              <input 
+                type="checkbox" 
+                id="salesOnly" 
+                checked={salesOnly} 
+                onChange={e => setSalesOnly(e.target.checked)}
+                className="w-4 h-4 text-blue-600 rounded cursor-pointer"
+              />
+              <label htmlFor="salesOnly" className="text-sm font-bold text-[#2b579a] cursor-pointer">Daily Activity Only</label>
+            </div>
+
             <div className="flex items-center space-x-2">
               <input 
                 type="checkbox" 
                 id="hideZero" 
                 checked={hideZero} 
                 onChange={e => setHideZero(e.target.checked)}
-                className="w-4 h-4 text-blue-600 rounded"
+                className="w-4 h-4 text-blue-600 rounded cursor-pointer"
               />
               <label htmlFor="hideZero" className="text-sm font-bold text-gray-700 cursor-pointer">Hide Zero Balances</label>
             </div>
@@ -477,12 +539,18 @@ const DailyStockStatus = () => {
             <thead className="bg-[#1e3f70] text-white sticky top-0 z-10 shadow-sm">
               <tr>
                 <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-24">Item Code</th>
-                <th className="border-r border-[#142d54] p-2 text-xs font-semibold">Item Name</th>
+                <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-40">Product</th>
+                <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-28">Barcode</th>
+                <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-32">Category</th>
+                <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-20">Size</th>
                 <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-16 text-center">Unit</th>
-                <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-28 text-right bg-[#142d54]/20">Opening Stock</th>
-                <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-24 text-right text-green-300">Qty In (Inward)</th>
-                <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-24 text-right text-red-300">Qty Out (Outward)</th>
-                <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-28 text-right bg-[#142d54]/20">Closing Stock</th>
+                <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-28 text-right bg-[#142d54]/20">Opening</th>
+                <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-24 text-right text-green-300">Inward</th>
+                <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-24 text-right text-amber-300">Sold</th>
+                <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-24 text-right text-red-300">Return</th>
+                <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-28 text-right bg-[#142d54]/20">Closing</th>
+                <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-20 text-center">Status</th>
+                <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-36">Payment Mode</th>
                 <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-28 text-right">Pur. Rate (₹)</th>
                 <th className="p-2 text-xs font-semibold w-32 text-right">Closing Val (₹)</th>
               </tr>
@@ -490,13 +558,13 @@ const DailyStockStatus = () => {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={9} className="p-12 text-center text-gray-500 font-bold">
+                  <td colSpan={15} className="p-12 text-center text-gray-500 font-bold">
                     Loading daily stock status data...
                   </td>
                 </tr>
               ) : filteredStock.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="p-12 text-center text-gray-400">
+                  <td colSpan={15} className="p-12 text-center text-gray-400">
                     <div className="flex flex-col items-center">
                       <PackageSearch size={32} className="mb-2 opacity-50" />
                       <p className="italic text-sm">No items found matching criteria.</p>
@@ -505,7 +573,7 @@ const DailyStockStatus = () => {
                 </tr>
               ) : (
                 filteredStock.map((item, idx) => {
-                  const hasMovements = (item.inwardToday > 0 || item.outwardToday > 0);
+                  const hasMovements = (item.inwardToday > 0 || item.outwardToday > 0 || item.returnsToday > 0);
                   
                   return (
                     <tr 
@@ -515,14 +583,10 @@ const DailyStockStatus = () => {
                       } ${hasMovements ? 'font-bold bg-yellow-50/30' : ''}`}
                     >
                       <td className="border-r border-gray-200 p-2 font-mono text-xs font-bold text-gray-600">{item.itemCode}</td>
-                      <td className="border-r border-gray-200 p-2 text-gray-800 flex items-center">
-                        <span>{item.name}</span>
-                        {hasMovements && (
-                          <span className="text-[9px] bg-amber-100 text-amber-800 px-1 rounded-sm ml-2 font-bold uppercase tracking-wider">
-                            Active
-                          </span>
-                        )}
-                      </td>
+                      <td className="border-r border-gray-200 p-2 text-gray-800">{item.name}</td>
+                      <td className="border-r border-gray-200 p-2 font-mono text-xs text-gray-600">{item.barcode || '-'}</td>
+                      <td className="border-r border-gray-200 p-2 text-xs text-gray-700">{item.category || '-'}</td>
+                      <td className="border-r border-gray-200 p-2 text-xs text-center text-gray-600">{item.size || '-'}</td>
                       <td className="border-r border-gray-200 p-2 text-xs text-center text-gray-500">{item.uom || 'PCS'}</td>
                       
                       <td className="border-r border-gray-200 p-2 text-right font-mono text-sm text-gray-700 bg-gray-50/20">
@@ -533,13 +597,30 @@ const DailyStockStatus = () => {
                         {item.inwardToday > 0 ? `+${item.inwardToday}` : ''}
                       </td>
                       
+                      <td className="border-r border-gray-200 p-2 text-right font-mono text-sm text-amber-600 bg-amber-50/20 font-bold">
+                        {item.outwardToday > 0 ? `${item.outwardToday}` : ''}
+                      </td>
+                      
                       <td className="border-r border-gray-200 p-2 text-right font-mono text-sm text-red-600 bg-red-50/20 font-bold">
-                        {item.outwardToday > 0 ? `-${item.outwardToday}` : ''}
+                        {item.returnsToday > 0 ? `+${item.returnsToday}` : ''}
                       </td>
                       
                       <td className="border-r border-gray-200 p-2 text-right font-mono text-sm text-blue-700 bg-blue-50/20 font-bold">
                         {item.closingStock}
                       </td>
+
+                      <td className="border-r border-gray-200 p-2 text-center text-xs">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide ${
+                          item.status === 'In Stock' ? 'bg-green-100 text-green-800' :
+                          item.status === 'Low Stock' ? 'bg-amber-100 text-amber-800' :
+                          item.status === 'Out of Stock' ? 'bg-red-100 text-red-800' :
+                          'bg-gray-100 text-gray-600'
+                        }`}>
+                          {item.status || 'In Stock'}
+                        </span>
+                      </td>
+
+                      <td className="border-r border-gray-200 p-2 text-xs text-gray-700 font-medium">{item.paymentMode || '-'}</td>
                       
                       <td className="border-r border-gray-200 p-2 text-right font-mono text-xs text-gray-600">
                         {(item.purchaseRate || 0).toFixed(2)}
@@ -560,8 +641,9 @@ const DailyStockStatus = () => {
         <div className="bg-[#1e3f70] border-t border-[#142d54] p-3 flex justify-between items-center text-white flex-shrink-0 z-20">
           <div className="text-sm font-bold text-blue-200 flex space-x-6">
             <span>Total Items: {filteredStock.length}</span>
-            <span>Total In: {totals.inward}</span>
-            <span>Total Out: {totals.outward}</span>
+            <span>Total In (Pur): {totals.inward}</span>
+            <span>Total Out (Sold): {totals.outward}</span>
+            <span>Total Returned: {totals.returns}</span>
           </div>
 
           <div className="flex space-x-4 items-center">

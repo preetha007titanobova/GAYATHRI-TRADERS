@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useOutletContext, useLocation, useNavigate } from 'react-router-dom';
-import type { ToolbarActions } from '../components/Layout';
-import { Plus, Trash2, Edit, Search } from 'lucide-react';
-import Modal from '../components/Modal';
+import { Plus, Trash, Edit, Trash2, ChevronLeft, ChevronRight, Search, FileText, Printer, ArrowLeft, Store } from 'lucide-react';
 import Api from '../Api';
+import type { ToolbarActions } from '../components/Layout';
+import Modal from '../components/Modal';
 
-interface PurchaseItem {
+interface ShopSalesItem {
   id: string;
   itemCode: string;
   vendorItemCode?: string;
@@ -29,7 +29,7 @@ interface PurchaseItem {
   isManualItem?: boolean;
 }
 
-const PurchaseBill = () => {
+const ShopSalesBill = () => {
   const { setToolbarActions, setGlobalNotification } = useOutletContext<{
     setToolbarActions: (actions: ToolbarActions) => void;
     setGlobalNotification: (notif: {msg: string, type: 'error' | 'success' | 'info' | ''}) => void;
@@ -46,20 +46,20 @@ const PurchaseBill = () => {
   // Header State
   const [billNo, setBillNo] = useState('Loading...');
   const [billDate, setBillDate] = useState(new Date().toISOString().split('T')[0]);
-  const [vendorId, setVendorId] = useState('');
+  const [shopId, setShopId] = useState('');
   const [gstin, setGstin] = useState('');
   const [supplyPlace, setSupplyPlace] = useState('Tamil Nadu');
-  const [vendorName, setVendorName] = useState('');
+  const [shopName, setShopName] = useState('');
   
-  const [vendors, setVendors] = useState<{id: string, name: string, gstin: string, state: string}[]>([]);
+  const [shops, setShops] = useState<{id: string, name: string, gstin: string, state: string}[]>([]);
   const [dbProducts, setDbProducts] = useState<any[]>([]);
   const [savedBills, setSavedBills] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Load vendors from Database on mount
-  const fetchVendors = async () => {
+  // Load shops from Database on mount
+  const fetchShops = async () => {
     try {
-      const res = await fetch(`${Api}/ledgers/search?group=Suppliers`);
+      const res = await fetch(`${Api}/ledgers/search?group=Shops`);
       if (res.ok) {
         const data = await res.json();
         const mapped = data.map((l: any) => ({
@@ -68,14 +68,14 @@ const PurchaseBill = () => {
           gstin: l.gstNo || '',
           state: l.state || 'Tamil Nadu'
         }));
-        setVendors(mapped);
+        setShops(mapped);
       }
     } catch (err) {
-      console.error("Error loading suppliers", err);
+      console.error("Error loading shops", err);
     }
   };
 
-  // Load products from DB on mount for local suggestion and fast search
+  // Load products from DB on mount
   const fetchProducts = async () => {
     try {
       const res = await fetch(`${Api}/products/search?q=`);
@@ -83,152 +83,226 @@ const PurchaseBill = () => {
         const data = await res.json();
         setDbProducts(data);
       }
-    } catch (err) {
-      console.error("Error loading products", err);
+    } catch (e) {
+      console.error("Failed to load products", e);
     }
   };
 
-  // Fetch sequential voucher number from DB
-  const fetchNextVoucher = async () => {
-    try {
-      const res = await fetch(`${Api}/purchase-bills/next-voucher`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.voucherNo) {
-          setBillNo(data.voucherNo);
-        }
-      }
-    } catch (err) {
-      console.error("Error fetching next voucher", err);
-    }
-  };
-
-  // Fetch all saved purchase bills from DB
+  // Load saved bills from DB
   const fetchSavedBills = async () => {
     try {
-      const res = await fetch(`${Api}/purchase-bills`);
+      const res = await fetch(`${Api}/shop-sales-bills`);
       if (res.ok) {
         const data = await res.json();
         setSavedBills(data);
       }
+    } catch (e) {
+      console.error("Failed to load bills", e);
+    }
+  };
+
+  // Next voucher number sequence
+  const fetchNextVoucher = async () => {
+    try {
+      const res = await fetch(`${Api}/shop-sales-bills/next-voucher`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.voucherNo) setBillNo(data.voucherNo);
+      }
     } catch (err) {
-      console.error("Error fetching saved bills", err);
+      console.error(err);
     }
   };
 
   useEffect(() => {
-    fetchVendors();
+    fetchShops();
     fetchProducts();
-    fetchNextVoucher();
     fetchSavedBills();
+    fetchNextVoucher();
   }, []);
 
-  // Parse state for editing bill passed from register
+  // Quick navigation: load bill if passed from register state
   useEffect(() => {
-    const editBill = location.state?.editBill;
-    if (editBill && vendors.length > 0) {
-      handleEditBill(editBill);
+    if (location.state && location.state.editBill) {
+      handleEditBill(location.state.editBill);
     }
-  }, [location.state, vendors]);
+  }, [location.state]);
 
-  // Modal State
-  const [isVendorModalOpen, setIsVendorModalOpen] = useState(false);
-  const [newVendorForm, setNewVendorForm] = useState({ name: '', gstin: '', state: 'Tamil Nadu' });
-
-  // Grid State
-  const [items, setItems] = useState<PurchaseItem[]>([]);
-  
-  // Calculate Totals
-  const subTotal = items.reduce((acc, curr) => acc + (curr.qty * curr.unitPrice), 0);
-  const discTotal = items.reduce((acc, curr) => acc + ((curr.qty * curr.unitPrice) * (curr.discPercent / 100)), 0);
-  const taxableTotal = subTotal - discTotal;
-  
-  const totalCgst = items.reduce((acc, curr) => acc + curr.cgstAmt, 0);
-  const totalSgst = items.reduce((acc, curr) => acc + curr.sgstAmt, 0);
-  const totalIgst = items.reduce((acc, curr) => acc + curr.igstAmt, 0);
-  
-  const rawTotal = taxableTotal + totalCgst + totalSgst + totalIgst;
-  const roundedOff = Math.round(rawTotal) - rawTotal;
-  const grandTotal = Math.round(rawTotal);
-
-  // Handle Vendor Change
+  // Handle selected shop
   useEffect(() => {
-    const vendor = vendors.find(v => v.id === vendorId);
-    if (vendor) {
-      setGstin(vendor.gstin);
-      setSupplyPlace(vendor.state);
-      setVendorName(vendor.name);
+    const found = shops.find(s => s.id === shopId);
+    if (found) {
+      setShopName(found.name);
+      setGstin(found.gstin || '');
+      setSupplyPlace(found.state || 'Tamil Nadu');
     } else {
+      setShopName('');
       setGstin('');
       setSupplyPlace('Tamil Nadu');
-      setVendorName('');
     }
-  }, [vendorId, vendors]);
+  }, [shopId, shops]);
 
-  // Recalculate item calculations helper
-  const calculateItemValues = (item: PurchaseItem, currentSupplyPlace: string) => {
-    const qty = isNaN(item.qty) ? 0 : item.qty;
-    const price = isNaN(item.unitPrice) ? 0 : item.unitPrice;
-    const baseVal = qty * price;
-    const afterDisc = baseVal - (baseVal * (item.discPercent / 100));
-    
-    const isInterstate = currentSupplyPlace.toLowerCase() !== 'tamil nadu';
-    
-    let igstAmt = 0;
+  // Modal State for new shop creation
+  const [isShopModalOpen, setIsShopModalOpen] = useState(false);
+  const [newShopName, setNewShopName] = useState('');
+  const [newShopGstin, setNewShopGstin] = useState('');
+  const [newShopState, setNewShopState] = useState('Tamil Nadu');
+  const [newShopCity, setNewShopCity] = useState('');
+  const [newShopAddress, setNewShopAddress] = useState('');
+  const [newShopMobile, setNewShopMobile] = useState('');
+
+  const handleCreateShop = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newShopName.trim()) return;
+
+    try {
+      const codeRes = await fetch(`${Api}/ledgers/next-code`);
+      const codeData = await codeRes.json();
+      const code = codeData.ledgerCode || `LED-${Date.now().toString().slice(-4)}`;
+
+      const payload = {
+        ledgerCode: code,
+        accountName: newShopName,
+        accountGroup: 'Shops',
+        gstNo: newShopGstin,
+        state: newShopState,
+        city: newShopCity,
+        address: newShopAddress,
+        mobileNo: newShopMobile,
+        openingBalance: 0,
+        drCr: 'Dr'
+      };
+
+      const res = await fetch(`${Api}/ledgers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setGlobalNotification({ msg: `Shop "${newShopName}" created successfully!`, type: 'success' });
+        setIsShopModalOpen(false);
+        setNewShopName('');
+        setNewShopGstin('');
+        setNewShopCity('');
+        setNewShopAddress('');
+        setNewShopMobile('');
+        
+        // Reload shops and select newly created shop
+        const reloadRes = await fetch(`${Api}/ledgers/search?group=Shops`);
+        if (reloadRes.ok) {
+          const reloadData = await reloadRes.json();
+          const mapped = reloadData.map((l: any) => ({
+            id: l._id || l.id || l.ledgerCode,
+            name: l.accountName,
+            gstin: l.gstNo || '',
+            state: l.state || 'Tamil Nadu'
+          }));
+          setShops(mapped);
+          
+          const created = mapped.find((v: any) => v.name === payload.accountName);
+          if (created) {
+            setShopId(created.id);
+          }
+        }
+      } else {
+        setGlobalNotification({ msg: "Error: " + data.error, type: 'error' });
+      }
+    } catch (err) {
+      console.error(err);
+      setGlobalNotification({ msg: "Failed to create shop account", type: 'error' });
+    }
+  };
+
+  // Main items list state
+  const [items, setItems] = useState<ShopSalesItem[]>([]);
+
+  // Calculation Logic
+  const calculateItemValues = (item: ShopSalesItem, placeOfSupply: string): ShopSalesItem => {
+    const qty = Number(item.qty) || 0;
+    const rate = Number(item.unitPrice) || 0;
+    const discPercent = Number(item.discPercent) || 0;
+    const taxPercent = Number(item.taxPercent) || 0;
+
+    const baseAmount = qty * rate;
+    const discAmt = baseAmount * (discPercent / 100);
+    const taxableAmt = baseAmount - discAmt;
+    const totalTax = taxableAmt * (taxPercent / 100);
+
     let cgstAmt = 0;
     let sgstAmt = 0;
+    let igstAmt = 0;
 
-    if (isInterstate) {
-      igstAmt = afterDisc * (item.taxPercent / 100);
+    if (placeOfSupply.toLowerCase() === 'tamil nadu') {
+      cgstAmt = totalTax / 2;
+      sgstAmt = totalTax / 2;
     } else {
-      cgstAmt = afterDisc * ((item.taxPercent / 2) / 100);
-      sgstAmt = afterDisc * ((item.taxPercent / 2) / 100);
+      igstAmt = totalTax;
     }
-    
-    const total = afterDisc + cgstAmt + sgstAmt + igstAmt;
+
+    const total = taxableAmt + totalTax;
 
     return {
       ...item,
-      cgstAmt,
-      sgstAmt,
-      igstAmt,
-      total
+      cgstAmt: Number(cgstAmt.toFixed(2)),
+      sgstAmt: Number(sgstAmt.toFixed(2)),
+      igstAmt: Number(igstAmt.toFixed(2)),
+      total: Number(total.toFixed(2))
     };
   };
 
-  // Generate a unique sequential item code for a row
-  const generateCodeForRow = async (rowId: string) => {
-    try {
-      const res = await fetch(`${Api}/products/next-code`);
-      if (res.ok) {
-        const data = await res.json();
-        let code = data.itemCode || 'ITM-1001';
-        
-        const match = code.match(/^(ITM-)(\d+)$/);
-        if (match) {
-          const prefix = match[1];
-          let num = parseInt(match[2]);
-          
-          while (
-            items.some(item => item.itemCode?.toUpperCase() === `${prefix}${num}`) ||
-            dbProducts.some(p => p.itemCode?.toUpperCase() === `${prefix}${num}`)
-          ) {
-            num++;
-          }
-          code = `${prefix}${num}`;
-        }
-        
-        updateItem(rowId, 'itemCode', code);
+  const totals = useMemo(() => {
+    let taxableTotal = 0;
+    let totalCgst = 0;
+    let totalSgst = 0;
+    let totalIgst = 0;
+    let rawGrandTotal = 0;
+
+    items.forEach(item => {
+      const qty = Number(item.qty) || 0;
+      const rate = Number(item.unitPrice) || 0;
+      const discPercent = Number(item.discPercent) || 0;
+      const taxPercent = Number(item.taxPercent) || 0;
+      
+      const base = qty * rate;
+      const disc = base * (discPercent / 100);
+      const taxable = base - disc;
+      const tax = taxable * (taxPercent / 100);
+
+      taxableTotal += taxable;
+      if (supplyPlace.toLowerCase() === 'tamil nadu') {
+        totalCgst += tax / 2;
+        totalSgst += tax / 2;
+      } else {
+        totalIgst += tax;
       }
-    } catch (err) {
-      console.error("Error generating item code:", err);
-      const fallbackNum = Math.floor(1000 + Math.random() * 9000);
-      updateItem(rowId, 'itemCode', `ITM-${fallbackNum}`);
-    }
+      rawGrandTotal += taxable + tax;
+    });
+
+    const grandTotal = Math.round(rawGrandTotal);
+    const roundedOff = Number((grandTotal - rawGrandTotal).toFixed(2));
+
+    return {
+      taxableTotal: Number(taxableTotal.toFixed(2)),
+      totalCgst: Number(totalCgst.toFixed(2)),
+      totalSgst: Number(totalSgst.toFixed(2)),
+      totalIgst: Number(totalIgst.toFixed(2)),
+      roundedOff,
+      grandTotal
+    };
+  }, [items, supplyPlace]);
+
+  const { taxableTotal, totalCgst, totalSgst, totalIgst, roundedOff, grandTotal } = totals;
+
+  // Auto-generate code for manual item insertion
+  const generateCodeForRow = (id: string) => {
+    const code = `ITM-SS-${Math.floor(100000 + Math.random() * 900000)}`;
+    setItems(prev => prev.map(i => i.id === id ? { ...i, itemCode: code, barcode: code } : i));
   };
 
   // Handle Item Row Update
-  const updateItem = (id: string, field: keyof PurchaseItem, value: any) => {
+  const updateItem = (id: string, field: keyof ShopSalesItem, value: any) => {
     setItems(prev => prev.map(item => {
       if (item.id !== id) return item;
       
@@ -241,7 +315,7 @@ const PurchaseBill = () => {
           updated.itemName = prod.name || '';
           updated.itemDesc = prod.name || '';
           updated.hsn = prod.barcode || '';
-          updated.unitPrice = prod.purchaseRate || 0;
+          updated.unitPrice = prod.purchaseRate || 0; // standard purchase rate
           updated.salesRate = prod.price || 0;
           updated.mrp = prod.mrp || 0;
           updated.taxPercent = prod.taxPercent || 18;
@@ -279,11 +353,11 @@ const PurchaseBill = () => {
     setEditingId(null);
     fetchNextVoucher();
     setItems([]);
-    setVendorId('');
-    setVendorName('');
+    setShopId('');
+    setShopName('');
     setGstin('');
     setSupplyPlace('Tamil Nadu');
-    navigate('/purchase-bill', { state: null, replace: true });
+    navigate('/shop-sales-bill', { state: null, replace: true });
   };
 
   // Keyboard navigation for fast data entry
@@ -318,13 +392,13 @@ const PurchaseBill = () => {
     setEditingId(bill.id || bill._id);
     setBillNo(bill.voucherNo);
     setBillDate(bill.date ? bill.date.split('T')[0] : '');
-    setGstin(bill.supplierGstin || '');
+    setGstin(bill.shopGstin || '');
     setSupplyPlace(bill.type === 'Local' ? 'Tamil Nadu' : 'Other');
-    setVendorName(bill.supplierName);
+    setShopName(bill.shopName);
     
-    const foundVendor = vendors.find(v => v.name === bill.supplierName);
-    if (foundVendor) {
-      setVendorId(foundVendor.id);
+    const found = shops.find(s => s.name === bill.shopName);
+    if (found) {
+      setShopId(found.id);
     }
 
     if (bill.items && Array.isArray(bill.items)) {
@@ -341,10 +415,10 @@ const PurchaseBill = () => {
           itemDesc: i.itemName || i.itemDesc || '',
           hsn: i.hsn || '',
           factory: i.factory || prod?.factory || '',
-          qty: i.qty || i.purchasedQty || 0,
-          unitPrice: i.rate || i.unitPrice || 0,
-          salesRate: i.salesRate || prod?.price || i.rate || i.unitPrice || 0,
-          mrp: i.mrp || prod?.mrp || i.rate || i.unitPrice || 0,
+          qty: i.qty || 0,
+          unitPrice: i.rate || 0,
+          salesRate: i.salesRate || prod?.price || i.rate || 0,
+          mrp: i.mrp || prod?.mrp || i.rate || 0,
           discPercent: i.discPercent || 0,
           taxPercent: i.taxPercent || 18,
           cgstAmt: i.cgst || 0,
@@ -356,36 +430,35 @@ const PurchaseBill = () => {
       });
       setItems(mapped);
     }
-    setGlobalNotification({ msg: `Voucher ${bill.voucherNo} loaded for editing`, type: 'info' });
+    setGlobalNotification({ msg: `Shop Sales Voucher ${bill.voucherNo} loaded for editing`, type: 'info' });
   };
 
   // Handle Delete selection
   const handleDeleteBill = async (id: string, voucherNo: string) => {
-    if (!window.confirm(`Are you sure you want to delete purchase bill ${voucherNo}? This will revert physical stock levels.`)) return;
+    if (!window.confirm(`Are you sure you want to delete Shop Sales Bill ${voucherNo}?`)) return;
     try {
-      const res = await fetch(`${Api}/purchase-bills/${id}`, {
+      const res = await fetch(`${Api}/shop-sales-bills/${id}`, {
         method: 'DELETE'
       });
       const data = await res.json();
       if (data.success) {
-        setGlobalNotification({ msg: `Purchase Bill ${voucherNo} deleted successfully.`, type: 'success' });
-        if (editingId === id) {
-          clearForm();
-        }
+        setGlobalNotification({ msg: `Bill ${voucherNo} deleted successfully`, type: 'success' });
+        clearForm();
+        fetchProducts(); 
         fetchSavedBills();
       } else {
         setGlobalNotification({ msg: 'Failed to delete: ' + data.error, type: 'error' });
       }
     } catch (err) {
       console.error(err);
-      setGlobalNotification({ msg: 'Network error deleting purchase bill.', type: 'error' });
+      setGlobalNotification({ msg: 'Failed to delete bill due to server error', type: 'error' });
     }
   };
 
   // Save/Update Handler
   const handleSaveBill = async () => {
-    if (!vendorId) {
-      return setGlobalNotification({ msg: 'Please select vendor.', type: 'error' });
+    if (!shopId) {
+      return setGlobalNotification({ msg: 'Please select shop.', type: 'error' });
     }
     if (items.length === 0) {
       return setGlobalNotification({ msg: 'Please add at least one item.', type: 'error' });
@@ -398,9 +471,8 @@ const PurchaseBill = () => {
     const payload = {
       voucherNo: billNo,
       date: billDate,
-      supplierInvoiceNo: 'N/A',
-      supplierName: vendorName,
-      supplierGstin: gstin,
+      shopName,
+      shopGstin: gstin,
       taxableAmt: taxableTotal,
       cgst: totalCgst,
       sgst: totalSgst,
@@ -431,8 +503,8 @@ const PurchaseBill = () => {
 
     try {
       const url = editingId 
-        ? `${Api}/purchase-bills/${editingId}` 
-        : `${Api}/purchase-bills`;
+        ? `${Api}/shop-sales-bills/${editingId}` 
+        : `${Api}/shop-sales-bills`;
       const method = editingId ? 'PUT' : 'POST';
 
       const res = await fetch(url, {
@@ -443,90 +515,55 @@ const PurchaseBill = () => {
       const data = await res.json();
       if (data.success) {
         setGlobalNotification({ 
-          msg: `Purchase Bill ${billNo} ${editingId ? 'updated' : 'saved'} successfully!`, 
+          msg: `Shop Sales Bill ${billNo} ${editingId ? 'updated' : 'saved'} successfully!`, 
           type: 'success' 
         });
         clearForm();
         fetchProducts(); 
         fetchSavedBills();
       } else {
-        setGlobalNotification({ msg: 'Error saving purchase bill: ' + data.error, type: 'error' });
+        setGlobalNotification({ msg: 'Error saving shop sales bill: ' + data.error, type: 'error' });
       }
     } catch (err) {
       console.error(err);
-      setGlobalNotification({ msg: 'Network error saving purchase bill.', type: 'error' });
+      setGlobalNotification({ msg: 'Network error saving shop sales bill.', type: 'error' });
     }
   };
 
-  const handleSaveNewVendor = async () => {
-    if (!newVendorForm.name.trim()) {
-      setGlobalNotification({ msg: 'Vendor name is required', type: 'error' });
-      return;
-    }
-    setLoading(true);
-    try {
-      const codeRes = await fetch(`${Api}/ledgers/next-code`);
-      const codeData = await codeRes.json();
-      const ledgerCode = codeData.ledgerCode || 'LDG-001';
-
-      const payload = {
-        ledgerCode,
-        accountName: newVendorForm.name,
-        accountGroup: 'Suppliers',
-        gstNo: newVendorForm.gstin,
-        state: newVendorForm.state,
-        openingBalance: 0,
-        drCr: 'Cr'
-      };
-
-      const res = await fetch(`${Api}/ledgers`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
-
-      if (data.success) {
-        setGlobalNotification({ msg: 'New vendor added to database successfully', type: 'success' });
-        await fetchVendors();
-        setVendorId(data.ledger.id || data.ledger.ledgerCode);
-        setIsVendorModalOpen(false);
-        setNewVendorForm({ name: '', gstin: '', state: 'Tamil Nadu' });
-      } else {
-        setGlobalNotification({ msg: 'Failed to add vendor: ' + data.error, type: 'error' });
-      }
-    } catch (err) {
-      console.error(err);
-      setGlobalNotification({ msg: 'Network error saving vendor', type: 'error' });
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Wire layout actions
+  const actionHandlers = useRef({
+    onAdd: clearForm,
+    onSave: handleSaveBill,
+    onCancel: clearForm
+  });
 
   useEffect(() => {
-    setToolbarActions({
-      onAdd: () => {
-        clearForm();
-        setGlobalNotification({ msg: 'Ready for new Purchase Bill.', type: 'info' });
-      },
+    actionHandlers.current = {
+      onAdd: clearForm,
       onSave: handleSaveBill,
-      onDelete: async () => {
-        if (!editingId) {
-          return setGlobalNotification({ msg: 'Delete option is only available when editing a saved bill.', type: 'error' });
-        }
-        await handleDeleteBill(editingId, billNo);
-      },
-      onPrint: () => setGlobalNotification({ msg: 'Printing layout...', type: 'info' })
-    });
-    return () => setToolbarActions({});
-  }, [setToolbarActions, setGlobalNotification, billNo, billDate, vendorId, vendors, items, grandTotal, taxableTotal, totalCgst, totalSgst, totalIgst, roundedOff, supplyPlace, vendorName, gstin, editingId]);
+      onCancel: clearForm
+    };
+  });
 
+  useEffect(() => {
+    if (setToolbarActions) {
+      setToolbarActions({
+        onAdd: () => actionHandlers.current.onAdd(),
+        onSave: () => actionHandlers.current.onSave(),
+        onCancel: () => actionHandlers.current.onCancel()
+      });
+    }
+    return () => {
+      if (setToolbarActions) setToolbarActions({});
+    };
+  }, [setToolbarActions]);
+
+  // Filtering lists
   const filteredBills = savedBills.filter(bill => {
     const q = billSearchQuery.toLowerCase();
     return (
       (bill.voucherNo || '').toLowerCase().includes(q) ||
-      (bill.supplierName || '').toLowerCase().includes(q) ||
-      (bill.supplierInvoiceNo || '').toLowerCase().includes(q)
+      (bill.shopName || '').toLowerCase().includes(q)
     );
   });
 
@@ -551,7 +588,7 @@ const PurchaseBill = () => {
       return;
     }
 
-    const newRow: PurchaseItem = {
+    const newRow: ShopSalesItem = {
       id: Math.random().toString(),
       itemCode: prod.itemCode || '',
       vendorItemCode: prod.vendorItemCode || '',
@@ -587,40 +624,30 @@ const PurchaseBill = () => {
       {/* Header bar with layout switches */}
       <div className="bg-gradient-to-r from-[#2b579a] to-[#3a75c4] text-white px-4 py-2 flex justify-between items-center shadow-md z-10 flex-shrink-0">
         <span className="font-semibold text-lg tracking-wide flex items-center">
-          Purchase Bill Entry 
-          <span className="font-light text-blue-200 text-sm ml-2">(Stock Inward Master)</span>
-          {editingId && (
-            <span className="text-xs font-bold text-red-600 bg-red-100 border border-red-200 px-2 py-0.5 rounded ml-3 shadow-sm">
-              EDIT MODE: {billNo}
-            </span>
-          )}
+          <Store className="mr-2 h-5 w-5 text-blue-300" />
+          Shop Sales Bill Entry 
+          <span className="font-light text-blue-200 text-sm ml-2">(Wholesale Dress Outward)</span>
         </span>
 
         <div className="flex items-center space-x-2">
-          <button
-            onClick={() => setViewMode('split')}
-            className={`px-3 py-1 rounded text-xs font-semibold transition-colors shadow-sm ${viewMode === 'split' ? 'bg-blue-600 border border-blue-400 text-white' : 'bg-blue-800 hover:bg-blue-700 text-blue-100'}`}
+          <button 
+            onClick={() => setViewMode('split')} 
+            className={`px-3 py-1 rounded text-xs font-semibold transition-colors shadow-sm ${viewMode === 'split' ? 'bg-blue-600 border border-blue-400 text-white' : 'bg-[#1b3f70] hover:bg-[#1a3a6c] text-blue-100'}`}
           >
-            ◧ Split View
+            ◧ Split Screen
           </button>
-          <button
-            onClick={() => setViewMode('form-only')}
-            className={`px-3 py-1 rounded text-xs font-semibold transition-colors shadow-sm ${viewMode === 'form-only' ? 'bg-blue-600 border border-blue-400 text-white' : 'bg-blue-800 hover:bg-blue-700 text-blue-100'}`}
+          <button 
+            onClick={() => setViewMode('form-only')} 
+            className={`px-3 py-1 rounded text-xs font-semibold transition-colors shadow-sm ${viewMode === 'form-only' ? 'bg-blue-600 border border-blue-400 text-white' : 'bg-[#1b3f70] hover:bg-[#1a3a6c] text-blue-100'}`}
           >
-            ❌ Hide Table
-          </button>
-          <button
-            onClick={() => setViewMode('table-only')}
-            className={`px-3 py-1 rounded text-xs font-semibold transition-colors shadow-sm ${viewMode === 'table-only' ? 'bg-blue-600 border border-blue-400 text-white' : 'bg-blue-800 hover:bg-blue-700 text-blue-100'}`}
-          >
-            👁 View Full Table
+            ❌ Hide Saved Bills
           </button>
         </div>
       </div>
 
       <div className="flex-1 flex overflow-hidden">
         
-        {/* Left Side: Purchase Bill Form */}
+        {/* Left Side: Shop Sales Bill Form */}
         <div className={`${viewMode === 'table-only' ? 'hidden' : viewMode === 'form-only' ? 'w-full' : 'w-[64%]'} overflow-y-auto p-3 bg-white flex flex-col justify-between border-r border-gray-300`}>
           <div>
             {/* Reusable DataList for Item Auto-completion */}
@@ -642,21 +669,21 @@ const PurchaseBill = () => {
                   <input type="date" value={billDate} onChange={e => setBillDate(e.target.value)} className="w-full border border-gray-400 p-1.5 rounded text-sm focus:border-blue-500 focus:outline-none bg-white" />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Vendor Name</label>
+                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Select Shop Name</label>
                   <select 
-                    value={vendorId} 
+                    value={shopId} 
                     onChange={e => {
                       if (e.target.value === 'NEW') {
-                        setIsVendorModalOpen(true);
+                        setIsShopModalOpen(true);
                       } else {
-                        setVendorId(e.target.value);
+                        setShopId(e.target.value);
                       }
                     }} 
                     className="w-full border border-gray-400 p-1.5 rounded text-sm focus:border-blue-500 focus:outline-none bg-white font-semibold text-gray-800"
                   >
-                    <option value="">-- Select Vendor --</option>
-                    {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-                    <option value="NEW" className="font-bold text-blue-600 bg-blue-50">+ Add New Vendor...</option>
+                    <option value="">-- Select Shop --</option>
+                    {shops.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    <option value="NEW" className="font-bold text-blue-600 bg-blue-50">+ Add New Shop Ledger...</option>
                   </select>
                 </div>
                 <div>
@@ -674,7 +701,7 @@ const PurchaseBill = () => {
             <div className="flex flex-col bg-white border border-gray-400 shadow-sm relative rounded overflow-hidden mb-2">
               <div className="bg-[#d1e8e2] p-1 border-b border-gray-400 flex space-x-2">
                 <button onClick={addRow} className="flex items-center space-x-1 bg-white hover:bg-gray-50 border border-gray-400 px-3 py-1 text-xs font-bold text-gray-700 shadow-sm rounded transition-colors">
-                  <Plus size={12} className="text-green-600" /> <span>Add Row</span>
+                  <Plus size={12} className="text-green-600" /> <span>Add Dress Row</span>
                 </button>
               </div>
 
@@ -704,7 +731,7 @@ const PurchaseBill = () => {
                   <tbody>
                     {items.length === 0 && (
                       <tr>
-                        <td colSpan={16} className="p-6 text-center text-gray-400 italic">No items added. Use Enter key for quick navigation.</td>
+                        <td colSpan={17} className="p-6 text-center text-gray-400 italic">No items added. Select products from Master or add a new row.</td>
                       </tr>
                     )}
                     {items.map((item, idx) => (
@@ -811,8 +838,7 @@ const PurchaseBill = () => {
                           <select
                             value={item.category}
                             onChange={e => updateItem(item.id, 'category', e.target.value)}
-                            onKeyDown={e => handleKeyDown(e, idx, 'category')}
-                            className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none"
+                            className="w-full p-1 bg-transparent focus:bg-white focus:outline-none text-xs"
                           >
                             <option value="None">None</option>
                             <option value="Womens">Womens</option>
@@ -827,6 +853,7 @@ const PurchaseBill = () => {
                             onChange={e => updateItem(item.id, 'itemDesc', e.target.value)} 
                             onKeyDown={e => handleKeyDown(e, idx, 'itemDesc')}
                             className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none" 
+                            placeholder="Dress description..."
                           />
                         </td>
                         <td className="border-r border-gray-300 p-0">
@@ -839,67 +866,72 @@ const PurchaseBill = () => {
                             placeholder="Factory Name"
                           />
                         </td>
-                        <td className="border-r border-gray-300 p-0">
+                        <td className="border-r border-gray-300 p-0 w-16">
                           <input 
                             type="number" 
-                            value={item.qty === 0 ? '' : item.qty} 
+                            value={item.qty} 
                             onChange={e => updateItem(item.id, 'qty', Number(e.target.value))} 
                             onKeyDown={e => handleKeyDown(e, idx, 'qty')}
-                            className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-right font-bold text-blue-800" 
-                            min="1" 
+                            className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-right font-semibold font-mono" 
+                            placeholder="0"
                           />
                         </td>
-                        <td className="border-r border-gray-300 p-0">
+                        <td className="border-r border-gray-300 p-0 w-20">
                           <input 
                             type="number" 
-                            value={item.unitPrice === 0 ? '' : item.unitPrice} 
+                            value={item.unitPrice} 
                             onChange={e => updateItem(item.id, 'unitPrice', Number(e.target.value))} 
                             onKeyDown={e => handleKeyDown(e, idx, 'unitPrice')}
-                            className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-right" 
+                            className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-right font-mono" 
+                            placeholder="0.00"
                           />
                         </td>
-                        <td className="border-r border-gray-300 p-0">
+                        <td className="border-r border-gray-300 p-0 w-20">
                           <input 
                             type="number" 
-                            value={item.salesRate === 0 ? '' : item.salesRate} 
+                            value={item.salesRate} 
                             onChange={e => updateItem(item.id, 'salesRate', Number(e.target.value))} 
                             onKeyDown={e => handleKeyDown(e, idx, 'salesRate')}
-                            className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-right font-semibold text-indigo-700" 
+                            className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-right font-mono" 
                             placeholder="0.00"
                           />
                         </td>
-                        <td className="border-r border-gray-300 p-0">
+                        <td className="border-r border-gray-300 p-0 w-20">
                           <input 
                             type="number" 
-                            value={item.mrp === 0 ? '' : item.mrp} 
+                            value={item.mrp} 
                             onChange={e => updateItem(item.id, 'mrp', Number(e.target.value))} 
                             onKeyDown={e => handleKeyDown(e, idx, 'mrp')}
-                            className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-right text-gray-700" 
+                            className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-right font-mono" 
                             placeholder="0.00"
                           />
                         </td>
-                        <td className="border-r border-gray-300 p-0">
+                        <td className="border-r border-gray-300 p-0 w-12">
                           <input 
                             type="number" 
-                            value={item.discPercent === 0 ? '' : item.discPercent} 
+                            value={item.discPercent} 
                             onChange={e => updateItem(item.id, 'discPercent', Number(e.target.value))} 
                             onKeyDown={e => handleKeyDown(e, idx, 'discPercent')}
-                            className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-right" 
+                            className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-right font-mono" 
+                            placeholder="0"
                           />
                         </td>
-                        <td className="border-r border-gray-300 p-0">
+                        <td className="border-r border-gray-300 p-0 w-12">
                           <input 
                             type="number" 
                             value={item.taxPercent} 
                             onChange={e => updateItem(item.id, 'taxPercent', Number(e.target.value))} 
                             onKeyDown={e => handleKeyDown(e, idx, 'taxPercent')}
-                            className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-right text-gray-500" 
+                            className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-right font-mono" 
+                            placeholder="18"
                           />
                         </td>
-                        <td className="border-r border-gray-300 p-1.5 text-right font-mono font-bold text-green-700 bg-gray-50">{item.total.toFixed(2)}</td>
-                        <td className="p-1 text-center bg-gray-50">
-                          <button onClick={() => removeRow(item.id)} className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-100 transition-colors">
-                            <Trash2 size={12} />
+                        <td className="border-r border-gray-300 p-1 text-right font-semibold font-mono bg-gray-50 text-slate-800 w-20">
+                          {item.total?.toFixed(2)}
+                        </td>
+                        <td className="p-1 text-center w-8 bg-gray-50">
+                          <button onClick={() => removeRow(item.id)} className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1 rounded transition-colors">
+                            <Trash size={14} />
                           </button>
                         </td>
                       </tr>
@@ -910,141 +942,120 @@ const PurchaseBill = () => {
             </div>
           </div>
 
-          {/* Bottom Panel containing Action Buttons and Grand Total Card */}
-          <div className="flex items-center justify-between mt-2 p-2 bg-slate-50 border border-gray-300 rounded shadow-sm flex-shrink-0">
-            <div className="flex space-x-2">
-              <button 
-                onClick={handleSaveBill}
-                disabled={loading}
-                className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded shadow flex items-center space-x-1.5 text-xs transition-colors"
-              >
-                <span>{editingId ? '✓ Update Bill' : '💾 Save Bill'}</span>
-              </button>
-              
-              <button 
-                onClick={clearForm}
-                className="px-4 py-2.5 bg-white border border-gray-300 text-gray-700 hover:bg-slate-100 font-semibold rounded shadow-sm text-xs transition-colors"
-              >
-                Clear / New
-              </button>
-
-              {editingId && (
-                <button 
-                  onClick={() => handleDeleteBill(editingId, billNo)}
-                  className="px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded shadow-sm text-xs transition-colors"
-                >
-                  Delete Bill
-                </button>
-              )}
-            </div>
-
-            <div className="w-[450px] bg-[#1e3f70] text-white p-3 border border-[#142d54] shadow-md rounded flex flex-col justify-between">
-              <div className="grid grid-cols-6 gap-2 text-xs font-bold text-right border-b border-[#2b579a] pb-2 mb-2">
-                <div>
-                  <span className="block text-[9px] uppercase tracking-wider text-blue-200 mb-1">Sub Total</span>
-                  ₹{subTotal.toFixed(2)}
-                </div>
-                <div>
-                  <span className="block text-[9px] uppercase tracking-wider text-blue-200 mb-1">Discount</span>
-                  - ₹{discTotal.toFixed(2)}
-                </div>
-                <div>
-                  <span className="block text-[9px] uppercase tracking-wider text-blue-200 mb-1">CGST</span>
-                  ₹{totalCgst.toFixed(2)}
-                </div>
-                <div>
-                  <span className="block text-[9px] uppercase tracking-wider text-blue-200 mb-1">SGST</span>
-                  ₹{totalSgst.toFixed(2)}
-                </div>
-                <div>
-                  <span className="block text-[9px] uppercase tracking-wider text-blue-200 mb-1">IGST</span>
-                  ₹{totalIgst.toFixed(2)}
-                </div>
-                <div>
-                  <span className="block text-[9px] uppercase tracking-wider text-blue-200 mb-1">Round Off</span>
-                  {roundedOff > 0 ? '+' : ''}{roundedOff.toFixed(2)}
-                </div>
+          {/* Form Bottom Total Valuation Bar */}
+          <div className="bg-[#2b579a] text-white p-3 border border-gray-400 shadow-md rounded mt-2">
+            <div className="grid grid-cols-6 gap-3 text-center text-xs font-semibold">
+              <div className="border-r border-blue-400">
+                <span className="block text-[10px] text-blue-200">Taxable Total</span>
+                <span className="text-base font-bold font-mono">₹ {taxableTotal.toFixed(2)}</span>
               </div>
-              
-              <div className="flex justify-between items-center px-1">
-                <span className="text-xs font-bold text-blue-200 uppercase tracking-widest">Grand Total</span>
-                <div className="text-2xl font-black text-yellow-300 drop-shadow-md">
-                  ₹ {grandTotal.toFixed(2)}
-                </div>
+              <div className="border-r border-blue-400">
+                <span className="block text-[10px] text-blue-200">Total CGST</span>
+                <span className="text-base font-bold font-mono">₹ {totalCgst.toFixed(2)}</span>
+              </div>
+              <div className="border-r border-blue-400">
+                <span className="block text-[10px] text-blue-200">Total SGST</span>
+                <span className="text-base font-bold font-mono">₹ {totalSgst.toFixed(2)}</span>
+              </div>
+              <div className="border-r border-blue-400">
+                <span className="block text-[10px] text-blue-200">Total IGST</span>
+                <span className="text-base font-bold font-mono">₹ {totalIgst.toFixed(2)}</span>
+              </div>
+              <div className="border-r border-blue-400">
+                <span className="block text-[10px] text-blue-200">Round Off</span>
+                <span className="text-base font-bold font-mono">₹ {roundedOff.toFixed(2)}</span>
+              </div>
+              <div>
+                <span className="block text-[10px] text-blue-200">Net Payable</span>
+                <span className="text-lg font-black font-mono text-yellow-300">₹ {grandTotal}</span>
               </div>
             </div>
           </div>
+
+          {/* Action Buttons Bar */}
+          <div className="flex space-x-2 mt-2 bg-slate-50 p-1.5 border border-gray-300 rounded shadow-sm">
+            <button 
+              onClick={handleSaveBill}
+              className="bg-green-600 hover:bg-green-700 text-white font-bold py-1.5 px-3 rounded text-xs shadow transition-colors"
+            >
+              {editingId ? '✓ Update Bill' : '💾 Save Bill'}
+            </button>
+            <button 
+              onClick={clearForm}
+              className="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-1.5 px-3 rounded text-xs shadow transition-colors"
+            >
+              Clear / New
+            </button>
+            {editingId && (
+              <button 
+                onClick={() => handleDeleteBill(editingId, billNo)}
+                className="bg-red-600 hover:bg-red-700 text-white font-bold py-1.5 px-3 rounded text-xs shadow transition-colors"
+              >
+                Delete
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Right Side: Saved Bills / Item Master Sidebar Panel */}
-        <div className={`${viewMode === 'form-only' ? 'hidden' : viewMode === 'table-only' ? 'w-full' : 'w-[36%]'} bg-slate-100 p-3 flex flex-col overflow-hidden border-l border-gray-300`}>
-          <div className="flex-shrink-0 mb-2">
-            {/* Tabs */}
-            <div className="flex space-x-1 bg-slate-200 p-1 rounded-md border border-slate-300 mb-2">
-              <button
-                onClick={() => setSidebarTab('bills')}
-                className={`flex-1 text-center py-1 text-xs font-bold rounded transition-all ${
-                  sidebarTab === 'bills'
-                    ? 'bg-[#1e3f70] text-white shadow'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-300/50'
-                }`}
-              >
-                Saved Bills ({filteredBills.length})
-              </button>
-              <button
-                onClick={() => setSidebarTab('items')}
-                className={`flex-1 text-center py-1 text-xs font-bold rounded transition-all ${
-                  sidebarTab === 'items'
-                    ? 'bg-[#1e3f70] text-white shadow'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-300/50'
-                }`}
-              >
-                Item Master ({filteredProducts.length})
-              </button>
-            </div>
+        {/* Right Side: Saved Shop Bills / Item Master Suggestion Sidebar */}
+        <div className={`${viewMode === 'form-only' ? 'hidden' : 'w-[36%]'} bg-white border-l border-gray-300 flex flex-col p-3`}>
+          
+          <div className="flex border-b border-gray-300 mb-3">
+            <button
+              onClick={() => setSidebarTab('bills')}
+              className={`flex-1 text-center py-2 text-xs font-bold transition-all border-b-2 uppercase ${sidebarTab === 'bills' ? 'border-blue-600 text-blue-600 bg-blue-50/50' : 'border-transparent text-gray-500 hover:text-slate-800'}`}
+            >
+              Saved Shop Bills
+            </button>
+            <button
+              onClick={() => setSidebarTab('items')}
+              className={`flex-1 text-center py-2 text-xs font-bold transition-all border-b-2 uppercase ${sidebarTab === 'items' ? 'border-blue-600 text-blue-600 bg-blue-50/50' : 'border-transparent text-gray-500 hover:text-slate-800'}`}
+            >
+              Item Master SUGGESTIONS
+            </button>
+          </div>
 
-            {/* Search Input depending on active tab */}
+          <div className="mb-2">
             {sidebarTab === 'bills' ? (
               <div className="relative">
-                <input 
-                  type="text" 
-                  placeholder="Search voucher, vendor..." 
+                <Search size={14} className="absolute left-2.5 top-2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search saved shop bills..."
                   value={billSearchQuery}
                   onChange={e => setBillSearchQuery(e.target.value)}
-                  className="w-full bg-white border border-slate-300 p-1.5 pl-8 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 transition-shadow"
+                  className="w-full bg-slate-100 border border-gray-300 pl-8 pr-3 py-1 text-xs rounded focus:bg-white focus:outline-none"
                 />
-                <Search size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
               </div>
             ) : (
               <div className="relative">
-                <input 
-                  type="text" 
-                  placeholder="Search code, name, category, variety..." 
+                <Search size={14} className="absolute left-2.5 top-2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search products in catalog..."
                   value={itemSearchQuery}
                   onChange={e => setItemSearchQuery(e.target.value)}
-                  className="w-full bg-white border border-slate-300 p-1.5 pl-8 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 transition-shadow"
+                  className="w-full bg-slate-100 border border-gray-300 pl-8 pr-3 py-1 text-xs rounded focus:bg-white focus:outline-none"
                 />
-                <Search size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
               </div>
             )}
           </div>
 
-          {/* Sidebar Content */}
-          <div className="flex-1 overflow-auto border border-slate-200 rounded bg-white">
+          <div className="flex-1 overflow-y-auto border border-gray-300 rounded shadow-inner">
             {sidebarTab === 'bills' ? (
               <table className="w-full text-left text-xs border-collapse whitespace-nowrap">
-                <thead className="bg-[#1e3f70] text-white sticky top-0 z-10">
+                <thead className="bg-slate-100 text-slate-700 sticky top-0 z-10 shadow-sm">
                   <tr>
-                    <th className="p-2 font-semibold">Vch No</th>
-                    <th className="p-2 font-semibold">Vendor</th>
-                    <th className="p-2 font-semibold text-right">Net Payable</th>
-                    <th className="p-2 font-semibold text-center w-16">Actions</th>
+                    <th className="p-2 font-semibold">Voucher</th>
+                    <th className="p-2 font-semibold">Shop Name</th>
+                    <th className="p-2 font-semibold text-right">Net Amt</th>
+                    <th className="p-2 font-semibold text-center w-12">Act</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredBills.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="p-6 text-center text-slate-400 italic bg-slate-50">No saved bills found.</td>
+                      <td colSpan={4} className="p-6 text-center text-gray-400 italic">No saved bills found.</td>
                     </tr>
                   ) : (
                     filteredBills.map((bill) => (
@@ -1056,8 +1067,8 @@ const PurchaseBill = () => {
                           {bill.voucherNo}
                           <div className="text-[10px] text-slate-400 font-normal">{bill.date ? bill.date.split('T')[0] : ''}</div>
                         </td>
-                        <td className="p-2 text-slate-800 max-w-[120px] truncate" title={bill.supplierName}>
-                          {bill.supplierName}
+                        <td className="p-2 text-slate-800 max-w-[120px] truncate" title={bill.shopName}>
+                          {bill.shopName}
                         </td>
                         <td className="p-2 text-right font-mono text-slate-900 font-bold">
                           ₹ {bill.netPayable?.toFixed(0) || '0'}
@@ -1066,14 +1077,14 @@ const PurchaseBill = () => {
                           <button 
                             onClick={() => handleEditBill(bill)}
                             className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-1 rounded transition-colors"
-                            title="Edit Purchase Bill"
+                            title="Edit Shop Sales Bill"
                           >
                             <Edit size={14} />
                           </button>
                           <button 
                             onClick={() => handleDeleteBill(bill.id, bill.voucherNo)}
                             className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1 rounded transition-colors"
-                            title="Delete Purchase Bill"
+                            title="Delete Shop Sales Bill"
                           >
                             <Trash2 size={14} />
                           </button>
@@ -1104,7 +1115,7 @@ const PurchaseBill = () => {
                         key={prod.id || prod._id} 
                         className="border-b border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer"
                         onClick={() => addProductFromMaster(prod)}
-                        title="Click to add to purchase bill"
+                        title="Click to add to bill"
                       >
                         <td className="p-2 font-mono text-slate-800">
                           <div className="text-blue-600 font-bold">{prod.itemCode}</div>
@@ -1133,75 +1144,96 @@ const PurchaseBill = () => {
             )}
           </div>
         </div>
-
       </div>
 
-      {/* Add Vendor Custom Modal */}
-      <Modal
-        isOpen={isVendorModalOpen}
-        onClose={() => {
-          setIsVendorModalOpen(false);
-          setVendorId('');
-        }}
-        title="Add New Vendor"
-      >
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-1">Vendor Name <span className="text-red-500">*</span></label>
-            <input 
-              type="text" 
-              value={newVendorForm.name}
-              onChange={e => setNewVendorForm({...newVendorForm, name: e.target.value})}
-              className="w-full border border-gray-400 p-2 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
-              placeholder="e.g. Acme Corporation"
-              autoFocus
-            />
+      {/* Modal for creating a new shop ledger */}
+      <Modal isOpen={isShopModalOpen} onClose={() => setIsShopModalOpen(false)} title="Create New Shop Ledger Account">
+        <form onSubmit={handleCreateShop} className="space-y-4 text-left p-1 text-slate-700">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2">
+              <label className="block text-xs font-bold text-gray-600 mb-1">Shop Name <span className="text-red-500">*</span></label>
+              <input 
+                type="text" 
+                required 
+                value={newShopName} 
+                onChange={e => setNewShopName(e.target.value)} 
+                placeholder="e.g. Sri Balaji Textiles Branch-2"
+                className="w-full border border-gray-300 rounded p-2 text-sm bg-white text-black focus:outline-none focus:ring-1 focus:ring-blue-500" 
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-600 mb-1">GSTIN</label>
+              <input 
+                type="text" 
+                value={newShopGstin} 
+                onChange={e => setNewShopGstin(e.target.value)} 
+                placeholder="33AAAAA0000A1Z0"
+                className="w-full border border-gray-300 rounded p-2 text-sm bg-white text-black focus:outline-none focus:ring-1 focus:ring-blue-500" 
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-600 mb-1">Mobile No</label>
+              <input 
+                type="text" 
+                value={newShopMobile} 
+                onChange={e => setNewShopMobile(e.target.value)} 
+                placeholder="Mobile number"
+                className="w-full border border-gray-300 rounded p-2 text-sm bg-white text-black focus:outline-none focus:ring-1 focus:ring-blue-500" 
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-600 mb-1">State</label>
+              <select 
+                value={newShopState} 
+                onChange={e => setNewShopState(e.target.value)} 
+                className="w-full border border-gray-300 rounded p-2 text-sm bg-white text-black focus:outline-none focus:ring-1 focus:ring-blue-500"
+              >
+                <option value="Tamil Nadu">Tamil Nadu</option>
+                <option value="Kerala">Kerala</option>
+                <option value="Karnataka">Karnataka</option>
+                <option value="Andhra Pradesh">Andhra Pradesh</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-600 mb-1">City</label>
+              <input 
+                type="text" 
+                value={newShopCity} 
+                onChange={e => setNewShopCity(e.target.value)} 
+                placeholder="City Name"
+                className="w-full border border-gray-300 rounded p-2 text-sm bg-white text-black focus:outline-none focus:ring-1 focus:ring-blue-500" 
+              />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-xs font-bold text-gray-600 mb-1">Address</label>
+              <textarea 
+                value={newShopAddress} 
+                onChange={e => setNewShopAddress(e.target.value)} 
+                placeholder="Street address details"
+                className="w-full border border-gray-300 rounded p-2 text-sm bg-white text-black focus:outline-none focus:ring-1 focus:ring-blue-500 h-16 resize-none" 
+              />
+            </div>
           </div>
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-1">GSTIN</label>
-            <input 
-              type="text" 
-              value={newVendorForm.gstin}
-              onChange={e => setNewVendorForm({...newVendorForm, gstin: e.target.value.toUpperCase()})}
-              className="w-full border border-gray-400 p-2 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none uppercase"
-              placeholder="e.g. 29ABCDE1234F2Z5"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-1">State / Place of Supply</label>
-            <input 
-              type="text" 
-              value={newVendorForm.state}
-              onChange={e => setNewVendorForm({...newVendorForm, state: e.target.value})}
-              className="w-full border border-gray-400 p-2 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
-              placeholder="e.g. Tamil Nadu"
-            />
-          </div>
-          
-          <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 mt-6">
+          <div className="flex justify-end space-x-3 pt-2">
             <button 
-              onClick={() => {
-                setIsVendorModalOpen(false);
-                setVendorId('');
-              }}
-              disabled={loading}
-              className="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50 font-semibold disabled:opacity-50"
+              type="button" 
+              onClick={() => setIsShopModalOpen(false)} 
+              className="px-4 py-2 bg-gray-100 hover:bg-gray-200 border border-gray-300 font-medium rounded text-xs text-gray-700 transition-colors"
             >
               Cancel
             </button>
             <button 
-              onClick={handleSaveNewVendor}
-              disabled={loading}
-              className="px-4 py-2 bg-[#2b579a] text-white rounded hover:bg-blue-800 font-semibold shadow-sm disabled:opacity-50"
+              type="submit" 
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded text-xs shadow transition-colors"
             >
-              {loading ? 'Saving...' : 'Save Vendor'}
+              Save Shop Account
             </button>
           </div>
-        </div>
+        </form>
       </Modal>
-
     </div>
   );
 };
 
-export default PurchaseBill;
+export default ShopSalesBill;

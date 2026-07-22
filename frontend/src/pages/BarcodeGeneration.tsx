@@ -114,6 +114,7 @@ const BarcodeGeneration = () => {
       p.name.toLowerCase().includes(q) ||
       p.itemCode?.toLowerCase().includes(q) ||
       p.barcode?.toLowerCase().includes(q) ||
+      (p as any).vendorItemCode?.toLowerCase().includes(q) ||
       p.department?.toLowerCase().includes(q) ||
       p.variety?.toLowerCase().includes(q) ||
       p.size?.toLowerCase().includes(q)

@@ -15,6 +15,8 @@ import SalesStatus from './pages/SalesStatus';
 import PurchaseBill from './pages/PurchaseBill';
 import PurReturn from './pages/PurReturn';
 import PurRegister from './pages/PurRegister';
+import ShopSalesBill from './pages/ShopSalesBill';
+import ShopSalesRegister from './pages/ShopSalesRegister';
 
 import StockStatus from './pages/StockStatus';
 import StockRegister from './pages/StockRegister';
@@ -53,6 +55,8 @@ function App() {
           <Route path="sales-return" element={<SalesReturn />} />
           <Route path="sales-register" element={<SalesRegister />} />
           <Route path="sales-status" element={<SalesStatus />} />
+          <Route path="shop-sales-bill" element={<ShopSalesBill />} />
+          <Route path="shop-sales-register" element={<ShopSalesRegister />} />
           
           {/* Purchase */}
           <Route path="purchase-bill" element={<PurchaseBill />} />

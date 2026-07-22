@@ -104,27 +104,26 @@ export const downloadPdfBill = (data: BillData) => {
     item.itemName,
     item.size || '-',
     `${item.qty} ${item.uom || 'PCS'}`,
-    `₹${item.rate.toFixed(2)}`,
+    item.rate.toFixed(2),
     item.discPercent ? `${item.discPercent}%` : '0%',
-    `₹${item.amount.toFixed(2)}`
+    item.amount.toFixed(2)
   ]);
 
   autoTable(doc, {
     startY: startY,
-    head: [['#', 'Barcode/Code', 'Item Description', 'Size', 'Qty', 'Rate', 'Disc', 'Amount']],
+    head: [['#', 'Barcode/Code', 'Item Description', 'Size', 'Qty', 'Rate (Rs.)', 'Disc', 'Amount (Rs.)']],
     body: tableBody,
     theme: 'grid',
     headStyles: {
       fillColor: [30, 58, 138],
       textColor: [255, 255, 255],
       fontStyle: 'bold',
-      fontSize: 9,
-      halign: 'left'
+      fontSize: 9
     },
     columnStyles: {
       0: { halign: 'center', cellWidth: 10 },
-      1: { cellWidth: 30 },
-      2: { cellWidth: 62 },
+      1: { halign: 'left', cellWidth: 30 },
+      2: { halign: 'left', cellWidth: 62 },
       3: { halign: 'center', cellWidth: 16 },
       4: { halign: 'center', cellWidth: 18 },
       5: { halign: 'right', cellWidth: 22 },
@@ -158,30 +157,30 @@ export const downloadPdfBill = (data: BillData) => {
 
   currentY += 5;
   doc.text('SubTotal:', summaryX + 4, currentY);
-  doc.text(`₹${data.totalAmount.toFixed(2)}`, summaryX + summaryWidth - 4, currentY, { align: 'right' });
+  doc.text(`Rs. ${data.totalAmount.toFixed(2)}`, summaryX + summaryWidth - 4, currentY, { align: 'right' });
 
   if (data.favourDiscount && data.favourDiscount > 0) {
     currentY += 5;
     doc.text('Discount:', summaryX + 4, currentY);
-    doc.text(`-₹${data.favourDiscount.toFixed(2)}`, summaryX + summaryWidth - 4, currentY, { align: 'right' });
+    doc.text(`-Rs. ${data.favourDiscount.toFixed(2)}`, summaryX + summaryWidth - 4, currentY, { align: 'right' });
   }
 
   if (data.cgst && data.cgst > 0) {
     currentY += 5;
     doc.text(`CGST (${data.cgstPercent || 0}%):`, summaryX + 4, currentY);
-    doc.text(`+₹${data.cgst.toFixed(2)}`, summaryX + summaryWidth - 4, currentY, { align: 'right' });
+    doc.text(`+Rs. ${data.cgst.toFixed(2)}`, summaryX + summaryWidth - 4, currentY, { align: 'right' });
   }
 
   if (data.sgst && data.sgst > 0) {
     currentY += 5;
     doc.text(`SGST (${data.sgstPercent || 0}%):`, summaryX + 4, currentY);
-    doc.text(`+₹${data.sgst.toFixed(2)}`, summaryX + summaryWidth - 4, currentY, { align: 'right' });
+    doc.text(`+Rs. ${data.sgst.toFixed(2)}`, summaryX + summaryWidth - 4, currentY, { align: 'right' });
   }
 
   if (data.roundOff) {
     currentY += 5;
     doc.text('Round Off:', summaryX + 4, currentY);
-    doc.text(`${data.roundOff >= 0 ? '+' : ''}₹${data.roundOff.toFixed(2)}`, summaryX + summaryWidth - 4, currentY, { align: 'right' });
+    doc.text(`${data.roundOff >= 0 ? '+' : ''}Rs. ${data.roundOff.toFixed(2)}`, summaryX + summaryWidth - 4, currentY, { align: 'right' });
   }
 
   // Grand Total Line
@@ -192,7 +191,7 @@ export const downloadPdfBill = (data: BillData) => {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
   doc.text('GRAND TOTAL:', summaryX + 4, currentY + 2);
-  doc.text(`₹${data.netAmount.toFixed(2)}`, summaryX + summaryWidth - 4, currentY + 2, { align: 'right' });
+  doc.text(`Rs. ${data.netAmount.toFixed(2)}`, summaryX + summaryWidth - 4, currentY + 2, { align: 'right' });
 
   // --- Terms & Footer ---
   const footerY = Math.max(finalY + 50, 270);

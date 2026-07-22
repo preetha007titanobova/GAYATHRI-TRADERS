@@ -5,7 +5,7 @@ import Api from '../Api';
 
 const ACCOUNT_GROUPS = [
   'Capital Account', 'Current Assets', 'Current Liabilities',
-  'Customers', 'Suppliers', 'Direct Expenses',
+  'Customers', 'Suppliers', 'Shops', 'Direct Expenses',
   'Indirect Expenses', 'Direct Incomes', 'Bank Accounts', 'Cash-in-Hand'
 ];
 

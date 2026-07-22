@@ -6,13 +6,13 @@ export const getProductByBarcode = async (barcode: string): Promise<any> => {
   try {
     const db = await getDb();
     let product = await db.collection('Product').findOne({
-      $or: [{ barcode: barcode }, { itemCode: barcode }]
+      $or: [{ barcode: barcode }, { itemCode: barcode }, { vendorItemCode: barcode }]
     });
     if (!product) {
       try {
         product = await prisma.product.findFirst({
           where: {
-            OR: [{ barcode: barcode }, { itemCode: barcode }]
+            OR: [{ barcode: barcode }, { itemCode: barcode }, { vendorItemCode: barcode }]
           }
         });
       } catch (e) {
@@ -44,7 +44,8 @@ export const searchItems = async (q: string): Promise<any[]> => {
           { barcode: regex },
           { variety: regex },
           { department: regex },
-          { size: regex }
+          { size: regex },
+          { vendorItemCode: regex }
         ]
       }).limit(100).toArray();
     }
@@ -62,7 +63,8 @@ export const searchItems = async (q: string): Promise<any[]> => {
           { barcode: { contains: q, mode: 'insensitive' } },
           { variety: { contains: q, mode: 'insensitive' } },
           { department: { contains: q, mode: 'insensitive' } },
-          { size: { contains: q, mode: 'insensitive' } }
+          { size: { contains: q, mode: 'insensitive' } },
+          { vendorItemCode: { contains: q, mode: 'insensitive' } }
         ]
       } : undefined,
       take: 100
@@ -219,17 +221,39 @@ export const getDailyStockStatus = async (dateStr: string): Promise<any[]> => {
     console.error("Error fetching purchaseItems:", e);
   }
 
+  let shopSalesItems: any[] = [];
+  try {
+    const db = await getDb();
+    const shopSalesBills = await db.collection('ShopSalesBill').find({
+      date: { $gte: startOfDay }
+    }).toArray();
+    const shopSalesBillMap = new Map(shopSalesBills.map(b => [b._id.toString(), b]));
+
+    shopSalesItems = await db.collection('ShopSalesItem').find({
+      shopSalesBillId: { $in: shopSalesBills.map(b => b._id) }
+    }).toArray();
+    for (const item of shopSalesItems) {
+      item.shopSalesBill = shopSalesBillMap.get(item.shopSalesBillId?.toString()) || null;
+    }
+  } catch (e) {
+    console.error("Error fetching shopSalesItems:", e);
+  }
+
   return products.map(product => {
     const prodId = product.id || product._id;
 
     const productSales = salesItems.filter(item => item.productId === prodId);
     const productReturns = salesReturnItems.filter(item => item.productId === prodId);
     const productPurchases = purchaseItems.filter(item => item.productId?.toString() === prodId || (item.itemCode === product.itemCode));
+    const productShopSales = shopSalesItems.filter(item => item.productId?.toString() === prodId || (item.itemCode === product.itemCode));
 
     let outwardToday = 0;
     let inwardToday = 0;
     let outwardAfterToday = 0;
     let inwardAfterToday = 0;
+
+    let purchasesToday = 0;
+    let returnsToday = 0;
 
     for (const item of productSales) {
       if (item.salesBill) {
@@ -242,11 +266,23 @@ export const getDailyStockStatus = async (dateStr: string): Promise<any[]> => {
       }
     }
 
+    for (const item of productShopSales) {
+      if (item.shopSalesBill) {
+        const saleDate = new Date(item.shopSalesBill.date);
+        if (saleDate >= startOfDay && saleDate <= endOfDay) {
+          outwardToday += item.qty || 0;
+        } else if (saleDate > endOfDay) {
+          outwardAfterToday += item.qty || 0;
+        }
+      }
+    }
+
     for (const item of productReturns) {
       if (item.salesReturn) {
         const returnDate = new Date(item.salesReturn.returnDate);
         if (returnDate >= startOfDay && returnDate <= endOfDay) {
           inwardToday += item.returnQty || 0;
+          returnsToday += item.returnQty || 0;
         } else if (returnDate > endOfDay) {
           inwardAfterToday += item.returnQty || 0;
         }
@@ -258,6 +294,7 @@ export const getDailyStockStatus = async (dateStr: string): Promise<any[]> => {
         const purchaseDate = new Date(item.purchaseBill.date);
         if (purchaseDate >= startOfDay && purchaseDate <= endOfDay) {
           inwardToday += item.qty || 0;
+          purchasesToday += item.qty || 0;
         } else if (purchaseDate > endOfDay) {
           inwardAfterToday += item.qty || 0;
         }
@@ -268,19 +305,104 @@ export const getDailyStockStatus = async (dateStr: string): Promise<any[]> => {
     const closingStock = currentStock - inwardAfterToday + outwardAfterToday;
     const openingStock = closingStock - inwardToday + outwardToday;
 
+    // Determine unique payment modes for today's transactions
+    const soldModes: string[] = [];
+    productSales.forEach(item => {
+      if (item.salesBill) {
+        const invDate = new Date(item.salesBill.invDate);
+        if (invDate >= startOfDay && invDate <= endOfDay && item.salesBill.paymentMode) {
+          if (!soldModes.includes(item.salesBill.paymentMode)) {
+            soldModes.push(item.salesBill.paymentMode);
+          }
+        }
+      }
+    });
+
+    productShopSales.forEach(item => {
+      if (item.shopSalesBill) {
+        const saleDate = new Date(item.shopSalesBill.date);
+        if (saleDate >= startOfDay && saleDate <= endOfDay && item.shopSalesBill.paymentMode) {
+          if (!soldModes.includes(item.shopSalesBill.paymentMode)) {
+            soldModes.push(item.shopSalesBill.paymentMode);
+          }
+        }
+      }
+    });
+
+    const purchasedModes: string[] = [];
+    productPurchases.forEach(item => {
+      if (item.purchaseBill) {
+        const purchaseDate = new Date(item.purchaseBill.date);
+        if (purchaseDate >= startOfDay && purchaseDate <= endOfDay && item.purchaseBill.paymentMode) {
+          if (!purchasedModes.includes(item.purchaseBill.paymentMode)) {
+            purchasedModes.push(item.purchaseBill.paymentMode);
+          }
+        }
+      }
+    });
+
+    const returnedModes: string[] = [];
+    productReturns.forEach(item => {
+      if (item.salesReturn) {
+        const returnDate = new Date(item.salesReturn.returnDate);
+        if (returnDate >= startOfDay && returnDate <= endOfDay && item.salesReturn.paymentMode) {
+          if (!returnedModes.includes(item.salesReturn.paymentMode)) {
+            returnedModes.push(item.salesReturn.paymentMode);
+          }
+        }
+      }
+    });
+
+    const mapPaymentMode = (mode: string): string => {
+      const m = mode.toLowerCase();
+      if (m.includes('upi') || m.includes('online')) return 'Online Pay';
+      if (m.includes('card') || m.includes('bank')) return 'Card Pay';
+      if (m.includes('credit') || m.includes('ledger')) return 'Credit Pay';
+      if (m.includes('cash')) return 'Cash Pay';
+      return mode;
+    };
+
+    const allModes: string[] = [];
+    soldModes.forEach(m => {
+      const mapped = mapPaymentMode(m);
+      if (!allModes.includes(mapped)) allModes.push(mapped);
+    });
+    purchasedModes.forEach(m => {
+      const mapped = `${mapPaymentMode(m)} (Pur)`;
+      if (!allModes.includes(mapped)) allModes.push(mapped);
+    });
+    returnedModes.forEach(m => {
+      const mapped = `${mapPaymentMode(m)} (Ret)`;
+      if (!allModes.includes(mapped)) allModes.push(mapped);
+    });
+    const paymentMode = allModes.join(', ') || '-';
+
+    let status = 'In Stock';
+    if (closingStock <= 0) {
+      status = 'Out of Stock';
+    } else if (closingStock < 10) {
+      status = 'Low Stock';
+    }
+
     return {
       id: prodId,
       itemCode: product.itemCode || '',
       name: product.name,
+      barcode: product.barcode || '',
+      category: product.department || '',
+      size: product.size || '',
       uom: product.uom || 'PCS',
       purchaseRate: Number(product.purchaseRate) || 0,
       price: Number(product.price) || 0,
       openingStock,
-      inwardToday,
-      outwardToday,
+      inwardToday: purchasesToday, // only purchases today
+      returnsToday, // returns today
+      outwardToday, // sold today
       closingStock,
       pendingOrderQty: 0,
-      valuation: closingStock * (Number(product.purchaseRate) || 0)
+      valuation: closingStock * (Number(product.purchaseRate) || 0),
+      status,
+      paymentMode
     };
   });
 };

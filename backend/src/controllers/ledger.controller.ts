@@ -67,3 +67,19 @@ export const deleteLedger = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Failed to delete ledger', details: error.message });
   }
 };
+
+export const getLedgerStatement = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { fromDate, toDate } = req.query;
+    const statement = await ledgerService.getLedgerStatement(
+      id as string,
+      fromDate as string || '',
+      toDate as string || ''
+    );
+    res.json(statement);
+  } catch (error: any) {
+    console.error("Ledger Statement Error:", error);
+    res.status(500).json({ error: 'Failed to compile ledger statement', details: error.message });
+  }
+};

@@ -5,6 +5,7 @@ import Api from '../Api';
 interface Product {
   id: string;
   itemCode: string;
+  vendorItemCode?: string;
   name: string;
   barcode: string;
   uom: string;
@@ -22,6 +23,7 @@ interface Product {
 const ItemMaster = () => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [itemCode, setItemCode] = useState('ITM-1001');
+  const [vendorItemCode, setVendorItemCode] = useState('');
   const [itemName, setItemName] = useState('');
   const [barcode, setBarcode] = useState('');
   const [uom, setUom] = useState('PCS');
@@ -71,6 +73,7 @@ const ItemMaster = () => {
         setProducts(data.map((p: any) => ({
           id: p._id || p.id,
           itemCode: p.itemCode,
+          vendorItemCode: p.vendorItemCode || '',
           name: p.name,
           barcode: p.barcode || '',
           uom: p.uom || 'PCS',
@@ -101,6 +104,7 @@ const ItemMaster = () => {
 
   const handleClear = () => {
     setSelectedId(null);
+    setVendorItemCode('');
     setItemName('');
     setBarcode('');
     setUom('PCS');
@@ -119,6 +123,7 @@ const ItemMaster = () => {
   const handleRowClick = (product: any) => {
     setSelectedId(product.id || product._id || null);
     setItemCode(product.itemCode || '');
+    setVendorItemCode(product.vendorItemCode || '');
     setItemName(product.name || '');
     setBarcode(product.barcode || '');
     setUom(product.uom || 'PCS');
@@ -184,6 +189,7 @@ const ItemMaster = () => {
     setLoading(true);
     const payload = {
       itemCode,
+      vendorItemCode,
       name: itemName,
       barcode,
       uom,
@@ -263,7 +269,8 @@ const ItemMaster = () => {
       return (
         (p.name || '').toLowerCase().includes(q) ||
         (p.itemCode && p.itemCode.toLowerCase().includes(q)) ||
-        (p.barcode && p.barcode.toLowerCase().includes(q))
+        (p.barcode && p.barcode.toLowerCase().includes(q)) ||
+        (p.vendorItemCode && p.vendorItemCode.toLowerCase().includes(q))
       );
     });
   }, [products, searchQuery]);
@@ -317,18 +324,23 @@ const ItemMaster = () => {
 
             <div className="grid grid-cols-3 gap-3">
               <div className="flex flex-col">
-                <label className="text-xs font-medium text-slate-600 mb-1">Item Code</label>
+                <label className="text-xs font-medium text-slate-600 mb-1">Our Item Code</label>
                 <input type="text" className="px-3 py-1 bg-slate-100 border border-slate-200 rounded text-slate-500 text-sm focus:outline-none cursor-not-allowed font-mono" value={itemCode} disabled />
               </div>
 
-              <div className="flex flex-col col-span-2">
-                <label className="text-xs font-medium text-slate-600 mb-1">Item Name <span className="text-red-500">*</span></label>
-                <input type="text" className="px-3 py-1 bg-white border border-slate-300 rounded text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow" value={itemName} onChange={e => setItemName(e.target.value)} autoFocus placeholder="e.g. Cashew Premium" />
+              <div className="flex flex-col">
+                <label className="text-xs font-medium text-slate-600 mb-1">Vendor Item Code</label>
+                <input type="text" className="px-3 py-1 bg-white border border-slate-300 rounded text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow font-mono" value={vendorItemCode} onChange={e => setVendorItemCode(e.target.value)} placeholder="Vendor Code" />
               </div>
 
               <div className="flex flex-col">
                 <label className="text-xs font-medium text-slate-600 mb-1">Barcode</label>
                 <input type="text" className="px-3 py-1 bg-white border border-slate-300 rounded text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow" value={barcode} onChange={e => setBarcode(e.target.value)} placeholder="Barcode" />
+              </div>
+
+              <div className="flex flex-col col-span-2">
+                <label className="text-xs font-medium text-slate-600 mb-1">Item Name <span className="text-red-500">*</span></label>
+                <input type="text" className="px-3 py-1 bg-white border border-slate-300 rounded text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow" value={itemName} onChange={e => setItemName(e.target.value)} autoFocus placeholder="e.g. Cashew Premium" />
               </div>
 
               <div className="flex flex-col">
@@ -460,7 +472,8 @@ const ItemMaster = () => {
             <table className="w-full text-left text-sm text-slate-600 border-collapse">
               <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
                 <tr>
-                  <th className="px-4 py-2.5 font-medium border-b border-slate-200">Item Code</th>
+                  <th className="px-4 py-2.5 font-medium border-b border-slate-200">Our Item Code</th>
+                  <th className="px-4 py-2.5 font-medium border-b border-slate-200">Vendor Code</th>
                   <th className="px-4 py-2.5 font-medium border-b border-slate-200">Name</th>
                   <th className="px-4 py-2.5 font-medium border-b border-slate-200">Category</th>
                   <th className="px-4 py-2.5 font-medium border-b border-slate-200">Variety</th>
@@ -484,6 +497,7 @@ const ItemMaster = () => {
                         onClick={() => handleRowClick(product)}
                       >
                         <td className="px-4 py-2.5 whitespace-nowrap text-blue-600 font-medium">{product.itemCode}</td>
+                        <td className="px-4 py-2.5 whitespace-nowrap text-slate-700 font-mono font-semibold">{product.vendorItemCode || '-'}</td>
                         <td className="px-4 py-2.5 whitespace-nowrap text-slate-800 font-medium">
                           <div>{product.name}</div>
                         </td>

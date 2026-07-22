@@ -841,25 +841,46 @@ const POSCheckout = () => {
     }
   };
 
-  const handleSaveDownloadAndWhatsApp = async () => {
+  const handleInstantCheckout = async () => {
     const validItems = gridData.filter(row => row.itemName && row.qty > 0 && row.rate > 0);
     if (validItems.length === 0) {
       if (setGlobalNotification) {
-        setGlobalNotification({ msg: "Please add at least one valid item to save and send bill.", type: 'error' });
-        setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
+        setGlobalNotification({ msg: "Please add at least one valid item to the grid before checking out.", type: 'error' });
+        setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
       }
       return;
     }
 
-    // 1. Download PDF
+    // 1. Trigger Thermal Receipt Print
+    const formattedItems = validItems.map(item => ({
+      itemCode: item.itemDesc || item.itemName,
+      itemDesc: item.itemName,
+      qty: item.qty,
+      rate: item.rate,
+      totalAmt: item.amount
+    }));
+
+    printReceipt(formattedItems, {
+      invoiceNo: invoiceNo,
+      date: invDate,
+      customerName: buyerName,
+      paymentMode: paymentMode,
+      totalQty: totalQty,
+      subTotal: totalAmount,
+      cgst: cgst,
+      sgst: sgst,
+      totalAmount: netAmount
+    });
+
+    // 2. Download PDF Bill
     handleDownloadPDF();
 
-    // 2. Open WhatsApp if mobile exists
+    // 3. Send WhatsApp Bill if mobile exists
     if (mobileNo) {
       handleSendWhatsApp();
     }
 
-    // 3. Save Bill
+    // 4. Save Invoice in Database
     executeSave(validItems);
   };
 
@@ -1477,11 +1498,11 @@ const POSCheckout = () => {
 
           <div className="flex flex-wrap gap-1.5 mt-auto pb-1 items-center">
             <div className="flex-1"></div>
-            <button type="button" className="legacy-button py-1 bg-purple-600 text-white font-extrabold border-purple-700 hover:bg-purple-700 shadow-sm transition-all flex items-center space-x-1" onClick={handleSaveDownloadAndWhatsApp}>
+            <button type="button" className="legacy-button py-1.5 px-4 bg-green-600 text-white font-extrabold border-green-700 hover:bg-green-700 shadow-sm transition-all flex items-center space-x-1.5 rounded" onClick={handleInstantCheckout}>
               <Zap size={13} className="text-yellow-300 fill-yellow-300" />
-              <span>Save + PDF + WhatsApp</span>
+              <span>⚡ Save + Print + PDF + WhatsApp (1-Click)</span>
             </button>
-            <button type="button" className="legacy-button py-1 bg-red-100 font-bold border-red-400 hover:bg-red-200 transition-colors" onClick={handleCancelClick}>Cancel</button>
+            <button type="button" className="legacy-button py-1.5 px-3 bg-red-100 font-bold border-red-400 hover:bg-red-200 transition-colors rounded text-xs" onClick={handleCancelClick}>Cancel</button>
           </div>
         </div>
 
