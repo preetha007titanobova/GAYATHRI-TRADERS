@@ -978,7 +978,7 @@ const SalesReturn = () => {
 
       {/* Invoice Search Modal */}
       {isInvoiceSearchOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40" onClick={() => setIsInvoiceSearchOpen(false)}>
+        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setIsInvoiceSearchOpen(false)}>
           <div className="bg-white shadow-2xl flex flex-col border border-gray-500 rounded w-1/2 max-h-[60vh] overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="bg-[#385386] text-white px-3 py-2 flex justify-between items-center shadow-sm">
               <span className="font-bold text-sm">Select Original Invoice</span>

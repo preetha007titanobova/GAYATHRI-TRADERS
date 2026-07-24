@@ -396,16 +396,16 @@ const PurReturn = () => {
   }, [setToolbarActions, setGlobalNotification, returnNo, selectedInvoiceId, items, editingReturnId, returnDate, vendorDetails, settlementMode, grossTotal, totalCgst, totalSgst, netReturnAmount, roundedOff]);
 
   return (
-    <div className="flex flex-col h-full bg-[#f0f9f4] p-2 overflow-hidden">
+    <div className="flex flex-col h-full bg-[#f8fafc] p-3 overflow-hidden">
       
       {/* Selection row for edit/delete */}
-      <div className="bg-blue-50 border border-blue-200 p-2 shadow-sm rounded mb-2 flex-shrink-0 flex items-center justify-between">
+      <div className="bg-gradient-to-r from-blue-50/80 to-indigo-50/80 border-l-4 border-blue-500 p-2 shadow-md rounded-xl mb-3 flex-shrink-0 flex items-center justify-between transition-all duration-300">
         <div className="flex items-center space-x-3 w-1/2">
-          <label className="text-xs font-bold text-[#1e3f70] whitespace-nowrap">Edit Saved Return:</label>
+          <label className="text-xs font-extrabold text-blue-900 uppercase tracking-wider whitespace-nowrap">Edit Saved Return:</label>
           <select 
             value={selectedReturnId} 
             onChange={e => handleSelectReturn(e.target.value)} 
-            className="w-full border border-blue-400 p-1 rounded text-sm focus:border-blue-500 bg-white font-semibold text-gray-700"
+            className="w-full border border-blue-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 p-1.5 rounded-lg text-sm bg-white font-bold text-gray-700 shadow-sm transition-all outline-none"
           >
             <option value="">-- New Purchase Return (Create Mode) --</option>
             {savedReturns.map(ret => (
@@ -414,33 +414,33 @@ const PurReturn = () => {
           </select>
         </div>
         {editingReturnId && (
-          <div className="text-xs font-bold text-blue-700 bg-blue-100 border border-blue-200 px-3 py-1 rounded">
+          <div className="text-xs font-bold text-blue-700 bg-blue-100/85 border border-blue-200 px-3 py-1 rounded-lg animate-pulse">
             Editing Mode: {returnNo}
           </div>
         )}
       </div>
 
       {/* Top Metadata Header */}
-      <div className="bg-white p-3 border border-gray-400 shadow-sm rounded mb-2 flex-shrink-0">
+      <div className="bg-white p-4 border border-gray-200 shadow-md rounded-xl mb-3 flex-shrink-0">
         <div className="flex justify-between items-center mb-3">
-           <h2 className="text-xl font-bold text-[#2b579a] flex items-center">
-            <span className="bg-[#2b579a] w-2 h-6 mr-2 block"></span>
+          <h2 className="text-xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-700 flex items-center">
+            <span className="bg-gradient-to-b from-blue-500 to-indigo-600 w-2.5 h-6 mr-2.5 rounded-full block"></span>
             Purchase Return (Debit Note)
           </h2>
         </div>
         
         <div className="grid grid-cols-6 gap-4">
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">Pur Return No</label>
-            <input type="text" value={returnNo} readOnly className="w-full border border-gray-400 p-1 rounded text-sm bg-gray-100 font-bold" />
+            <label className="block text-xs font-bold text-gray-600 mb-1">Pur Return No</label>
+            <input type="text" value={returnNo} readOnly className="w-full border border-gray-200 focus:outline-none p-2 rounded-lg text-sm bg-gray-50 font-bold text-gray-700 shadow-inner" />
           </div>
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">Return Date</label>
-            <input type="date" value={returnDate} onChange={e => setReturnDate(e.target.value)} className="w-full border border-gray-400 p-1 rounded text-sm focus:border-blue-500" />
+            <label className="block text-xs font-bold text-gray-600 mb-1">Return Date</label>
+            <input type="date" value={returnDate} onChange={e => setReturnDate(e.target.value)} className="w-full border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 p-2 rounded-lg text-sm bg-white font-medium text-gray-700 shadow-sm transition-all outline-none" />
           </div>
           <div className="col-span-2">
-            <label className="block text-xs font-bold text-gray-700 mb-1">Original Purchase Invoice No</label>
-            <select value={selectedInvoiceId} onChange={e => setSelectedInvoiceId(e.target.value)} className="w-full border border-gray-400 p-1 rounded text-sm focus:border-blue-500 bg-white">
+            <label className="block text-xs font-bold text-gray-600 mb-1">Original Purchase Invoice No</label>
+            <select value={selectedInvoiceId} onChange={e => setSelectedInvoiceId(e.target.value)} className="w-full border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 p-2 rounded-lg text-sm bg-white font-semibold text-gray-700 shadow-sm transition-all outline-none">
               <option value="">-- Select Original Invoice --</option>
               {invoices.length === 0 ? (
                  <option disabled>No saved purchase bills found</option>
@@ -452,173 +452,178 @@ const PurReturn = () => {
             </select>
           </div>
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">Supplier Name & GSTIN</label>
-            <div className="border border-gray-300 p-1 rounded text-xs bg-gray-50 h-[28px] overflow-hidden truncate">
+            <label className="block text-xs font-bold text-gray-600 mb-1">Supplier Name & GSTIN</label>
+            <div className="border border-gray-200 p-2 rounded-lg text-xs bg-gray-50 h-[38px] flex items-center overflow-hidden truncate font-semibold text-gray-750 shadow-inner">
               {vendorDetails.name ? (
                 <span className="font-semibold text-gray-800">{vendorDetails.name} <span className="text-gray-500 font-normal ml-1">({vendorDetails.gstin})</span></span>
               ) : (
-                <span className="text-gray-400">Select Invoice...</span>
+                <span className="text-gray-450">Select Invoice...</span>
               )}
             </div>
           </div>
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">Reason for Return</label>
-              <select value={reason} onChange={e => setReason(e.target.value)} className="w-full border border-gray-400 p-1 rounded text-sm focus:border-blue-500 bg-white">
+            <label className="block text-xs font-bold text-gray-600 mb-1">Reason for Return</label>
+            <select value={reason} onChange={e => setReason(e.target.value)} className="w-full border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 p-2 rounded-lg text-sm bg-white font-semibold text-gray-700 shadow-sm transition-all outline-none">
               {REASONS.map(r => <option key={r} value={r}>{r}</option>)}
             </select>
           </div>
         </div>
       </div>
 
-      {/* Main Grid Area */}
-      <div className="flex-1 flex flex-col bg-white border border-gray-400 shadow-sm relative overflow-hidden mb-2 rounded">
+      {/* Main Grid Area (Flex-1 stretches to take all remaining height) */}
+      <div className="flex-1 flex flex-col bg-white border border-gray-200 shadow-md relative overflow-hidden mb-3 rounded-xl">
         {/* Grid Sub-Toolbar */}
-        <div className="bg-[#d1e8e2] p-1.5 border-b border-gray-400 flex items-center justify-between">
-           <span className="text-xs font-bold text-gray-700 pl-2">Return Items</span>
-           {items.length > 0 && <span className="text-xs text-blue-600 font-semibold pr-2">Modifying return quantities updates totals automatically.</span>}
+        <div className="bg-gradient-to-r from-teal-50/80 to-emerald-50/80 p-2 border-b border-gray-200 flex items-center justify-between">
+           <span className="text-xs font-extrabold text-teal-800 tracking-wider uppercase pl-2 flex items-center">
+             <span className="bg-teal-500 w-1.5 h-3.5 mr-2 rounded-full block"></span>
+             Return Items
+           </span>
+           {items.length > 0 && <span className="text-xs text-indigo-650 font-semibold pr-2">Modifying return quantities updates totals automatically.</span>}
         </div>
         
         <div className="flex-1 overflow-auto">
           <table className="w-full text-left text-sm border-collapse whitespace-nowrap min-w-max">
-            <thead className="bg-[#2b579a] text-white sticky top-0 z-10">
+            <thead className="bg-gradient-to-r from-[#2b579a] to-[#3a75c4] text-white sticky top-0 z-10 shadow-sm">
               <tr>
-                <th className="border-r border-gray-400 p-1.5 w-10 text-center text-xs font-semibold">S.No</th>
-                <th className="border-r border-gray-400 p-1.5 w-24 text-xs font-semibold">Item Code</th>
-                <th className="border-r border-gray-400 p-1.5 text-xs font-semibold">Item Description</th>
-                <th className="border-r border-gray-400 p-1.5 w-20 text-xs font-semibold">Batch No</th>
-                <th className="border-r border-gray-400 p-1.5 w-20 text-xs font-semibold text-right">Purchased<br/>Qty</th>
-                <th className="border-r border-gray-400 p-1.5 w-24 text-xs font-semibold text-right bg-blue-600">Return Qty</th>
-                <th className="border-r border-gray-400 p-1.5 w-24 text-xs font-semibold text-right">Purchase Rate</th>
-                <th className="border-r border-gray-400 p-1.5 w-16 text-xs font-semibold text-right">Disc %</th>
-                <th className="border-r border-gray-400 p-1.5 w-16 text-xs font-semibold text-right">Tax %</th>
-                <th className="border-r border-gray-400 p-1.5 w-24 text-xs font-semibold text-right">Taxable Amt</th>
-                <th className="border-r border-gray-400 p-1.5 w-28 text-xs font-semibold text-right">Total Amt</th>
-                <th className="p-1.5 w-10 text-center text-xs font-semibold">Del</th>
+                <th className="border-r border-blue-400/30 p-2.5 w-10 text-center text-xs font-semibold">S.No</th>
+                <th className="border-r border-blue-400/30 p-2.5 w-24 text-xs font-semibold">Item Code</th>
+                <th className="border-r border-blue-400/30 p-2.5 text-xs font-semibold">Item Description</th>
+                <th className="border-r border-blue-400/30 p-2.5 w-20 text-xs font-semibold">Batch No</th>
+                <th className="border-r border-blue-400/30 p-2.5 w-20 text-xs font-semibold text-right">Purchased<br/>Qty</th>
+                <th className="border-r border-blue-400/30 p-2.5 w-24 text-xs font-semibold text-right bg-blue-700/60">Return Qty</th>
+                <th className="border-r border-blue-400/30 p-2.5 w-24 text-xs font-semibold text-right">Purchase Rate</th>
+                <th className="border-r border-blue-400/30 p-2.5 w-16 text-xs font-semibold text-right">Disc %</th>
+                <th className="border-r border-blue-400/30 p-2.5 w-16 text-xs font-semibold text-right">Tax %</th>
+                <th className="border-r border-blue-400/30 p-2.5 w-24 text-xs font-semibold text-right">Taxable Amt</th>
+                <th className="border-r border-blue-400/30 p-2.5 w-28 text-xs font-semibold text-right">Total Amt</th>
+                <th className="p-2.5 w-10 text-center text-xs font-semibold">Del</th>
               </tr>
             </thead>
             <tbody>
-              {items.length === 0 && (
+              {items.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="p-8 text-center text-gray-500">
+                  <td colSpan={12} className="p-16 text-center text-gray-500">
                     <div className="flex flex-col items-center justify-center">
-                       <AlertCircle className="w-10 h-10 text-gray-300 mb-2" />
-                       <p className="text-lg font-medium text-gray-400">No Invoice Selected</p>
-                       <p className="text-sm">Please select an Original Purchase Invoice to view and return items.</p>
+                       <AlertCircle className="w-12 h-12 text-blue-200 mb-3" />
+                       <p className="text-lg font-bold text-gray-400">No Invoice Selected</p>
+                       <p className="text-sm text-gray-400 mt-1">Please select an Original Purchase Invoice to view and return items.</p>
                     </div>
                   </td>
                 </tr>
+              ) : (
+                items.map((item, idx) => (
+                  <tr key={item.id} className="border-b border-gray-200 hover:bg-slate-50 focus-within:bg-blue-50/50 transition-colors">
+                    <td className="border-r border-gray-200 p-2 text-center text-gray-400 bg-gray-50/50 font-medium">{idx + 1}</td>
+                    <td className="border-r border-gray-200 p-2.5 bg-gray-50/50 text-gray-700 font-mono text-xs">{item.itemCode}</td>
+                    <td className="border-r border-gray-200 p-2.5 bg-gray-50/50 text-gray-800 font-semibold">{item.itemDesc}</td>
+                    <td className="border-r border-gray-200 p-2.5 bg-gray-50/50 text-gray-600 text-center font-medium">{item.batchNo}</td>
+                    <td className="border-r border-gray-200 p-2.5 bg-gray-100/50 text-right font-extrabold text-gray-600">{item.purchasedQty}</td>
+                    <td className={`border-r p-0 relative ${item.error ? 'border-red-500 border-2' : 'border-gray-200'}`}>
+                      <input 
+                        type="number" 
+                        value={item.returnQty === 0 && !item.error ? '' : item.returnQty} 
+                        onChange={e => updateItem(item.id, 'returnQty', e.target.value === '' ? 0 : Number(e.target.value))} 
+                        className="w-full p-2.5 bg-yellow-50 focus:bg-white focus:outline-none text-right font-extrabold text-red-650 h-full placeholder:text-gray-300 transition-colors" 
+                        placeholder="0"
+                        min="0"
+                        max={item.purchasedQty}
+                      />
+                      {item.error && <span className="absolute -bottom-4 right-0 text-[9px] text-red-650 font-bold bg-white px-1 shadow rounded z-20">{item.error}</span>}
+                    </td>
+                    <td className="border-r border-gray-200 p-0">
+                      <input 
+                        type="number" 
+                        value={item.unitPrice || ''} 
+                        onChange={e => updateItem(item.id, 'unitPrice', Number(e.target.value))} 
+                        className="w-full p-2.5 bg-transparent focus:bg-white focus:outline-none text-right font-mono font-medium" 
+                      />
+                    </td>
+                    <td className="border-r border-gray-200 p-2.5 bg-gray-50/50 text-right text-gray-500 font-medium">{item.discPercent}%</td>
+                    <td className="border-r border-gray-200 p-2.5 bg-gray-50/50 text-right text-gray-500 font-medium">{item.taxPercent}%</td>
+                    <td className="border-r border-gray-200 p-2.5 text-right font-mono text-gray-750 bg-gray-50/50">{item.taxableAmt.toFixed(2)}</td>
+                    <td className="border-r border-gray-200 p-2.5 text-right font-mono font-extrabold text-emerald-700 bg-gray-50/50">{item.totalAmt.toFixed(2)}</td>
+                    <td className="p-2 text-center bg-gray-50/50">
+                      <button onClick={() => removeRow(item.id)} className="text-red-500 hover:text-red-700 p-1.5 rounded-lg hover:bg-red-50 transition-colors" title="Remove Item">
+                        <Trash2 size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                ))
               )}
-              {items.map((item, idx) => (
-                <tr key={item.id} className="border-b border-gray-300 hover:bg-yellow-50 focus-within:bg-blue-50 transition-colors">
-                  <td className="border-r border-gray-300 p-1 text-center text-gray-500 bg-gray-50">{idx + 1}</td>
-                  <td className="border-r border-gray-300 p-1.5 bg-gray-50 text-gray-700">{item.itemCode}</td>
-                  <td className="border-r border-gray-300 p-1.5 bg-gray-50 text-gray-700">{item.itemDesc}</td>
-                  <td className="border-r border-gray-300 p-1.5 bg-gray-50 text-gray-700 text-center">{item.batchNo}</td>
-                  <td className="border-r border-gray-300 p-1.5 bg-gray-100 text-right font-bold text-gray-600">{item.purchasedQty}</td>
-                  <td className={`border-r p-0 relative ${item.error ? 'border-red-500 border-2' : 'border-gray-300'}`}>
-                    <input 
-                      type="number" 
-                      value={item.returnQty === 0 && !item.error ? '' : item.returnQty} 
-                      onChange={e => updateItem(item.id, 'returnQty', e.target.value === '' ? 0 : Number(e.target.value))} 
-                      className="w-full p-1.5 bg-yellow-100 focus:bg-white focus:outline-none text-right font-bold text-red-700 h-full placeholder:text-gray-300" 
-                      placeholder="0"
-                      min="0"
-                      max={item.purchasedQty}
-                    />
-                    {item.error && <span className="absolute -bottom-4 right-0 text-[9px] text-red-600 font-bold bg-white px-1 shadow rounded z-20">{item.error}</span>}
-                  </td>
-                  <td className="border-r border-gray-300 p-0">
-                    <input 
-                      type="number" 
-                      value={item.unitPrice || ''} 
-                      onChange={e => updateItem(item.id, 'unitPrice', Number(e.target.value))} 
-                      className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-right" 
-                    />
-                  </td>
-                  <td className="border-r border-gray-300 p-1.5 bg-gray-50 text-right text-gray-600">{item.discPercent}%</td>
-                  <td className="border-r border-gray-300 p-1.5 bg-gray-50 text-right text-gray-600">{item.taxPercent}%</td>
-                  <td className="border-r border-gray-300 p-1.5 text-right font-mono text-gray-700 bg-gray-50">{item.taxableAmt.toFixed(2)}</td>
-                  <td className="border-r border-gray-300 p-1.5 text-right font-mono font-bold text-green-700 bg-gray-50">{item.totalAmt.toFixed(2)}</td>
-                  <td className="p-1 text-center bg-gray-50">
-                    <button onClick={() => removeRow(item.id)} className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-100" title="Remove Item">
-                      <Trash2 size={14} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* Financial Summary Card (Bottom Panel) */}
-      <div className="flex space-x-2 flex-shrink-0 items-stretch">
-         <div className="flex-1 bg-white border border-gray-400 p-3 rounded shadow-sm flex flex-col justify-between">
-             <div>
-               <label className="block text-xs font-bold text-gray-700 mb-1">Settlement Mode</label>
-               <select value={settlementMode} onChange={e => setSettlementMode(e.target.value)} className="w-full max-w-xs border border-gray-400 p-1.5 rounded text-sm focus:border-blue-500 bg-gray-50 font-semibold text-gray-700">
-                 {SETTLEMENT_MODES.map(m => <option key={m} value={m}>{m}</option>)}
-               </select>
-               <p className="text-[11px] text-gray-500 mt-2">Adjusted in Accounts Payable automatically on Save if 'Adjust in Supplier Ledger' is chosen.</p>
-             </div>
-
-             <div className="flex space-x-2 mt-4 pt-3 border-t border-gray-100">
-               <button 
-                 onClick={handleSaveReturn}
-                 className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded shadow-sm text-xs transition-colors flex items-center space-x-1.5"
-               >
-                 <span>{editingReturnId ? '✓ Update Return' : '💾 Save Return'}</span>
-               </button>
-               
-               <button 
-                 onClick={clearForm}
-                 className="px-4 py-2.5 bg-white border border-gray-300 text-gray-700 hover:bg-slate-50 font-semibold rounded shadow-sm text-xs transition-colors"
-               >
-                 Clear
-               </button>
-
-               {editingReturnId && (
-                 <button 
-                   onClick={handleDeleteReturn}
-                   className="px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded shadow-sm text-xs transition-colors"
-                 >
-                   Delete
-                 </button>
-               )}
-             </div>
-         </div>
-
-         <div className="w-[500px] bg-[#1e3f70] text-white p-3 border border-[#142d54] shadow-md rounded flex flex-col justify-between">
-           <div className="grid grid-cols-5 gap-4 text-sm font-bold text-right border-b border-[#2b579a] pb-2 mb-2">
-            <div>
-              <span className="block text-[11px] uppercase tracking-wider text-blue-200 mb-1">Gross Total</span>
-              ₹{grossTotal.toFixed(2)}
-            </div>
-            <div>
-              <span className="block text-[11px] uppercase tracking-wider text-blue-200 mb-1">CGST</span>
-              ₹{totalCgst.toFixed(2)}
-            </div>
-            <div>
-              <span className="block text-[11px] uppercase tracking-wider text-blue-200 mb-1">SGST</span>
-              ₹{totalSgst.toFixed(2)}
-            </div>
-            <div>
-              <span className="block text-[11px] uppercase tracking-wider text-blue-200 mb-1">IGST</span>
-              ₹{totalIgst.toFixed(2)}
-            </div>
-            <div>
-              <span className="block text-[11px] uppercase tracking-wider text-blue-200 mb-1">Round Off</span>
-              {roundedOff > 0 ? '+' : ''}{roundedOff.toFixed(2)}
-            </div>
+      {/* Ultra-Compact Bottom Panel (Decreased heights to maximize table area) */}
+      <div className="flex space-x-3 flex-shrink-0 items-center">
+        {/* Compact Settlement Mode Card */}
+        <div className="flex-1 bg-white border border-gray-200 py-2 px-4 rounded-xl shadow-md flex items-center justify-between h-[52px]">
+          <div className="flex items-center space-x-2 flex-1 mr-4">
+            <label className="text-xs font-extrabold text-gray-500 uppercase tracking-wider whitespace-nowrap">Settlement:</label>
+            <select value={settlementMode} onChange={e => setSettlementMode(e.target.value)} className="w-full max-w-xs border border-gray-200 p-1 rounded-lg text-xs focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white font-bold text-gray-700 shadow-sm transition-all outline-none">
+              {SETTLEMENT_MODES.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
           </div>
-          
-          <div className="flex justify-between items-center px-2">
-            <span className="text-sm font-bold text-blue-200 uppercase tracking-widest">Net Return Amount</span>
-            <div className="text-3xl font-black text-yellow-300 drop-shadow-md">
+
+          <div className="flex space-x-2">
+            <button 
+              onClick={handleSaveReturn}
+              className="px-4 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-700 hover:to-teal-600 text-white font-extrabold rounded-lg shadow-md hover:shadow-lg text-xs transition-all duration-200 transform hover:-translate-y-0.5 flex items-center space-x-1 border border-emerald-600/10"
+            >
+              <span>{editingReturnId ? '✓ Update' : '💾 Save'}</span>
+            </button>
+            
+            <button 
+              onClick={clearForm}
+              className="px-3.5 py-1.5 bg-white border border-gray-300 text-gray-650 hover:text-gray-900 hover:bg-gray-50 font-bold rounded-lg shadow-sm text-xs transition-all duration-200 transform hover:-translate-y-0.5"
+            >
+              Clear
+            </button>
+
+            {editingReturnId && (
+              <button 
+                onClick={handleDeleteReturn}
+                className="px-3.5 py-1.5 bg-gradient-to-r from-red-600 to-rose-500 hover:from-red-700 hover:to-rose-600 text-white font-bold rounded-lg shadow-md hover:shadow-lg text-xs transition-all duration-200 transform hover:-translate-y-0.5"
+              >
+                Delete
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Compact Net Return Card */}
+        <div className="w-[450px] bg-gradient-to-br from-[#1e3f70] to-[#112647] text-white py-2 px-4 border border-[#0d1e37] shadow-lg rounded-xl flex items-center justify-between relative overflow-hidden h-[52px]">
+          {/* Background shapes */}
+          <div className="absolute -right-16 -top-16 w-24 h-24 bg-blue-500/10 rounded-full blur-xl pointer-events-none"></div>
+
+          {/* Mini Horizontal Totals */}
+          <div className="text-[10px] flex space-x-3 font-semibold text-blue-200 mr-3">
+            <div>
+              <span>Gross: </span>
+              <span className="font-mono text-white">₹{grossTotal.toFixed(0)}</span>
+            </div>
+            {(totalCgst > 0 || totalSgst > 0) && (
+              <div>
+                <span>CGST/SGST: </span>
+                <span className="font-mono text-white">₹{(totalCgst + totalSgst).toFixed(0)}</span>
+              </div>
+            )}
+            {totalIgst > 0 && (
+              <div>
+                <span>IGST: </span>
+                <span className="font-mono text-white">₹{totalIgst.toFixed(0)}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center space-x-2 relative z-10 flex-shrink-0">
+            <span className="text-[10px] font-extrabold text-blue-200 uppercase tracking-wider">Net Return</span>
+            <div className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-amber-200 to-yellow-300 drop-shadow-[0_2px_4px_rgba(0,0,0,0.4)]">
               ₹ {netReturnAmount.toFixed(2)}
             </div>
           </div>
-         </div>
+        </div>
       </div>
     </div>
   );

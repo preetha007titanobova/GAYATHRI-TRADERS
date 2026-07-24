@@ -705,7 +705,7 @@ const ShopSalesBill = () => {
                 </button>
               </div>
 
-              <div className="overflow-x-auto max-h-[300px]">
+              <div className="overflow-x-auto max-h-[550px]">
                 <table className="w-full text-left text-xs border-collapse whitespace-nowrap min-w-max">
                   <thead className="bg-[#2b579a] text-white sticky top-0 z-10">
                     <tr>
