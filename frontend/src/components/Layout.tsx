@@ -27,7 +27,7 @@ const Layout = () => {
   const [isGstCalcOpen, setIsGstCalcOpen] = useState(false);
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [globalSettings, setGlobalSettings] = useState({
-    isSelectedCustomer: false
+    isSelectiveCustomer: false
   });
   const location = useLocation();
   const navigate = useNavigate();
@@ -511,12 +511,12 @@ const Layout = () => {
       </div>
       
 
-        {/* Status Indicators - Selected Customer appears ONLY on Sales Bill page */}
+        {/* Status Indicators - Selective Customer appears ONLY on Sales Bill page */}
         {location.pathname === '/sales-bill' && (
           <div className="flex space-x-4 items-center bg-[#d1e8e2] px-3 py-1 border border-gray-400 shadow-inner text-sm font-semibold">
             <label className="flex items-center space-x-1 cursor-pointer">
-              <input type="checkbox" className="form-checkbox" checked={globalSettings.isSelectedCustomer} onChange={e => setGlobalSettings({...globalSettings, isSelectedCustomer: e.target.checked})} />
-              <span>Selected Customer ?</span>
+              <input type="checkbox" className="form-checkbox" checked={globalSettings.isSelectiveCustomer} onChange={e => setGlobalSettings({...globalSettings, isSelectiveCustomer: e.target.checked})} />
+              <span>Selective Customer ?</span>
             </label>
           </div>
         )}
@@ -551,6 +551,7 @@ const Layout = () => {
             setToolbarActions, 
             setGlobalNotification, 
             globalSettings, 
+            setGlobalSettings,
             ownerWhatsApp, 
             ownerEmail, 
             openOwnerSettings: () => setIsOwnerSettingsModalOpen(true) 

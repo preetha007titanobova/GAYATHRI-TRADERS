@@ -57,8 +57,7 @@ const POSCheckout = () => {
   const [printIn, setPrintIn] = useState('Blank A4');
   const [invoiceFormat, setInvoiceFormat] = useState('GSTFormat Full Page');
 
-  // Searchable Buyer State
-  const [customerSearch, setCustomerSearch] = useState('');
+
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [favourDiscount, setFavourDiscount] = useState<number>(0);
 
@@ -83,31 +82,24 @@ const POSCheckout = () => {
   const resetPageState = () => {
     setGridData([{ id: Date.now(), itemName: '', itemDesc: '', qty: 0, uom: 'PCS', rate: 0, discPercent: 0, discAmt: 0, amount: 0 }]);
     setBuyerName('');
-    setCustomerSearch('');
     setAddress('');
     setMobileNo('');
     setGstNo('');
+    setSalesman('');
     setTendered(0);
     setFavourDiscount(0);
     setEditingBillId(null);
     setFromSalesOrderId(null);
     fetchNextInvoiceNo();
     fetchProducts();
+    if (setGlobalSettings) {
+      setGlobalSettings({ isSelectiveCustomer: false });
+    }
   };
-  useEffect(() => {
-    if (buyerName !== customerSearch) {
-      setCustomerSearch(buyerName);
-    }
-  }, [buyerName]);
 
-  useEffect(() => {
-    if (customerSearch !== buyerName) {
-      setBuyerName(customerSearch || '');
-    }
-  }, [customerSearch]);
 
   const filteredCustomersList = useMemo(() => {
-    const q = customerSearch.toLowerCase();
+    const q = buyerName.toLowerCase();
     const matches = availableCustomers.filter(c =>
       c.accountName.toLowerCase().includes(q) ||
       (c.ledgerCode && c.ledgerCode.toLowerCase().includes(q))
@@ -118,7 +110,7 @@ const POSCheckout = () => {
       }
     }
     return matches;
-  }, [availableCustomers, customerSearch]);
+  }, [availableCustomers, buyerName]);
 
   // --- State for Data Entry Grid ---
   const initialGridData = useMemo(() => {
@@ -183,7 +175,7 @@ const POSCheckout = () => {
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // --- Global Context ---
-  const { setToolbarActions, setGlobalNotification } = useOutletContext<{ setToolbarActions?: any, setGlobalNotification?: any }>() || {};
+  const { setToolbarActions, setGlobalNotification, globalSettings, setGlobalSettings } = useOutletContext<{ setToolbarActions?: any, setGlobalNotification?: any, globalSettings?: any, setGlobalSettings?: any }>() || {};
 
   const [availableProducts, setAvailableProducts] = useState<any[]>([]);
 
@@ -641,6 +633,7 @@ const POSCheckout = () => {
       cgst, sgst, roundOff, netAmount,
       salesman, paymentMode,
       fromSalesOrderId,
+      isSelectiveCustomer: globalSettings?.isSelectiveCustomer || false,
       items: validItems.map(item => ({
         itemName: item.itemName,
         itemDesc: item.itemDesc,
@@ -700,6 +693,7 @@ const POSCheckout = () => {
         setAddress('');
         setMobileNo('');
         setGstNo('');
+        setSalesman('');
         setTendered(0);
         setFavourDiscount(0);
         setConfirmModalState({ isOpen: false, action: null });
@@ -1267,13 +1261,13 @@ const POSCheckout = () => {
       {/* 2. Main Document Input Panel */}
       <div className="legacy-panel p-1.5 text-xs grid grid-cols-12 gap-x-2 gap-y-1.5 items-center">
         <label className="legacy-label text-right">Buyer</label>
-        <div className="col-span-3 relative">
+        <div className="col-span-3 relative flex items-center">
           <input
             type="text"
-            className="legacy-input w-full font-bold text-blue-900 bg-blue-50 py-0.5 px-2 pr-6 focus:bg-yellow-50 outline-none border border-gray-300 rounded-sm"
-            value={customerSearch}
+            className={`legacy-input w-full font-bold text-blue-900 bg-blue-50 py-0.5 px-2 focus:bg-yellow-50 outline-none border border-gray-300 rounded-sm ${globalSettings?.isSelectiveCustomer ? 'pr-20' : 'pr-6'}`}
+            value={buyerName}
             onChange={e => {
-              setCustomerSearch(e.target.value);
+              setBuyerName(e.target.value);
               setShowCustomerDropdown(true);
             }}
             onFocus={() => setShowCustomerDropdown(true)}
@@ -1282,7 +1276,12 @@ const POSCheckout = () => {
             }}
             placeholder="Search / select buyer..."
           />
-          <span className="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none text-blue-400 font-bold">▾</span>
+          {globalSettings?.isSelectiveCustomer && (
+            <span className="absolute right-5 bg-orange-100 text-orange-800 text-[9px] font-extrabold px-1.5 py-0.5 rounded border border-orange-300 uppercase tracking-wide pointer-events-none">
+              Selective
+            </span>
+          )}
+          <span className="absolute right-1.5 text-blue-400 font-bold pointer-events-none">▾</span>
 
           {showCustomerDropdown && (
             <div className="absolute left-0 right-0 top-full mt-0.5 bg-white border border-gray-300 max-h-48 overflow-y-auto z-[999] shadow-lg rounded text-left">
@@ -1295,7 +1294,6 @@ const POSCheckout = () => {
                     type="button"
                     onMouseDown={() => {
                       setBuyerName(c.accountName);
-                      setCustomerSearch(c.accountName);
                       if (c.accountName === 'CASH') {
                         setAddress('');
                         setMobileNo('');

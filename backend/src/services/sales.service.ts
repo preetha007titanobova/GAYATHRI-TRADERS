@@ -78,6 +78,7 @@ export const createSalesBill = async (data: any): Promise<any> => {
     shippingAddress,
     salesman,
     paymentMode: paymentMode || 'Cash',
+    isSelectiveCustomer: Boolean(data.isSelectiveCustomer),
     fromSalesOrderId: fromSalesOrderId ? new ObjectId(fromSalesOrderId as string) : null,
     createdAt: new Date(),
     updatedAt: new Date()
@@ -266,6 +267,7 @@ export const updateSalesBill = async (id: string, data: any): Promise<boolean> =
         shippingAddress,
         salesman,
         paymentMode: paymentMode || 'Cash',
+        isSelectiveCustomer: Boolean(data.isSelectiveCustomer),
         updatedAt: new Date()
       }
     }
@@ -391,12 +393,16 @@ export const searchSalesBills = async (q: string): Promise<any[]> => {
   const db = await getDb();
   let query: any = {};
   if (q) {
+    const isSearchSelective = q.toLowerCase().includes('selective');
     query.$or = [
       { invoiceNo: { $regex: q, $options: 'i' } },
       { buyerName: { $regex: q, $options: 'i' } },
       { paymentMode: { $regex: q, $options: 'i' } },
       { mobileNo: { $regex: q, $options: 'i' } }
     ];
+    if (isSearchSelective) {
+      query.$or.push({ isSelectiveCustomer: true });
+    }
   }
   let cursor = db.collection('SalesBill').find(query).sort({ createdAt: -1 });
   if (!q) {

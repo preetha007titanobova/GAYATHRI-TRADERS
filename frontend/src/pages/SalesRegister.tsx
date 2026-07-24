@@ -443,8 +443,9 @@ const SalesRegister = () => {
         const matchBuyer = buyer.includes(q);
         const matchMob = mob.includes(q);
         const matchPayMode = payMode.includes(q) || (q === 'upi' && (payMode.includes('online') || payMode.includes('upi')));
+        const matchSelective = q.includes('selective') && rec.isSelectiveCustomer;
 
-        if (!matchInv && !matchBuyer && !matchMob && !matchPayMode) {
+        if (!matchInv && !matchBuyer && !matchMob && !matchPayMode && !matchSelective) {
           return false;
         }
       }
@@ -904,7 +905,16 @@ const SalesRegister = () => {
                           {rec.invoiceNo}
                         </td>
                         <td className="border-r border-gray-300 p-1.5">{new Date(rec.invDate).toLocaleDateString()}</td>
-                        <td className="border-r border-gray-300 p-1.5">{rec.buyerName || 'CASH CUSTOMER'}</td>
+                        <td className="border-r border-gray-300 p-1.5">
+                          <div className="flex flex-col">
+                            <span>{rec.buyerName || 'CASH CUSTOMER'}</span>
+                            {rec.isSelectiveCustomer && (
+                              <span className="text-[10px] text-orange-600 font-bold uppercase tracking-wider mt-0.5">
+                                Selective Customer
+                              </span>
+                            )}
+                          </div>
+                        </td>
                         <td className="border-r border-gray-300 p-1.5 text-center">
                           {(() => {
                             const mode = rec.paymentMode || 'Cash';
