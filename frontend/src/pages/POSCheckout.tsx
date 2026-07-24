@@ -1325,7 +1325,7 @@ const POSCheckout = () => {
         <input type="date" className="legacy-input col-span-2 py-0.5 font-bold" value={invDate} onChange={e => setInvDate(e.target.value)} />
 
         <label className="legacy-label text-right">E.Type</label>
-        <select className="legacy-input col-span-1.5 py-0.5 font-bold" value={eType} onChange={e => setEType(e.target.value)}>
+        <select className="legacy-input col-span-2 py-0.5 font-bold" value={eType} onChange={e => setEType(e.target.value)}>
           <option>Local</option>
           <option>Interstate</option>
         </select>
@@ -1334,7 +1334,7 @@ const POSCheckout = () => {
           <MessageSquare size={13} className="mr-1 text-emerald-600" />
           Mobile
         </label>
-        <div className="col-span-2 relative flex items-center">
+        <div className="col-span-3 relative flex items-center">
           <input
             type="text"
             className="legacy-input w-full py-0.5 font-mono font-bold text-gray-900 bg-white border-gray-400 focus:bg-yellow-50 focus:border-blue-500 pr-6"
