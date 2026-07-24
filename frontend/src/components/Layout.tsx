@@ -332,7 +332,9 @@ const Layout = () => {
       '/p-l-statment': 'P & L Statment',
       '/balance-sheet': 'Balance Sheet',
       '/staff-master': 'Staff Master (Admin)',
-      '/staff-attendance': 'Staff Attendance'
+      '/staff-attendance': 'Staff Attendance',
+      '/shop-sales-bill': 'Wholesale Sales Bill',
+      '/shop-sales-register': 'Wholesale Sales Register'
     };
     return routeTitles[pathname] || 'Dashboard';
   };
@@ -423,15 +425,15 @@ const Layout = () => {
           <span onClick={() => toggleMenu('Sales')} className={`px-3 py-1 cursor-pointer select-none rounded ${activeMenu === 'Sales' ? 'bg-blue-200 shadow-inner' : 'hover:bg-blue-100'}`}>Sales</span>
           {activeMenu === 'Sales' && (
             <div className="absolute top-full left-0 mt-1 bg-white border border-gray-400 shadow-xl w-48 flex flex-col py-1 z-50">
-               <Link to="/quotation" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Quotation</Link>
-               <Link to="/sales-order" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Sales Order</Link>
                <Link to="/sales-bill" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Sales Bill</Link>
-               <Link to="/sales-return" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Sales Return</Link>
-               <Link to="/shop-sales-bill" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Shop Sales Bill</Link>
-               <div className="border-t border-gray-300 my-1"></div>
                <Link to="/sales-register" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Sales Register</Link>
-               <Link to="/shop-sales-register" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Shop Sales Register</Link>
+               <Link to="/sales-return" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Sales Return</Link>
                <Link to="/sales-status" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Sales Status</Link>
+               <Link to="/sales-order" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Sales Order</Link>
+               <div className="border-t border-gray-300 my-1"></div>
+               <Link to="/quotation" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Quotation</Link>
+               <Link to="/shop-sales-bill" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Wholesale Sales Bill</Link>
+               <Link to="/shop-sales-register" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Wholesale Sales Register</Link>
             </div>
           )}
         </div>
@@ -577,14 +579,14 @@ const Layout = () => {
                 { name: 'Item Master', path: '/item-master' },
                 { name: 'Barcode Generation', path: '/barcode-generation' },
                 { name: 'Backup', path: '/backup' },
-                { name: 'Quotation', path: '/quotation' },
-                { name: 'Sales Order', path: '/sales-order' },
                 { name: 'Sales Bill', path: '/sales-bill' },
-                { name: 'Sales Return', path: '/sales-return' },
-                { name: 'Shop Sales Bill', path: '/shop-sales-bill' },
-                { name: 'Shop Sales Register', path: '/shop-sales-register' },
                 { name: 'Sales Register', path: '/sales-register' },
+                { name: 'Sales Return', path: '/sales-return' },
                 { name: 'Sales Status', path: '/sales-status' },
+                { name: 'Sales Order', path: '/sales-order' },
+                { name: 'Quotation', path: '/quotation' },
+                { name: 'Wholesale Sales Bill', path: '/shop-sales-bill' },
+                { name: 'Wholesale Sales Register', path: '/shop-sales-register' },
                 { name: 'Purchase Bill', path: '/purchase-bill' },
                 { name: 'Pur. Return', path: '/pur-return' },
                 { name: 'Pur. Register', path: '/pur-register' },

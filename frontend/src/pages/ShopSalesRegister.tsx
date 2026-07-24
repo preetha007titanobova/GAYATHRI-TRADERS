@@ -74,14 +74,14 @@ const ShopSalesRegister = () => {
   };
 
   const handleDeleteBill = async (id: string) => {
-    if (!window.confirm("Are you sure you want to delete this shop sales bill? This will revert the physical stock of all items.")) return;
+    if (!window.confirm("Are you sure you want to delete this wholesale sales bill? This will revert the physical stock of all items.")) return;
     try {
       const res = await fetch(`${Api}/shop-sales-bills/${id}`, {
         method: 'DELETE'
       });
       const data = await res.json();
       if (data.success) {
-        setGlobalNotification({ msg: "Shop Sales Bill deleted successfully!", type: 'success' });
+        setGlobalNotification({ msg: "Wholesale Sales Bill deleted successfully!", type: 'success' });
         setSelectedRecord(null);
         // Reload bills
         fetchData();
@@ -90,7 +90,7 @@ const ShopSalesRegister = () => {
       }
     } catch (err) {
       console.error(err);
-      setGlobalNotification({ msg: "Network error deleting shop sales bill.", type: 'error' });
+      setGlobalNotification({ msg: "Network error deleting wholesale sales bill.", type: 'error' });
     }
   };
 
@@ -104,7 +104,7 @@ const ShopSalesRegister = () => {
           setDisplayedData(data);
         }
       })
-      .catch(err => console.error("Error loading shop sales bills", err));
+      .catch(err => console.error("Error loading wholesale sales bills", err));
   };
 
   // Load Data on Mount
@@ -169,7 +169,7 @@ const ShopSalesRegister = () => {
     const doc = new jsPDF();
     doc.setFontSize(16);
     doc.setTextColor(43, 87, 154);
-    doc.text('Shop Sales Register Report', 14, 15);
+    doc.text('Wholesale Sales Register Report', 14, 15);
     
     doc.setFontSize(10);
     doc.setTextColor(100);
@@ -210,7 +210,7 @@ const ShopSalesRegister = () => {
       const doc = new jsPDF();
       doc.setFontSize(16);
       doc.setTextColor(43, 87, 154);
-      doc.text('Shop Sales Register Report', 14, 15);
+      doc.text('Wholesale Sales Register Report', 14, 15);
       
       doc.setFontSize(10);
       doc.setTextColor(100);
@@ -238,7 +238,7 @@ const ShopSalesRegister = () => {
       });
 
       const pdfBase64 = doc.output('datauristring');
-      const filename = `Shop_Sales_Register_${new Date().toISOString().split('T')[0]}.pdf`;
+      const filename = `Wholesale_Sales_Register_${new Date().toISOString().split('T')[0]}.pdf`;
       
       const res = await fetch(`${Api}/products/upload-pdf`, {
         method: 'POST',
@@ -250,7 +250,7 @@ const ShopSalesRegister = () => {
       const resData = await res.json();
       if (!resData.success || !resData.pdfUrl) throw new Error('PDF upload returned unsuccessful');
 
-      const whatsappText = `*Sri Gayathri Traders - Shop Sales Register Report*\n` +
+      const whatsappText = `*Sri Gayathri Traders - Wholesale Sales Register Report*\n` +
                            `*Period:* ${filters.fromDate} to ${filters.toDate}\n` +
                            `*Shop:* ${filters.shop}\n` +
                            `*Total Net Payable:* ₹${totals.net.toFixed(2)}\n\n` +
@@ -295,26 +295,32 @@ const ShopSalesRegister = () => {
     <div className="flex flex-col h-full bg-[#f0f9f4] overflow-hidden p-2">
       
       {/* FILTER BAR */}
+      {/* Page Heading */}
+      <div className="flex items-center mb-2 px-1">
+        <span className="bg-[#2b579a] w-2 h-6 mr-2 block"></span>
+        <h2 className="text-xl font-bold text-gray-700 m-0">Wholesale Sales Register (Outward)</h2>
+      </div>
+
+      {/* FILTER BAR */}
       <div className="bg-white p-3 border border-gray-400 shadow-sm rounded mb-2 flex-shrink-0 print:hidden">
-        <div className="flex justify-between items-center mb-3 border-b border-gray-200 pb-2">
-           <h2 className="text-xl font-bold text-[#2b579a] flex items-center">
-            <span className="bg-[#2b579a] w-2 h-6 mr-2 block"></span>
-            Shop Sales Register (Wholesale Outward)
-          </h2>
-          <div className="flex space-x-2">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-3 border-b border-gray-200 pb-3">
+          <div className="flex items-center space-x-2">
+            <span className="text-xs font-bold text-gray-600">Quick Filters:</span>
             <button onClick={() => setQuickDate('Today')} className="text-xs bg-gray-100 hover:bg-gray-200 border border-gray-300 px-2 py-1 rounded">Today</button>
             <button onClick={() => setQuickDate('ThisMonth')} className="text-xs bg-gray-100 hover:bg-gray-200 border border-gray-300 px-2 py-1 rounded">This Month</button>
             <button onClick={() => setQuickDate('ThisFY')} className="text-xs bg-gray-100 hover:bg-gray-200 border border-gray-300 px-2 py-1 rounded">This FY</button>
-            <button onClick={downloadPDF} className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1 rounded shadow border border-emerald-800 transition-colors">Download PDF</button>
+          </div>
+          <div className="flex space-x-2">
+            <button onClick={downloadPDF} className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded shadow border border-emerald-800 transition-colors">Download PDF</button>
             <button 
               onClick={handleShareWhatsApp} 
               disabled={sharing}
-              className="text-xs bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-bold px-3 py-1 rounded shadow border border-green-800 transition-colors flex items-center"
+              className="text-xs bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-bold px-3 py-1.5 rounded shadow border border-green-800 transition-colors flex items-center"
             >
               <svg className="w-4 h-4 mr-1.5 fill-current" viewBox="0 0 24 24">
-                <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.455L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.625 1.451 5.403.002 9.803-4.394 9.806-9.799.002-2.618-1.016-5.079-2.865-6.93C16.368 2.025 13.91 1.006 11.298 1.006c-5.408 0-9.81 4.398-9.813 9.802-.002 1.83.479 3.618 1.393 5.17l-.997 3.642 3.734-.978zM17.15 13.563c-.3-.15-1.771-.875-2.04-.972-.269-.099-.465-.148-.659.15-.195.297-.753.971-.922 1.168-.169.197-.337.221-.637.072-.3-.15-1.264-.467-2.408-1.486-.89-.794-1.49-1.775-1.665-2.072-.175-.297-.019-.458.131-.606.134-.133.3-.347.449-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.659-1.591-.903-2.176-.237-.573-.478-.495-.659-.504-.17-.008-.365-.01-.56-.01s-.51.074-.777.363c-.266.289-1.016.992-1.016 2.42 0 1.427 1.039 2.805 1.182 2.996.143.19 2.043 3.12 4.949 4.377.691.299 1.23.478 1.651.611.693.22 1.325.189 1.822.115.556-.083 1.771-.724 2.019-1.422.25-.698.25-1.299.176-1.422-.075-.123-.269-.197-.569-.347z"/>
+                <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.455L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.625 1.451 5.403.002 9.803-4.394 9.806-9.799.002-2.618-1.016-5.079-2.865-6.93C16.368 2.025 13.91 1.006 11.298 1.006c-5.408 0-9.81 4.398-9.813 9.802-.002 1.83.479 3.618 1.393 5.17l-.997 3.642 3.734-.978zM17.15 13.563c-.3-.15-1.771-.875-2.04-.972-.269-.099-.465-.148-.659.15-.195.297-.753.971-.922 1.168-.169.197-.337.221-.637.072-.3-.15-1.264-.467-2.408-1.486-.89-.794-1.49-1.775-1.665-2.072-.175-.297-.019-.458.131-.606.134-.133.3-.347.449-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.659-1.591-.903-2.176-.237-.573-.478-.495-.659-.504-.17-.008-.365-.01-.56-.01s-.51.074-.777.363c-.266.289-1.016.992-1.016 2.42 0 1.427 1.039 2.805 1.182 2.996.143.19 2.043 3.12 4.949 4.377.691.299 1.23.478 1.651.611.693.22 1.325.189 1.822.115.556-.083 1.771-.724 2.019-1.422.25-.698.25-1.299.176-1.422-.075-.123-.269-.197-.569-.347z" />
               </svg>
-              {sharing ? 'Sharing...' : 'Share'}
+              <span>Share</span>
             </button>
           </div>
         </div>
@@ -384,8 +390,8 @@ const ShopSalesRegister = () => {
                   <td colSpan={11} className="p-16 text-center text-gray-500 bg-gray-50">
                     <div className="flex flex-col items-center justify-center">
                        <FileText className="w-12 h-12 text-gray-300 mb-3" />
-                       <p className="text-xl font-medium text-gray-400">No shop sales records found</p>
-                       <p className="text-sm mt-1">Add a new wholesale bill, or adjust your date range/filters.</p>
+                       <p className="text-xl font-medium text-gray-400">No wholesale sales records found</p>
+                       <p className="text-sm mt-1">Add a new wholesale sales bill, or adjust your date range/filters.</p>
                     </div>
                   </td>
                 </tr>
@@ -449,7 +455,7 @@ const ShopSalesRegister = () => {
       <Modal
         isOpen={!!selectedRecord}
         onClose={() => setSelectedRecord(null)}
-        title={`Shop Sales Details: ${selectedRecord?.voucherNo}`}
+        title={`Wholesale Sales Details: ${selectedRecord?.voucherNo}`}
       >
         {selectedRecord && (
           <div className="space-y-4">

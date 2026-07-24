@@ -271,10 +271,10 @@ const SalesRegister = () => {
     ownerWhatsApp: string;
   }>();
 
-  const [activeTab, setActiveTab] = useState<'bills' | 'orders' | 'returns'>('bills');
+  const location = useLocation();
+  const [activeTab, setActiveTab] = useState<'bills' | 'orders' | 'returns'>(() => location.state?.activeTab || 'bills');
   const [records, setRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const location = useLocation();
   const [searchQuery, setSearchQuery] = useState(() => location.state?.selectedCustomerName || '');
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
 
@@ -721,13 +721,15 @@ const SalesRegister = () => {
 
   return (
     <div className="flex flex-col h-full bg-[#f0f9f4] p-2 relative">
-      <div className="flex justify-between items-center mb-2 bg-white p-2 border border-gray-300 shadow-sm rounded">
-        <h2 className="text-xl font-bold text-gray-700 flex items-center">
-          <span className="bg-[#2b579a] w-2 h-6 mr-2 block"></span>
-          Sales Register
-        </h2>
+      {/* Page Heading */}
+      <div className="flex items-center mb-2 px-1">
+        <span className="bg-[#2b579a] w-2 h-6 mr-2 block"></span>
+        <h2 className="text-xl font-bold text-gray-700 m-0">Sales Register</h2>
+      </div>
 
-        <div className="flex items-center space-x-2">
+      {/* Filters Area */}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-2 bg-white p-2 border border-gray-300 shadow-sm rounded">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Date Range Selection */}
           <div className="flex items-center space-x-1.5 text-xs bg-slate-50 border border-gray-300 p-1 rounded-md shadow-sm">
             <span className="font-bold text-[#2b579a] flex items-center pl-1"><Calendar size={12} className="mr-1" /> Period:</span>
@@ -780,17 +782,20 @@ const SalesRegister = () => {
               ref={searchInputRef}
               type="text"
               placeholder={`Search bill, UPI, Cash...`}
-              className="border border-gray-400 pl-8 pr-2 py-1 text-sm rounded focus:outline-none focus:border-blue-500 w-48 shadow-inner"
+              className="border border-gray-400 pl-8 pr-2 py-1.5 text-sm rounded focus:outline-none focus:border-blue-500 w-48 shadow-inner"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
-            <Search size={16} className="absolute left-2 top-1.5 text-gray-500" />
+            <Search size={16} className="absolute left-2 top-2 text-gray-500" />
           </div>
-          <button onClick={downloadPDF} className="bg-emerald-600 text-white px-3  text-sm font-semibold rounded hover:bg-emerald-700 shadow border border-emerald-800 transition-colors">Download PDF</button>
+        </div>
+
+        <div className="flex items-center space-x-2">
+          <button onClick={downloadPDF} className="bg-emerald-600 text-white px-3 py-1.5 text-sm font-semibold rounded hover:bg-emerald-700 shadow border border-emerald-800 transition-colors">Download PDF</button>
           <button
             onClick={handleShareWhatsApp}
             disabled={sharing}
-            className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-3 py-1 text-sm font-semibold rounded shadow border border-green-800 transition-colors flex items-center"
+            className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-3 py-1.5 text-sm font-semibold rounded shadow border border-green-800 transition-colors flex items-center"
           >
             <svg className="w-4 h-4 mr-1.5 fill-current" viewBox="0 0 24 24">
               <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.455L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.625 1.451 5.403.002 9.803-4.394 9.806-9.799.002-2.618-1.016-5.079-2.865-6.93C16.368 2.025 13.91 1.006 11.298 1.006c-5.408 0-9.81 4.398-9.813 9.802-.002 1.83.479 3.618 1.393 5.17l-.997 3.642 3.734-.978zM17.15 13.563c-.3-.15-1.771-.875-2.04-.972-.269-.099-.465-.148-.659.15-.195.297-.753.971-.922 1.168-.169.197-.337.221-.637.072-.3-.15-1.264-.467-2.408-1.486-.89-.794-1.49-1.775-1.665-2.072-.175-.297-.019-.458.131-.606.134-.133.3-.347.449-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.659-1.591-.903-2.176-.237-.573-.478-.495-.659-.504-.17-.008-.365-.01-.56-.01s-.51.074-.777.363c-.266.289-1.016.992-1.016 2.42 0 1.427 1.039 2.805 1.182 2.996.143.19 2.043 3.12 4.949 4.377.691.299 1.23.478 1.651.611.693.22 1.325.189 1.822.115.556-.083 1.771-.724 2.019-1.422.25-.698.25-1.299.176-1.422-.075-.123-.269-.197-.569-.347z" />

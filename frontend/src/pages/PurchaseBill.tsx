@@ -704,7 +704,11 @@ const PurchaseBill = () => {
                   <tbody>
                     {items.length === 0 && (
                       <tr>
-                        <td colSpan={16} className="p-6 text-center text-gray-400 italic">No items added. Use Enter key for quick navigation.</td>
+                        <td colSpan={17} className="p-6 text-gray-400 italic">
+                          <div className="sticky left-0 text-center w-[75vw]">
+                            No items added.
+                          </div>
+                        </td>
                       </tr>
                     )}
                     {items.map((item, idx) => (

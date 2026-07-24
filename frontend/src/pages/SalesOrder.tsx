@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useOutletContext, useLocation, useNavigate } from 'react-router-dom';
-import { Plus, Trash2, Calendar, FileText, Printer, ArrowLeft, RefreshCw } from 'lucide-react';
+import { Plus, Trash2, Calendar, FileText, Printer, ArrowLeft, RefreshCw, ClipboardList } from 'lucide-react';
 import Api from '../Api';
 
 interface SalesOrderItemLine {
@@ -667,6 +667,15 @@ const SalesOrder = () => {
         </div>
 
         <div className="flex items-center space-x-2">
+          <button 
+            onClick={() => navigate('/sales-register', { state: { activeTab: 'orders', selectedCustomerName: customer } })}
+            className="flex items-center space-x-1.5 px-3 py-1.5 bg-[#d1e8e2] hover:bg-[#c3dfd8] border border-[#a8d08d] text-emerald-900 text-sm font-semibold rounded-md shadow-sm transition-all"
+            title="Click to see customer orders"
+          >
+            <ClipboardList className="w-4 h-4 text-emerald-800" />
+            <span>Customer Orders</span>
+          </button>
+
           <button 
             onClick={triggerPrint} 
             className="flex items-center space-x-1 px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-sm font-semibold rounded-md shadow-sm transition-all"

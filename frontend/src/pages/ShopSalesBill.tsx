@@ -430,12 +430,12 @@ const ShopSalesBill = () => {
       });
       setItems(mapped);
     }
-    setGlobalNotification({ msg: `Shop Sales Voucher ${bill.voucherNo} loaded for editing`, type: 'info' });
+    setGlobalNotification({ msg: `Wholesale Sales Voucher ${bill.voucherNo} loaded for editing`, type: 'info' });
   };
 
   // Handle Delete selection
   const handleDeleteBill = async (id: string, voucherNo: string) => {
-    if (!window.confirm(`Are you sure you want to delete Shop Sales Bill ${voucherNo}?`)) return;
+    if (!window.confirm(`Are you sure you want to delete Wholesale Sales Bill ${voucherNo}?`)) return;
     try {
       const res = await fetch(`${Api}/shop-sales-bills/${id}`, {
         method: 'DELETE'
@@ -515,18 +515,18 @@ const ShopSalesBill = () => {
       const data = await res.json();
       if (data.success) {
         setGlobalNotification({ 
-          msg: `Shop Sales Bill ${billNo} ${editingId ? 'updated' : 'saved'} successfully!`, 
+          msg: `Wholesale Sales Bill ${billNo} ${editingId ? 'updated' : 'saved'} successfully!`, 
           type: 'success' 
         });
         clearForm();
         fetchProducts(); 
         fetchSavedBills();
       } else {
-        setGlobalNotification({ msg: 'Error saving shop sales bill: ' + data.error, type: 'error' });
+        setGlobalNotification({ msg: 'Error saving wholesale sales bill: ' + data.error, type: 'error' });
       }
     } catch (err) {
       console.error(err);
-      setGlobalNotification({ msg: 'Network error saving shop sales bill.', type: 'error' });
+      setGlobalNotification({ msg: 'Network error saving wholesale sales bill.', type: 'error' });
     }
   };
 
@@ -625,7 +625,7 @@ const ShopSalesBill = () => {
       <div className="bg-gradient-to-r from-[#2b579a] to-[#3a75c4] text-white px-4 py-2 flex justify-between items-center shadow-md z-10 flex-shrink-0">
         <span className="font-semibold text-lg tracking-wide flex items-center">
           <Store className="mr-2 h-5 w-5 text-blue-300" />
-          Shop Sales Bill Entry 
+          Wholesale Sales Bill Entry 
           <span className="font-light text-blue-200 text-sm ml-2">(Wholesale Dress Outward)</span>
         </span>
 
@@ -647,7 +647,7 @@ const ShopSalesBill = () => {
 
       <div className="flex-1 flex overflow-hidden">
         
-        {/* Left Side: Shop Sales Bill Form */}
+        {/* Left Side: Wholesale Sales Bill Form */}
         <div className={`${viewMode === 'table-only' ? 'hidden' : viewMode === 'form-only' ? 'w-full' : 'w-[64%]'} overflow-y-auto p-3 bg-white flex flex-col justify-between border-r border-gray-300`}>
           <div>
             {/* Reusable DataList for Item Auto-completion */}
@@ -731,7 +731,11 @@ const ShopSalesBill = () => {
                   <tbody>
                     {items.length === 0 && (
                       <tr>
-                        <td colSpan={17} className="p-6 text-center text-gray-400 italic">No items added. Select products from Master or add a new row.</td>
+                        <td colSpan={17} className="p-6 text-gray-400 italic">
+                          <div className="sticky left-0 text-center w-[75vw]">
+                            No items added.
+                          </div>
+                        </td>
                       </tr>
                     )}
                     {items.map((item, idx) => (
@@ -1077,14 +1081,14 @@ const ShopSalesBill = () => {
                           <button 
                             onClick={() => handleEditBill(bill)}
                             className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-1 rounded transition-colors"
-                            title="Edit Shop Sales Bill"
+                            title="Edit Wholesale Sales Bill"
                           >
                             <Edit size={14} />
                           </button>
                           <button 
                             onClick={() => handleDeleteBill(bill.id, bill.voucherNo)}
                             className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1 rounded transition-colors"
-                            title="Delete Shop Sales Bill"
+                            title="Delete Wholesale Sales Bill"
                           >
                             <Trash2 size={14} />
                           </button>

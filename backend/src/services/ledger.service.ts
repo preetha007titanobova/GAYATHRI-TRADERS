@@ -157,7 +157,7 @@ export const getLedgerStatement = async (id: string, fromDateStr: string, toDate
     shopSalesBills.forEach((bill: any) => {
       if (bill.shopName === accountName) {
         const billDate = new Date(bill.date || bill.createdAt);
-        addMovement(`shop-sales-${bill._id}`, billDate, 'To Wholesale Sales A/c', 'Shop Sales Bill', bill.voucherNo, bill.netPayable, 0);
+        addMovement(`shop-sales-${bill._id}`, billDate, 'To Wholesale Sales A/c', 'Wholesale Sales Bill', bill.voucherNo, bill.netPayable, 0);
         if (bill.paymentMode?.toLowerCase() === 'cash') {
           addMovement(`shop-sales-pay-${bill._id}`, billDate, 'By Cash Receipt', 'Receipt', bill.voucherNo, 0, bill.netPayable);
         }
@@ -196,7 +196,7 @@ export const getLedgerStatement = async (id: string, fromDateStr: string, toDate
     shopSalesBills.forEach((bill: any) => {
       if (bill.paymentMode?.toLowerCase() === 'cash') {
         const billDate = new Date(bill.date || bill.createdAt);
-        addMovement(`cash-shop-sale-${bill._id}`, billDate, `To Wholesale Sales (${bill.shopName})`, 'Shop Sales Bill', bill.voucherNo, bill.netPayable, 0);
+        addMovement(`cash-shop-sale-${bill._id}`, billDate, `To Wholesale Sales (${bill.shopName})`, 'Wholesale Sales Bill', bill.voucherNo, bill.netPayable, 0);
       }
     });
   }
