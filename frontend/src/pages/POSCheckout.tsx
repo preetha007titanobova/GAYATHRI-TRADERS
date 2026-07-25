@@ -1456,16 +1456,21 @@ const POSCheckout = () => {
                     id={`grid-input-${idx}-1`}
                     type="text"
                     placeholder="Press Enter to search..."
-                    className="w-full h-full p-1 pl-2 border-none outline-none focus:bg-yellow-100 placeholder-gray-300 font-semibold text-gray-800"
+                    className="w-full h-full p-1 pl-2 pr-8 border-none outline-none focus:bg-yellow-100 placeholder-gray-300 font-semibold text-gray-800"
                     value={row.itemName}
                     onChange={e => handleGridChange(row.id, 'itemName', e.target.value)}
                     onBlur={e => handleItemBlur(row.id, e.target.value)}
                     onKeyDown={e => handleKeyDown(e, idx, 1, row.id, row.itemName)}
+                    onDoubleClick={e => openSearchModal(row.id, e.currentTarget)}
                   />
                   {!row.itemName && (
-                    <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-gray-300">
+                    <button 
+                      onClick={e => openSearchModal(row.id, e.currentTarget)}
+                      type="button"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-600 transition-colors focus:outline-none"
+                    >
                       <Search size={14} />
-                    </div>
+                    </button>
                   )}
                 </td>
                 <td className="legacy-grid-cell p-0">

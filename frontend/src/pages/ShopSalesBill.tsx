@@ -42,6 +42,13 @@ const ShopSalesBill = () => {
   const [billSearchQuery, setBillSearchQuery] = useState('');
   const [sidebarTab, setSidebarTab] = useState<'bills' | 'items'>('bills');
   const [itemSearchQuery, setItemSearchQuery] = useState('');
+
+  // Dress Selection Modal state
+  const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+  const [modalSearchQuery, setModalSearchQuery] = useState('');
+  const [activeRowId, setActiveRowId] = useState<string | null>(null);
+  const [highlightedProductIndex, setHighlightedProductIndex] = useState(0);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   
   // Header State
   const [billNo, setBillNo] = useState('Loading...');
@@ -55,6 +62,54 @@ const ShopSalesBill = () => {
   const [dbProducts, setDbProducts] = useState<any[]>([]);
   const [savedBills, setSavedBills] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // Filter products for the modal search list
+  const modalFilteredProducts = useMemo(() => {
+    const q = modalSearchQuery.toLowerCase().trim();
+    if (!q) return dbProducts;
+    return dbProducts.filter(p => 
+      p.name?.toLowerCase().includes(q) ||
+      p.itemCode?.toLowerCase().includes(q) ||
+      p.barcode?.toLowerCase().includes(q) ||
+      p.variety?.toLowerCase().includes(q) ||
+      p.size?.toLowerCase().includes(q)
+    );
+  }, [dbProducts, modalSearchQuery]);
+
+  // Handle select product from modal
+  const selectProductFromModal = (prod: any) => {
+    if (!activeRowId) return;
+    updateItem(activeRowId, 'itemCode', prod.itemCode || '');
+    setIsProductModalOpen(false);
+    setModalSearchQuery('');
+  };
+
+  // Handle keyboard events in modal search
+  const handleModalKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightedProductIndex(prev => Math.min(prev + 1, modalFilteredProducts.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightedProductIndex(prev => Math.max(0, prev - 1));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (modalFilteredProducts[highlightedProductIndex]) {
+        selectProductFromModal(modalFilteredProducts[highlightedProductIndex]);
+      }
+    } else if (e.key === 'Escape') {
+      setIsProductModalOpen(false);
+    }
+  };
+
+  // Focus modal input on open
+  useEffect(() => {
+    if (isProductModalOpen) {
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 50);
+    }
+  }, [isProductModalOpen]);
 
   // Load shops from Database on mount
   const fetchShops = async () => {
@@ -363,6 +418,18 @@ const ShopSalesBill = () => {
   // Keyboard navigation for fast data entry
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>, _idx?: number, _field?: string) => {
     if (e.key === 'Enter') {
+      if (_field === 'itemCode') {
+        const val = (e.target as HTMLInputElement).value.trim();
+        const found = dbProducts.find(p => p.itemCode?.toLowerCase() === val.toLowerCase() || p.barcode?.toLowerCase() === val.toLowerCase());
+        if (!found) {
+          e.preventDefault();
+          setActiveRowId(_idx !== undefined ? items[_idx].id : null);
+          setModalSearchQuery(val);
+          setHighlightedProductIndex(0);
+          setIsProductModalOpen(true);
+          return;
+        }
+      }
       e.preventDefault();
       const formElements = Array.from(
         document.querySelectorAll('table tbody input, table tbody select')
@@ -788,24 +855,45 @@ const ShopSalesBill = () => {
                           )}
                         </td>
                         <td className="border-r border-gray-300 p-0">
-                          <div className="flex items-center relative pr-1">
+                          <div className="flex items-center relative pr-1 min-w-[160px]">
                             <input 
                               type="text" 
                               list="item-catalog"
                               value={item.itemCode} 
                               onChange={e => updateItem(item.id, 'itemCode', e.target.value)} 
                               onKeyDown={e => handleKeyDown(e, idx, 'itemCode')}
-                              className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none uppercase pr-8 text-xs font-mono" 
-                              placeholder="ITM..." 
+                              onDoubleClick={() => {
+                                setActiveRowId(item.id);
+                                setModalSearchQuery(item.itemCode || '');
+                                setHighlightedProductIndex(0);
+                                setIsProductModalOpen(true);
+                              }}
+                              className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none uppercase pr-16 text-xs font-mono font-bold" 
+                              placeholder="Double click to search..." 
                             />
-                            <button
-                              onClick={() => generateCodeForRow(item.id)}
-                              type="button"
-                              className="absolute right-1 px-1 py-0.5 text-[9px] font-bold bg-blue-100 hover:bg-blue-200 active:bg-blue-300 text-blue-700 rounded transition-colors shadow-sm"
-                              title="Auto-generate item code"
-                            >
-                              Gen
-                            </button>
+                            <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center space-x-0.5 z-10">
+                              <button
+                                onClick={() => {
+                                  setActiveRowId(item.id);
+                                  setModalSearchQuery(item.itemCode || '');
+                                  setHighlightedProductIndex(0);
+                                  setIsProductModalOpen(true);
+                                }}
+                                type="button"
+                                className="px-1 py-0.5 text-[9px] font-bold bg-emerald-100 hover:bg-emerald-200 active:bg-emerald-300 text-emerald-700 rounded transition-colors shadow-sm"
+                                title="Search dress table (F2)"
+                              >
+                                Find
+                              </button>
+                              <button
+                                onClick={() => generateCodeForRow(item.id)}
+                                type="button"
+                                className="px-1 py-0.5 text-[9px] font-bold bg-blue-100 hover:bg-blue-200 active:bg-blue-300 text-blue-700 rounded transition-colors shadow-sm"
+                                title="Auto-generate item code"
+                              >
+                                Gen
+                              </button>
+                            </div>
                           </div>
                         </td>
                         <td className="border-r border-gray-300 p-0">
@@ -1236,6 +1324,98 @@ const ShopSalesBill = () => {
           </div>
         </form>
       </Modal>
+
+      {/* Dress Selection Modal */}
+      {isProductModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 backdrop-blur-xs" onClick={() => setIsProductModalOpen(false)}>
+          <div
+            className="bg-white shadow-2xl flex flex-col border border-gray-300 rounded-lg overflow-hidden w-full max-w-4xl h-[500px]"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="bg-[#2b579a] text-white px-4 py-3 flex justify-between items-center shadow-md">
+              <div className="flex items-center space-x-2">
+                <Search size={18} />
+                <span className="font-bold tracking-wide text-sm">Dress/Product Table Lookup</span>
+              </div>
+              <button onClick={() => setIsProductModalOpen(false)} className="text-white hover:text-red-300 font-bold focus:outline-none text-lg">
+                ✕
+              </button>
+            </div>
+
+            {/* Search Input and Help */}
+            <div className="p-3 bg-slate-100 border-b border-gray-300 flex items-center justify-between">
+              <div className="relative flex-1 max-w-lg">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  placeholder="Search by dress name, code, variety, size..."
+                  className="w-full pl-9 pr-3 py-1.5 border border-gray-300 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-sm text-gray-800 shadow-inner font-semibold"
+                  value={modalSearchQuery}
+                  onChange={e => {
+                    setModalSearchQuery(e.target.value);
+                    setHighlightedProductIndex(0);
+                  }}
+                  onKeyDown={handleModalKeyDown}
+                />
+              </div>
+              <div className="text-[11px] text-slate-600 bg-white border border-slate-200 rounded px-2.5 py-1.5 shadow-sm space-x-3 flex font-medium">
+                <span><kbd className="bg-slate-100 border border-slate-300 rounded px-1 text-[9px] font-bold">↑</kbd> <kbd className="bg-slate-100 border border-slate-300 rounded px-1 text-[9px] font-bold">↓</kbd> Navigate</span>
+                <span><kbd className="bg-slate-100 border border-slate-300 rounded px-1 text-[9px] font-bold">Enter</kbd> Select</span>
+                <span><kbd className="bg-slate-100 border border-slate-300 rounded px-1 text-[9px] font-bold">Esc</kbd> Close</span>
+              </div>
+            </div>
+
+            {/* List Table Headers */}
+            <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-slate-200 border-b border-slate-300 text-xs font-bold text-slate-700 uppercase tracking-wider">
+              <div className="col-span-2">Item Code</div>
+              <div className="col-span-4">Dress Name</div>
+              <div className="col-span-2">Variety</div>
+              <div className="col-span-1 text-center">Size</div>
+              <div className="col-span-1 text-center">Stock</div>
+              <div className="col-span-2 text-right">Price (₹)</div>
+            </div>
+
+            {/* List Body */}
+            <div className="overflow-y-auto flex-1 bg-white">
+              {modalFilteredProducts.map((p, idx) => (
+                <div
+                  key={p.id || idx}
+                  className={`grid grid-cols-12 gap-2 px-4 py-2.5 border-b border-slate-100 cursor-pointer items-center text-sm transition-colors ${idx === highlightedProductIndex ? 'bg-blue-100 text-blue-900 font-bold border-l-4 border-blue-600' : 'hover:bg-slate-50 text-slate-800'}`}
+                  onClick={() => selectProductFromModal(p)}
+                >
+                  <div className="col-span-2 font-mono font-bold text-blue-700">
+                    {p.itemCode || '-'}
+                  </div>
+                  <div className="col-span-4 font-semibold">
+                    {p.name}
+                  </div>
+                  <div className="col-span-2 text-xs font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100 w-fit">
+                    {p.variety || '-'}
+                  </div>
+                  <div className="col-span-1 text-center font-bold text-amber-700 bg-amber-50 px-1 py-0.5 rounded border border-amber-100 text-xs">
+                    {p.size || '-'}
+                  </div>
+                  <div className="col-span-1 text-center">
+                    <span className={`px-1.5 py-0.5 rounded-full text-xs font-bold ${p.stock > 10 ? 'bg-green-100 text-green-800' : p.stock > 0 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}`}>
+                      {p.stock}
+                    </span>
+                  </div>
+                  <div className="col-span-2 text-right font-mono font-extrabold text-slate-800">
+                    {Number(p.price || 0).toFixed(2)}
+                  </div>
+                </div>
+              ))}
+              {modalFilteredProducts.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-16 text-gray-400 italic">
+                  No matching dresses found in master catalog.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

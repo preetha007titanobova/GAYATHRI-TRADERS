@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useOutletContext, useLocation, useNavigate } from 'react-router-dom';
-import { Plus, Trash2, Calendar, FileText, Printer, ArrowLeft, RefreshCw, ClipboardList } from 'lucide-react';
+import { Plus, Trash2, Calendar, FileText, Printer, ArrowLeft, RefreshCw, ClipboardList, Search } from 'lucide-react';
 import Api from '../Api';
 
 interface SalesOrderItemLine {
@@ -321,6 +321,61 @@ const SalesOrder = () => {
   });
 
   const isReadOnly = status === 'Completed' || status === 'Cancelled';
+
+  // Dress Selection Modal state
+  const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+  const [modalSearchQuery, setModalSearchQuery] = useState('');
+  const [activeRowId, setActiveRowId] = useState<string | null>(null);
+  const [highlightedProductIndex, setHighlightedProductIndex] = useState(0);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Filter products for the modal search list
+  const modalFilteredProducts = useMemo(() => {
+    const q = modalSearchQuery.toLowerCase().trim();
+    if (!q) return availableProducts;
+    return availableProducts.filter(p => 
+      p.name?.toLowerCase().includes(q) ||
+      p.itemCode?.toLowerCase().includes(q) ||
+      p.barcode?.toLowerCase().includes(q) ||
+      p.variety?.toLowerCase().includes(q) ||
+      p.size?.toLowerCase().includes(q)
+    );
+  }, [availableProducts, modalSearchQuery]);
+
+  // Handle select product from modal
+  const selectProductFromModal = (prod: any) => {
+    if (!activeRowId) return;
+    handleItemChange(activeRowId, 'itemCode', prod.itemCode || '');
+    setIsProductModalOpen(false);
+    setModalSearchQuery('');
+  };
+
+  // Handle keyboard events in modal search
+  const handleModalKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightedProductIndex(prev => Math.min(prev + 1, modalFilteredProducts.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightedProductIndex(prev => Math.max(0, prev - 1));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (modalFilteredProducts[highlightedProductIndex]) {
+        selectProductFromModal(modalFilteredProducts[highlightedProductIndex]);
+      }
+    } else if (e.key === 'Escape') {
+      setIsProductModalOpen(false);
+    }
+  };
+
+  // Focus modal input on open
+  useEffect(() => {
+    if (isProductModalOpen) {
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 50);
+    }
+  }, [isProductModalOpen]);
 
   // Fetch initial data
   useEffect(() => {
@@ -902,14 +957,51 @@ const SalesOrder = () => {
                       <tr key={item.lineId} className="hover:bg-slate-50/50 transition-colors">
                         <td className="p-2 text-center text-slate-400 font-bold">{idx + 1}</td>
                         <td className="p-2">
-                          <input 
-                            type="text" 
-                            value={item.itemCode}
-                            onChange={e => handleItemChange(item.lineId, 'itemCode', e.target.value)}
-                            disabled={isReadOnly}
-                            placeholder="Search Code..."
-                            className="w-full bg-transparent border border-slate-200 rounded px-2 py-1 focus:border-blue-500 outline-none"
-                          />
+                          <div className="flex items-center relative pr-1 min-w-[150px]">
+                            <input 
+                              type="text" 
+                              value={item.itemCode}
+                              onChange={e => handleItemChange(item.lineId, 'itemCode', e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') {
+                                  const val = (e.target as HTMLInputElement).value.trim();
+                                  const found = availableProducts.find(p => p.itemCode?.toLowerCase() === val.toLowerCase() || p.barcode?.toLowerCase() === val.toLowerCase());
+                                  if (!found) {
+                                    e.preventDefault();
+                                    setActiveRowId(item.lineId);
+                                    setModalSearchQuery(val);
+                                    setHighlightedProductIndex(0);
+                                    setIsProductModalOpen(true);
+                                  }
+                                }
+                              }}
+                              onDoubleClick={() => {
+                                if (isReadOnly) return;
+                                setActiveRowId(item.lineId);
+                                setModalSearchQuery(item.itemCode || '');
+                                setHighlightedProductIndex(0);
+                                setIsProductModalOpen(true);
+                              }}
+                              disabled={isReadOnly}
+                              placeholder="Double click to search..."
+                              className="w-full bg-transparent border border-slate-200 rounded pl-2 pr-12 py-1 focus:border-blue-500 outline-none text-xs font-mono font-bold"
+                            />
+                            {!isReadOnly && (
+                              <button
+                                onClick={() => {
+                                  setActiveRowId(item.lineId);
+                                  setModalSearchQuery(item.itemCode || '');
+                                  setHighlightedProductIndex(0);
+                                  setIsProductModalOpen(true);
+                                }}
+                                type="button"
+                                className="absolute right-1 px-1.5 py-0.5 text-[9px] font-bold bg-emerald-100 hover:bg-emerald-200 active:bg-emerald-300 text-emerald-700 rounded transition-colors shadow-sm"
+                                title="Search dress table"
+                              >
+                                Find
+                              </button>
+                            )}
+                          </div>
                         </td>
                         <td className="p-2">
                           <input 
@@ -1115,6 +1207,97 @@ const SalesOrder = () => {
           </div>
         </div>
       </div>
+      {/* Dress Selection Modal */}
+      {isProductModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 backdrop-blur-xs" onClick={() => setIsProductModalOpen(false)}>
+          <div
+            className="bg-white shadow-2xl flex flex-col border border-gray-300 rounded-lg overflow-hidden w-full max-w-4xl h-[500px]"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="bg-[#2b579a] text-white px-4 py-3 flex justify-between items-center shadow-md">
+              <div className="flex items-center space-x-2">
+                <Search size={18} />
+                <span className="font-bold tracking-wide text-sm">Dress/Product Table Lookup</span>
+              </div>
+              <button onClick={() => setIsProductModalOpen(false)} className="text-white hover:text-red-300 font-bold focus:outline-none text-lg">
+                ✕
+              </button>
+            </div>
+
+            {/* Search Input and Help */}
+            <div className="p-3 bg-slate-100 border-b border-gray-300 flex items-center justify-between">
+              <div className="relative flex-1 max-w-lg">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  placeholder="Search by dress name, code, variety, size..."
+                  className="w-full pl-9 pr-3 py-1.5 border border-gray-300 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-sm text-gray-800 shadow-inner font-semibold"
+                  value={modalSearchQuery}
+                  onChange={e => {
+                    setModalSearchQuery(e.target.value);
+                    setHighlightedProductIndex(0);
+                  }}
+                  onKeyDown={handleModalKeyDown}
+                />
+              </div>
+              <div className="text-[11px] text-slate-600 bg-white border border-slate-200 rounded px-2.5 py-1.5 shadow-sm space-x-3 flex font-medium">
+                <span><kbd className="bg-slate-100 border border-slate-300 rounded px-1 text-[9px] font-bold">↑</kbd> <kbd className="bg-slate-100 border border-slate-300 rounded px-1 text-[9px] font-bold">↓</kbd> Navigate</span>
+                <span><kbd className="bg-slate-100 border border-slate-300 rounded px-1 text-[9px] font-bold">Enter</kbd> Select</span>
+                <span><kbd className="bg-slate-100 border border-slate-300 rounded px-1 text-[9px] font-bold">Esc</kbd> Close</span>
+              </div>
+            </div>
+
+            {/* List Table Headers */}
+            <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-slate-200 border-b border-slate-300 text-xs font-bold text-slate-700 uppercase tracking-wider">
+              <div className="col-span-2">Item Code</div>
+              <div className="col-span-4">Dress Name</div>
+              <div className="col-span-2">Variety</div>
+              <div className="col-span-1 text-center">Size</div>
+              <div className="col-span-1 text-center">Stock</div>
+              <div className="col-span-2 text-right">Price (₹)</div>
+            </div>
+
+            {/* List Body */}
+            <div className="overflow-y-auto flex-1 bg-white">
+              {modalFilteredProducts.map((p, idx) => (
+                <div
+                  key={p.id || idx}
+                  className={`grid grid-cols-12 gap-2 px-4 py-2.5 border-b border-slate-100 cursor-pointer items-center text-sm transition-colors ${idx === highlightedProductIndex ? 'bg-blue-100 text-blue-900 font-bold border-l-4 border-blue-600' : 'hover:bg-slate-50 text-slate-800'}`}
+                  onClick={() => selectProductFromModal(p)}
+                >
+                  <div className="col-span-2 font-mono font-bold text-blue-700">
+                    {p.itemCode || '-'}
+                  </div>
+                  <div className="col-span-4 font-semibold">
+                    {p.name}
+                  </div>
+                  <div className="col-span-2 text-xs font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100 w-fit">
+                    {p.variety || '-'}
+                  </div>
+                  <div className="col-span-1 text-center font-bold text-amber-700 bg-amber-50 px-1 py-0.5 rounded border border-amber-100 text-xs">
+                    {p.size || '-'}
+                  </div>
+                  <div className="col-span-1 text-center">
+                    <span className={`px-1.5 py-0.5 rounded-full text-xs font-bold ${p.stock > 10 ? 'bg-green-100 text-green-800' : p.stock > 0 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}`}>
+                      {p.stock}
+                    </span>
+                  </div>
+                  <div className="col-span-2 text-right font-mono font-extrabold text-slate-800">
+                    {Number(p.price || 0).toFixed(2)}
+                  </div>
+                </div>
+              ))}
+              {modalFilteredProducts.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-16 text-gray-400 italic">
+                  No matching dresses found in master catalog.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
