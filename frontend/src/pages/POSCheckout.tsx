@@ -660,6 +660,8 @@ const POSCheckout = () => {
         if (setGlobalNotification) setGlobalNotification({ msg: `Sales Bill ${invoiceNo} saved successfully!`, type: 'success' });
         if (editingBillId) {
           setTimeout(() => navigate('/sales-register'), 1500);
+        } else if (fromSalesOrderId) {
+          setTimeout(() => navigate('/sales-register', { state: { activeTab: 'orders' } }), 1500);
         } else {
           setTimeout(() => {
             resetPageState();

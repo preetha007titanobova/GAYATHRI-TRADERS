@@ -572,7 +572,7 @@ const SalesOrder = () => {
         if (setGlobalNotification) {
           setGlobalNotification({msg: `Sales Order Saved Successfully!`, type: 'success'});
         }
-        setTimeout(() => navigate('/sales-register'), 1000);
+        setTimeout(() => navigate('/sales-register', { state: { activeTab: 'orders' } }), 1000);
       } else {
         if (setGlobalNotification) {
           setGlobalNotification({msg: "Failed to save: " + data.error, type: 'error'});
@@ -641,7 +641,7 @@ const SalesOrder = () => {
         handleConvertToBill();
       } else if (e.key === 'Escape') {
         e.preventDefault();
-        navigate('/sales-register');
+        navigate('/sales-register', { state: { activeTab: 'orders' } });
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -655,7 +655,7 @@ const SalesOrder = () => {
       <div className="bg-white border-b border-slate-200 px-4 py-2 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center space-x-3">
           <button 
-            onClick={() => navigate('/sales-register')}
+            onClick={() => navigate('/sales-register', { state: { activeTab: 'orders' } })}
             className="p-1.5 hover:bg-slate-100 rounded-md transition-colors"
             title="Back (ESC)"
           >
@@ -748,9 +748,9 @@ const SalesOrder = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Customer / Client</label>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Customer / Client Ledger</label>
                 <select 
-                  value={customer} 
+                  value={availableCustomers.some(c => c.accountName === customer) ? customer : ""} 
                   onChange={e => setCustomer(e.target.value)}
                   disabled={isReadOnly}
                   className="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm bg-white outline-none focus:border-blue-500"
@@ -762,7 +762,19 @@ const SalesOrder = () => {
                 </select>
               </div>
 
-              {customer && (
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Customer Name</label>
+                <input 
+                  type="text" 
+                  value={customer} 
+                  onChange={e => setCustomer(e.target.value)}
+                  disabled={isReadOnly}
+                  className="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm outline-none focus:border-blue-500"
+                  placeholder="Enter Customer Name"
+                />
+              </div>
+
+              {availableCustomers.some(c => c.accountName === customer) && (
                 <div className="bg-slate-50 border border-slate-200 p-2.5 rounded-md space-y-1.5 text-xs text-slate-600">
                   <div className="flex justify-between">
                     <span>Credit Limit:</span>
@@ -786,6 +798,18 @@ const SalesOrder = () => {
                   disabled={isReadOnly}
                   className="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm outline-none focus:border-blue-500"
                   placeholder="Phone No"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Customer Address</label>
+                <textarea 
+                  value={address} 
+                  onChange={e => setAddress(e.target.value)}
+                  disabled={isReadOnly}
+                  className="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm outline-none focus:border-blue-500"
+                  placeholder="Address"
+                  rows={2}
                 />
               </div>
 
