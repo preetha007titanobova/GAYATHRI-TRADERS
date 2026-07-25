@@ -678,9 +678,9 @@ const StockRegister = () => {
     <div className="flex flex-col h-full bg-[#f0f9f4] p-2 overflow-hidden">
       
       {/* HEADER RIBBON */}
-      <div className="bg-white p-3 border border-gray-400 shadow-sm rounded mb-2 flex-shrink-0 flex justify-between items-center print:hidden">
+      <div className="bg-white p-3 border border-gray-400 shadow-sm rounded mb-2 flex-shrink-0 flex flex-wrap justify-between items-center gap-3 print:hidden">
         
-        <div className="flex items-center space-x-6">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="flex space-x-1 bg-gray-100 p-1 rounded border border-gray-300">
             <button
               onClick={() => setViewMode('summary')}
@@ -761,7 +761,7 @@ const StockRegister = () => {
           )}
         </div>
 
-        <div className="flex items-center space-x-3">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center bg-[#f0f4f8] border border-[#d1d9e0] p-1.5 rounded-md">
              <span className="font-bold text-[#2b579a] flex items-center text-sm mr-2 pl-2"><Calendar size={16} className="mr-1.5"/> Period:</span>
              <select 
@@ -968,13 +968,14 @@ const StockRegister = () => {
                     <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-28 text-right text-green-300">Inward Qty</th>
                     <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-28 text-right text-red-300">Outward Qty</th>
                     <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-32 text-right text-orange-300">Damages</th>
+                    <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-40 text-left text-orange-200">Damage Reason</th>
                     <th className="p-2 text-xs font-semibold w-32 text-right text-yellow-300">Running Bal.</th>
                   </tr>
                 </thead>
                 <tbody>
                   {activeLedger.rows.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="p-12 text-center text-gray-400">
+                      <td colSpan={9} className="p-12 text-center text-gray-400">
                         <div className="flex flex-col items-center">
                           <FileText size={32} className="mb-2 opacity-50" />
                           <p className="italic text-sm">No stock movements found for this period.</p>
@@ -996,12 +997,20 @@ const StockRegister = () => {
                           <td 
                             className="border-r border-gray-200 p-2 text-right font-mono font-bold text-orange-600 bg-orange-50/10 cursor-pointer hover:bg-orange-100/30"
                             onClick={() => handleOpenDamagesModal(row)}
-                            title={row.damageReason ? `Reason: ${row.damageReason}` : 'Click to enter damages'}
+                            title="Click to enter/edit damages"
                           >
-                            <div className="flex items-center justify-between">
-                              <span className="text-[10px] text-gray-400 italic max-w-[90px] truncate">{row.damageReason}</span>
-                              <span>{row.damageQty > 0 ? row.damageQty : '-'}</span>
-                            </div>
+                            {row.damageQty > 0 ? row.damageQty : '-'}
+                          </td>
+                          <td 
+                            className="border-r border-gray-200 p-2 text-left text-xs font-medium bg-orange-50/5 cursor-pointer hover:bg-orange-100/20"
+                            onClick={() => handleOpenDamagesModal(row)}
+                            title="Click to enter/edit damage reason"
+                          >
+                            {row.damageReason ? (
+                              <span className="text-gray-800 font-semibold">{row.damageReason}</span>
+                            ) : (
+                              <span className="text-gray-400 italic">If any damages, enter the reason here...</span>
+                            )}
                           </td>
                           <td className="p-2 text-right font-mono font-black text-gray-900 bg-yellow-50/20">{row.balance}</td>
                         </tr>
