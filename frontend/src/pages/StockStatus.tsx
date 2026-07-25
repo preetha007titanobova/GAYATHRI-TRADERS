@@ -220,7 +220,18 @@ const StockStatus = () => {
                   const qty = Math.max(0, item.stock || 0);
                   const minReorder = item.minReorder || 10; // Defaulting to 10 if not set
                   const isLow = qty < minReorder;
-                  const { totalQty: dmgQty, reasons: dmgReasons } = getProductDamages(item.id || item._id || '', item.itemCode || '');
+                  const { reasons: localDmgReasons } = getProductDamages(item.id || item._id || '', item.itemCode || '');
+                  const dbDamageReasons = (item as any).damageReasons || [];
+                  const combinedDmgReasonsList: string[] = [];
+                  if (localDmgReasons && localDmgReasons !== '-') {
+                    combinedDmgReasonsList.push(`Manual: ${localDmgReasons}`);
+                  }
+                  dbDamageReasons.forEach((r: string) => {
+                    combinedDmgReasonsList.push(`Customer Return: ${r}`);
+                  });
+                  const hoverTitle = combinedDmgReasonsList.length > 0 
+                    ? `Damage / Return Reasons:\n• ${combinedDmgReasonsList.join('\n• ')}` 
+                    : 'No damage reasons logged';
 
                   return (
                     <tr key={item.id || item._id || idx} className={`border-b border-gray-200 transition-colors ${isLow ? 'bg-red-50/70 hover:bg-red-100/70' : (idx % 2 === 0 ? 'bg-white hover:bg-blue-50' : 'bg-[#fcfdfd] hover:bg-blue-50')}`}>
@@ -242,7 +253,10 @@ const StockStatus = () => {
                           </div>
                         )}
                       </td>
-                      <td className="border-r border-gray-200 p-2 text-right font-mono font-bold text-red-600 bg-red-50/10">
+                      <td 
+                        className="border-r border-gray-200 p-2 text-right font-mono font-bold text-red-600 bg-red-50/10 cursor-help"
+                        title={hoverTitle}
+                      >
                         {item.damagedStock || 0}
                       </td>
                       <td className="border-r border-gray-200 p-2 text-right font-mono text-xs text-gray-500">{minReorder}</td>

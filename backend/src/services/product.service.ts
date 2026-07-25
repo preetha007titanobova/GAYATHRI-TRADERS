@@ -73,6 +73,32 @@ export const searchItems = async (q: string): Promise<any[]> => {
     console.error("Prisma product search error:", e);
   }
 
+  // Fetch defective sales returns to get damage reasons
+  const returnReasonsMap = new Map<string, string[]>();
+  try {
+    const returnItems = await prisma.salesReturnItem.findMany({
+      where: {
+        disposition: { in: ['Defective / Damaged', 'Quarantine & Scrap'] }
+      },
+      include: {
+        salesReturn: true
+      }
+    });
+
+    for (const item of returnItems) {
+      if (item.productId && item.salesReturn) {
+        const prodId = item.productId.toString();
+        const reasonText = `${item.salesReturn.reason || 'No Reason'} (${item.returnQty} pcs from Return ${item.salesReturn.returnNo})`;
+        if (!returnReasonsMap.has(prodId)) {
+          returnReasonsMap.set(prodId, []);
+        }
+        returnReasonsMap.get(prodId)!.push(reasonText);
+      }
+    }
+  } catch (e) {
+    console.error("Error fetching sales return damage reasons:", e);
+  }
+
   const map = new Map();
   [...mongoItems, ...prismaItems].forEach((item: any) => {
     const id = item._id?.toString() || item.id;
@@ -85,7 +111,8 @@ export const searchItems = async (q: string): Promise<any[]> => {
         itemCode: item.itemCode || '',
         size: item.size || '',
         price: Number(item.price) || 0,
-        stock: Math.max(0, Number(item.stock) || 0)
+        stock: Math.max(0, Number(item.stock) || 0),
+        damageReasons: returnReasonsMap.get(id) || []
       });
     }
   });
@@ -476,9 +503,10 @@ export const getStockRegisterReport = async (): Promise<any[]> => {
           date: item.salesReturn.returnDate,
           vchType: 'Sales Return',
           vchNo: item.salesReturn.returnNo,
-          particulars: item.salesReturn.customerName,
+          particulars: `Returned by customer: ${item.salesReturn.customerName}`,
           inward: item.returnQty,
-          outward: 0
+          outward: 0,
+          reason: item.salesReturn.reason
         });
       }
     }

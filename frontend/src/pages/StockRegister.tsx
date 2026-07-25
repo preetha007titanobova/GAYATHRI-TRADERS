@@ -1006,8 +1006,8 @@ const StockRegister = () => {
                             onClick={() => handleOpenDamagesModal(row)}
                             title="Click to enter/edit damage reason"
                           >
-                            {row.damageReason ? (
-                              <span className="text-gray-800 font-semibold">{row.damageReason}</span>
+                            {row.damageReason || row.reason ? (
+                              <span className="text-gray-800 font-semibold">{row.damageReason || row.reason}</span>
                             ) : (
                               <span className="text-gray-400 italic">If any damages, enter the reason here...</span>
                             )}
