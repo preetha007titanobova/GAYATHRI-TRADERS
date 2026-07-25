@@ -4,6 +4,7 @@ import {
   ChevronDown, ChevronRight, FileDown, Printer, Mail, 
   User, Calendar 
 } from 'lucide-react';
+import { useLicense } from '../context/LicenseContext';
 
 // Types
 interface StockItem {
@@ -25,6 +26,7 @@ const MOCK_DATA: StockItem[] = [
 ];
 
 const ModernErpLayout = () => {
+  const { shopName } = useLicense();
   // Navigation State
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     inventory: true,
@@ -189,7 +191,7 @@ const ModernErpLayout = () => {
           </div>
 
           <div className="flex items-center space-x-6">
-            <span className="font-bold text-gray-800 tracking-wide">Sri Gayathri Traders</span>
+            <span className="font-bold text-gray-800 tracking-wide">{shopName}</span>
             
             <div className="h-6 w-px bg-gray-300"></div>
             

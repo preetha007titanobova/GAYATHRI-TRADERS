@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Printer, Save, RotateCcw, Download, Trash2, Plus, Search, Package, Check, Tag, FileDown } from 'lucide-react';
 import Api from '../Api';
+import { useLicense } from '../context/LicenseContext';
 
 interface Product {
   id?: string;
@@ -35,6 +36,7 @@ interface SavedBarcodeItem {
 }
 
 const BarcodeGeneration = () => {
+  const { shopName } = useLicense();
   // --- Form States ---
   const [productName, setProductName] = useState("Men's Shirt");
   const [barcodeValue, setBarcodeValue] = useState('100002');
@@ -223,7 +225,7 @@ const BarcodeGeneration = () => {
       for (let i = 0; i < numLabels; i++) {
         printHtml += `
           <div id="print-label">
-            <div class="header">SRI GAYATHRI TRADERS</div>
+            <div class="header">${shopName}</div>
             <div class="product">${item.productName}</div>
             <div class="meta">${item.department} | ${item.variety} | Size: ${item.size}</div>
             <div class="dates">pkd ${mfgFormatted} Exp ${expFormatted}</div>
@@ -343,7 +345,7 @@ const BarcodeGeneration = () => {
     ctx.fillStyle = '#1e3a8a';
     ctx.font = 'bold 18px Arial';
     ctx.textAlign = 'center';
-    ctx.fillText('SRI GAYATHRI TRADERS', 200, 32);
+    ctx.fillText(shopName, 200, 32);
 
     // Line separator
     ctx.strokeStyle = '#e2e8f0';
@@ -773,7 +775,7 @@ const BarcodeGeneration = () => {
               {/* Store Name */}
               <div className="w-full text-center border-b border-black/20 pb-[0.2mm]">
                 <h1 className="text-[5.5pt] font-extrabold uppercase leading-none m-0 p-0 whitespace-nowrap tracking-tight">
-                  SRI GAYATHRI TRADERS
+                  {shopName}
                 </h1>
               </div>
 

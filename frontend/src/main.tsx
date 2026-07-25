@@ -3,11 +3,14 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App'
 import { ErrorBoundary } from './ErrorBoundary'
+import { LicenseProvider } from './context/LicenseContext'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
-      <App />
+      <LicenseProvider>
+        <App />
+      </LicenseProvider>
     </ErrorBoundary>
   </StrictMode>,
 )

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { Edit, Power, TrendingUp, Lock, Unlock, ChevronDown, ChevronUp } from 'lucide-react';
 import Api from '../Api';
+import { useLicense } from '../context/LicenseContext';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -21,6 +22,7 @@ export type ToolbarActions = {
 };
 
 const Layout = () => {
+  const { shopName, daysRemaining } = useLicense();
   const [toolbarActions, setToolbarActions] = useState<ToolbarActions>({});
   const [globalNotification, setGlobalNotification] = useState<{msg: string, type: 'error' | 'success' | 'info' | ''}>({msg: '', type: ''});
   const [isCalcOpen, setIsCalcOpen] = useState(false);
@@ -33,6 +35,7 @@ const Layout = () => {
   const navigate = useNavigate();
 
   const [isCloseDayModalOpen, setIsCloseDayModalOpen] = useState(false);
+  const [isCloseRequested, setIsCloseRequested] = useState(false);
   const [closeDayLoading, setCloseDayLoading] = useState(false);
   const [ownerWhatsApp, setOwnerWhatsApp] = useState(() => localStorage.getItem('close_day_whatsapp') || '+919876543210');
   const [ownerEmail, setOwnerEmail] = useState(() => localStorage.getItem('close_day_email') || 'titanobovapvt@gmail.com');
@@ -71,6 +74,36 @@ const Layout = () => {
       }
     }
   }, [location.pathname, unlockedReports]);
+
+  useEffect(() => {
+    if ((window as any).api) {
+      (window as any).api.receive('app-close-requested', () => {
+        setIsCloseRequested(true);
+        setIsCloseDayModalOpen(true);
+      });
+    }
+  }, []);
+
+  // Trigger warning to renew the plan: on open and every 4 hours
+  useEffect(() => {
+    if (daysRemaining !== undefined && daysRemaining <= 3 && daysRemaining >= 0) {
+      const showRenewalNotification = () => {
+        setGlobalNotification({
+          msg: `⚠️ Attention: Your license will expire in ${daysRemaining} ${daysRemaining === 1 ? 'day' : 'days'}. Please renew the plan.`,
+          type: 'error'
+        });
+        setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 10000);
+      };
+
+      // 1. Show notification immediately when software opens/loads
+      showRenewalNotification();
+
+      // 2. Show notification every 4 hours
+      const interval = setInterval(showRenewalNotification, 4 * 60 * 60 * 1000);
+      return () => clearInterval(interval);
+    }
+  }, [daysRemaining]);
+
 
   const handleVerifyReportPin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -275,15 +308,23 @@ const Layout = () => {
                              : `*Notification:* Daily PDF stock report has been generated and emailed to ${ownerEmail}.\n\n`) +
                            `Generated automatically via Billing System.`;
 
-      const whatsappUrl = `https://api.whatsapp.com/send?phone=${ownerWhatsApp}&text=${encodeURIComponent(whatsappText)}`;
-      window.open(whatsappUrl, '_blank');
+      // const whatsappUrl = `https://api.whatsapp.com/send?phone=${ownerWhatsApp}&text=${encodeURIComponent(whatsappText)}`;
+      // window.open(whatsappUrl, '_blank');
 
       if (emailFailed) {
-        setGlobalNotification({ msg: `Day closed! WhatsApp opened, but daily report email failed to send (please check SMTP credentials).`, type: 'error' });
+        setGlobalNotification({ msg: `Day closed! Daily report email failed to send (WhatsApp daily stock status share is blocked).`, type: 'error' });
       } else {
-        setGlobalNotification({ msg: `Day closed successfully! Report emailed and WhatsApp opened.`, type: 'success' });
+        setGlobalNotification({ msg: `Day closed successfully! Report emailed (WhatsApp daily stock status share is blocked).`, type: 'success' });
       }
       setIsCloseDayModalOpen(false);
+
+      if (isCloseRequested) {
+        setTimeout(() => {
+          if ((window as any).api) {
+            (window as any).api.send('app-close-confirmed');
+          }
+        }, 1500);
+      }
     } catch (err: any) {
       console.error(err);
       setGlobalNotification({ msg: err.message || 'Error executing Close Day process.', type: 'error' });
@@ -385,8 +426,15 @@ const Layout = () => {
       
       {/* 1. Window Title */}
       <div className="bg-[#2b579a] text-white px-2 py-1 flex items-center text-sm font-semibold">
-        <span className="mr-2">SRI GAYATHRI TRADERS BILLING COUNTER - [{getPageTitle(location.pathname)}]</span>
+        <span className="mr-2">{shopName} BILLING COUNTER - [{getPageTitle(location.pathname)}]</span>
       </div>
+
+      {/* License Renewal Warning Banner (3 days before date of renewal) */}
+      {daysRemaining !== undefined && daysRemaining <= 3 && daysRemaining >= 0 && (
+        <div className="bg-[#ea580c] text-white font-bold text-xs px-4 py-1.5 text-center flex justify-center items-center gap-2 select-text border-b border-orange-700">
+          <span>⚠️ Your license will expire in {daysRemaining} {daysRemaining === 1 ? 'day' : 'days'}. Please contact support to renew your subscription.</span>
+        </div>
+      )}
 
       {/* 2. Main Menu Bar */}
    
@@ -754,10 +802,13 @@ const Layout = () => {
             <div className="bg-[#2b579a] text-white p-3 font-bold flex justify-between items-center">
               <span className="flex items-center space-x-2">
                 <Power size={18} />
-                <span>Close Day Report & Exit</span>
+                <span>{isCloseRequested ? 'Confirm Application Exit' : 'Close Day Report & Exit'}</span>
               </span>
               <button 
-                onClick={() => setIsCloseDayModalOpen(false)}
+                onClick={() => {
+                  setIsCloseDayModalOpen(false);
+                  setIsCloseRequested(false);
+                }}
                 className="text-white hover:text-red-300 font-bold focus:outline-none text-lg"
               >
                 ✕
@@ -765,8 +816,16 @@ const Layout = () => {
             </div>
             
             <form onSubmit={handleCloseDay} className="p-4 space-y-4 text-left">
+              {daysRemaining !== undefined && daysRemaining <= 3 && daysRemaining >= 0 && (
+                <div className="bg-red-100 border border-red-300 text-red-700 px-3 py-2 rounded text-xs font-bold mb-2">
+                  <p className="flex items-center gap-1.5 text-sm mb-1 text-red-800">⚠️ RENEW THE PLAN</p>
+                  <p>Your license expires in {daysRemaining} {daysRemaining === 1 ? 'day' : 'days'}. Please renew the plan to prevent software lockout.</p>
+                </div>
+              )}
               <p className="text-sm font-semibold text-gray-700">
-                Are you sure you want to close the day? This will download the daily stock status PDF, email it to the owner, and open WhatsApp to share the status.
+                {isCloseRequested 
+                  ? 'Would you like to send the daily stock status report via WhatsApp before exiting the application?' 
+                  : 'Are you sure you want to close the day? This will download the daily stock status PDF, email it to the owner, and open WhatsApp to share the status.'}
               </p>
               
               <div className="space-y-3 bg-gray-50 p-3 border border-gray-200 rounded">
@@ -795,21 +854,43 @@ const Layout = () => {
                 </div>
               </div>
               
-              <div className="flex space-x-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsCloseDayModalOpen(false)}
-                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 rounded text-sm transition-colors border border-gray-300"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={closeDayLoading}
-                  className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white font-bold py-2 rounded text-sm transition-colors border border-red-700 shadow"
-                >
-                  {closeDayLoading ? 'Closing Day...' : 'Send & Close Day'}
-                </button>
+              <div className="flex flex-col space-y-2 pt-2">
+                <div className="flex space-x-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCloseDayModalOpen(false);
+                      setIsCloseRequested(false);
+                    }}
+                    className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 rounded text-sm transition-colors border border-gray-300"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={closeDayLoading}
+                    className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white font-bold py-2 rounded text-sm transition-colors border border-red-700 shadow"
+                  >
+                    {closeDayLoading 
+                      ? 'Processing...' 
+                      : isCloseRequested 
+                        ? 'Send & Exit' 
+                        : 'Send & Close Day'}
+                  </button>
+                </div>
+                {isCloseRequested && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if ((window as any).api) {
+                        (window as any).api.send('app-close-confirmed');
+                      }
+                    }}
+                    className="w-full bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 rounded text-sm transition-colors border border-gray-700 shadow"
+                  >
+                    Exit Without Sending
+                  </button>
+                )}
               </div>
             </form>
           </div>

@@ -185,7 +185,7 @@ export const printReceipt = (cartItems: PrintCartItem[], data: PrintReceiptData)
       <body>
         <div class="receipt-container">
           <div class="header">
-            <h1 class="enterprise-name">SRI GAYATHRI TRADERS</h1>
+            <h1 class="enterprise-name">${(data as any).storeName || 'ITHU NAMMA KADA'}</h1>
             <p class="contact-info">Mobile: 8508703636, 8526677999</p>
             <p class="contact-info">TAX INVOICE</p>
           </div>

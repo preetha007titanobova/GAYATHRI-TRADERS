@@ -495,9 +495,9 @@ const ShopSalesRegister = () => {
                    {selectedRecord.items.map((it, i) => (
                      <tr key={i} className="border-b border-gray-200 last:border-0 hover:bg-gray-50">
                        <td className="p-2 font-mono">{it.itemCode}</td>
-                       <td className="p-2 font-mono">{it.vendorItemCode || '-'}</td>
+                       <td className="p-2 font-mono">{(it as any).vendorItemCode || '-'}</td>
                        <td className="p-2">
-                         <div className="font-semibold text-gray-800">{it.itemName || it.itemDesc}</div>
+                         <div className="font-semibold text-gray-800">{it.itemName || (it as any).itemDesc}</div>
                        </td>
                        <td className="p-2 text-right font-mono font-bold">{it.qty}</td>
                        <td className="p-2 text-right font-mono">{it.rate.toFixed(2)}</td>

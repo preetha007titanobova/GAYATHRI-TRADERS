@@ -10,7 +10,17 @@ export const exportBackup = async (req: Request, res: Response) => {
       products: await prisma.product.findMany(),
       ledgers: await prisma.ledger.findMany(),
       salesBills: await prisma.salesBill.findMany(),
-      salesItems: await prisma.salesItem.findMany()
+      salesItems: await prisma.salesItem.findMany(),
+      salesReturns: await prisma.salesReturn.findMany(),
+      salesReturnItems: await prisma.salesReturnItem.findMany(),
+      purchaseBills: await prisma.purchaseBill.findMany(),
+      purchaseItems: await prisma.purchaseItem.findMany(),
+      salesOrders: await prisma.salesOrder.findMany(),
+      salesOrderItems: await prisma.salesOrderItem.findMany(),
+      staff: await prisma.staff.findMany(),
+      staffAttendances: await prisma.staffAttendance.findMany(),
+      shopSalesBills: await prisma.shopSalesBill.findMany(),
+      shopSalesItems: await prisma.shopSalesItem.findMany()
     };
     
     res.setHeader('Content-disposition', `attachment; filename=ERP_Backup_${new Date().toISOString().split('T')[0]}.json`);
@@ -24,10 +34,25 @@ export const exportBackup = async (req: Request, res: Response) => {
 
 export const restoreBackup = async (req: Request, res: Response) => {
   try {
-    const { users, categories, products, ledgers, salesBills, salesItems } = req.body;
+    const { 
+      users, categories, products, ledgers, salesBills, salesItems,
+      salesReturns, salesReturnItems, purchaseBills, purchaseItems,
+      salesOrders, salesOrderItems, staff, staffAttendances,
+      shopSalesBills, shopSalesItems
+    } = req.body;
     
     await prisma.$transaction(async (tx) => {
-      // 1. Wipe current collections
+      // 1. Wipe current collections (order to prevent foreign keys issues if any)
+      await tx.shopSalesItem.deleteMany();
+      await tx.shopSalesBill.deleteMany();
+      await tx.staffAttendance.deleteMany();
+      await tx.staff.deleteMany();
+      await tx.salesOrderItem.deleteMany();
+      await tx.salesOrder.deleteMany();
+      await tx.purchaseItem.deleteMany();
+      await tx.purchaseBill.deleteMany();
+      await tx.salesReturnItem.deleteMany();
+      await tx.salesReturn.deleteMany();
       await tx.salesItem.deleteMany();
       await tx.salesBill.deleteMany();
       await tx.product.deleteMany();
@@ -42,6 +67,16 @@ export const restoreBackup = async (req: Request, res: Response) => {
       if (ledgers && ledgers.length > 0) await tx.ledger.createMany({ data: ledgers });
       if (salesBills && salesBills.length > 0) await tx.salesBill.createMany({ data: salesBills });
       if (salesItems && salesItems.length > 0) await tx.salesItem.createMany({ data: salesItems });
+      if (salesReturns && salesReturns.length > 0) await tx.salesReturn.createMany({ data: salesReturns });
+      if (salesReturnItems && salesReturnItems.length > 0) await tx.salesReturnItem.createMany({ data: salesReturnItems });
+      if (purchaseBills && purchaseBills.length > 0) await tx.purchaseBill.createMany({ data: purchaseBills });
+      if (purchaseItems && purchaseItems.length > 0) await tx.purchaseItem.createMany({ data: purchaseItems });
+      if (salesOrders && salesOrders.length > 0) await tx.salesOrder.createMany({ data: salesOrders });
+      if (salesOrderItems && salesOrderItems.length > 0) await tx.salesOrderItem.createMany({ data: salesOrderItems });
+      if (staff && staff.length > 0) await tx.staff.createMany({ data: staff });
+      if (staffAttendances && staffAttendances.length > 0) await tx.staffAttendance.createMany({ data: staffAttendances });
+      if (shopSalesBills && shopSalesBills.length > 0) await tx.shopSalesBill.createMany({ data: shopSalesBills });
+      if (shopSalesItems && shopSalesItems.length > 0) await tx.shopSalesItem.createMany({ data: shopSalesItems });
     });
 
     res.json({ success: true, message: 'Database restored successfully' });

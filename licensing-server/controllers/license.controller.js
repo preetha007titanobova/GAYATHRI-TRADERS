@@ -140,6 +140,7 @@ async function createLicense(req, res) {
             const now = new Date();
             if (planType === 'Monthly') calculatedExpiry = new Date(now.setMonth(now.getMonth() + 1));
             else if (planType === '3-Month') calculatedExpiry = new Date(now.setMonth(now.getMonth() + 3));
+            else if (planType === '6-Month') calculatedExpiry = new Date(now.setMonth(now.getMonth() + 6));
             else if (planType === 'Annual') calculatedExpiry = new Date(now.setFullYear(now.getFullYear() + 1));
             else if (planType === 'Trial') calculatedExpiry = new Date(now.setDate(now.getDate() + 7));
         }
@@ -242,7 +243,7 @@ async function renewLicense(req, res) {
             license.expiresAt = new Date(expiresAt);
         } else {
             const baseDate = license.expiresAt && license.expiresAt > new Date() ? license.expiresAt : new Date();
-            const months = monthsToAdd ? parseInt(monthsToAdd) : (planType === 'Annual' ? 12 : (planType === '3-Month' ? 3 : 1));
+            const months = monthsToAdd ? parseInt(monthsToAdd) : (planType === 'Annual' ? 12 : (planType === '6-Month' ? 6 : (planType === '3-Month' ? 3 : 1)));
             baseDate.setMonth(baseDate.getMonth() + months);
             license.expiresAt = baseDate;
         }

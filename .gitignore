@@ -3,3 +3,7 @@ node_modules/
 .DS_Store
 dist/
 build/
+electron/dist-packaged/
+admin-portal/dist/
+backend/dist/
+backend/src/generated/

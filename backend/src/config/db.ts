@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../generated/client';
 import { MongoClient } from 'mongodb';
 import dotenv from 'dotenv';
 import dns from 'dns';

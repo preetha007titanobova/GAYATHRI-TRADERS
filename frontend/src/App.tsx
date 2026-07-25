@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { useEffect } from 'react';
 import Layout from './components/Layout';
 
 // Modules
@@ -30,8 +31,15 @@ import BalanceSheet from './pages/BalanceSheet';
 import StaffMaster from './pages/StaffMaster';
 import StaffAttendance from './pages/StaffAttendance';
 import ModernErpLayout from './pages/ModernErpLayout';
+import Activation from './pages/Activation';
 
 function App() {
+  useEffect(() => {
+    if ((window as any).api) {
+      (window as any).api.send('app-ready');
+    }
+  }, []);
+
   return (
     <Router>
       <Routes>
@@ -78,6 +86,7 @@ function App() {
           <Route path="balance-sheet" element={<BalanceSheet />} />
         </Route>
         <Route path="/modern" element={<ModernErpLayout />} />
+        <Route path="/activation" element={<Activation />} />
       </Routes>
     </Router>
   );

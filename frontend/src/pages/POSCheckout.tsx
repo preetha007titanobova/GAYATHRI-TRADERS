@@ -817,7 +817,11 @@ const POSCheckout = () => {
   };
 
   const handleSendWhatsApp = () => {
-    const validItems = gridData.filter(row => row.itemName && row.qty > 0);
+    if (setGlobalNotification) {
+      setGlobalNotification({ msg: "❌ Customer WhatsApp bill sharing is blocked. Please renew the plan.", type: 'error' });
+      setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
+    }
+    return;
     if (validItems.length === 0) {
       if (setGlobalNotification) {
         setGlobalNotification({ msg: "Please add at least one item before sending WhatsApp bill.", type: 'error' });
@@ -850,6 +854,10 @@ const POSCheckout = () => {
   };
 
   const handleInstantCheckout = async () => {
+    if (setGlobalNotification) {
+      setGlobalNotification({ msg: "⚠️ WhatsApp feature is blocked. Please renew the plan.", type: 'error' });
+      setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
+    }
     const validItems = gridData.filter(row => row.itemName && row.qty > 0 && row.rate > 0);
     if (validItems.length === 0) {
       if (setGlobalNotification) {
@@ -1764,7 +1772,7 @@ const POSCheckout = () => {
               <div className="w-full bg-blue-50 border border-blue-200 p-2.5 rounded-md text-left text-xs font-mono">
                 <div className="flex justify-between text-gray-700 mb-1">
                   <span>Merchant UPI ID:</span>
-                  <strong className="text-blue-900 font-bold select-all">srigayathritraders@upi</strong>
+                  <strong className="text-blue-900 font-bold select-all">ithunammakada@upi</strong>
                 </div>
                 <div className="flex justify-between text-gray-900 font-bold text-sm border-t border-blue-200 pt-1">
                   <span>Amount Payable:</span>

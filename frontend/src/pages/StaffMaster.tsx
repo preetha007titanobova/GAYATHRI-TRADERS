@@ -128,12 +128,11 @@ const StaffMaster = () => {
   };
 
   const handleOpenFingerprintScanner = (slot: 1 | 2, staffItem?: any) => {
-    if (staffItem) {
-      handleEdit(staffItem);
+    if (setGlobalNotification) {
+      setGlobalNotification({ msg: "❌ Biometric registration is blocked.", type: 'error' });
+      setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
     }
-    setActiveFingerSlot(slot);
-    setScanMessage(`Place finger ${slot} on fingerprint scanner sensor...`);
-    setIsFingerprintModalOpen(true);
+    return;
   };
 
   const handleCaptureFingerprint = async () => {

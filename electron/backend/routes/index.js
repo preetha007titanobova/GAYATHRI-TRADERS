@@ -1,0 +1,26 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const ledger_route_1 = __importDefault(require("./ledger.route"));
+const product_route_1 = __importDefault(require("./product.route"));
+const sales_route_1 = __importDefault(require("./sales.route"));
+const quotation_route_1 = __importDefault(require("./quotation.route"));
+const backup_route_1 = __importDefault(require("./backup.route"));
+const statistics_route_1 = __importDefault(require("./statistics.route"));
+const purchase_route_1 = __importDefault(require("./purchase.route"));
+const staff_route_1 = __importDefault(require("./staff.route"));
+const shopSales_route_1 = __importDefault(require("./shopSales.route"));
+const router = (0, express_1.Router)();
+router.use('/ledgers', ledger_route_1.default);
+router.use('/products', product_route_1.default);
+router.use('/sales', sales_route_1.default);
+router.use('/quotations', quotation_route_1.default);
+router.use('/backup', backup_route_1.default);
+router.use('/statistics', statistics_route_1.default);
+router.use('/purchase-bills', purchase_route_1.default);
+router.use('/staff', staff_route_1.default);
+router.use('/shop-sales-bills', shopSales_route_1.default);
+exports.default = router;

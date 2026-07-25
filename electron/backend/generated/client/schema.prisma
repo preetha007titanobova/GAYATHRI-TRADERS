@@ -1,0 +1,325 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/client"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String        @id @default(auto()) @map("_id") @db.ObjectId
+  email        String        @unique
+  password     String
+  role         String        @default("CASHIER")
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  sales        SalesBill[]
+  salesReturns SalesReturn[]
+}
+
+model Category {
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  name      String    @unique
+  products  Product[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Product {
+  id               String            @id @default(auto()) @map("_id") @db.ObjectId
+  itemCode         String?           @unique
+  name             String
+  barcode          String?           @unique
+  uom              String?           @default("PCS")
+  purchaseRate     Float             @default(0)
+  price            Float // This acts as Sales Rate
+  mrp              Float             @default(0)
+  taxPercent       Float             @default(0)
+  stock            Int               @default(0) // Acts as Physical Stock
+  committedStock   Int               @default(0) // Sales Orders hold this stock
+  categoryId       String?           @db.ObjectId
+  category         Category?         @relation(fields: [categoryId], references: [id])
+  department       String?
+  variety          String?
+  size             String?
+  factory          String?
+  vendorItemCode   String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  salesItems       SalesItem[]
+  salesReturnItems SalesReturnItem[]
+  purchaseItems    PurchaseItem[]
+  salesOrderItems  SalesOrderItem[]
+  shopSalesItems   ShopSalesItem[]
+}
+
+model SalesBill {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  invoiceNo   String   @unique
+  invDate     DateTime @default(now())
+  payDays     Int      @default(0)
+  buyerName   String
+  address     String?
+  eType       String   @default("Local")
+  mobileNo    String?
+  gstNo       String?
+  printIn     String?
+  invFormat   String?
+  paymentMode String?  @default("Cash")
+
+  totalQty        Float
+  totalAmount     Float
+  cgst            Float
+  sgst            Float
+  roundOff        Float
+  netAmount       Float
+  remarks         String?
+  shippingAddress String?
+
+  userId    String?     @db.ObjectId
+  user      User?       @relation(fields: [userId], references: [id])
+  items     SalesItem[]
+  createdAt DateTime    @default(now())
+}
+
+model SalesItem {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  salesBillId String    @db.ObjectId
+  salesBill   SalesBill @relation(fields: [salesBillId], references: [id], onDelete: Cascade)
+  productId   String?   @db.ObjectId
+  product     Product?  @relation(fields: [productId], references: [id])
+  itemName    String // Storing static name in case product gets deleted
+  itemDesc    String?
+  qty         Float
+  uom         String?
+  rate        Float
+  discPercent Float     @default(0)
+  discAmt     Float     @default(0)
+  amount      Float
+}
+
+model Ledger {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  ledgerCode     String   @unique
+  accountName    String
+  accountGroup   String
+  contactPerson  String?
+  mobileNo       String?
+  email          String?
+  panNo          String?
+  address        String?
+  city           String?
+  state          String?
+  pincode        String?
+  gstNo          String?
+  bankName       String?
+  accountNo      String?
+  ifscCode       String?
+  openingBalance Float    @default(0)
+  drCr           String   @default("Dr")
+  creditLimit    Float    @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model SalesReturn {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  returnNo        String   @unique
+  returnDate      DateTime @default(now())
+  originalInvoice String
+  customerName    String
+  reason          String
+  paymentMode     String?  @default("Cash")
+
+  totalReturnAmount Float
+  cgstReturn        Float
+  sgstReturn        Float
+  igstReturn        Float
+  roundOff          Float
+  netRefundAmount   Float
+
+  userId    String?           @db.ObjectId
+  user      User?             @relation(fields: [userId], references: [id])
+  items     SalesReturnItem[]
+  createdAt DateTime          @default(now())
+}
+
+model SalesReturnItem {
+  id            String      @id @default(auto()) @map("_id") @db.ObjectId
+  salesReturnId String      @db.ObjectId
+  salesReturn   SalesReturn @relation(fields: [salesReturnId], references: [id], onDelete: Cascade)
+  productId     String?     @db.ObjectId
+  product       Product?    @relation(fields: [productId], references: [id])
+  itemCode      String?
+  itemName      String
+  invoicedQty   Float
+  returnQty     Float
+  unitPrice     Float
+  taxableAmt    Float
+  taxPercent    Float
+  disposition   String // "Return to Warehouse" | "Quarantine & Scrap"
+  subtotal      Float
+}
+
+model PurchaseBill {
+  id                String         @id @default(auto()) @map("_id") @db.ObjectId
+  voucherNo         String         @unique
+  date              DateTime       @default(now())
+  supplierInvoiceNo String?
+  supplierName      String
+  supplierGstin     String?
+  taxableAmt        Float
+  cgst              Float
+  sgst              Float
+  igst              Float
+  otherCharges      Float
+  netPayable        Float
+  status            String         @default("Paid") // Paid | Credit
+  type              String         @default("Local") // Local | Central
+  paymentMode       String         @default("Cash") // Cash | Credit
+  items             PurchaseItem[]
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+}
+
+model PurchaseItem {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  purchaseBillId String       @db.ObjectId
+  purchaseBill   PurchaseBill @relation(fields: [purchaseBillId], references: [id], onDelete: Cascade)
+  productId      String?      @db.ObjectId
+  product        Product?     @relation(fields: [productId], references: [id])
+  itemCode       String
+  itemName       String
+  size           String?
+  variety        String?
+  category       String?
+  factory        String?
+  vendorItemCode String?
+  qty            Float
+  rate           Float
+  taxPercent     Float
+  discPercent    Float        @default(0)
+  total          Float
+}
+
+model SalesOrder {
+  id                   String           @id @default(auto()) @map("_id") @db.ObjectId
+  orderNumber          String           @unique
+  customerId           String?          @db.ObjectId
+  buyerName            String
+  mobileNo             String?
+  address              String?
+  orderDate            DateTime         @default(now())
+  expectedDeliveryDate DateTime
+  status               String           @default("Open") // Open, Partial, Completed, Cancelled
+  subtotal             Float            @default(0)
+  discount             Float            @default(0)
+  cgst                 Float            @default(0)
+  sgst                 Float            @default(0)
+  roundOff             Float            @default(0)
+  grandTotal           Float            @default(0)
+  advancePaid          Float            @default(0)
+  balanceAmount        Float            @default(0)
+  remarks              String?
+  salesman             String?
+  paymentMode          String?          @default("Cash")
+  cancelReason         String?
+  cancelDate           DateTime?
+  cancelledBy          String?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  items                SalesOrderItem[]
+}
+
+model SalesOrderItem {
+  id           String     @id @default(auto()) @map("_id") @db.ObjectId
+  salesOrderId String     @db.ObjectId
+  salesOrder   SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  productId    String?    @db.ObjectId
+  product      Product?   @relation(fields: [productId], references: [id])
+  itemCode     String?
+  itemName     String
+  color        String?
+  size         String?
+  orderedQty   Float
+  deliveredQty Float      @default(0)
+  pendingQty   Float
+  unitPrice    Float
+  discount     Float      @default(0)
+  tax          Float      @default(0)
+  lineTotal    Float
+}
+
+model Staff {
+  id          String            @id @default(auto()) @map("_id") @db.ObjectId
+  staffCode   String            @unique
+  name        String
+  role        String            @default("Salesman")
+  mobileNo    String?
+  email       String?
+  salary      Float             @default(0)
+  dailyRate   Float             @default(0)
+  joiningDate DateTime          @default(now())
+  status      String            @default("Active")
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  attendances StaffAttendance[]
+}
+
+model StaffAttendance {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  staffId   String   @db.ObjectId
+  staff     Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  date      DateTime @default(now())
+  status    String   @default("Present")
+  checkIn   String?
+  checkOut  String?
+  remarks   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ShopSalesBill {
+  id           String          @id @default(auto()) @map("_id") @db.ObjectId
+  voucherNo    String          @unique
+  date         DateTime        @default(now())
+  shopName     String
+  shopGstin    String?
+  taxableAmt   Float
+  cgst         Float
+  sgst         Float
+  igst         Float           @default(0)
+  otherCharges Float           @default(0)
+  netPayable   Float
+  status       String          @default("Paid")
+  type         String          @default("Local")
+  paymentMode  String?         @default("Cash")
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  items        ShopSalesItem[]
+}
+
+model ShopSalesItem {
+  id              String        @id @default(auto()) @map("_id") @db.ObjectId
+  shopSalesBillId String        @db.ObjectId
+  shopSalesBill   ShopSalesBill @relation(fields: [shopSalesBillId], references: [id], onDelete: Cascade)
+  productId       String?       @db.ObjectId
+  product         Product?      @relation(fields: [productId], references: [id])
+  itemCode        String
+  itemName        String
+  size            String?
+  variety         String?
+  category        String?
+  factory         String?
+  vendorItemCode  String?
+  qty             Float
+  rate            Float
+  taxPercent      Float
+  discPercent     Float         @default(0)
+  total           Float
+}

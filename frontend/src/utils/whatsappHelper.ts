@@ -23,7 +23,7 @@ export const sendWhatsAppBill = (data: BillData, overridePhone?: string, useNati
     return `${idx + 1}. *${item.itemName}*${sizeStr}\n   ${item.qty} ${item.uom || 'PCS'} x ₹${item.rate.toFixed(2)} = *₹${item.amount.toFixed(2)}*`;
   }).join('\n');
 
-  const storeName = data.storeName || 'SRI GAYATHRI TRADERS';
+  const storeName = data.storeName || 'ITHU NAMMA KADA';
 
   const text = 
 `🧾 *${storeName} - TAX INVOICE*

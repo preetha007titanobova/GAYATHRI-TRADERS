@@ -7,10 +7,58 @@
     "package": "electron-builder"
   },
   "dependencies": {
-    "node-machine-id": "^1.1.12"
+    "@prisma/client": "^5.22.0",
+    "bcrypt": "^6.0.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "helmet": "^8.2.0",
+    "jsonwebtoken": "^9.0.3",
+    "mongodb": "^7.5.0",
+    "node-machine-id": "^1.1.12",
+    "nodemailer": "^9.0.1",
+    "prisma": "^5.22.0"
   },
   "devDependencies": {
-    "electron": "^29.1.0",
+    "electron": "^29.4.6",
     "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.ithunammakada.pos",
+    "productName": "IthuNammaKada",
+    "directories": {
+      "output": "dist-packaged"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "package.json",
+      "frontend/dist/**/*",
+      "backend/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "bin",
+        "to": "bin",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "asarUnpack": [
+      "**/query_engine-windows.dll.node"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "asar": true
   }
 }

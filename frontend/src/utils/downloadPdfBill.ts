@@ -45,7 +45,7 @@ export const downloadPdfBill = (data: BillData) => {
     format: 'a4'
   });
 
-  const storeName = data.storeName || 'SRI GAYATHRI TRADERS';
+  const storeName = data.storeName || 'ITHU NAMMA KADA';
   const storePhone = data.storePhone || 'Mobile: +91 8508703636, +91 8526677999';
   const storeAddress = data.storeAddress || 'Main Road, Commercial Complex, Tamil Nadu';
 

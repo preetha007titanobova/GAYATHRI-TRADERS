@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Lock, Key, RefreshCw, AlertTriangle, ShieldCheck, Download, 
-  Trash2, User, Phone, MapPin, CheckCircle, Ban, PlusCircle, Search, LogOut 
+  User, Phone, CheckCircle, Ban, PlusCircle, Search, LogOut 
 } from 'lucide-react';
 
-const API_BASE = 'http://localhost:5500/api';
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5500/api';
 
 // Features default config
 const DEFAULT_FEATURES = {
@@ -419,6 +419,7 @@ export default function App() {
               <option value="">All Plans</option>
               <option value="Lifetime">Lifetime</option>
               <option value="Annual">Annual</option>
+              <option value="6-Month">6-Month</option>
               <option value="3-Month">3-Month (Quarterly)</option>
               <option value="Monthly">Monthly</option>
               <option value="Trial">Trial</option>
@@ -579,6 +580,7 @@ export default function App() {
                   <select value={planType} onChange={e => setPlanType(e.target.value)}>
                     <option value="Lifetime">Lifetime Plan</option>
                     <option value="Annual">Annual Subscription (1 Year)</option>
+                    <option value="6-Month">6-Month Subscription (Half Yearly)</option>
                     <option value="3-Month">3-Month Subscription (Quarterly)</option>
                     <option value="Monthly">Monthly Plan (30 Days)</option>
                     <option value="Trial">Free Trial (7 Days)</option>
@@ -637,6 +639,7 @@ export default function App() {
                 <select value={renewMonths} onChange={e => setRenewMonths(parseInt(e.target.value))}>
                   <option value={1}>1 Month (Monthly Roll)</option>
                   <option value={3}>3 Months (Quarterly Renewal)</option>
+                  <option value={6}>6 Months (Half Yearly Renewal)</option>
                   <option value={12}>1 Year (Annual Saver)</option>
                 </select>
               </div>
