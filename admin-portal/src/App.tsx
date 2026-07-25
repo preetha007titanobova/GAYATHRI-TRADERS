@@ -210,6 +210,27 @@ export default function App() {
       if (data.success) {
         setIsRenewModalOpen(false);
         setRefreshTrigger(prev => prev + 1);
+
+        // Notify customer via WhatsApp and Email
+        const lic = data.license;
+        const customer = lic.customerId;
+        if (customer) {
+          const expiryDate = lic.expiresAt ? new Date(lic.expiresAt).toLocaleDateString('en-GB') : 'Lifetime';
+          const messageText = `Dear ${customer.contactName},\n\nYour software license for *${customer.shopName}* has been successfully renewed!\n\n*License Key:* ${lic.licenseKey}\n*Plan:* ${lic.planType}\n*New Expiry Date:* ${expiryDate}\n\nThank you for choosing Ithu Namma Kada!`;
+          
+          // 1. Send via WhatsApp Web
+          const whatsappUrl = `https://api.whatsapp.com/send?phone=${encodeURIComponent(customer.mobileNo)}&text=${encodeURIComponent(messageText)}`;
+          window.open(whatsappUrl, '_blank');
+
+          // 2. Send via Email Client (mailto link)
+          if (customer.email) {
+            const emailSubject = `Software License Renewed - ${customer.shopName}`;
+            const mailtoUrl = `mailto:${customer.email}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(messageText)}`;
+            setTimeout(() => {
+              window.location.href = mailtoUrl;
+            }, 800);
+          }
+        }
       }
     } catch (err) {
       alert('Error renewing license.');

@@ -252,7 +252,8 @@ async function renewLicense(req, res) {
         if (planType) license.planType = planType;
         
         await license.save();
-        res.json({ success: true, message: 'License renewed successfully.', license });
+        const populatedLicense = await License.findById(license._id).populate('customerId');
+        res.json({ success: true, message: 'License renewed successfully.', license: populatedLicense });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
