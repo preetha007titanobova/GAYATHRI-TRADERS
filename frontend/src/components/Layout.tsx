@@ -560,10 +560,9 @@ const Layout = () => {
           }} />
         </div>
 
-        {/* Toggle Tab Button */}
         <button 
           onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-          className="absolute top-1/2 -translate-y-1/2 bg-white border border-gray-400 hover:bg-blue-50 text-blue-900 w-4 h-16 flex items-center justify-center rounded-l-md shadow-md cursor-pointer z-50 focus:outline-none transition-all duration-300"
+          className="absolute top-1/2 -translate-y-1/2 bg-white border border-gray-400 hover:bg-blue-50 text-blue-900 w-4 h-16 flex items-center justify-center rounded-l-md shadow-md cursor-pointer z-40 focus:outline-none transition-all duration-300"
           style={{ right: isSidebarOpen ? '192px' : '0px' }}
           title={isSidebarOpen ? "Hide Sidebar" : "Show Sidebar"}
         >

@@ -1209,7 +1209,7 @@ const SalesOrder = () => {
       </div>
       {/* Dress Selection Modal */}
       {isProductModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 backdrop-blur-xs" onClick={() => setIsProductModalOpen(false)}>
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center backdrop-blur-sm" style={{ backgroundColor: 'rgba(0, 0, 0, 0.45)', backdropFilter: 'blur(3px)' }} onClick={() => setIsProductModalOpen(false)}>
           <div
             className="bg-white shadow-2xl flex flex-col border border-gray-300 rounded-lg overflow-hidden w-full max-w-4xl h-[500px]"
             onClick={e => e.stopPropagation()}
