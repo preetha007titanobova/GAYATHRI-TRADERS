@@ -300,7 +300,14 @@ ipcMain.on('print-html', (event, htmlContent) => {
         }
     });
 
-    printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
+    let processedHtml = htmlContent;
+    if (htmlContent.includes('<head>')) {
+        processedHtml = htmlContent.replace('<head>', '<head><base href="http://localhost:5000/">');
+    } else {
+        processedHtml = `<base href="http://localhost:5000/">` + htmlContent;
+    }
+
+    printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(processedHtml)}`);
 
     printWindow.webContents.on('did-finish-load', () => {
         printWindow.webContents.print({

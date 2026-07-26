@@ -268,28 +268,32 @@ export const printReceipt = (cartItems: PrintCartItem[], data: PrintReceiptData)
   doc.write(htmlContent);
   doc.close();
   
-  // Wait for content to load before printing
-  setTimeout(() => {
-    if (iframe.contentWindow) {
-      try {
-        iframe.contentWindow.focus();
-        iframe.contentWindow.print();
-      } catch (err) {
-        console.error("Iframe print failed, trying popup window fallback:", err);
-        const printWindow = window.open('', '_blank', 'width=350,height=600');
-        if (printWindow) {
-          printWindow.document.open();
-          printWindow.document.write(htmlContent);
-          printWindow.document.close();
-          printWindow.focus();
-          setTimeout(() => {
-            printWindow.print();
-            printWindow.close();
-          }, 250);
-        } else {
-          alert("Printing failed. Please enable popups or ensure your browser supports printing.");
+  if ((window as any).api) {
+    (window as any).api.send('print-html', htmlContent);
+  } else {
+    // Wait for content to load before printing
+    setTimeout(() => {
+      if (iframe.contentWindow) {
+        try {
+          iframe.contentWindow.focus();
+          iframe.contentWindow.print();
+        } catch (err) {
+          console.error("Iframe print failed, trying popup window fallback:", err);
+          const printWindow = window.open('', '_blank', 'width=350,height=600');
+          if (printWindow) {
+            printWindow.document.open();
+            printWindow.document.write(htmlContent);
+            printWindow.document.close();
+            printWindow.focus();
+            setTimeout(() => {
+              printWindow.print();
+              printWindow.close();
+            }, 250);
+          } else {
+            alert("Printing failed. Please enable popups or ensure your browser supports printing.");
+          }
         }
       }
-    }
-  }, 250);
+    }, 250);
+  }
 };

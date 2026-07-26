@@ -270,12 +270,16 @@ const printOrder = (order: any) => {
   doc.write(htmlContent);
   doc.close();
 
-  setTimeout(() => {
-    if (iframe.contentWindow) {
-      iframe.contentWindow.focus();
-      iframe.contentWindow.print();
-    }
-  }, 250);
+  if ((window as any).api) {
+    (window as any).api.send('print-html', htmlContent);
+  } else {
+    setTimeout(() => {
+      if (iframe.contentWindow) {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+      }
+    }, 250);
+  }
 };
 
 const SalesOrder = () => {
