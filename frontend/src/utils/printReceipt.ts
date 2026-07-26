@@ -16,12 +16,18 @@ export interface PrintReceiptData {
   cgst?: number;
   sgst?: number;
   totalAmount: number;
+  customerMobile?: string;
+  storePhone?: string;
+  receiptTitle?: string;
 }
 
 export const printReceipt = (cartItems: PrintCartItem[], data: PrintReceiptData) => {
   const now = new Date();
   const timestamp = now.toLocaleString();
   const displayDate = data.date || timestamp;
+  
+  const storePhone = data.storePhone || localStorage.getItem('close_day_whatsapp') || '8508703636, 8526677999';
+  const receiptTitle = data.receiptTitle || 'TAX INVOICE';
   
   const totalQtyCalc = data.totalQty || cartItems.reduce((acc, it) => acc + (it.qty || 0), 0);
   
@@ -161,14 +167,15 @@ export const printReceipt = (cartItems: PrintCartItem[], data: PrintReceiptData)
         <div class="receipt-container">
           <div class="header">
             <h1 class="enterprise-name">${(data as any).storeName || 'ITHU NAMMA KADA'}</h1>
-            <p class="contact-info">Mobile: 8508703636, 8526677999</p>
-            <p class="contact-info">TAX INVOICE</p>
+            <p class="contact-info">Mobile: ${storePhone}</p>
+            <p class="contact-info">${receiptTitle}</p>
           </div>
           
           <div class="meta-data">
             <div class="left">
               <span>Inv: ${data.invoiceNo || 'N/A'}</span>
               <span>Cust: ${data.customerName || 'CASH'}</span>
+              ${data.customerMobile ? `<span>Tel: ${data.customerMobile}</span>` : ''}
             </div>
             <div class="right">
               <span>Date: ${displayDate}</span>

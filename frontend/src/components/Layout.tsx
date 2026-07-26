@@ -5,6 +5,7 @@ import Api from '../Api';
 import { useLicense } from '../context/LicenseContext';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import PrinterStatus from './PrinterStatus';
 
 export type ToolbarActions = {
   onAdd?: () => void;
@@ -823,6 +824,7 @@ const Layout = () => {
                 </div>
               )}
             </button>
+            <PrinterStatus />
           </div>
         </div>
       </div>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import Api from '../Api';
+import { printReceipt } from '../utils/printReceipt';
 import { 
   Mail, RefreshCcw, Plus, Trash2, Calendar, 
   FileSignature, Loader2, Search 
@@ -295,6 +296,44 @@ const Quotation = () => {
     }
   };
 
+  const handlePrintQuote = () => {
+    const validItems = validateStructuralIntegrity();
+    if (!validItems) return;
+
+    const formattedItems = validItems.map(item => {
+      const qty = Number(item.quantity) || 0;
+      const price = Number(item.unitPrice) || 0;
+      const disc = Number(item.discountPercent) || 0;
+      const taxable = (qty * price) * (1 - disc / 100);
+      const taxRate = Number(item.taxRate) || 0;
+      const total = taxable * (1 + taxRate / 100);
+
+      return {
+        itemCode: item.itemCode,
+        itemDesc: item.itemDescription || item.itemCode,
+        qty: qty,
+        rate: price,
+        totalAmt: total
+      };
+    });
+
+    const storePhone = localStorage.getItem('close_day_whatsapp') || '8508703636, 8526677999';
+
+    printReceipt(formattedItems, {
+      invoiceNo: quoteNo,
+      date: quoteDate,
+      customerName: customer || 'VALUED CUSTOMER',
+      paymentMode: paymentTerms || 'N/A',
+      totalQty: totalQty,
+      subTotal: totalTaxable,
+      cgst: totalCgst,
+      sgst: totalSgst,
+      totalAmount: roundedGrandTotal,
+      storePhone: storePhone,
+      receiptTitle: 'QUOTATION'
+    });
+  };
+
   return (
     <div className="flex flex-col h-full space-y-2 p-3 bg-[#f8fafc]">
 
@@ -507,6 +546,22 @@ const Quotation = () => {
             >
               {isConverting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCcw className="w-3.5 h-3.5" />}
               <span>{status === 'CONVERTED' ? 'Converted to Tax Bill' : 'Convert to Tax Bill'}</span>
+            </button>
+            <button 
+              onClick={handleEmail}
+              disabled={isEmailing}
+              className="legacy-button py-1.5 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 text-white font-extrabold rounded text-xs transition-all flex items-center space-x-1.5 cursor-pointer"
+            >
+              {isEmailing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
+              <span>Email Quote</span>
+            </button>
+            <button 
+              onClick={handlePrintQuote}
+              type="button"
+              className="legacy-button py-1.5 px-4 bg-[#2b579a] hover:bg-[#1a386b] text-white font-extrabold rounded text-xs transition-all flex items-center space-x-1.5 cursor-pointer"
+            >
+              <FileSignature className="w-3.5 h-3.5" />
+              <span>Print Quote</span>
             </button>
           </div>
         </div>

@@ -62,6 +62,8 @@ const ShopSalesBill = () => {
   const [dbProducts, setDbProducts] = useState<any[]>([]);
   const [savedBills, setSavedBills] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [scanInput, setScanInput] = useState('');
+  const scanInputRef = useRef<HTMLInputElement>(null);
 
   // Filter products for the modal search list
   const modalFilteredProducts = useMemo(() => {
@@ -130,18 +132,7 @@ const ShopSalesBill = () => {
     }
   };
 
-  // Load products from DB on mount
-  const fetchProducts = async () => {
-    try {
-      const res = await fetch(`${Api}/products/search?q=`);
-      if (res.ok) {
-        const data = await res.json();
-        setDbProducts(data);
-      }
-    } catch (e) {
-      console.error("Failed to load products", e);
-    }
-  };
+  // fetchProducts removed to prevent preloading all master products
 
   // Load saved bills from DB
   const fetchSavedBills = async () => {
@@ -171,7 +162,6 @@ const ShopSalesBill = () => {
 
   useEffect(() => {
     fetchShops();
-    fetchProducts();
     fetchSavedBills();
     fetchNextVoucher();
   }, []);
@@ -182,6 +172,107 @@ const ShopSalesBill = () => {
       handleEditBill(location.state.editBill);
     }
   }, [location.state]);
+
+  useEffect(() => {
+    scanInputRef.current?.focus();
+  }, []);
+
+  const handleBarcodeScan = async (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const code = scanInput.trim();
+      if (!code) return;
+
+      if (!shopName) {
+        setGlobalNotification({
+          msg: "Please select or enter the Wholesale Customer (Shop Name) first before scanning.",
+          type: 'error'
+        });
+        setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
+        setScanInput('');
+        return;
+      }
+
+      try {
+        setLoading(true);
+        const res = await fetch(`${Api}/products/barcode/${encodeURIComponent(code)}`);
+        if (!res.ok) {
+          if (res.status === 404) {
+            setGlobalNotification({
+              msg: "Product not registered. Please create this product in Product Register.",
+              type: 'error'
+            });
+            setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
+          } else {
+            throw new Error('Failed to query product');
+          }
+          setScanInput('');
+          setLoading(false);
+          return;
+        }
+
+        const product = await res.json();
+        if (product) {
+          const existingItemIndex = items.findIndex(item => item.itemCode.toUpperCase() === product.itemCode.toUpperCase());
+          
+          if (existingItemIndex > -1) {
+            setItems(prev => prev.map((item, idx) => {
+              if (idx === existingItemIndex) {
+                const updatedQty = item.qty + 1;
+                return calculateItemValues({ ...item, qty: updatedQty }, supplyPlace);
+              }
+              return item;
+            }));
+            setGlobalNotification({
+              msg: `Increased quantity of ${product.name} to ${items[existingItemIndex].qty + 1}`,
+              type: 'success'
+            });
+            setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 2000);
+          } else {
+            const newItem: ShopSalesItem = {
+              id: Math.random().toString(),
+              itemCode: product.itemCode,
+              vendorItemCode: product.vendorItemCode || '',
+              itemName: product.name,
+              size: product.size || '',
+              variety: product.variety || '',
+              category: product.department || 'None',
+              itemDesc: product.name,
+              hsn: product.barcode || '',
+              factory: product.factory || '',
+              qty: 1,
+              unitPrice: product.purchaseRate || 0,
+              salesRate: product.price || 0,
+              mrp: product.mrp || 0,
+              discPercent: 0,
+              taxPercent: product.taxPercent || 18,
+              cgstAmt: 0,
+              sgstAmt: 0,
+              igstAmt: 0,
+              total: 0
+            };
+            const calculated = calculateItemValues(newItem, supplyPlace);
+            setItems(prev => [...prev, calculated]);
+            setGlobalNotification({
+              msg: `Added product ${product.name} to wholesale list`,
+              type: 'success'
+            });
+            setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 2000);
+          }
+        }
+      } catch (err) {
+        console.error(err);
+        setGlobalNotification({ msg: "Error searching barcode.", type: 'error' });
+        setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
+      } finally {
+        setScanInput('');
+        setLoading(false);
+        setTimeout(() => {
+          scanInputRef.current?.focus();
+        }, 100);
+      }
+    }
+  };
 
   // Handle selected shop
   useEffect(() => {
@@ -511,7 +602,6 @@ const ShopSalesBill = () => {
       if (data.success) {
         setGlobalNotification({ msg: `Bill ${voucherNo} deleted successfully`, type: 'success' });
         clearForm();
-        fetchProducts(); 
         fetchSavedBills();
       } else {
         setGlobalNotification({ msg: 'Failed to delete: ' + data.error, type: 'error' });
@@ -586,7 +676,6 @@ const ShopSalesBill = () => {
           type: 'success' 
         });
         clearForm();
-        fetchProducts(); 
         fetchSavedBills();
       } else {
         setGlobalNotification({ msg: 'Error saving wholesale sales bill: ' + data.error, type: 'error' });
@@ -717,13 +806,6 @@ const ShopSalesBill = () => {
         {/* Left Side: Wholesale Sales Bill Form */}
         <div className={`${viewMode === 'table-only' ? 'hidden' : viewMode === 'form-only' ? 'w-full' : 'w-[64%]'} overflow-y-auto p-3 bg-white flex flex-col justify-between border-r border-gray-300`}>
           <div>
-            {/* Reusable DataList for Item Auto-completion */}
-            <datalist id="item-catalog">
-              {dbProducts.map((p, idx) => (
-                <option key={p.id || idx} value={p.itemCode}>{p.name} {p.size ? `(${p.size})` : ''}</option>
-              ))}
-            </datalist>
-
             {/* Top Metadata Header inside form */}
             <div className="bg-slate-50 p-3 border border-gray-300 shadow-sm rounded mb-2">
               <div className="grid grid-cols-5 gap-3">
@@ -766,10 +848,22 @@ const ShopSalesBill = () => {
 
             {/* Main Items Grid */}
             <div className="flex flex-col bg-white border border-gray-400 shadow-sm relative rounded overflow-hidden mb-2">
-              <div className="bg-[#d1e8e2] p-1 border-b border-gray-400 flex space-x-2">
-                <button onClick={addRow} className="flex items-center space-x-1 bg-white hover:bg-gray-50 border border-gray-400 px-3 py-1 text-xs font-bold text-gray-700 shadow-sm rounded transition-colors">
-                  <Plus size={12} className="text-green-600" /> <span>Add Dress Row</span>
-                </button>
+              <div className="bg-[#d1e8e2] p-2 border-b border-gray-400 flex items-center justify-between gap-4">
+                <div className="flex items-center space-x-2 flex-1 max-w-md">
+                  <label className="text-xs font-bold text-slate-700 uppercase whitespace-nowrap">Scan Barcode / Code:</label>
+                  <input
+                    ref={scanInputRef}
+                    type="text"
+                    value={scanInput}
+                    onChange={e => setScanInput(e.target.value)}
+                    onKeyDown={handleBarcodeScan}
+                    placeholder="Scan USB barcode or type code & press Enter..."
+                    className="flex-1 border border-indigo-400 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 p-1.5 rounded text-xs font-mono font-bold bg-white focus:outline-none placeholder:font-sans placeholder:font-normal shadow-sm"
+                  />
+                </div>
+                <div className="text-[10px] text-indigo-700 font-semibold italic bg-indigo-50 px-2.5 py-1 rounded border border-indigo-200">
+                  Ready for scanning. Focus is kept automatically.
+                </div>
               </div>
 
               <div className="overflow-x-auto max-h-[550px]">
@@ -777,8 +871,8 @@ const ShopSalesBill = () => {
                   <thead className="bg-[#2b579a] text-white sticky top-0 z-10">
                     <tr>
                       <th className="border-r border-gray-400 p-1.5 w-8 text-center font-semibold">S.No</th>
-                      <th className="border-r border-gray-400 p-1.5 w-48 font-semibold">Select Product (Master)</th>
-                      <th className="border-r border-gray-400 p-1.5 w-28 font-semibold">Our Item Code</th>
+                      <th className="border-r border-gray-400 p-1.5 w-48 font-semibold">Product Name</th>
+                      <th className="border-r border-gray-400 p-1.5 w-28 font-semibold">Item Code (Barcode)</th>
                       <th className="border-r border-gray-400 p-1.5 w-28 font-semibold">Vendor Item Code</th>
                       <th className="border-r border-gray-400 p-1.5 w-16 font-semibold">Dress Size</th>
                       <th className="border-r border-gray-400 p-1.5 w-24 font-semibold">Variety</th>
@@ -808,93 +902,11 @@ const ShopSalesBill = () => {
                     {items.map((item, idx) => (
                       <tr key={item.id} className="border-b border-gray-300 hover:bg-yellow-50 focus-within:bg-blue-50 transition-colors">
                         <td className="border-r border-gray-300 p-1 text-center text-gray-500 bg-gray-50">{idx + 1}</td>
-                        <td className="border-r border-gray-300 p-0 w-48">
-                          {item.isManualItem ? (
-                            <div className="flex items-center p-1 bg-white">
-                              <input 
-                                type="text" 
-                                value={item.itemName || ''} 
-                                onChange={e => updateItem(item.id, 'itemName', e.target.value)} 
-                                placeholder="Enter Item Name..."
-                                className="w-full bg-transparent focus:outline-none text-xs font-semibold text-gray-800"
-                              />
-                              <button 
-                                type="button"
-                                onClick={() => updateItem(item.id, 'isManualItem', false)} 
-                                className="text-blue-600 hover:text-blue-800 text-[10px] font-bold px-1.5 py-0.5 hover:bg-blue-50 rounded ml-1 transition-colors"
-                                title="Switch to master catalog selection list"
-                              >
-                                List
-                              </button>
-                            </div>
-                          ) : (
-                            <select
-                              value={item.itemCode || ''}
-                              onChange={e => {
-                                const code = e.target.value;
-                                if (code === 'MANUAL') {
-                                  updateItem(item.id, 'isManualItem', true);
-                                  updateItem(item.id, 'itemCode', '');
-                                  updateItem(item.id, 'itemName', '');
-                                } else if (!code) {
-                                  updateItem(item.id, 'itemCode', '');
-                                } else {
-                                  updateItem(item.id, 'itemCode', code);
-                                }
-                              }}
-                              className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-xs font-semibold text-gray-800"
-                            >
-                              <option value="">-- Select Product --</option>
-                              <option value="MANUAL" className="text-blue-600 font-bold bg-blue-50">+ Type Manually...</option>
-                              {dbProducts.map(p => (
-                                <option key={p.id} value={p.itemCode}>
-                                  {p.itemCode} - {p.name} {p.size ? `(${p.size})` : ''}
-                                </option>
-                              ))}
-                            </select>
-                          )}
+                        <td className="border-r border-gray-300 p-2 font-semibold text-gray-800 bg-gray-50">
+                          {item.itemName}
                         </td>
-                        <td className="border-r border-gray-300 p-0">
-                          <div className="flex items-center relative pr-1 min-w-[160px]">
-                            <input 
-                              type="text" 
-                              list="item-catalog"
-                              value={item.itemCode} 
-                              onChange={e => updateItem(item.id, 'itemCode', e.target.value)} 
-                              onKeyDown={e => handleKeyDown(e, idx, 'itemCode')}
-                              onDoubleClick={() => {
-                                setActiveRowId(item.id);
-                                setModalSearchQuery(item.itemCode || '');
-                                setHighlightedProductIndex(0);
-                                setIsProductModalOpen(true);
-                              }}
-                              className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none uppercase pr-16 text-xs font-mono font-bold" 
-                              placeholder="Double click to search..." 
-                            />
-                            <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center space-x-0.5 z-10">
-                              <button
-                                onClick={() => {
-                                  setActiveRowId(item.id);
-                                  setModalSearchQuery(item.itemCode || '');
-                                  setHighlightedProductIndex(0);
-                                  setIsProductModalOpen(true);
-                                }}
-                                type="button"
-                                className="px-1 py-0.5 text-[9px] font-bold bg-emerald-100 hover:bg-emerald-200 active:bg-emerald-300 text-emerald-700 rounded transition-colors shadow-sm"
-                                title="Search dress table (F2)"
-                              >
-                                Find
-                              </button>
-                              <button
-                                onClick={() => generateCodeForRow(item.id)}
-                                type="button"
-                                className="px-1 py-0.5 text-[9px] font-bold bg-blue-100 hover:bg-blue-200 active:bg-blue-300 text-blue-700 rounded transition-colors shadow-sm"
-                                title="Auto-generate item code"
-                              >
-                                Gen
-                              </button>
-                            </div>
-                          </div>
+                        <td className="border-r border-gray-300 p-2 font-mono font-bold text-slate-700 bg-gray-50">
+                          {item.itemCode}
                         </td>
                         <td className="border-r border-gray-300 p-0">
                           <input 

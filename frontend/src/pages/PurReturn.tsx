@@ -66,6 +66,8 @@ const PurReturn = () => {
 
   // Grid State
   const [items, setItems] = useState<ReturnItem[]>([]);
+  const [scanInput, setScanInput] = useState('');
+  const scanInputRef = React.useRef<HTMLInputElement>(null);
   
   // Footer State
   const [settlementMode, setSettlementMode] = useState(SETTLEMENT_MODES[0]);
@@ -116,6 +118,71 @@ const PurReturn = () => {
     fetchSavedReturns();
     fetchNextReturnVoucher();
   }, []);
+
+  useEffect(() => {
+    if (selectedInvoiceId) {
+      setTimeout(() => {
+        scanInputRef.current?.focus();
+      }, 100);
+    }
+  }, [selectedInvoiceId]);
+
+  const handleBarcodeScan = async (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const code = scanInput.trim();
+      if (!code) return;
+
+      try {
+        const res = await fetch(`${Api}/products/barcode/${encodeURIComponent(code)}`);
+        if (!res.ok) {
+          setGlobalNotification({ msg: "Product not registered in database.", type: 'error' });
+          setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3500);
+          setScanInput('');
+          return;
+        }
+        const product = await res.json();
+        if (product) {
+          const itemIndex = items.findIndex(item => 
+            item.itemCode.toUpperCase() === product.itemCode.toUpperCase()
+          );
+
+          if (itemIndex > -1) {
+            const currentItem = items[itemIndex];
+            if (currentItem.returnQty >= currentItem.purchasedQty) {
+              setGlobalNotification({ 
+                msg: `Cannot return more than purchased quantity (${currentItem.purchasedQty}) for ${currentItem.itemDesc}.`, 
+                type: 'error' 
+              });
+              setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
+            } else {
+              setItems(prev => prev.map((it, idx) => {
+                if (idx === itemIndex) {
+                  const updatedQty = it.returnQty + 1;
+                  return calculateReturnItem({ ...it, returnQty: updatedQty }, vendorDetails.state);
+                }
+                return it;
+              }));
+              setGlobalNotification({ msg: `Scanned return item: ${product.name}`, type: 'success' });
+              setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 2000);
+            }
+          } else {
+            setGlobalNotification({ msg: "This product was not purchased under the selected invoice.", type: 'error' });
+            setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
+          }
+        }
+      } catch (err) {
+        console.error(err);
+        setGlobalNotification({ msg: "Error searching return barcode.", type: 'error' });
+        setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
+      } finally {
+        setScanInput('');
+        setTimeout(() => {
+          scanInputRef.current?.focus();
+        }, 100);
+      }
+    }
+  };
 
   // Row Calculation Helper
   const calculateReturnItem = (item: ReturnItem, supplierState: string) => {
@@ -472,13 +539,26 @@ const PurReturn = () => {
 
       {/* Main Grid Area (Flex-1 stretches to take all remaining height) */}
       <div className="flex-1 flex flex-col bg-white border border-gray-200 shadow-md relative overflow-hidden mb-3 rounded-xl">
-        {/* Grid Sub-Toolbar */}
-        <div className="bg-gradient-to-r from-teal-50/80 to-emerald-50/80 p-2 border-b border-gray-200 flex items-center justify-between">
-           <span className="text-xs font-extrabold text-teal-800 tracking-wider uppercase pl-2 flex items-center">
+        <div className="bg-gradient-to-r from-teal-50/80 to-emerald-50/80 p-2 border-b border-gray-200 flex items-center justify-between gap-4">
+           <span className="text-xs font-extrabold text-teal-800 tracking-wider uppercase pl-2 flex items-center whitespace-nowrap">
              <span className="bg-teal-500 w-1.5 h-3.5 mr-2 rounded-full block"></span>
              Return Items
            </span>
-           {items.length > 0 && <span className="text-xs text-indigo-650 font-semibold pr-2">Modifying return quantities updates totals automatically.</span>}
+           {selectedInvoiceId && (
+             <div className="flex items-center space-x-2 flex-1 max-w-md mx-4">
+               <label className="text-[11px] font-bold text-teal-900 uppercase whitespace-nowrap">Scan Return Item:</label>
+               <input
+                 ref={scanInputRef}
+                 type="text"
+                 value={scanInput}
+                 onChange={e => setScanInput(e.target.value)}
+                 onKeyDown={handleBarcodeScan}
+                 placeholder="Scan barcode to increment return qty..."
+                 className="flex-1 border border-teal-400 focus:border-teal-600 focus:ring-1 focus:ring-teal-600 px-2 py-1 rounded text-xs font-mono font-bold bg-white focus:outline-none placeholder:font-sans placeholder:font-normal shadow-sm"
+               />
+             </div>
+           )}
+           {items.length > 0 && <span className="text-xs text-indigo-650 font-semibold pr-2 hidden md:block">Modifying return quantities updates totals automatically.</span>}
         </div>
         
         <div className="flex-1 overflow-auto">

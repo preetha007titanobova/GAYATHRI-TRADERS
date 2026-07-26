@@ -62,6 +62,23 @@ const PurchaseBill = () => {
   const [dbProducts, setDbProducts] = useState<any[]>([]);
   const [savedBills, setSavedBills] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [scanInput, setScanInput] = useState('');
+  const scanInputRef = useRef<HTMLInputElement>(null);
+  const [isQuickAddModalOpen, setIsQuickAddModalOpen] = useState(false);
+  const [quickAddForm, setQuickAddForm] = useState({
+    barcode: '',
+    itemCode: '',
+    name: '',
+    size: 'L',
+    variety: 'Standard',
+    department: 'Mens',
+    purchaseRate: 0,
+    price: 0,
+    mrp: 0,
+    taxPercent: 18,
+    factory: '',
+    qty: 1
+  });
 
   // Filter products for the modal search list
   const modalFilteredProducts = useMemo(() => {
@@ -130,19 +147,6 @@ const PurchaseBill = () => {
     }
   };
 
-  // Load products from DB on mount for local suggestion and fast search
-  const fetchProducts = async () => {
-    try {
-      const res = await fetch(`${Api}/products/search?q=`);
-      if (res.ok) {
-        const data = await res.json();
-        setDbProducts(data);
-      }
-    } catch (err) {
-      console.error("Error loading products", err);
-    }
-  };
-
   // Fetch sequential voucher number from DB
   const fetchNextVoucher = async () => {
     try {
@@ -173,7 +177,6 @@ const PurchaseBill = () => {
 
   useEffect(() => {
     fetchVendors();
-    fetchProducts();
     fetchNextVoucher();
     fetchSavedBills();
   }, []);
@@ -185,6 +188,214 @@ const PurchaseBill = () => {
       handleEditBill(editBill);
     }
   }, [location.state, vendors]);
+
+  useEffect(() => {
+    scanInputRef.current?.focus();
+  }, []);
+
+  const handleBarcodeScan = async (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const code = scanInput.trim();
+      if (!code) return;
+
+      if (!vendorId) {
+        setGlobalNotification({
+          msg: "Please select or add a Vendor first before scanning.",
+          type: 'error'
+        });
+        setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
+        setScanInput('');
+        return;
+      }
+
+      try {
+        setLoading(true);
+        const res = await fetch(`${Api}/products/barcode/${encodeURIComponent(code)}`);
+        if (!res.ok) {
+          if (res.status === 404) {
+            // Fetch next available system item code
+            try {
+              const codeRes = await fetch(`${Api}/products/next-code`);
+              let nextItemCode = 'ITM-1000';
+              if (codeRes.ok) {
+                const codeData = await codeRes.json();
+                if (codeData.itemCode) nextItemCode = codeData.itemCode;
+              }
+              setQuickAddForm({
+                barcode: code,
+                itemCode: nextItemCode,
+                name: '',
+                size: 'L',
+                variety: 'Standard',
+                department: 'Mens',
+                purchaseRate: 0,
+                price: 0,
+                mrp: 0,
+                taxPercent: 18,
+                factory: '',
+                qty: 1
+              });
+              setIsQuickAddModalOpen(true);
+            } catch (ce) {
+              console.error("Failed to fetch next sequence code:", ce);
+            }
+          } else {
+            throw new Error('Failed to query product');
+          }
+          setScanInput('');
+          setLoading(false);
+          return;
+        }
+
+        const product = await res.json();
+        if (product) {
+          // Check if item already exists in purchase items
+          const existingItemIndex = items.findIndex(item => item.itemCode.toUpperCase() === product.itemCode.toUpperCase());
+          
+          if (existingItemIndex > -1) {
+            // Increment quantity
+            setItems(prev => prev.map((item, idx) => {
+              if (idx === existingItemIndex) {
+                const updatedQty = item.qty + 1;
+                return calculateItemValues({ ...item, qty: updatedQty }, supplyPlace);
+              }
+              return item;
+            }));
+            setGlobalNotification({
+              msg: `Increased quantity of ${product.name} to ${items[existingItemIndex].qty + 1}`,
+              type: 'success'
+            });
+            setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 2000);
+          } else {
+            // Add new row
+            const newItem: PurchaseItem = {
+              id: Math.random().toString(),
+              itemCode: product.itemCode,
+              vendorItemCode: product.vendorItemCode || '',
+              itemName: product.name,
+              size: product.size || '',
+              variety: product.variety || '',
+              category: product.department || 'None',
+              itemDesc: product.name,
+              hsn: product.barcode || '',
+              factory: product.factory || '',
+              qty: 1,
+              unitPrice: product.purchaseRate || 0,
+              salesRate: product.price || 0,
+              mrp: product.mrp || 0,
+              discPercent: 0,
+              taxPercent: product.taxPercent || 18,
+              cgstAmt: 0,
+              sgstAmt: 0,
+              igstAmt: 0,
+              total: 0
+            };
+            const calculated = calculateItemValues(newItem, supplyPlace);
+            setItems(prev => [...prev, calculated]);
+            setGlobalNotification({
+              msg: `Added product ${product.name} to purchase list`,
+              type: 'success'
+            });
+            setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 2000);
+          }
+        }
+      } catch (err) {
+        console.error(err);
+        setGlobalNotification({ msg: "Error searching barcode.", type: 'error' });
+        setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
+      } finally {
+        setScanInput('');
+        setLoading(false);
+        // Keep input focused
+        setTimeout(() => {
+          scanInputRef.current?.focus();
+        }, 100);
+      }
+    }
+  };
+
+  const handleQuickAddSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickAddForm.name.trim()) {
+      setGlobalNotification({ msg: "Product Name is required.", type: 'error' });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      // 1. Save product to database Product Register
+      const response = await fetch(`${Api}/products`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          itemCode: quickAddForm.itemCode,
+          name: quickAddForm.name.trim(),
+          barcode: quickAddForm.barcode.trim(),
+          size: quickAddForm.size,
+          variety: quickAddForm.variety,
+          department: quickAddForm.department,
+          purchaseRate: quickAddForm.purchaseRate,
+          price: quickAddForm.price,
+          mrp: quickAddForm.mrp,
+          taxPercent: quickAddForm.taxPercent,
+          factory: quickAddForm.factory || '',
+          stock: 0, // Stock is incremented by the purchase bill save itself!
+          uom: 'PCS'
+        })
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to save product');
+      }
+
+      // 2. Add product to active bill items grid
+      const newItem: PurchaseItem = {
+        id: Math.random().toString(),
+        itemCode: quickAddForm.itemCode,
+        vendorItemCode: '',
+        itemName: quickAddForm.name.trim(),
+        size: quickAddForm.size,
+        variety: quickAddForm.variety,
+        category: quickAddForm.department,
+        itemDesc: quickAddForm.name.trim(),
+        hsn: quickAddForm.barcode.trim(),
+        factory: quickAddForm.factory || '',
+        qty: Number(quickAddForm.qty) || 1,
+        unitPrice: Number(quickAddForm.purchaseRate) || 0,
+        salesRate: Number(quickAddForm.price) || 0,
+        mrp: Number(quickAddForm.mrp) || 0,
+        discPercent: 0,
+        taxPercent: Number(quickAddForm.taxPercent) || 18,
+        cgstAmt: 0,
+        sgstAmt: 0,
+        igstAmt: 0,
+        total: 0
+      };
+
+      const calculated = calculateItemValues(newItem, supplyPlace);
+      setItems(prev => [...prev, calculated]);
+      
+      setGlobalNotification({
+        msg: `Product ${quickAddForm.name} registered and added to bill successfully!`,
+        type: 'success'
+      });
+      setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
+      
+      setIsQuickAddModalOpen(false);
+    } catch (err: any) {
+      console.error(err);
+      setGlobalNotification({ msg: `Error creating product: ${err.message}`, type: 'error' });
+      setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
+    } finally {
+      setLoading(false);
+      // Keep scanner focused
+      setTimeout(() => {
+        scanInputRef.current?.focus();
+      }, 100);
+    }
+  };
 
   // Modal State
   const [isVendorModalOpen, setIsVendorModalOpen] = useState(false);
@@ -514,7 +725,6 @@ const PurchaseBill = () => {
           type: 'success' 
         });
         clearForm();
-        fetchProducts(); 
         fetchSavedBills();
       } else {
         setGlobalNotification({ msg: 'Error saving purchase bill: ' + data.error, type: 'error' });
@@ -690,13 +900,6 @@ const PurchaseBill = () => {
         {/* Left Side: Purchase Bill Form */}
         <div className={`${viewMode === 'table-only' ? 'hidden' : viewMode === 'form-only' ? 'w-full' : 'w-[64%]'} overflow-y-auto p-3 bg-white flex flex-col justify-between border-r border-gray-300`}>
           <div>
-            {/* Reusable DataList for Item Auto-completion */}
-            <datalist id="item-catalog">
-              {dbProducts.map((p, idx) => (
-                <option key={p.id || idx} value={p.itemCode}>{p.name} {p.size ? `(${p.size})` : ''}</option>
-              ))}
-            </datalist>
-
             {/* Top Metadata Header inside form */}
             <div className="bg-slate-50 p-3 border border-gray-300 shadow-sm rounded mb-2">
               <div className="grid grid-cols-5 gap-3">
@@ -739,10 +942,22 @@ const PurchaseBill = () => {
 
             {/* Main Items Grid */}
             <div className="flex flex-col bg-white border border-gray-400 shadow-sm relative rounded overflow-hidden mb-2">
-              <div className="bg-[#d1e8e2] p-1 border-b border-gray-400 flex space-x-2">
-                <button onClick={addRow} className="flex items-center space-x-1 bg-white hover:bg-gray-50 border border-gray-400 px-3 py-1 text-xs font-bold text-gray-700 shadow-sm rounded transition-colors">
-                  <Plus size={12} className="text-green-600" /> <span>Add Row</span>
-                </button>
+              <div className="bg-[#d1e8e2] p-2 border-b border-gray-400 flex items-center justify-between gap-4">
+                <div className="flex items-center space-x-2 flex-1 max-w-md">
+                  <label className="text-xs font-bold text-slate-700 uppercase whitespace-nowrap">Scan Barcode / Code:</label>
+                  <input
+                    ref={scanInputRef}
+                    type="text"
+                    value={scanInput}
+                    onChange={e => setScanInput(e.target.value)}
+                    onKeyDown={handleBarcodeScan}
+                    placeholder="Scan USB barcode or type code & press Enter..."
+                    className="flex-1 border border-indigo-400 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 p-1.5 rounded text-xs font-mono font-bold bg-white focus:outline-none placeholder:font-sans placeholder:font-normal shadow-sm"
+                  />
+                </div>
+                <div className="text-[10px] text-indigo-700 font-semibold italic bg-indigo-50 px-2.5 py-1 rounded border border-indigo-200">
+                  Ready for scanning. Focus is kept automatically.
+                </div>
               </div>
 
               <div className="overflow-x-auto max-h-[550px]">
@@ -750,8 +965,8 @@ const PurchaseBill = () => {
                   <thead className="bg-[#2b579a] text-white sticky top-0 z-10">
                     <tr>
                       <th className="border-r border-gray-400 p-1.5 w-8 text-center font-semibold">S.No</th>
-                      <th className="border-r border-gray-400 p-1.5 w-48 font-semibold">Select Product (Master)</th>
-                      <th className="border-r border-gray-400 p-1.5 w-28 font-semibold">Our Item Code</th>
+                      <th className="border-r border-gray-400 p-1.5 w-48 font-semibold">Product Name</th>
+                      <th className="border-r border-gray-400 p-1.5 w-28 font-semibold">Item Code (Barcode)</th>
                       <th className="border-r border-gray-400 p-1.5 w-28 font-semibold">Vendor Item Code</th>
                       <th className="border-r border-gray-400 p-1.5 w-16 font-semibold">Dress Size</th>
                       <th className="border-r border-gray-400 p-1.5 w-24 font-semibold">Variety</th>
@@ -781,93 +996,11 @@ const PurchaseBill = () => {
                     {items.map((item, idx) => (
                       <tr key={item.id} className="border-b border-gray-300 hover:bg-yellow-50 focus-within:bg-blue-50 transition-colors">
                         <td className="border-r border-gray-300 p-1 text-center text-gray-500 bg-gray-50">{idx + 1}</td>
-                        <td className="border-r border-gray-300 p-0 w-48">
-                          {item.isManualItem ? (
-                            <div className="flex items-center p-1 bg-white">
-                              <input 
-                                type="text" 
-                                value={item.itemName || ''} 
-                                onChange={e => updateItem(item.id, 'itemName', e.target.value)} 
-                                placeholder="Enter Item Name..."
-                                className="w-full bg-transparent focus:outline-none text-xs font-semibold text-gray-800"
-                              />
-                              <button 
-                                type="button"
-                                onClick={() => updateItem(item.id, 'isManualItem', false)} 
-                                className="text-blue-600 hover:text-blue-800 text-[10px] font-bold px-1.5 py-0.5 hover:bg-blue-50 rounded ml-1 transition-colors"
-                                title="Switch to master catalog selection list"
-                              >
-                                List
-                              </button>
-                            </div>
-                          ) : (
-                            <select
-                              value={item.itemCode || ''}
-                              onChange={e => {
-                                const code = e.target.value;
-                                if (code === 'MANUAL') {
-                                  updateItem(item.id, 'isManualItem', true);
-                                  updateItem(item.id, 'itemCode', '');
-                                  updateItem(item.id, 'itemName', '');
-                                } else if (!code) {
-                                  updateItem(item.id, 'itemCode', '');
-                                } else {
-                                  updateItem(item.id, 'itemCode', code);
-                                }
-                              }}
-                              className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-xs font-semibold text-gray-800"
-                            >
-                              <option value="">-- Select Product --</option>
-                              <option value="MANUAL" className="text-blue-600 font-bold bg-blue-50">+ Type Manually...</option>
-                              {dbProducts.map(p => (
-                                <option key={p.id} value={p.itemCode}>
-                                  {p.itemCode} - {p.name} {p.size ? `(${p.size})` : ''}
-                                </option>
-                              ))}
-                            </select>
-                          )}
+                        <td className="border-r border-gray-300 p-2 font-semibold text-gray-800 bg-gray-50">
+                          {item.itemName}
                         </td>
-                        <td className="border-r border-gray-300 p-0">
-                          <div className="flex items-center relative pr-1 min-w-[160px]">
-                            <input 
-                              type="text" 
-                              list="item-catalog"
-                              value={item.itemCode} 
-                              onChange={e => updateItem(item.id, 'itemCode', e.target.value)} 
-                              onKeyDown={e => handleKeyDown(e, idx, 'itemCode')}
-                              onDoubleClick={() => {
-                                setActiveRowId(item.id);
-                                setModalSearchQuery(item.itemCode || '');
-                                setHighlightedProductIndex(0);
-                                setIsProductModalOpen(true);
-                              }}
-                              className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none uppercase pr-16 text-xs font-mono font-bold" 
-                              placeholder="Double click to search..." 
-                            />
-                            <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center space-x-0.5 z-10">
-                              <button
-                                onClick={() => {
-                                  setActiveRowId(item.id);
-                                  setModalSearchQuery(item.itemCode || '');
-                                  setHighlightedProductIndex(0);
-                                  setIsProductModalOpen(true);
-                                }}
-                                type="button"
-                                className="px-1 py-0.5 text-[9px] font-bold bg-emerald-100 hover:bg-emerald-200 active:bg-emerald-300 text-emerald-700 rounded transition-colors shadow-sm"
-                                title="Search dress table (F2)"
-                              >
-                                Find
-                              </button>
-                              <button
-                                onClick={() => generateCodeForRow(item.id)}
-                                type="button"
-                                className="px-1 py-0.5 text-[9px] font-bold bg-blue-100 hover:bg-blue-200 active:bg-blue-300 text-blue-700 rounded transition-colors shadow-sm"
-                                title="Auto-generate item code"
-                              >
-                                Gen
-                              </button>
-                            </div>
-                          </div>
+                        <td className="border-r border-gray-300 p-2 font-mono font-bold text-slate-700 bg-gray-50">
+                          {item.itemCode}
                         </td>
                         <td className="border-r border-gray-300 p-0">
                           <input 
@@ -1381,6 +1514,121 @@ const PurchaseBill = () => {
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {isQuickAddModalOpen && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center backdrop-blur-sm bg-black/40" onClick={() => setIsQuickAddModalOpen(false)}>
+          <div
+            className="bg-white shadow-2xl flex flex-col border border-gray-300 rounded-xl overflow-hidden w-full max-w-xl animate-in fade-in zoom-in-95 duration-155"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="bg-[#2b579a] text-white px-4 py-3 flex justify-between items-center shadow-md">
+              <span className="font-extrabold text-sm tracking-wide">Quick Register & Add New Product</span>
+              <button type="button" onClick={() => setIsQuickAddModalOpen(false)} className="text-white hover:text-red-300 font-bold focus:outline-none text-base">✕</button>
+            </div>
+
+            {/* Modal Form */}
+            <form onSubmit={handleQuickAddSubmit} className="p-4 space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-gray-700 font-bold mb-1">Barcode (Scanned)</label>
+                  <input type="text" value={quickAddForm.barcode} readOnly className="w-full border border-gray-300 p-2 rounded bg-gray-100 font-mono font-bold text-slate-700" />
+                </div>
+                <div>
+                  <label className="block text-gray-700 font-bold mb-1">System Item Code</label>
+                  <input type="text" value={quickAddForm.itemCode} readOnly className="w-full border border-gray-300 p-2 rounded bg-gray-100 font-mono font-bold text-slate-700" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-gray-700 font-bold mb-1">Product Name <span className="text-red-500">*</span></label>
+                <input
+                  type="text"
+                  required
+                  value={quickAddForm.name}
+                  onChange={e => setQuickAddForm(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="e.g. Silk Saree, Cotton Kurti..."
+                  className="w-full border border-indigo-300 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 p-2 rounded bg-white font-bold outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block text-gray-700 font-bold mb-1">Size</label>
+                  <input type="text" value={quickAddForm.size} onChange={e => setQuickAddForm(prev => ({ ...prev, size: e.target.value }))} className="w-full border border-gray-300 p-2 rounded outline-none font-semibold" />
+                </div>
+                <div>
+                  <label className="block text-gray-700 font-bold mb-1">Variety</label>
+                  <input type="text" value={quickAddForm.variety} onChange={e => setQuickAddForm(prev => ({ ...prev, variety: e.target.value }))} className="w-full border border-gray-300 p-2 rounded outline-none font-semibold" />
+                </div>
+                <div>
+                  <label className="block text-gray-700 font-bold mb-1">Category</label>
+                  <select value={quickAddForm.department} onChange={e => setQuickAddForm(prev => ({ ...prev, department: e.target.value }))} className="w-full border border-gray-300 p-2 rounded outline-none bg-white font-bold">
+                    <option value="None">None</option>
+                    <option value="Mens">Mens</option>
+                    <option value="Womens">Womens</option>
+                    <option value="Kids">Kids</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-4 gap-2">
+                <div>
+                  <label className="block text-gray-700 font-bold mb-1">Purchase Rate</label>
+                  <input type="number" step="0.01" value={quickAddForm.purchaseRate || ''} onChange={e => setQuickAddForm(prev => ({ ...prev, purchaseRate: Number(e.target.value) }))} className="w-full border border-gray-300 p-2 rounded outline-none text-right font-mono font-bold" />
+                </div>
+                <div>
+                  <label className="block text-gray-700 font-bold mb-1">Sales Rate</label>
+                  <input type="number" step="0.01" value={quickAddForm.price || ''} onChange={e => setQuickAddForm(prev => ({ ...prev, price: Number(e.target.value) }))} className="w-full border border-indigo-300 focus:border-indigo-650 p-2 rounded outline-none text-right font-mono text-indigo-700 font-bold" />
+                </div>
+                <div>
+                  <label className="block text-gray-700 font-bold mb-1">MRP</label>
+                  <input type="number" step="0.01" value={quickAddForm.mrp || ''} onChange={e => setQuickAddForm(prev => ({ ...prev, mrp: Number(e.target.value) }))} className="w-full border border-gray-300 p-2 rounded outline-none text-right font-mono text-gray-700 font-semibold" />
+                </div>
+                <div>
+                  <label className="block text-gray-700 font-bold mb-1">Tax %</label>
+                  <select value={quickAddForm.taxPercent} onChange={e => setQuickAddForm(prev => ({ ...prev, taxPercent: Number(e.target.value) }))} className="w-full border border-gray-300 p-2 rounded outline-none bg-white font-bold">
+                    <option value="0">0%</option>
+                    <option value="5">5%</option>
+                    <option value="12">12%</option>
+                    <option value="18">18%</option>
+                    <option value="28">28%</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div className="col-span-2">
+                  <label className="block text-gray-700 font-bold mb-1">Brand / Factory</label>
+                  <input type="text" value={quickAddForm.factory} onChange={e => setQuickAddForm(prev => ({ ...prev, factory: e.target.value }))} className="w-full border border-gray-300 p-2 rounded outline-none" placeholder="e.g. Rayon, Nike..." />
+                </div>
+                <div>
+                  <label className="block text-gray-700 font-bold mb-1 text-blue-900 font-extrabold">Purchase Qty</label>
+                  <input type="number" min="1" required value={quickAddForm.qty} onChange={e => setQuickAddForm(prev => ({ ...prev, qty: Number(e.target.value) }))} className="w-full border border-blue-400 p-2 rounded outline-none text-center font-extrabold text-blue-950 bg-blue-50/50" />
+                </div>
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-3 border-t border-gray-200 mt-4">
+                <button
+                  type="button"
+                  onClick={() => setIsQuickAddModalOpen(false)}
+                  className="px-4 py-2 border border-gray-300 rounded font-bold hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-bold transition-colors shadow-sm flex items-center space-x-1.5"
+                >
+                  {loading && <span className="animate-spin mr-1">⌛</span>}
+                  <span>Save & Add to Bill</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

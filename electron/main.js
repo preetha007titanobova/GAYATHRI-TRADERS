@@ -9,6 +9,7 @@ const { spawn, fork } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const printerService = require('./printer/printer.service');
 
 let mainWindow;
 let mongodProcess;
@@ -246,9 +247,20 @@ function createWindow() {
         // Load the main POS billing dashboard
         mainWindow.loadURL('http://localhost:5000');
     }
+
+    // Initialize automated print service
+    printerService.init(mainWindow, ipcMain);
 }
 
 app.whenReady().then(() => {
+    // Enable legacy print dialog on Windows to bypass Windows 11 modern print dialog bug
+    if (process.platform === 'win32') {
+        const { exec } = require('child_process');
+        exec('reg add "HKCU\\Software\\Microsoft\\Print\\UnifiedPrintDialog" /v PreferLegacyPrintDialog /d 1 /t REG_DWORD /f', (err) => {
+            if (err) console.error('Failed to set legacy print dialog registry:', err.message);
+        });
+    }
+
     // 1. Spawns local MongoDB & Express Service
     startLocalMongo();
     startLocalBackend();
@@ -292,35 +304,8 @@ ipcMain.on('app-ready', () => {
 });
 
 ipcMain.on('print-html', (event, htmlContent) => {
-    let printWindow = new BrowserWindow({
-        show: false,
-        webPreferences: {
-            nodeIntegration: false,
-            contextIsolation: true
-        }
-    });
-
-    let processedHtml = htmlContent;
-    if (htmlContent.includes('<head>')) {
-        processedHtml = htmlContent.replace('<head>', '<head><base href="http://localhost:5000/">');
-    } else {
-        processedHtml = `<base href="http://localhost:5000/">` + htmlContent;
-    }
-
-    printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(processedHtml)}`);
-
-    printWindow.webContents.on('did-finish-load', () => {
-        printWindow.webContents.print({
-            silent: false,
-            printBackground: true,
-            margins: { marginType: 'none' }
-        }, (success, errorType) => {
-            if (!success) {
-                console.error('Electron printing failed:', errorType);
-            }
-            printWindow.destroy();
-            printWindow = null;
-        });
+    printerService.printHTML(htmlContent).catch((err) => {
+        console.error('[Main] Printer service print failed:', err.message);
     });
 });
 
