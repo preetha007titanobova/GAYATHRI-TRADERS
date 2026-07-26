@@ -291,6 +291,32 @@ ipcMain.on('app-ready', () => {
     isFrontendReady = true;
 });
 
+ipcMain.on('print-html', (event, htmlContent) => {
+    let printWindow = new BrowserWindow({
+        show: false,
+        webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true
+        }
+    });
+
+    printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
+
+    printWindow.webContents.on('did-finish-load', () => {
+        printWindow.webContents.print({
+            silent: false,
+            printBackground: true,
+            margins: { marginType: 'none' }
+        }, (success, errorType) => {
+            if (!success) {
+                console.error('Electron printing failed:', errorType);
+            }
+            printWindow.destroy();
+            printWindow = null;
+        });
+    });
+});
+
 // Shutdown services gracefully on exit
 app.on('window-all-closed', () => {
     if (mongodProcess) mongodProcess.kill();

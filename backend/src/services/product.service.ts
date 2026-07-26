@@ -446,15 +446,16 @@ export const getStockRegisterReport = async (): Promise<any[]> => {
     console.error("Error in getStockRegisterReport salesItems:", e);
   }
 
-  let salesReturnItems: any[] = [];
+  let salesReturns: any[] = [];
   try {
+    const db = await getDb();
+    salesReturns = await db.collection('SalesReturn').find({}).toArray();
     salesReturnItems = await prisma.salesReturnItem.findMany({
       where: { disposition: 'Return to Warehouse' }
     });
-    const salesReturns = await prisma.salesReturn.findMany();
-    const salesReturnMap = new Map(salesReturns.map(r => [r.id, r]));
+    const salesReturnMap = new Map(salesReturns.map(r => [r._id.toString() || r.id, r]));
     for (const item of salesReturnItems) {
-      item.salesReturn = salesReturnMap.get(item.salesReturnId) || null;
+      item.salesReturn = salesReturnMap.get(item.salesReturnId?.toString()) || null;
     }
   } catch (e) {
     console.error("Error in getStockRegisterReport salesReturnItems:", e);
@@ -510,6 +511,25 @@ export const getStockRegisterReport = async (): Promise<any[]> => {
         });
       }
     }
+    for (const ret of salesReturns) {
+      if (ret.returnType === 'Exchange (Replacement)' && ret.replacementItems && Array.isArray(ret.replacementItems)) {
+        ret.replacementItems.forEach((repItem: any) => {
+          const isMatch = (itemCode && repItem.itemCode === itemCode) ||
+                          (name && repItem.itemName?.toLowerCase() === name.toLowerCase());
+          if (isMatch) {
+            dbMovements.push({
+              id: `${ret._id?.toString() || ret.id}-rep-${repItem.itemCode || repItem.itemName}`,
+              date: ret.returnDate,
+              vchType: 'Sales Return Exchange',
+              vchNo: ret.returnNo,
+              particulars: `Replacement item to: ${ret.customerName}`,
+              inward: 0,
+              outward: Number(repItem.qty) || 0
+            });
+          }
+        });
+      }
+    }
 
     for (const item of prodPurchases) {
       if (item.purchaseBill) {
@@ -535,6 +555,7 @@ export const getStockRegisterReport = async (): Promise<any[]> => {
     return {
       id: prodId,
       itemCode: product.itemCode || '',
+      vendorItemCode: product.vendorItemCode || '',
       name: product.name,
       department: product.department || '',
       variety: product.variety || '',

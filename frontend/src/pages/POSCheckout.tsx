@@ -56,6 +56,8 @@ const POSCheckout = () => {
   const [gstNo, setGstNo] = useState('');
   const [printIn, setPrintIn] = useState('Blank A4');
   const [invoiceFormat, setInvoiceFormat] = useState('GSTFormat Full Page');
+  const [shippingAddress, setShippingAddress] = useState('');
+  const [remarks, setRemarks] = useState('');
 
 
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
@@ -90,6 +92,8 @@ const POSCheckout = () => {
     setFavourDiscount(0);
     setEditingBillId(null);
     setFromSalesOrderId(null);
+    setShippingAddress('');
+    setRemarks('');
     fetchNextInvoiceNo();
     fetchProducts();
     if (setGlobalSettings) {
@@ -205,23 +209,29 @@ const POSCheckout = () => {
       setGstNo(invoiceToEdit.gstNo || '');
       setPrintIn(invoiceToEdit.printIn || 'Blank A4');
       setInvoiceFormat(invoiceToEdit.invFormat || invoiceToEdit.invoiceFormat || 'GSTFormat Full Page');
+      setShippingAddress(invoiceToEdit.shippingAddress || '');
+      setRemarks(invoiceToEdit.remarks || '');
 
       // Fetch full details with items                                                                                                  
       fetch(`${Api}/sales/bills/${invoiceToEdit.invoiceNo}`)
         .then(res => res.json())
         .then(data => {
-          if (data && Array.isArray(data.items)) {
-            setGridData(data.items.map((item: any, idx: number) => ({
-              id: idx + 1,
-              itemName: item.itemName,
-              itemDesc: item.itemDesc || '',
-              qty: item.qty,
-              uom: item.uom || 'PCS',
-              rate: item.rate,
-              discPercent: item.discPercent || 0,
-              discAmt: item.discAmt || 0,
-              amount: item.amount
-            })));
+          if (data) {
+            if (data.remarks) setRemarks(data.remarks);
+            if (data.shippingAddress) setShippingAddress(data.shippingAddress);
+            if (Array.isArray(data.items)) {
+              setGridData(data.items.map((item: any, idx: number) => ({
+                id: idx + 1,
+                itemName: item.itemName,
+                itemDesc: item.itemDesc || '',
+                qty: item.qty,
+                uom: item.uom || 'PCS',
+                rate: item.rate,
+                discPercent: item.discPercent || 0,
+                discAmt: item.discAmt || 0,
+                amount: item.amount
+              })));
+            }
           }
         })
         .catch(err => console.error("Error fetching full bill details:", err));
@@ -233,6 +243,7 @@ const POSCheckout = () => {
         setBuyerName(orderToConvert.buyerName || '');
         setMobileNo(orderToConvert.mobileNo || '');
         setAddress(orderToConvert.address || '');
+        setRemarks(orderToConvert.remarks || '');
       }
     }
   }, [location.state]);
@@ -634,6 +645,8 @@ const POSCheckout = () => {
       salesman, paymentMode,
       fromSalesOrderId,
       isSelectiveCustomer: globalSettings?.isSelectiveCustomer || false,
+      shippingAddress,
+      remarks,
       items: validItems.map(item => ({
         itemName: item.itemName,
         itemDesc: item.itemDesc,
@@ -698,6 +711,8 @@ const POSCheckout = () => {
         setSalesman('');
         setTendered(0);
         setFavourDiscount(0);
+        setShippingAddress('');
+        setRemarks('');
         setConfirmModalState({ isOpen: false, action: null });
         if (setGlobalNotification) {
           setGlobalNotification({ msg: 'Invoice data cleared successfully.', type: 'success' });
@@ -889,15 +904,12 @@ const POSCheckout = () => {
       totalAmount: netAmount
     });
 
-    // 2. Download PDF Bill
-    handleDownloadPDF();
-
-    // 3. Send WhatsApp Bill if mobile exists
+    // 2. Send WhatsApp Bill if mobile exists
     if (mobileNo) {
       handleSendWhatsApp();
     }
 
-    // 4. Save Invoice in Database
+    // 3. Save Invoice in Database
     executeSave(validItems);
   };
 
@@ -1512,11 +1524,21 @@ const POSCheckout = () => {
           <div className="legacy-panel p-1 flex space-x-2">
             <div className="flex-1 flex items-center">
               <label className="legacy-label whitespace-nowrap mr-2">Shipping Addr.</label>
-              <input type="text" className="legacy-input w-full py-0.5" />
+              <input 
+                type="text" 
+                className="legacy-input w-full py-0.5" 
+                value={shippingAddress}
+                onChange={e => setShippingAddress(e.target.value)}
+              />
             </div>
             <div className="flex-1 flex items-center">
               <label className="legacy-label whitespace-nowrap mr-2">Remarks</label>
-              <input type="text" className="legacy-input w-full py-0.5" />
+              <input 
+                type="text" 
+                className="legacy-input w-full py-0.5" 
+                value={remarks}
+                onChange={e => setRemarks(e.target.value)}
+              />
             </div>
           </div>
 
@@ -1526,7 +1548,7 @@ const POSCheckout = () => {
             <div className="flex-1"></div>
             <button type="button" className="legacy-button py-1.5 px-4 bg-green-600 text-white font-extrabold border-green-700 hover:bg-green-700 shadow-sm transition-all flex items-center space-x-1.5 rounded" onClick={handleInstantCheckout}>
               <Zap size={13} className="text-yellow-300 fill-yellow-300" />
-              <span>⚡ Save + Print + PDF + WhatsApp (1-Click)</span>
+              <span> Save + Print + WhatsApp</span>
             </button>
             <button type="button" className="legacy-button py-1.5 px-3 bg-red-100 font-bold border-red-400 hover:bg-red-200 transition-colors rounded text-xs" onClick={handleCancelClick}>Cancel</button>
           </div>
@@ -1739,83 +1761,6 @@ const POSCheckout = () => {
               >
                 {confirmModalState.yesText || "Yes, Save"}
               </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* UPI / Online Payment Modal */}
-      {showUpiModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70]" onClick={() => setShowUpiModal(false)}>
-          <div className="bg-white shadow-2xl w-[420px] rounded-lg border border-blue-300 overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="bg-gradient-to-r from-blue-900 to-indigo-900 text-white px-4 py-3 flex justify-between items-center">
-              <div className="flex items-center space-x-2">
-                <QrCode size={20} className="text-yellow-400" />
-                <span className="font-bold text-base">Online Payment (UPI QR)</span>
-              </div>
-              <button onClick={() => setShowUpiModal(false)} className="text-white hover:text-red-300 font-bold text-lg">✕</button>
-            </div>
-            
-            <div className="p-5 flex flex-col items-center text-center space-y-3 bg-slate-50">
-              <div className="bg-white p-3 border-2 border-dashed border-blue-400 rounded-xl shadow-md flex flex-col items-center">
-                {/* Simulated UPI QR Code */}
-                <div className="w-44 h-44 bg-white p-2 border border-gray-300 rounded flex flex-col items-center justify-center relative">
-                  <div className="grid grid-cols-6 gap-1.5 w-full h-full p-1 bg-gray-900 rounded opacity-90">
-                    <div className="bg-white col-span-2 row-span-2 rounded-xs border-2 border-gray-900 p-1"><div className="bg-gray-900 w-full h-full"></div></div>
-                    <div className="bg-white col-span-2 row-span-2 col-start-5 rounded-xs border-2 border-gray-900 p-1"><div className="bg-gray-900 w-full h-full"></div></div>
-                    <div className="bg-white col-span-2 row-span-2 row-start-5 rounded-xs border-2 border-gray-900 p-1"><div className="bg-gray-900 w-full h-full"></div></div>
-                    <div className="bg-yellow-400 col-span-2 row-span-2 col-start-3 row-start-3 rounded-full flex items-center justify-center text-[9px] font-black text-blue-950">UPI</div>
-                  </div>
-                </div>
-                <p className="text-[11px] font-bold text-gray-500 mt-1">Scan using PhonePe / Google Pay / Paytm</p>
-              </div>
-
-              <div className="w-full bg-blue-50 border border-blue-200 p-2.5 rounded-md text-left text-xs font-mono">
-                <div className="flex justify-between text-gray-700 mb-1">
-                  <span>Merchant UPI ID:</span>
-                  <strong className="text-blue-900 font-bold select-all">ithunammakada@upi</strong>
-                </div>
-                <div className="flex justify-between text-gray-900 font-bold text-sm border-t border-blue-200 pt-1">
-                  <span>Amount Payable:</span>
-                  <strong className="text-emerald-700 text-base">₹{netAmount.toFixed(2)}</strong>
-                </div>
-              </div>
-
-              <div className="w-full text-left">
-                <label className="text-xs font-bold text-gray-700 block mb-1">UPI Transaction Ref / UTR No (Optional)</label>
-                <input
-                  type="text"
-                  className="w-full px-3 py-1.5 border border-gray-300 rounded font-mono text-xs focus:ring-2 focus:ring-blue-500 outline-none"
-                  placeholder="e.g. 420918736122"
-                  value={upiTxnId}
-                  onChange={e => setUpiTxnId(e.target.value)}
-                />
-              </div>
-
-              <div className="flex space-x-2 w-full pt-1">
-                <button
-                  type="button"
-                  onClick={() => setShowUpiModal(false)}
-                  className="flex-1 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold rounded text-xs transition-all"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPaymentMode('UPI / Online Pay');
-                    setShowUpiModal(false);
-                    if (setGlobalNotification) {
-                      setGlobalNotification({ msg: `✓ Online Payment of ₹${netAmount.toFixed(2)} confirmed!`, type: 'success' });
-                      setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
-                    }
-                  }}
-                  className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded text-xs shadow transition-all flex items-center justify-center space-x-1"
-                >
-                  <CheckCircle size={14} />
-                  <span>Confirm Payment</span>
-                </button>
-              </div>
             </div>
           </div>
         </div>

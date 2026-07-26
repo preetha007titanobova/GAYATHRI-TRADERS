@@ -925,6 +925,7 @@ export const deleteSalesReturn = async (id: string): Promise<boolean> => {
 };
 
 export const getStockLedger = async (productId: string): Promise<any> => {
+  const db = await getDb();
   const product = await prisma.product.findUnique({
     where: { id: productId }
   });
@@ -942,10 +943,10 @@ export const getStockLedger = async (productId: string): Promise<any> => {
     where: { productId }
   }) as any[];
 
-  const salesReturns = await prisma.salesReturn.findMany();
-  const salesReturnMap = new Map(salesReturns.map(r => [r.id, r]));
+  const salesReturns = await db.collection('SalesReturn').find({}).toArray();
+  const salesReturnMap = new Map(salesReturns.map(r => [r._id.toString() || r.id, r]));
   for (const item of returnItems) {
-    item.salesReturn = salesReturnMap.get(item.salesReturnId) || null;
+    item.salesReturn = salesReturnMap.get(item.salesReturnId?.toString()) || null;
   }
 
   // Virtual Movements (Sales Orders)
@@ -994,6 +995,27 @@ export const getStockLedger = async (productId: string): Promise<any> => {
         outward: 0,
         disposition: item.disposition,
         reason: item.salesReturn.reason
+      });
+    }
+  }
+
+  // Outward replacement movements from sales returns
+  for (const ret of salesReturns) {
+    if (ret.returnType === 'Exchange (Replacement)' && ret.replacementItems && Array.isArray(ret.replacementItems)) {
+      ret.replacementItems.forEach((repItem: any) => {
+        const isMatch = (product.itemCode && repItem.itemCode === product.itemCode) ||
+                        (product.name && repItem.itemName?.toLowerCase() === product.name.toLowerCase());
+        if (isMatch) {
+          movements.push({
+            id: `${ret._id?.toString() || ret.id}-rep-${repItem.itemCode || repItem.itemName}`,
+            date: ret.returnDate,
+            vchType: 'Sales Return Exchange',
+            vchNo: ret.returnNo,
+            particulars: `Replacement item to: ${ret.customerName}`,
+            inward: 0,
+            outward: Number(repItem.qty) || 0
+          });
+        }
       });
     }
   }
