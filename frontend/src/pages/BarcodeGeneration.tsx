@@ -35,6 +35,48 @@ interface SavedBarcodeItem {
   createdAt: string;
 }
 
+const CODE39_MAP: { [key: string]: string } = {
+  '0': '000110100', '1': '100100001', '2': '001100001', '3': '101100000',
+  '4': '000110001', '5': '100110000', '6': '001110000', '7': '000100101',
+  '8': '100100100', '9': '001100100', 'A': '100001001', 'B': '001001001',
+  'C': '101001000', 'D': '000011001', 'E': '100011000', 'F': '001011000',
+  'G': '000001101', 'H': '100001100', 'I': '001001100', 'J': '000011100',
+  'K': '100000011', 'L': '001000011', 'M': '101000010', 'N': '000010011',
+  'O': '100010010', 'P': '001010010', 'Q': '000000111', 'R': '100000110',
+  'S': '001000110', 'T': '000010110', 'U': '110000001', 'V': '011000001',
+  'W': '111000000', 'X': '010010001', 'Y': '110010000', 'Z': '011010000',
+  '-': '010000101', '.': '110000100', ' ': '011000100', '$': '010101000',
+  '/': '010100010', '+': '010001010', '%': '000101010', '*': '010010100'
+};
+
+function generateCode39Bars(text: string): { width: number; type: 'bar' | 'space' }[] {
+  const cleanText = text.toUpperCase().replace(/[^0-9A-Z\-.\s$/+%]/g, '');
+  const formatted = `*${cleanText}*`;
+  const result: { width: number; type: 'bar' | 'space' }[] = [];
+
+  for (let i = 0; i < formatted.length; i++) {
+    const char = formatted[i];
+    const pattern = CODE39_MAP[char];
+    if (!pattern) continue;
+
+    for (let j = 0; j < 9; j++) {
+      const isWide = pattern[j] === '1';
+      const isBar = j % 2 === 0;
+      result.push({
+        width: isWide ? 2.5 : 1,
+        type: isBar ? 'bar' : 'space'
+      });
+    }
+    if (i < formatted.length - 1) {
+      result.push({
+        width: 1,
+        type: 'space'
+      });
+    }
+  }
+  return result;
+}
+
 const BarcodeGeneration = () => {
   const { shopName } = useLicense();
   // --- Form States ---
@@ -205,15 +247,6 @@ const BarcodeGeneration = () => {
 
   // Print Labels Function
   const printLabelHTML = (itemsToPrint: SavedBarcodeItem[]) => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      if (setGlobalNotification) {
-        setGlobalNotification({ msg: "Please allow popups to print labels.", type: 'error' });
-        setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
-      }
-      return;
-    }
-
     let printHtml = '';
     itemsToPrint.forEach(item => {
       const numLabels = Number(item.printCount) || 1;
@@ -221,6 +254,16 @@ const BarcodeGeneration = () => {
       const expFormatted = item.expDate ? `${item.expDate.substring(8, 10)}/${item.expDate.substring(5, 7)}/${item.expDate.substring(2, 4)}` : '--/--';
       const mrpFormatted = Number(item.mrp || 0).toFixed(2);
       const saleFormatted = Number(item.salesPrice || 0).toFixed(2);
+
+      const bars = generateCode39Bars(item.barcodeValue || '100002');
+      const scale = 1.15;
+      const barcodeHtml = bars.map(bar => {
+        if (bar.type === 'bar') {
+          return `<div style="border-left: ${bar.width * scale}px solid #000000; height: 100%; flex-shrink: 0;"></div>`;
+        } else {
+          return `<div style="width: ${bar.width * scale}px; height: 100%; flex-shrink: 0;"></div>`;
+        }
+      }).join('');
 
       for (let i = 0; i < numLabels; i++) {
         printHtml += `
@@ -233,8 +276,8 @@ const BarcodeGeneration = () => {
               <span class="mrp">MRP: <del>₹${mrpFormatted}</del></span>
               <span class="sale">₹${saleFormatted}</span>
             </div>
-            <div class="barcode-wrapper">
-               ${Array.from({ length: 45 }).map(() => `<div class="barcode-line" style="width: ${Math.max(1, Math.floor(Math.random() * 3))}px;"></div>`).join('')}
+            <div class="barcode-wrapper" style="display: flex; justify-content: center; align-items: stretch; height: 6mm; width: 100%; background-color: #ffffff; overflow: hidden; margin-top: 0.8mm;">
+               ${barcodeHtml}
             </div>
             <div class="barcode-text">* ${item.barcodeValue} *</div>
           </div>
@@ -242,7 +285,7 @@ const BarcodeGeneration = () => {
       }
     });
 
-    printWindow.document.write(`
+    const fullHtml = `
       <!DOCTYPE html>
       <html>
         <head>
@@ -258,20 +301,27 @@ const BarcodeGeneration = () => {
               -webkit-print-color-adjust: exact; 
               print-color-adjust: exact;
             }
-            #print-wrapper { display: block; }
-            #print-label {
-              width: 35mm;
-              height: 25mm;
-              overflow: hidden;
-              box-sizing: border-box;
-              padding: 1mm;
+            #print-wrapper {
               display: flex;
               flex-direction: column;
-              justify-content: space-between;
               align-items: center;
-              page-break-after: always;
+              padding: 0.5mm;
+              box-sizing: border-box;
             }
-            .header { font-size: 6pt; font-weight: bold; text-align: center; line-height: 1; }
+            #print-label {
+              width: 34mm;
+              height: 24mm;
+              padding: 1mm 1.5mm;
+              box-sizing: border-box;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: space-between;
+              background-color: #fff;
+              page-break-after: always;
+              overflow: hidden;
+            }
+            .header { font-size: 5pt; font-weight: bold; text-align: center; text-transform: uppercase; color: #1e3a8a; line-height: 1; margin-bottom: 0.2mm; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
             .product { font-size: 7pt; font-weight: bold; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1; width: 100%; }
             .meta { font-size: 5pt; font-weight: bold; text-align: center; line-height: 1; color: #333; }
             .dates { font-size: 5pt; line-height: 1; white-space: nowrap; }
@@ -279,22 +329,38 @@ const BarcodeGeneration = () => {
             .mrp { font-size: 5pt; }
             .sale { font-size: 8pt; font-weight: bold; }
             .barcode-wrapper { height: 6mm; width: 90%; display: flex; justify-content: center; align-items: stretch; overflow: hidden; }
-            .barcode-line { background-color: #000; height: 100%; margin-right: 0.4mm; }
             .barcode-text { font-size: 5pt; font-family: monospace; font-weight: bold; margin-top: 0.5mm; }
           </style>
         </head>
         <body>
           <div id="print-wrapper">${printHtml}</div>
-          <script>
-            setTimeout(() => {
-              window.print();
-              window.close();
-            }, 300);
-          </script>
         </body>
       </html>
-    `);
-    printWindow.document.close();
+    `;
+
+    if ((window as any).api) {
+      (window as any).api.send('print-html', fullHtml);
+    } else {
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+        if (setGlobalNotification) {
+          setGlobalNotification({ msg: "Please allow popups to print labels.", type: 'error' });
+          setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
+        }
+        return;
+      }
+      printWindow.document.write(fullHtml);
+      printWindow.document.write(`
+        <script>
+          setTimeout(() => {
+            window.print();
+            window.close();
+          }, 500);
+        </script>
+      `);
+      printWindow.document.close();
+      printWindow.focus();
+    }
   };
 
   const handlePrintCurrentForm = () => {
@@ -381,26 +447,24 @@ const BarcodeGeneration = () => {
     ctx.fillText(`MRP: ₹${mrpVal}   SALE: ₹${saleVal}`, 200, 146);
 
     // Barcode Visual Lines
-    const code = item.barcodeValue || '100002';
+    const bars = generateCode39Bars(item.barcodeValue || '100002');
     const barY = 158;
     const barHeight = 75;
-    ctx.fillStyle = '#000000';
 
-    let currentX = 40;
-    for (let i = 0; i < code.length; i++) {
-      const charCode = code.charCodeAt(i);
-      const widths = [(charCode % 3) + 1, (charCode % 2) + 1, (charCode % 4) + 1];
-      widths.forEach(w => {
-        ctx.fillRect(currentX, barY, w * 2.2, barHeight);
-        currentX += w * 2.2 + 2.5;
-      });
-    }
+    // Calculate total width to center it on the 400px wide canvas
+    const scale = 2.0;
+    let totalUnits = 0;
+    bars.forEach(bar => totalUnits += bar.width);
+    const totalWidth = totalUnits * scale;
+    let currentX = Math.max(10, 200 - totalWidth / 2); // Center the barcode
 
-    while (currentX < 360) {
-      const w = Math.floor(Math.random() * 3) + 1;
-      ctx.fillRect(currentX, barY, w * 2, barHeight);
-      currentX += w * 2 + 2;
-    }
+    bars.forEach(bar => {
+      if (bar.type === 'bar') {
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(currentX, barY, bar.width * scale, barHeight);
+      }
+      currentX += bar.width * scale;
+    });
 
     // Barcode text
     ctx.font = 'bold 16px monospace';
@@ -811,13 +875,16 @@ const BarcodeGeneration = () => {
               </div>
 
               {/* Barcode Visual Lines */}
-              <div className="w-[92%] h-[6mm] flex justify-center items-stretch overflow-hidden">
-                {Array.from({ length: 42 }).map((_, i) => (
+              <div className="w-[92%] h-[6mm] flex justify-center items-stretch overflow-hidden bg-white">
+                {generateCode39Bars(barcodeValue || '100002').map((bar, index) => (
                   <div
-                    key={i}
-                    className="h-full bg-[#000]"
-                    style={{ width: `${Math.max(1, ((i * 7) % 3) + 1)}px`, marginRight: '0.4mm' }}
-                  ></div>
+                    key={index}
+                    style={{
+                      width: `${bar.width * 1.6}px`,
+                      backgroundColor: bar.type === 'bar' ? '#000000' : 'transparent',
+                      flexShrink: 0
+                    }}
+                  />
                 ))}
               </div>
 

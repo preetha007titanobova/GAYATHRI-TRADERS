@@ -156,49 +156,33 @@ function startLocalMongo() {
 
 // 3. Spawn Local Express Backend
 function startLocalBackend() {
-    const backendPath = path.join(__dirname, '..', 'backend', 'src', 'index.ts'); // dev mode path
-    const prodBackendPath = path.join(__dirname, 'backend', 'index.js'); // prod compiled path
-
     console.log('Spawning billing logic server...');
     const localDbUrl = 'mongodb://127.0.0.1:27017/ERP_DB';
 
-    const forkOptions = {
-        env: {
-            PORT: 5000,
-            NODE_ENV: app.isPackaged ? 'production' : 'development'
-        },
-        silent: true
-    };
-
     if (app.isPackaged) {
-        forkOptions.env.DATABASE_URL = localDbUrl;
-        forkOptions.env.FRONTEND_DIST_PATH = path.join(__dirname, 'frontend', 'dist');
+        const prodBackendPath = path.join(__dirname, 'backend', 'index.js');
+        backendProcess = fork(prodBackendPath, [], {
+            env: {
+                PORT: 5000,
+                DATABASE_URL: localDbUrl,
+                NODE_ENV: 'production'
+            }
+        });
     } else {
-        forkOptions.cwd = path.join(__dirname, '..', 'backend');
-        forkOptions.execPath = 'node';
-        forkOptions.env.TS_NODE_TRANSPILE_ONLY = 'true';
-        forkOptions.env.FRONTEND_DIST_PATH = path.join(__dirname, '..', 'frontend', 'dist');
-        try {
-            const tsNodeRegister = require.resolve('ts-node/register', {
-                paths: [forkOptions.cwd]
-            });
-            forkOptions.execArgv = ['-r', tsNodeRegister];
-        } catch (err) {
-            console.error('Could not find ts-node/register to run TypeScript backend:', err);
-        }
-    }
-
-    backendProcess = fork(app.isPackaged ? prodBackendPath : backendPath, [], forkOptions);
-
-    try {
-        const logPath = path.join(app.getPath('userData'), 'backend.log');
-        const logStream = fs.createWriteStream(logPath, { flags: 'a' });
+        const backendDir = path.join(__dirname, '..', 'backend');
+        const shell = process.platform === 'win32' ? 'cmd.exe' : '/bin/sh';
+        const args = process.platform === 'win32' ? ['/c', 'npm run dev'] : ['-c', 'npm run dev'];
         
-        backendProcess.stdout.on('data', (data) => logStream.write(`[STDOUT] ${data.toString()}`));
-        backendProcess.stderr.on('data', (data) => logStream.write(`[STDERR] ${data.toString()}`));
-        backendProcess.on('close', (code) => logStream.write(`[EXIT] Backend process exited with code ${code}\n`));
-    } catch (err) {
-        console.error('Failed to initialize backend log file stream:', err.message);
+        backendProcess = spawn(shell, args, {
+            cwd: backendDir,
+            env: {
+                ...process.env,
+                PORT: 5000,
+                DATABASE_URL: localDbUrl,
+                NODE_ENV: 'development'
+            },
+            stdio: 'inherit'
+        });
     }
 
     backendProcess.on('error', (err) => console.error('Backend logic server crashed:', err));
@@ -216,6 +200,10 @@ function createWindow() {
             preload: path.join(__dirname, 'preload.js')
         }
     });
+
+    if (!app.isPackaged) {
+        mainWindow.webContents.openDevTools();
+    }
 
     mainWindow.on('close', (e) => {
         if (!isQuitting) {
@@ -307,6 +295,70 @@ ipcMain.on('print-html', (event, htmlContent) => {
     printerService.printHTML(htmlContent).catch((err) => {
         console.error('[Main] Printer service print failed:', err.message);
     });
+    let printWindow = new BrowserWindow({
+        show: true,
+        width: 800,
+        height: 600,
+        title: 'Print Document',
+        webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true
+        }
+    });
+
+    let processedHtml = htmlContent;
+    if (htmlContent.includes('<head>')) {
+        processedHtml = htmlContent.replace('<head>', '<head><base href="http://localhost:5000/">');
+    } else {
+        processedHtml = `<base href="http://localhost:5000/">` + htmlContent;
+    }
+
+    try {
+        const tempWritePath = path.join(app.getPath('userData'), 'temp_print.html');
+        fs.writeFileSync(tempWritePath, processedHtml, 'utf8');
+
+        printWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+            console.error(`Print window failed to load: ${errorDescription} (${errorCode}) at ${validatedURL}`);
+        });
+
+        printWindow.loadFile(tempWritePath);
+
+        printWindow.webContents.on('did-finish-load', () => {
+            setTimeout(() => {
+                if (printWindow && !printWindow.isDestroyed()) {
+                    printWindow.webContents.print({
+                        silent: false,
+                        printBackground: true,
+                        margins: { marginType: 'none' }
+                    }, (success, errorType) => {
+                        if (!success) {
+                            console.error('Electron printing failed:', errorType);
+                        }
+
+                        // Clean up temporary file
+                        try {
+                            if (fs.existsSync(tempWritePath)) {
+                                fs.unlinkSync(tempWritePath);
+                            }
+                        } catch (err) {
+                            console.error('Failed to delete temp print file:', err);
+                        }
+
+                        if (printWindow && !printWindow.isDestroyed()) {
+                            printWindow.destroy();
+                            printWindow = null;
+                        }
+                    });
+                }
+            }, 250);
+        });
+    } catch (err) {
+        console.error('Error in print-html handler:', err);
+        if (printWindow && !printWindow.isDestroyed()) {
+            printWindow.destroy();
+            printWindow = null;
+        }
+    }
 });
 
 // Shutdown services gracefully on exit

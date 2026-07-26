@@ -552,25 +552,56 @@ const POSCheckout = () => {
 
   // --- API Integrations ---
 
+  const handleInstantCheckout = async () => {
+    if (setGlobalNotification) {
+      setGlobalNotification({ msg: "⚠️ WhatsApp feature is blocked. Please renew the plan.", type: 'error' });
+      setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
+    }
+    const validItems = gridData.filter(row => row.itemName && row.qty > 0 && row.rate > 0);
+    if (validItems.length === 0) {
+      if (setGlobalNotification) {
+        setGlobalNotification({ msg: "Please add at least one valid item to the grid before checking out.", type: 'error' });
+        setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
+      }
+      return;
+    }
+
+    // 1. Trigger Thermal Receipt Print
+    const formattedItems = validItems.map(item => ({
+      itemCode: item.itemDesc || item.itemName,
+      itemDesc: item.itemName,
+      qty: item.qty,
+      rate: item.rate,
+      totalAmt: item.amount
+    }));
+
+    printReceipt(formattedItems, {
+      invoiceNo: invoiceNo,
+      date: invDate,
+      customerName: buyerName,
+      paymentMode: paymentMode,
+      totalQty: totalQty,
+      subTotal: totalAmount,
+      cgst: cgst,
+      sgst: sgst,
+      totalAmount: netAmount
+    });
+
+    // 2. Send WhatsApp Bill if mobile exists
+    if (mobileNo) {
+      handleSendWhatsApp();
+    }
+
+    // 3. Save Invoice in Database
+    executeSave(validItems);
+  };
+
   const handleTenderedEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      const validItems = gridData.filter(row => row.itemName && row.qty > 0 && row.rate > 0);
-      if (validItems.length === 0) {
-        if (setGlobalNotification) {
-          setGlobalNotification({ msg: "Please add at least one valid item to the grid before saving.", type: 'error' });
-          setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
-        }
-        return;
-      }
-      
-      const formattedItems = validItems.map(item => ({
-        itemCode: item.itemDesc || item.itemName,
-        itemDesc: item.itemName,
-        qty: item.qty,
-        rate: item.rate,
-        totalAmt: item.amount
-      }));
+      handleInstantCheckout();
+    }
+  };
 
       printReceipt(formattedItems, {
         invoiceNo: invoiceNo,
@@ -586,6 +617,10 @@ const POSCheckout = () => {
       });
 
       executeSave(validItems);
+  const handleDiscountKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleInstantCheckout();
     }
   };
 
@@ -1026,14 +1061,7 @@ const POSCheckout = () => {
         return updatedRow;
       });
 
-      // Auto-add new empty row if the last row's item name was just modified
-      const isLastRow = newGrid[newGrid.length - 1].id === id;
-      if (isLastRow && field === 'itemName' && value.trim() !== '') {
-        newGrid.push({
-          id: Date.now(),
-          itemName: '', itemDesc: '', qty: 0, uom: '', rate: 0, discPercent: 0, discAmt: 0, amount: 0
-        });
-      }
+
 
       return newGrid;
     });
@@ -1130,20 +1158,22 @@ const POSCheckout = () => {
             document.getElementById(`grid-input-${rowIndex}-2`)?.focus();
           }, 150); // slight delay to allow row generation if it was the last row
         }
+      } else if (colIndex === 5 || colIndex === 6) {
+        // Pressing Enter in Discount % (5) or Discount Amt (6) cell automatically prints the bill!
+        handleInstantCheckout();
       } else {
         // Move to next column
         const nextInput = document.getElementById(`grid-input-${rowIndex}-${colIndex + 1}`);
         if (nextInput) {
           nextInput.focus();
         } else {
-          // If at the end of the row, move to the Barcode of the next row
-          if (rowIndex === gridData.length - 1) {
-            setGridData(prev => [...prev, { id: Date.now(), itemName: '', itemDesc: '', qty: 0, uom: '', rate: 0, discPercent: 0, discAmt: 0, amount: 0 }]);
-            setTimeout(() => {
-              document.getElementById(`grid-input-${rowIndex + 1}-0`)?.focus();
-            }, 50);
-          } else {
+          // If at the end of the row, check if there is a next row
+          if (rowIndex < gridData.length - 1) {
+            // Move focus to the barcode of the next row
             document.getElementById(`grid-input-${rowIndex + 1}-0`)?.focus();
+          } else {
+            // If it is the last row, trigger printing and checkout immediately!
+            handleInstantCheckout();
           }
         }
       }
@@ -1519,6 +1549,17 @@ const POSCheckout = () => {
         </table>
       </div>
 
+      {/* Grid Table Action Buttons */}
+      <div className="flex gap-2 my-1.5">
+        <button
+          type="button"
+          onClick={() => setGridData(prev => [...prev, { id: Date.now(), itemName: '', itemDesc: '', qty: 0, uom: '', rate: 0, discPercent: 0, discAmt: 0, amount: 0 }])}
+          className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded text-[11px] shadow flex items-center gap-1.5 transition-all"
+        >
+          <span>+ Add Row</span>
+        </button>
+      </div>
+
       {/* 4. Totals & Terms Panel */}
       <div className="grid grid-cols-3 gap-2">
         {/* Left: Terms and Actions */}
@@ -1575,6 +1616,7 @@ const POSCheckout = () => {
             value={favourDiscount || ''}
             onChange={e => setFavourDiscount(Number(e.target.value))}
             placeholder="Special Discount"
+            onKeyDown={handleDiscountKeyDown}
           />
 
           <label className="legacy-label col-span-2 flex items-center justify-end">
