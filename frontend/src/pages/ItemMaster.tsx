@@ -346,7 +346,7 @@ const ItemMaster = () => {
               <div className="flex flex-col">
                 <label className="text-xs font-medium text-slate-600 mb-1">Unit (UOM)</label>
                 <select className="px-3 py-1 bg-white border border-slate-300 rounded text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow" value={uom} onChange={e => setUom(e.target.value)}>
-                  <option>Piece</option>
+                  <option>PCS</option>
                   <option>Pair</option>
                   <option>Set</option>
                   <option>Pack</option>

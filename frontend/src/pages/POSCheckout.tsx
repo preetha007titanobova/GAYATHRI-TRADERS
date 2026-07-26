@@ -602,21 +602,6 @@ const POSCheckout = () => {
       handleInstantCheckout();
     }
   };
-
-      printReceipt(formattedItems, {
-        invoiceNo: invoiceNo,
-        date: invDate,
-        customerName: buyerName,
-        customerMobile: mobileNo,
-        paymentMode: paymentMode,
-        totalQty: totalQty,
-        subTotal: totalAmount,
-        cgst: cgst,
-        sgst: sgst,
-        totalAmount: netAmount
-      });
-
-      executeSave(validItems);
   const handleDiscountKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -906,50 +891,6 @@ const POSCheckout = () => {
     }
   };
 
-  const handleInstantCheckout = async () => {
-    if (setGlobalNotification) {
-      setGlobalNotification({ msg: "⚠️ WhatsApp feature is blocked. Please renew the plan.", type: 'error' });
-      setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
-    }
-    const validItems = gridData.filter(row => row.itemName && row.qty > 0 && row.rate > 0);
-    if (validItems.length === 0) {
-      if (setGlobalNotification) {
-        setGlobalNotification({ msg: "Please add at least one valid item to the grid before checking out.", type: 'error' });
-        setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
-      }
-      return;
-    }
-
-    // 1. Trigger Thermal Receipt Print
-    const formattedItems = validItems.map(item => ({
-      itemCode: item.itemDesc || item.itemName,
-      itemDesc: item.itemName,
-      qty: item.qty,
-      rate: item.rate,
-      totalAmt: item.amount
-    }));
-
-    printReceipt(formattedItems, {
-      invoiceNo: invoiceNo,
-      date: invDate,
-      customerName: buyerName,
-      customerMobile: mobileNo,
-      paymentMode: paymentMode,
-      totalQty: totalQty,
-      subTotal: totalAmount,
-      cgst: cgst,
-      sgst: sgst,
-      totalAmount: netAmount
-    });
-
-    // 2. Send WhatsApp Bill if mobile exists
-    if (mobileNo) {
-      handleSendWhatsApp();
-    }
-
-    // 3. Save Invoice in Database
-    executeSave(validItems);
-  };
 
   // --- Global Toolbar Wiring (Layout Bridge) ---
   // Note: setGlobalNotification is destructured above
