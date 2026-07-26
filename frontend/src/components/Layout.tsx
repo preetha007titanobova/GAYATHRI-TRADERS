@@ -23,6 +23,17 @@ export type ToolbarActions = {
 const Layout = () => {
   const [toolbarActions, setToolbarActions] = useState<ToolbarActions>({});
   const [globalNotification, setGlobalNotification] = useState<{msg: string, type: 'error' | 'success' | 'info' | ''}>({msg: '', type: ''});
+
+  // Auto-dismiss notifications after 5 seconds
+  useEffect(() => {
+    if (globalNotification.msg) {
+      const timer = setTimeout(() => {
+        setGlobalNotification({ msg: '', type: '' });
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [globalNotification.msg]);
+
   const [isCalcOpen, setIsCalcOpen] = useState(false);
   const [isGstCalcOpen, setIsGstCalcOpen] = useState(false);
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
@@ -374,12 +385,20 @@ const Layout = () => {
       
       {/* Global Notification Banner */}
       {globalNotification.msg && (
-        <div className={`absolute top-0 left-0 w-full z-[100] px-4 py-2 text-sm font-bold text-center shadow-md border-b ${
+        <div className={`absolute top-0 left-0 w-full z-[100] px-10 py-2 text-sm font-bold text-center shadow-md border-b flex justify-center items-center ${
           globalNotification.type === 'success' ? 'bg-[#d4edda] text-[#155724] border-[#c3e6cb]' : 
           globalNotification.type === 'error' ? 'bg-[#f8d7da] text-[#721c24] border-[#f5c6cb]' :
           'bg-[#cce5ff] text-[#004085] border-[#b8daff]'
         }`}>
-          {globalNotification.msg}
+          <span>{globalNotification.msg}</span>
+          <button 
+            onClick={() => setGlobalNotification({ msg: '', type: '' })}
+            className="absolute right-4 top-1/2 -translate-y-1/2 font-bold hover:opacity-75 focus:outline-none text-lg leading-none cursor-pointer p-1"
+            aria-label="Close notification"
+            style={{ border: 'none', background: 'transparent' }}
+          >
+            &times;
+          </button>
         </div>
       )}
       
