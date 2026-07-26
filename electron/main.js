@@ -302,6 +302,10 @@ ipcMain.on('print-html', (event, htmlContent) => {
         const tempWritePath = path.join(app.getPath('userData'), 'temp_print.html');
         fs.writeFileSync(tempWritePath, processedHtml, 'utf8');
 
+        printWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+            console.error(`Print window failed to load: ${errorDescription} (${errorCode}) at ${validatedURL}`);
+        });
+
         printWindow.loadFile(tempWritePath);
 
         printWindow.webContents.on('did-finish-load', () => {
