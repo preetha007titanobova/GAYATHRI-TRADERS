@@ -56,6 +56,8 @@ const POSCheckout = () => {
   const [gstNo, setGstNo] = useState('');
   const [printIn, setPrintIn] = useState('Blank A4');
   const [invoiceFormat, setInvoiceFormat] = useState('GSTFormat Full Page');
+  const [shippingAddress, setShippingAddress] = useState('');
+  const [remarks, setRemarks] = useState('');
 
 
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
@@ -90,6 +92,8 @@ const POSCheckout = () => {
     setFavourDiscount(0);
     setEditingBillId(null);
     setFromSalesOrderId(null);
+    setShippingAddress('');
+    setRemarks('');
     fetchNextInvoiceNo();
     fetchProducts();
     if (setGlobalSettings) {
@@ -205,23 +209,29 @@ const POSCheckout = () => {
       setGstNo(invoiceToEdit.gstNo || '');
       setPrintIn(invoiceToEdit.printIn || 'Blank A4');
       setInvoiceFormat(invoiceToEdit.invFormat || invoiceToEdit.invoiceFormat || 'GSTFormat Full Page');
+      setShippingAddress(invoiceToEdit.shippingAddress || '');
+      setRemarks(invoiceToEdit.remarks || '');
 
       // Fetch full details with items                                                                                                  
       fetch(`${Api}/sales/bills/${invoiceToEdit.invoiceNo}`)
         .then(res => res.json())
         .then(data => {
-          if (data && Array.isArray(data.items)) {
-            setGridData(data.items.map((item: any, idx: number) => ({
-              id: idx + 1,
-              itemName: item.itemName,
-              itemDesc: item.itemDesc || '',
-              qty: item.qty,
-              uom: item.uom || 'PCS',
-              rate: item.rate,
-              discPercent: item.discPercent || 0,
-              discAmt: item.discAmt || 0,
-              amount: item.amount
-            })));
+          if (data) {
+            if (data.remarks) setRemarks(data.remarks);
+            if (data.shippingAddress) setShippingAddress(data.shippingAddress);
+            if (Array.isArray(data.items)) {
+              setGridData(data.items.map((item: any, idx: number) => ({
+                id: idx + 1,
+                itemName: item.itemName,
+                itemDesc: item.itemDesc || '',
+                qty: item.qty,
+                uom: item.uom || 'PCS',
+                rate: item.rate,
+                discPercent: item.discPercent || 0,
+                discAmt: item.discAmt || 0,
+                amount: item.amount
+              })));
+            }
           }
         })
         .catch(err => console.error("Error fetching full bill details:", err));
@@ -233,6 +243,7 @@ const POSCheckout = () => {
         setBuyerName(orderToConvert.buyerName || '');
         setMobileNo(orderToConvert.mobileNo || '');
         setAddress(orderToConvert.address || '');
+        setRemarks(orderToConvert.remarks || '');
       }
     }
   }, [location.state]);
@@ -634,6 +645,8 @@ const POSCheckout = () => {
       salesman, paymentMode,
       fromSalesOrderId,
       isSelectiveCustomer: globalSettings?.isSelectiveCustomer || false,
+      shippingAddress,
+      remarks,
       items: validItems.map(item => ({
         itemName: item.itemName,
         itemDesc: item.itemDesc,
@@ -698,6 +711,8 @@ const POSCheckout = () => {
         setSalesman('');
         setTendered(0);
         setFavourDiscount(0);
+        setShippingAddress('');
+        setRemarks('');
         setConfirmModalState({ isOpen: false, action: null });
         if (setGlobalNotification) {
           setGlobalNotification({ msg: 'Invoice data cleared successfully.', type: 'success' });
@@ -1500,11 +1515,21 @@ const POSCheckout = () => {
           <div className="legacy-panel p-1 flex space-x-2">
             <div className="flex-1 flex items-center">
               <label className="legacy-label whitespace-nowrap mr-2">Shipping Addr.</label>
-              <input type="text" className="legacy-input w-full py-0.5" />
+              <input 
+                type="text" 
+                className="legacy-input w-full py-0.5" 
+                value={shippingAddress}
+                onChange={e => setShippingAddress(e.target.value)}
+              />
             </div>
             <div className="flex-1 flex items-center">
               <label className="legacy-label whitespace-nowrap mr-2">Remarks</label>
-              <input type="text" className="legacy-input w-full py-0.5" />
+              <input 
+                type="text" 
+                className="legacy-input w-full py-0.5" 
+                value={remarks}
+                onChange={e => setRemarks(e.target.value)}
+              />
             </div>
           </div>
 
