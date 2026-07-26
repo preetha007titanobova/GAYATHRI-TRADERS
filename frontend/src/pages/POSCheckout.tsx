@@ -880,15 +880,12 @@ const POSCheckout = () => {
       totalAmount: netAmount
     });
 
-    // 2. Download PDF Bill
-    handleDownloadPDF();
-
-    // 3. Send WhatsApp Bill if mobile exists
+    // 2. Send WhatsApp Bill if mobile exists
     if (mobileNo) {
       handleSendWhatsApp();
     }
 
-    // 4. Save Invoice in Database
+    // 3. Save Invoice in Database
     executeSave(validItems);
   };
 
@@ -1517,7 +1514,7 @@ const POSCheckout = () => {
             <div className="flex-1"></div>
             <button type="button" className="legacy-button py-1.5 px-4 bg-green-600 text-white font-extrabold border-green-700 hover:bg-green-700 shadow-sm transition-all flex items-center space-x-1.5 rounded" onClick={handleInstantCheckout}>
               <Zap size={13} className="text-yellow-300 fill-yellow-300" />
-              <span>⚡ Save + Print + PDF + WhatsApp (1-Click)</span>
+              <span>⚡ Save + Print + WhatsApp</span>
             </button>
             <button type="button" className="legacy-button py-1.5 px-3 bg-red-100 font-bold border-red-400 hover:bg-red-200 transition-colors rounded text-xs" onClick={handleCancelClick}>Cancel</button>
           </div>

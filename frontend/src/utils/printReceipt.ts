@@ -19,31 +19,6 @@ export interface PrintReceiptData {
 }
 
 export const printReceipt = (cartItems: PrintCartItem[], data: PrintReceiptData) => {
-  // Remove any existing print iframe
-  const existingIframe = document.getElementById('printReceiptIframe');
-  if (existingIframe) {
-    document.body.removeChild(existingIframe);
-  }
-
-  // Create a hidden iframe
-  const iframe = document.createElement('iframe');
-  iframe.id = 'printReceiptIframe';
-  iframe.style.position = 'absolute';
-  iframe.style.top = '-10000px';
-  iframe.style.left = '-10000px';
-  iframe.style.width = '80mm';
-  iframe.style.height = '100px';
-  iframe.style.opacity = '0';
-  iframe.style.pointerEvents = 'none';
-  
-  document.body.appendChild(iframe);
-  
-  const doc = iframe.contentWindow?.document;
-  if (!doc) {
-    console.error("Could not access iframe document");
-    return;
-  }
-  
   const now = new Date();
   const timestamp = now.toLocaleString();
   const displayDate = data.date || timestamp;
@@ -257,6 +232,37 @@ export const printReceipt = (cartItems: PrintCartItem[], data: PrintReceiptData)
       </body>
     </html>
   `;
+
+  // If running inside Electron environment, route printing through main process IPC channel
+  if ((window as any).api && typeof (window as any).api.send === 'function') {
+    (window as any).api.send('print-html', htmlContent);
+    return;
+  }
+
+  // Remove any existing print iframe
+  const existingIframe = document.getElementById('printReceiptIframe');
+  if (existingIframe) {
+    document.body.removeChild(existingIframe);
+  }
+
+  // Create a hidden iframe
+  const iframe = document.createElement('iframe');
+  iframe.id = 'printReceiptIframe';
+  iframe.style.position = 'absolute';
+  iframe.style.top = '-10000px';
+  iframe.style.left = '-10000px';
+  iframe.style.width = '80mm';
+  iframe.style.height = '100px';
+  iframe.style.opacity = '0';
+  iframe.style.pointerEvents = 'none';
+  
+  document.body.appendChild(iframe);
+  
+  const doc = iframe.contentWindow?.document;
+  if (!doc) {
+    console.error("Could not access iframe document");
+    return;
+  }
   
   doc.open();
   doc.write(htmlContent);
@@ -265,8 +271,25 @@ export const printReceipt = (cartItems: PrintCartItem[], data: PrintReceiptData)
   // Wait for content to load before printing
   setTimeout(() => {
     if (iframe.contentWindow) {
-      iframe.contentWindow.focus();
-      iframe.contentWindow.print();
+      try {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+      } catch (err) {
+        console.error("Iframe print failed, trying popup window fallback:", err);
+        const printWindow = window.open('', '_blank', 'width=350,height=600');
+        if (printWindow) {
+          printWindow.document.open();
+          printWindow.document.write(htmlContent);
+          printWindow.document.close();
+          printWindow.focus();
+          setTimeout(() => {
+            printWindow.print();
+            printWindow.close();
+          }, 250);
+        } else {
+          alert("Printing failed. Please enable popups or ensure your browser supports printing.");
+        }
+      }
     }
   }, 250);
 };
