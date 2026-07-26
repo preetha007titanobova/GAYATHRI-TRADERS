@@ -255,12 +255,12 @@ const PurRegister = () => {
       const resData = await res.json();
       if (!resData.success || !resData.pdfUrl) throw new Error('PDF upload returned unsuccessful');
 
-      const whatsappText = `*Sri Gayathri Traders - Purchase Register Report*\n` +
+      const whatsappText = `*Ithu Namma Kada - Purchase Register Report*\n` +
                            `*Period:* ${filters.fromDate} to ${filters.toDate}\n` +
                            `*Supplier:* ${filters.supplier}\n` +
                            `*Total Net Payable:* ₹${totals.net.toFixed(2)}\n\n` +
                            `*Download PDF:* ${resData.pdfUrl}\n\n` +
-                           `Generated automatically via Sri Gayathri Traders Billing System.`;
+                           `Generated automatically via Ithu Namma Kada Billing System.`;
 
       const whatsappUrl = `https://api.whatsapp.com/send?phone=${ownerWhatsApp}&text=${encodeURIComponent(whatsappText)}`;
       window.open(whatsappUrl, '_blank');

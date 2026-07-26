@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { Edit, Power, TrendingUp, Lock, Unlock, ChevronDown, ChevronUp } from 'lucide-react';
+import { Edit, Power, TrendingUp, Lock, Unlock, ChevronDown, ChevronUp, Shield, RefreshCw } from 'lucide-react';
 import Api from '../Api';
 import { useLicense } from '../context/LicenseContext';
 import jsPDF from 'jspdf';
@@ -294,7 +294,7 @@ const Layout = () => {
         emailFailed = true;
       }
 
-      const whatsappText = `*Sri Gayathri Traders - Close Day Report*\n` +
+      const whatsappText = `*Ithu Namma Kada - Close Day Report*\n` +
                            `*Date:* ${formattedDate}\n` +
                            `*Total Items:* ${data.length}\n` +
                            `*Total Qty In (Pur):* ${totalInward}\n` +
@@ -375,7 +375,8 @@ const Layout = () => {
       '/staff-master': 'Staff Master (Admin)',
       '/staff-attendance': 'Staff Attendance',
       '/shop-sales-bill': 'Wholesale Sales Bill',
-      '/shop-sales-register': 'Wholesale Sales Register'
+      '/shop-sales-register': 'Wholesale Sales Register',
+      '/license': 'License & Renewal'
     };
     return routeTitles[pathname] || 'Dashboard';
   };
@@ -429,10 +430,16 @@ const Layout = () => {
         <span className="mr-2">{shopName} BILLING COUNTER - [{getPageTitle(location.pathname)}]</span>
       </div>
 
-      {/* License Renewal Warning Banner (3 days before date of renewal) */}
-      {daysRemaining !== undefined && daysRemaining <= 3 && daysRemaining >= 0 && (
-        <div className="bg-[#ea580c] text-white font-bold text-xs px-4 py-1.5 text-center flex justify-center items-center gap-2 select-text border-b border-orange-700">
-          <span>⚠️ Your license will expire in {daysRemaining} {daysRemaining === 1 ? 'day' : 'days'}. Please contact support to renew your subscription.</span>
+      {/* License Renewal Warning Banner (Indication for renewal) */}
+      {daysRemaining !== undefined && daysRemaining <= 15 && daysRemaining >= 0 && (
+        <div className="bg-amber-600 text-white font-semibold text-xs px-4 py-2 text-center flex justify-center items-center gap-3 select-text border-b border-amber-700 shadow-sm">
+          <span className="flex items-center gap-1">
+            <Shield size={14} className="animate-pulse" />
+            <span>Attention: Your subscription license will expire in <strong>{daysRemaining} {daysRemaining === 1 ? 'day' : 'days'}</strong>. Please renew to avoid service disruption.</span>
+          </span>
+          <Link to="/license" className="bg-white text-amber-900 px-2.5 py-0.5 rounded font-black hover:bg-gray-100 transition-colors shadow-xs no-underline text-[10px]">
+            RENEW NOW
+          </Link>
         </div>
       )}
 
@@ -464,6 +471,11 @@ const Layout = () => {
                <Link to="/staff-attendance" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Staff Attendance</Link>
                <div className="border-t border-gray-300 my-1"></div>
                <Link to="/backup" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Backup</Link>
+               <div className="border-t border-gray-300 my-1"></div>
+               <Link to="/license" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium flex items-center justify-between">
+                 <span>License & Renewal</span>
+                 <Shield size={12} className="text-blue-600" />
+               </Link>
             </div>
           )}
         </div>
@@ -643,7 +655,8 @@ const Layout = () => {
                 { name: 'Stock Status', path: '/stock-status' },
                 { name: 'Daily Stock Status', path: '/daily-stock-status' },
                 { name: 'Stock Register', path: '/stock-register' },
-                { name: 'View Ledger', path: '/view-ledger' }
+                { name: 'View Ledger', path: '/view-ledger' },
+                { name: 'License & Renewal', path: '/license' }
               ].map((item, idx) => {
                 const isActive = location.pathname === item.path || (location.pathname === '/' && item.path === '/sales-register'); // default to sales register
                 return (
@@ -743,7 +756,7 @@ const Layout = () => {
       
         <div className="bg-[#2b579a] text-white text-[10px] flex justify-between items-center px-2 py-0.5">
         {/* <div className="flex space-x-6">
-          <span>Company Name: SRI GAYATHRI TRADERS</span>
+          <span>Company Name: {shopName}</span>
           <span>Welcome: Administrator</span>
           <span>Year: {displayYear}</span>
         </div> */}
@@ -1058,7 +1071,7 @@ const Layout = () => {
             <div className="bg-blue-600/30 p-4 rounded-full mb-4 border border-blue-400/40 text-blue-300 shadow-inner">
               <Lock size={44} />
             </div>
-            <h2 className="text-xl font-bold tracking-tight text-white mb-1">SRI GAYATHRI TRADERS</h2>
+            <h2 className="text-xl font-bold tracking-tight text-white mb-1">{shopName}</h2>
             <p className="text-xs text-blue-200 uppercase font-bold tracking-wider mb-6">System Screen Locked</p>
             
             <form onSubmit={(e) => {

@@ -500,7 +500,7 @@ const StockRegister = () => {
       const resData = await res.json();
       if (!resData.success || !resData.pdfUrl) throw new Error('PDF upload returned unsuccessful');
 
-      const whatsappText = `*Sri Gayathri Traders - Stock Register Summary*\n` +
+      const whatsappText = `*Ithu Namma Kada - Stock Register Summary*\n` +
                            `*Period:* ${fromDate} to ${toDate}\n` +
                            `*Total Items:* ${filteredProducts.length}\n` +
                            `*Total Opening:* ${summaryTotals.opening}\n` +
@@ -509,7 +509,7 @@ const StockRegister = () => {
                            `*Total Damages:* ${summaryTotals.damages}\n` +
                            `*Total Closing:* ${summaryTotals.closing}\n\n` +
                            `*Download PDF:* ${resData.pdfUrl}\n\n` +
-                           `Generated automatically via Sri Gayathri Traders Billing System.`;
+                           `Generated automatically via Ithu Namma Kada Billing System.`;
 
       const whatsappUrl = `https://api.whatsapp.com/send?phone=${ownerWhatsApp}&text=${encodeURIComponent(whatsappText)}`;
       window.open(whatsappUrl, '_blank');
@@ -575,12 +575,12 @@ const StockRegister = () => {
       const resData = await res.json();
       if (!resData.success || !resData.pdfUrl) throw new Error('PDF upload returned unsuccessful');
 
-      const whatsappText = `*Sri Gayathri Traders - Stock Register Report*\n` +
+      const whatsappText = `*Ithu Namma Kada - Stock Register Report*\n` +
                            `*Item:* [${activeItem.itemCode}] ${activeItem.name}\n` +
                            `*Period:* ${fromDate} to ${toDate}\n` +
                            `*Closing Stock:* ${activeLedger.closingStock}\n\n` +
                            `*Download PDF:* ${resData.pdfUrl}\n\n` +
-                           `Generated automatically via Sri Gayathri Traders Billing System.`;
+                           `Generated automatically via Ithu Namma Kada Billing System.`;
 
       const whatsappUrl = `https://api.whatsapp.com/send?phone=${ownerWhatsApp}&text=${encodeURIComponent(whatsappText)}`;
       window.open(whatsappUrl, '_blank');

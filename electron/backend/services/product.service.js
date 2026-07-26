@@ -97,12 +97,37 @@ const searchItems = (q) => __awaiter(void 0, void 0, void 0, function* () {
     catch (e) {
         console.error("Prisma product search error:", e);
     }
+    // Fetch defective sales returns to get damage reasons
+    const returnReasonsMap = new Map();
+    try {
+        const returnItems = yield db_1.prisma.salesReturnItem.findMany({
+            where: {
+                disposition: { in: ['Defective / Damaged', 'Quarantine & Scrap'] }
+            },
+            include: {
+                salesReturn: true
+            }
+        });
+        for (const item of returnItems) {
+            if (item.productId && item.salesReturn) {
+                const prodId = item.productId.toString();
+                const reasonText = `${item.salesReturn.reason || 'No Reason'} (${item.returnQty} pcs from Return ${item.salesReturn.returnNo})`;
+                if (!returnReasonsMap.has(prodId)) {
+                    returnReasonsMap.set(prodId, []);
+                }
+                returnReasonsMap.get(prodId).push(reasonText);
+            }
+        }
+    }
+    catch (e) {
+        console.error("Error fetching sales return damage reasons:", e);
+    }
     const map = new Map();
     [...mongoItems, ...prismaItems].forEach((item) => {
         var _a;
         const id = ((_a = item._id) === null || _a === void 0 ? void 0 : _a.toString()) || item.id;
         if (id && !map.has(id)) {
-            map.set(id, Object.assign(Object.assign({}, item), { id, _id: id, barcode: item.barcode || '', itemCode: item.itemCode || '', size: item.size || '', price: Number(item.price) || 0, stock: Math.max(0, Number(item.stock) || 0) }));
+            map.set(id, Object.assign(Object.assign({}, item), { id, _id: id, barcode: item.barcode || '', itemCode: item.itemCode || '', size: item.size || '', price: Number(item.price) || 0, stock: Math.max(0, Number(item.stock) || 0), damageReasons: returnReasonsMap.get(id) || [] }));
         }
     });
     return Array.from(map.values());
@@ -465,9 +490,10 @@ const getStockRegisterReport = () => __awaiter(void 0, void 0, void 0, function*
                     date: item.salesReturn.returnDate,
                     vchType: 'Sales Return',
                     vchNo: item.salesReturn.returnNo,
-                    particulars: item.salesReturn.customerName,
+                    particulars: `Returned by customer: ${item.salesReturn.customerName}`,
                     inward: item.returnQty,
-                    outward: 0
+                    outward: 0,
+                    reason: item.salesReturn.reason
                 });
             }
         }

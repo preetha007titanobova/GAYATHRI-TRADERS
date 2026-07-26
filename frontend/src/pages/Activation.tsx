@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useLicense } from '../context/LicenseContext';
 import { Key, Shield, Copy, Check, AlertCircle, UploadCloud, Server, Info, RefreshCw } from 'lucide-react';
 
 const Activation = () => {
-  const [machineId, setMachineId] = useState<string>('FETCHING...');
+  const { machineId, isActivated } = useLicense();
+  const navigate = useNavigate();
   const [licenseKey, setLicenseKey] = useState<string>('');
   const [shopName, setShopName] = useState<string>('');
   const [copied, setCopied] = useState(false);
@@ -12,18 +15,6 @@ const Activation = () => {
   
   // Licensing Server Base API Url (Port 5500)
   const LICENSE_SERVER_URL = import.meta.env.VITE_LICENSE_SERVER_URL || 'http://localhost:5500';
-
-  useEffect(() => {
-    // Fetch Machine ID from Electron IPC
-    if ((window as any).api) {
-      (window as any).api.send('get-machine-id');
-      (window as any).api.receive('machine-id-response', (event: any, id: string) => {
-        setMachineId(id);
-      });
-    } else {
-      setMachineId('DEV-MODE-BROWSER-ID-9821');
-    }
-  }, []);
 
   const copyMachineId = () => {
     navigator.clipboard.writeText(machineId);
@@ -126,6 +117,17 @@ const Activation = () => {
 
       {/* Activation Card */}
       <div className="w-full max-w-lg bg-slate-900/60 backdrop-blur-xl border border-slate-800/80 rounded-2xl shadow-2xl p-8 relative overflow-hidden">
+        {/* Back Option if Already Activated */}
+        {isActivated && (
+          <button
+            onClick={() => navigate('/')}
+            type="button"
+            className="mb-5 inline-flex items-center text-xs font-bold text-indigo-400 hover:text-indigo-300 transition-colors cursor-pointer gap-1"
+          >
+            &larr; Back to Dashboard
+          </button>
+        )}
+
         {/* Top Header Banner */}
         <div className="flex items-center space-x-3.5 mb-8 pb-5 border-b border-slate-800/60">
           <div className="bg-indigo-600/20 p-2.5 rounded-xl border border-indigo-500/30">
@@ -150,7 +152,7 @@ const Activation = () => {
           </div>
           <div className="flex items-center justify-between gap-3 bg-slate-900/90 rounded-lg p-3 border border-slate-800">
             <code className="text-sm font-mono text-indigo-300 break-all select-all font-semibold flex-1 leading-relaxed">
-              {machineId}
+              {machineId || 'FETCHING...'}
             </code>
             <button
               onClick={copyMachineId}

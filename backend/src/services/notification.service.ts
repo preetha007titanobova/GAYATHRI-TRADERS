@@ -15,8 +15,8 @@ export const sendCloseDayEmail = async (dateStr: string, base64Pdf: string, owne
   const mailOptions = {
     from: process.env.EMAIL_USER,
     to: ownerEmail || 'titanobovapvt@gmail.com',
-    subject: `Sri Gayathri Traders - Daily Stock Status Report (${dateStr})`,
-    text: `Hello,\n\nPlease find attached the Daily Stock Status Report for ${dateStr}.\n\nBest Regards,\nSri Gayathri Traders Billing System`,
+    subject: `Ithu Namma Kada - Daily Stock Status Report (${dateStr})`,
+    text: `Hello,\n\nPlease find attached the Daily Stock Status Report for ${dateStr}.\n\nBest Regards,\nIthu Namma Kada Billing System`,
     attachments: [
       {
         filename: `Daily_Stock_Status_${dateStr}.pdf`,

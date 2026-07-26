@@ -78,6 +78,7 @@ const createSalesBill = (data) => __awaiter(void 0, void 0, void 0, function* ()
         shippingAddress,
         salesman,
         paymentMode: paymentMode || 'Cash',
+        isSelectiveCustomer: Boolean(data.isSelectiveCustomer),
         fromSalesOrderId: fromSalesOrderId ? new mongodb_1.ObjectId(fromSalesOrderId) : null,
         createdAt: new Date(),
         updatedAt: new Date()
@@ -242,6 +243,7 @@ const updateSalesBill = (id, data) => __awaiter(void 0, void 0, void 0, function
             shippingAddress,
             salesman,
             paymentMode: paymentMode || 'Cash',
+            isSelectiveCustomer: Boolean(data.isSelectiveCustomer),
             updatedAt: new Date()
         }
     });
@@ -360,12 +362,16 @@ const searchSalesBills = (q) => __awaiter(void 0, void 0, void 0, function* () {
     const db = yield (0, db_1.getDb)();
     let query = {};
     if (q) {
+        const isSearchSelective = q.toLowerCase().includes('selective');
         query.$or = [
             { invoiceNo: { $regex: q, $options: 'i' } },
             { buyerName: { $regex: q, $options: 'i' } },
             { paymentMode: { $regex: q, $options: 'i' } },
             { mobileNo: { $regex: q, $options: 'i' } }
         ];
+        if (isSearchSelective) {
+            query.$or.push({ isSelectiveCustomer: true });
+        }
     }
     let cursor = db.collection('SalesBill').find(query).sort({ createdAt: -1 });
     if (!q) {

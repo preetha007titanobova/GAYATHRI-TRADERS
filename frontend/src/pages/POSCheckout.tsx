@@ -822,6 +822,7 @@ const POSCheckout = () => {
       setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
     }
     return;
+    const validItems = gridData.filter(row => row.itemName && row.qty > 0 && row.rate > 0);
     if (validItems.length === 0) {
       if (setGlobalNotification) {
         setGlobalNotification({ msg: "Please add at least one item before sending WhatsApp bill.", type: 'error' });

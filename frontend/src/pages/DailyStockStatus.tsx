@@ -397,7 +397,7 @@ const DailyStockStatus = () => {
         pdfUrl = resJson.pdfUrl || '';
       }
 
-      const text = `*Sri Gayathri Traders - Daily Stock Status Report*\n` +
+      const text = `*Ithu Namma Kada - Daily Stock Status Report*\n` +
                    `*Date:* ${formattedDate}\n` +
                    `*Total Items:* ${filteredStock.length}\n` +
                    `*Total Qty In (Pur):* ${totals.inward}\n` +

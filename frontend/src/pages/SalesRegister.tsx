@@ -140,7 +140,7 @@ const printOrder = (order: any) => {
       </head>
       <body>
         <div class="header">
-          <h1 class="shop-name">SRI GAYATHRI TRADERS</h1>
+          <h1 class="shop-name">ITHU NAMMA KADA</h1>
           <div class="title">SALES ORDER</div>
         </div>
 
@@ -701,11 +701,11 @@ const SalesRegister = () => {
       const resData = await res.json();
       if (!resData.success || !resData.pdfUrl) throw new Error('PDF upload returned unsuccessful');
 
-      const whatsappText = `*Sri Gayathri Traders - ${title}*\n` +
+      const whatsappText = `*Ithu Namma Kada - ${title}*\n` +
         `*Period:* ${startDate || 'All'} to ${endDate || 'All'}\n` +
         `*Records Count:* ${filteredRecords.length}\n\n` +
         `*Download PDF:* ${resData.pdfUrl}\n\n` +
-        `Generated automatically via Sri Gayathri Traders Billing System.`;
+        `Generated automatically via Ithu Namma Kada Billing System.`;
 
       const whatsappUrl = `https://api.whatsapp.com/send?phone=${ownerWhatsApp}&text=${encodeURIComponent(whatsappText)}`;
       window.open(whatsappUrl, '_blank');

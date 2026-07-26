@@ -32,6 +32,7 @@ import StaffMaster from './pages/StaffMaster';
 import StaffAttendance from './pages/StaffAttendance';
 import ModernErpLayout from './pages/ModernErpLayout';
 import Activation from './pages/Activation';
+import License from './pages/License';
 
 function App() {
   useEffect(() => {
@@ -84,6 +85,7 @@ function App() {
           <Route path="trial-b-s" element={<TrialBS />} />
           <Route path="p-l-statment" element={<PLStatement />} />
           <Route path="balance-sheet" element={<BalanceSheet />} />
+          <Route path="license" element={<License />} />
         </Route>
         <Route path="/modern" element={<ModernErpLayout />} />
         <Route path="/activation" element={<Activation />} />

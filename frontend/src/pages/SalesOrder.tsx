@@ -158,7 +158,7 @@ const printOrder = (order: any) => {
       </head>
       <body>
         <div class="header">
-          <h1 class="shop-name">SRI GAYATHRI TRADERS</h1>
+          <h1 class="shop-name">ITHU NAMMA KADA</h1>
           <div class="title">SALES ORDER</div>
         </div>
 

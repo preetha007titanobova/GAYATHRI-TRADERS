@@ -153,7 +153,7 @@ const StaffMaster = () => {
 
           const options: PublicKeyCredentialCreationOptions = {
             challenge,
-            rp: { name: "Sri Gayathri Traders Billing Counter", id: window.location.hostname },
+            rp: { name: "Ithu Namma Kada Billing Counter", id: window.location.hostname },
             user: {
               id: userId,
               name: `${name || staffCode} Finger ${activeFingerSlot}`,

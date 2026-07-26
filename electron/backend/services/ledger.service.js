@@ -145,7 +145,7 @@ const getLedgerStatement = (id, fromDateStr, toDateStr) => __awaiter(void 0, voi
             var _a;
             if (bill.shopName === accountName) {
                 const billDate = new Date(bill.date || bill.createdAt);
-                addMovement(`shop-sales-${bill._id}`, billDate, 'To Wholesale Sales A/c', 'Shop Sales Bill', bill.voucherNo, bill.netPayable, 0);
+                addMovement(`shop-sales-${bill._id}`, billDate, 'To Wholesale Sales A/c', 'Wholesale Sales Bill', bill.voucherNo, bill.netPayable, 0);
                 if (((_a = bill.paymentMode) === null || _a === void 0 ? void 0 : _a.toLowerCase()) === 'cash') {
                     addMovement(`shop-sales-pay-${bill._id}`, billDate, 'By Cash Receipt', 'Receipt', bill.voucherNo, 0, bill.netPayable);
                 }
@@ -185,7 +185,7 @@ const getLedgerStatement = (id, fromDateStr, toDateStr) => __awaiter(void 0, voi
             var _a;
             if (((_a = bill.paymentMode) === null || _a === void 0 ? void 0 : _a.toLowerCase()) === 'cash') {
                 const billDate = new Date(bill.date || bill.createdAt);
-                addMovement(`cash-shop-sale-${bill._id}`, billDate, `To Wholesale Sales (${bill.shopName})`, 'Shop Sales Bill', bill.voucherNo, bill.netPayable, 0);
+                addMovement(`cash-shop-sale-${bill._id}`, billDate, `To Wholesale Sales (${bill.shopName})`, 'Wholesale Sales Bill', bill.voucherNo, bill.netPayable, 0);
             }
         });
     }
