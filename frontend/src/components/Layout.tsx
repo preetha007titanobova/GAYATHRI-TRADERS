@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { Edit, Power, TrendingUp, Lock, Unlock, ChevronDown, ChevronUp, Shield, RefreshCw } from 'lucide-react';
+import { Edit, Power, TrendingUp, Lock, Unlock, ChevronDown, ChevronUp, Shield, RefreshCw, Calendar } from 'lucide-react';
 import Api from '../Api';
 import { useLicense } from '../context/LicenseContext';
 import jsPDF from 'jspdf';
@@ -26,6 +26,36 @@ const Layout = () => {
   const { shopName, daysRemaining } = useLicense();
   const [toolbarActions, setToolbarActions] = useState<ToolbarActions>({});
   const [globalNotification, setGlobalNotification] = useState<{msg: string, type: 'error' | 'success' | 'info' | ''}>({msg: '', type: ''});
+  const [indianTime, setIndianTime] = useState('');
+
+  // Clock in Asia/Kolkata (IST) 24h
+  useEffect(() => {
+    const updateTime = () => {
+      const d = new Date();
+      const formatter = new Intl.DateTimeFormat('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      });
+      const parts = formatter.formatToParts(d);
+      const day = parts.find(p => p.type === 'day')?.value || '';
+      const month = parts.find(p => p.type === 'month')?.value || '';
+      const year = parts.find(p => p.type === 'year')?.value || '';
+      const hour = parts.find(p => p.type === 'hour')?.value || '';
+      const minute = parts.find(p => p.type === 'minute')?.value || '';
+      const second = parts.find(p => p.type === 'second')?.value || '';
+      setIndianTime(`${day}-${month}-${year} ${hour}:${minute}:${second}`);
+    };
+
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Auto-dismiss notifications after 5 seconds
   useEffect(() => {
@@ -1191,6 +1221,15 @@ const Layout = () => {
           </div>
         </div>
       )}
+
+      {/* Dynamic Indian Date & Time Footer */}
+      <div className="bg-[#2b579a] text-white border-t border-[#1d3f70] px-4 py-1.5 flex justify-between items-center text-xs font-bold shadow-inner z-10 flex-shrink-0">
+        <span>© Ithu Namma Kada - Professional Billing Counter System</span>
+        <div className="flex items-center space-x-2 bg-slate-900/40 border border-indigo-400/20 px-3 py-1 rounded-lg text-yellow-350 font-mono tracking-wider shadow-inner">
+          <Calendar size={12} className="text-yellow-400 mr-1" />
+          <span>{indianTime}</span>
+        </div>
+      </div>
 
     </div>
   );

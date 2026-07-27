@@ -177,6 +177,37 @@ const ShopSalesBill = () => {
     scanInputRef.current?.focus();
   }, []);
 
+  // Global scanner listener: redirects focus to the barcode scanner field when user starts typing (and is not editing another input)
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      const activeElem = document.activeElement;
+      
+      // If the user is currently editing an input, select dropdown, or textarea, let them work normally.
+      if (
+        activeElem &&
+        (activeElem.tagName === 'INPUT' ||
+          activeElem.tagName === 'SELECT' ||
+          activeElem.tagName === 'TEXTAREA') &&
+        activeElem !== scanInputRef.current
+      ) {
+        return;
+      }
+
+      // Ignore common modifier key actions (Ctrl+C, Ctrl+V, Alt, etc.)
+      if (e.ctrlKey || e.altKey || e.metaKey || e.key === 'Shift' || e.key === 'Control' || e.key === 'Alt') {
+        return;
+      }
+
+      // Redirect focus to scanner input field
+      if (scanInputRef.current && document.activeElement !== scanInputRef.current) {
+        scanInputRef.current.focus();
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
+
   const handleBarcodeScan = async (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();

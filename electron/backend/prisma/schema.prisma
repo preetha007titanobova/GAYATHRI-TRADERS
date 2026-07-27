@@ -167,24 +167,28 @@ model SalesReturnItem {
 }
 
 model PurchaseBill {
-  id                String         @id @default(auto()) @map("_id") @db.ObjectId
-  voucherNo         String         @unique
-  date              DateTime       @default(now())
-  supplierInvoiceNo String?
-  supplierName      String
-  supplierGstin     String?
-  taxableAmt        Float
-  cgst              Float
-  sgst              Float
-  igst              Float
-  otherCharges      Float
-  netPayable        Float
-  status            String         @default("Paid") // Paid | Credit
-  type              String         @default("Local") // Local | Central
-  paymentMode       String         @default("Cash") // Cash | Credit
-  items             PurchaseItem[]
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
+  id                  String         @id @default(auto()) @map("_id") @db.ObjectId
+  voucherNo           String         @unique
+  date                DateTime       @default(now())
+  supplierInvoiceNo   String?
+  supplierInvoiceDate DateTime?
+  supplierName        String
+  supplierGstin       String?
+  vendorId            String?        @db.ObjectId
+  taxableAmt          Float
+  cgst                Float
+  sgst                Float
+  igst                Float
+  otherCharges        Float
+  discount            Float          @default(0)
+  roundOff            Float          @default(0)
+  netPayable          Float
+  status              String         @default("Paid") // Paid | Credit
+  type                String         @default("Local") // Local | Central
+  paymentMode         String         @default("Cash") // Cash | Credit
+  items               PurchaseItem[]
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
 }
 
 model PurchaseItem {
@@ -195,15 +199,21 @@ model PurchaseItem {
   product        Product?     @relation(fields: [productId], references: [id])
   itemCode       String
   itemName       String
+  barcode        String?
   size           String?
   variety        String?
+  color          String?
   category       String?
   factory        String?
   vendorItemCode String?
   qty            Float
+  freeQty        Float        @default(0)
   rate           Float
+  mrp            Float        @default(0)
+  sellingPrice   Float        @default(0)
   taxPercent     Float
   discPercent    Float        @default(0)
+  discount       Float        @default(0)
   total          Float
 }
 

@@ -6,9 +6,10 @@ interface ModalProps {
   onClose: () => void;
   title: string;
   children: React.ReactNode;
+  size?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
 }
 
-const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
+const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, size }) => {
   const modalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -30,24 +31,33 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
 
   if (!isOpen) return null;
 
+  const sizeClasses = {
+    sm: 'max-w-sm',
+    md: 'max-w-md',
+    lg: 'max-w-lg',
+    xl: 'max-w-4xl',
+    full: 'max-w-[95vw] w-[95vw]'
+  };
+  const sizeClass = size ? sizeClasses[size] : 'max-w-md';
+
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center backdrop-blur-sm transition-opacity" style={{ backgroundColor: 'rgba(0, 0, 0, 0.45)', backdropFilter: 'blur(3px)' }}>
       <div 
         ref={modalRef}
-        className="bg-white rounded-lg shadow-2xl w-full max-w-md mx-4 overflow-hidden animate-in fade-in zoom-in duration-200"
+        className={`bg-white rounded-lg shadow-2xl w-full ${sizeClass} mx-4 overflow-hidden animate-in fade-in zoom-in duration-200`}
         role="dialog"
         aria-modal="true"
       >
-        <div className="bg-[#2b579a] px-4 py-3 flex justify-between items-center text-white">
+        <div className="bg-[#2b579a] px-4 py-3 flex justify-between items-center text-white border-b border-blue-800">
           <h3 className="font-bold text-lg">{title}</h3>
           <button 
             onClick={onClose}
-            className="text-blue-100 hover:text-white transition-colors p-1 rounded hover:bg-blue-800"
+            className="text-blue-100 hover:text-white transition-colors p-1 rounded hover:bg-blue-800 cursor-pointer"
           >
             <X size={20} />
           </button>
         </div>
-        <div className="p-5">
+        <div className="p-5 max-h-[85vh] overflow-y-auto custom-scrollbar">
           {children}
         </div>
       </div>

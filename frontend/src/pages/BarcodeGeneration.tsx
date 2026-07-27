@@ -392,6 +392,7 @@ const BarcodeGeneration = () => {
 
   // Download Barcode Label Image (PNG)
   const handleDownloadLabelImage = (item: SavedBarcodeItem) => {
+    const code = item.barcodeValue || '100002';
     const canvas = document.createElement('canvas');
     canvas.width = 400;
     canvas.height = 280;

@@ -12,11 +12,13 @@ interface PurchaseItem {
   itemName: string;
   size: string;
   variety: string;
+  color?: string;
   category: string;
   itemDesc: string;
   hsn: string;
   factory: string;
   qty: number;
+  freeQty?: number;
   unitPrice: number;
   salesRate: number;
   mrp: number;
@@ -38,7 +40,7 @@ const PurchaseBill = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'split' | 'form-only' | 'table-only'>('split');
+  const [viewMode, setViewMode] = useState<'split' | 'form-only' | 'table-only'>('form-only');
   const [billSearchQuery, setBillSearchQuery] = useState('');
   const [sidebarTab, setSidebarTab] = useState<'bills' | 'items'>('bills');
   const [itemSearchQuery, setItemSearchQuery] = useState('');
@@ -57,6 +59,8 @@ const PurchaseBill = () => {
   const [gstin, setGstin] = useState('');
   const [supplyPlace, setSupplyPlace] = useState('Tamil Nadu');
   const [vendorName, setVendorName] = useState('');
+  const [supplierInvoiceNo, setSupplierInvoiceNo] = useState('');
+  const [supplierInvoiceDate, setSupplierInvoiceDate] = useState(new Date().toISOString().split('T')[0]);
   
   const [vendors, setVendors] = useState<{id: string, name: string, gstin: string, state: string}[]>([]);
   const [dbProducts, setDbProducts] = useState<any[]>([]);
@@ -147,6 +151,21 @@ const PurchaseBill = () => {
     }
   };
 
+  const handleVendorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setVendorName(val);
+    
+    // Check if the typed value matches any vendor in the list
+    const foundVendor = vendors.find(v => v.name.toLowerCase() === val.toLowerCase());
+    if (foundVendor) {
+      setVendorId(foundVendor.id);
+      setGstin(foundVendor.gstin);
+      setSupplyPlace(foundVendor.state);
+    } else {
+      setVendorId('');
+    }
+  };
+
   // Fetch sequential voucher number from DB
   const fetchNextVoucher = async () => {
     try {
@@ -175,10 +194,73 @@ const PurchaseBill = () => {
     }
   };
 
+  // Fetch all products from DB for lookup and sidebar list
+  const fetchProducts = async () => {
+    try {
+      const res = await fetch(`${Api}/products/search?q=`);
+      if (res.ok) {
+        const data = await res.json();
+        setDbProducts(data);
+      }
+    } catch (err) {
+      console.error("Error fetching products", err);
+    }
+  };
+
+  // Auto-save/update product to the master catalog (Product database)
+  const saveProductToDb = async (item: PurchaseItem) => {
+    if (!item.itemCode || !item.itemCode.trim()) return;
+
+    try {
+      const checkRes = await fetch(`${Api}/products/barcode/${encodeURIComponent(item.itemCode.trim())}`);
+      let url = `${Api}/products`;
+      let method = 'POST';
+      let existingStock = 0;
+
+      if (checkRes.ok) {
+        const existingProduct = await checkRes.json();
+        if (existingProduct) {
+          url = `${Api}/products/${existingProduct.id || existingProduct._id}`;
+          method = 'PUT';
+          existingStock = existingProduct.stock || 0;
+        }
+      }
+
+      const payload = {
+        itemCode: item.itemCode.trim().toUpperCase(),
+        name: (item.itemDesc || item.itemName || item.itemCode).trim(),
+        barcode: item.itemCode.trim(),
+        size: item.size || '',
+        variety: item.variety || '',
+        department: item.category || 'None',
+        purchaseRate: Number(item.unitPrice) || 0,
+        price: Number(item.salesRate) || Number(item.unitPrice) || 0,
+        mrp: Number(item.mrp) || Number(item.unitPrice) || 0,
+        taxPercent: Number(item.taxPercent) || 18,
+        factory: item.factory || '',
+        stock: existingStock,
+        uom: 'PCS'
+      };
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        fetchProducts();
+      }
+    } catch (err) {
+      console.error("Error auto-saving product to master:", err);
+    }
+  };
+
   useEffect(() => {
     fetchVendors();
     fetchNextVoucher();
     fetchSavedBills();
+    fetchProducts();
   }, []);
 
   // Parse state for editing bill passed from register
@@ -191,6 +273,37 @@ const PurchaseBill = () => {
 
   useEffect(() => {
     scanInputRef.current?.focus();
+  }, []);
+
+  // Global scanner listener: redirects focus to the barcode scanner field when user starts typing (and is not editing another input)
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      const activeElem = document.activeElement;
+      
+      // If the user is currently editing an input, select dropdown, or textarea, let them work normally.
+      if (
+        activeElem &&
+        (activeElem.tagName === 'INPUT' ||
+          activeElem.tagName === 'SELECT' ||
+          activeElem.tagName === 'TEXTAREA') &&
+        activeElem !== scanInputRef.current
+      ) {
+        return;
+      }
+
+      // Ignore common modifier key actions (Ctrl+C, Ctrl+V, Alt, etc.)
+      if (e.ctrlKey || e.altKey || e.metaKey || e.key === 'Shift' || e.key === 'Control' || e.key === 'Alt') {
+        return;
+      }
+
+      // Redirect focus to scanner input field
+      if (scanInputRef.current && document.activeElement !== scanInputRef.current) {
+        scanInputRef.current.focus();
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, []);
 
   const handleBarcodeScan = async (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -276,11 +389,13 @@ const PurchaseBill = () => {
               itemName: product.name,
               size: product.size || '',
               variety: product.variety || '',
+              color: '',
               category: product.department || 'None',
               itemDesc: product.name,
               hsn: product.barcode || '',
               factory: product.factory || '',
               qty: 1,
+              freeQty: 0,
               unitPrice: product.purchaseRate || 0,
               salesRate: product.price || 0,
               mrp: product.mrp || 0,
@@ -358,11 +473,13 @@ const PurchaseBill = () => {
         itemName: quickAddForm.name.trim(),
         size: quickAddForm.size,
         variety: quickAddForm.variety,
+        color: '',
         category: quickAddForm.department,
         itemDesc: quickAddForm.name.trim(),
         hsn: quickAddForm.barcode.trim(),
         factory: quickAddForm.factory || '',
         qty: Number(quickAddForm.qty) || 1,
+        freeQty: 0,
         unitPrice: Number(quickAddForm.purchaseRate) || 0,
         salesRate: Number(quickAddForm.price) || 0,
         mrp: Number(quickAddForm.mrp) || 0,
@@ -384,6 +501,7 @@ const PurchaseBill = () => {
       setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
       
       setIsQuickAddModalOpen(false);
+      fetchProducts();
     } catch (err: any) {
       console.error(err);
       setGlobalNotification({ msg: `Error creating product: ${err.message}`, type: 'error' });
@@ -500,6 +618,11 @@ const PurchaseBill = () => {
       
       let updated = { ...item, [field]: value };
       
+      // Keep itemName and itemDesc in sync
+      if (field === 'itemDesc') {
+        updated.itemName = value;
+      }
+      
       // Auto-fill from DB products when itemCode changes
       if (field === 'itemCode') {
         const prod = dbProducts.find(p => p.itemCode?.toLowerCase() === value.trim().toLowerCase());
@@ -513,6 +636,8 @@ const PurchaseBill = () => {
           updated.taxPercent = prod.taxPercent || 18;
           updated.size = prod.size || '';
           updated.variety = prod.variety || '';
+          updated.color = '';
+          updated.freeQty = 0;
           updated.category = prod.department || 'None';
           updated.factory = prod.factory || '';
           updated.vendorItemCode = prod.vendorItemCode || '';
@@ -549,7 +674,12 @@ const PurchaseBill = () => {
     setVendorName('');
     setGstin('');
     setSupplyPlace('Tamil Nadu');
+    setSupplierInvoiceNo('');
+    setSupplierInvoiceDate(new Date().toISOString().split('T')[0]);
     navigate('/purchase-bill', { state: null, replace: true });
+    setTimeout(() => {
+      scanInputRef.current?.focus();
+    }, 150);
   };
 
   // Keyboard navigation for fast data entry
@@ -651,6 +781,7 @@ const PurchaseBill = () => {
           clearForm();
         }
         fetchSavedBills();
+        fetchProducts();
       } else {
         setGlobalNotification({ msg: 'Failed to delete: ' + data.error, type: 'error' });
       }
@@ -662,8 +793,8 @@ const PurchaseBill = () => {
 
   // Save/Update Handler
   const handleSaveBill = async () => {
-    if (!vendorId) {
-      return setGlobalNotification({ msg: 'Please select vendor.', type: 'error' });
+    if (!vendorName.trim()) {
+      return setGlobalNotification({ msg: 'Please enter vendor name.', type: 'error' });
     }
     if (items.length === 0) {
       return setGlobalNotification({ msg: 'Please add at least one item.', type: 'error' });
@@ -676,14 +807,18 @@ const PurchaseBill = () => {
     const payload = {
       voucherNo: billNo,
       date: billDate,
-      supplierInvoiceNo: 'N/A',
+      supplierInvoiceNo: supplierInvoiceNo || 'N/A',
+      supplierInvoiceDate: supplierInvoiceDate || null,
       supplierName: vendorName,
       supplierGstin: gstin,
+      vendorId: vendorId,
       taxableAmt: taxableTotal,
       cgst: totalCgst,
       sgst: totalSgst,
       igst: totalIgst,
       otherCharges: roundedOff,
+      discount: discTotal,
+      roundOff: roundedOff,
       netPayable: grandTotal,
       status: 'Paid',
       type: supplyPlace.toLowerCase() === 'tamil nadu' ? 'Local' : 'Central',
@@ -691,18 +826,21 @@ const PurchaseBill = () => {
       items: items.map(i => ({
         itemCode: i.itemCode.trim().toUpperCase(),
         vendorItemCode: i.vendorItemCode ? i.vendorItemCode.trim() : '',
-        itemName: i.itemDesc || i.itemCode,
+        itemName: i.itemName || i.itemDesc || i.itemCode,
         itemDesc: i.itemDesc,
         size: i.size,
         variety: i.variety,
+        color: i.color || '',
         category: i.category,
         factory: i.factory,
         qty: i.qty,
+        freeQty: i.freeQty || 0,
         rate: i.unitPrice,
-        salesRate: i.salesRate || i.unitPrice,
+        sellingPrice: i.salesRate || i.unitPrice,
         mrp: i.mrp || i.unitPrice,
         taxPercent: i.taxPercent,
         discPercent: i.discPercent,
+        discount: i.qty * i.unitPrice * (i.discPercent / 100),
         total: i.total
       }))
     };
@@ -726,6 +864,7 @@ const PurchaseBill = () => {
         });
         clearForm();
         fetchSavedBills();
+        fetchProducts();
       } else {
         setGlobalNotification({ msg: 'Error saving purchase bill: ' + data.error, type: 'error' });
       }
@@ -835,11 +974,13 @@ const PurchaseBill = () => {
       itemName: prod.name || '',
       size: prod.size || '',
       variety: prod.variety || '',
+      color: '',
       category: prod.department || 'None',
       itemDesc: prod.name || '',
       hsn: prod.barcode || '',
       factory: prod.factory || '',
       qty: 1,
+      freeQty: 0,
       unitPrice: prod.purchaseRate || 0,
       salesRate: prod.price || 0,
       mrp: prod.mrp || 0,
@@ -860,14 +1001,31 @@ const PurchaseBill = () => {
 
   return (
     <div className="flex flex-col h-full bg-[#f0f9f4] relative overflow-hidden">
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          height: 6px;
+          width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: #f8fafc;
+          border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #cbd5e1;
+          border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: #94a3b8;
+        }
+      `}</style>
       
       {/* Header bar with layout switches */}
-      <div className="bg-gradient-to-r from-[#2b579a] to-[#3a75c4] text-white px-4 py-2 flex justify-between items-center shadow-md z-10 flex-shrink-0">
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white px-4 py-2 flex justify-between items-center shadow-md z-10 flex-shrink-0 border-b border-indigo-900/40">
         <span className="font-semibold text-lg tracking-wide flex items-center">
           Purchase Bill Entry 
-          <span className="font-light text-blue-200 text-sm ml-2">(Stock Inward Master)</span>
+          <span className="font-light text-slate-300 text-sm ml-2">(Stock Inward Master)</span>
           {editingId && (
-            <span className="text-xs font-bold text-red-600 bg-red-100 border border-red-200 px-2 py-0.5 rounded ml-3 shadow-sm">
+            <span className="text-xs font-black text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full ml-3 shadow-sm">
               EDIT MODE: {billNo}
             </span>
           )}
@@ -875,22 +1033,10 @@ const PurchaseBill = () => {
 
         <div className="flex items-center space-x-2">
           <button
-            onClick={() => setViewMode('split')}
-            className={`px-3 py-1 rounded text-xs font-semibold transition-colors shadow-sm ${viewMode === 'split' ? 'bg-blue-600 border border-blue-400 text-white' : 'bg-blue-800 hover:bg-blue-700 text-blue-100'}`}
+            onClick={() => setViewMode(viewMode === 'form-only' ? 'split' : 'form-only')}
+            className="px-4 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow transition-all border border-indigo-500 cursor-pointer"
           >
-            ◧ Split View
-          </button>
-          <button
-            onClick={() => setViewMode('form-only')}
-            className={`px-3 py-1 rounded text-xs font-semibold transition-colors shadow-sm ${viewMode === 'form-only' ? 'bg-blue-600 border border-blue-400 text-white' : 'bg-blue-800 hover:bg-blue-700 text-blue-100'}`}
-          >
-            ❌ Hide Table
-          </button>
-          <button
-            onClick={() => setViewMode('table-only')}
-            className={`px-3 py-1 rounded text-xs font-semibold transition-colors shadow-sm ${viewMode === 'table-only' ? 'bg-blue-600 border border-blue-400 text-white' : 'bg-blue-800 hover:bg-blue-700 text-blue-100'}`}
-          >
-            👁 View Full Table
+            <span>{viewMode === 'form-only' ? '📁 Show Item Catalog' : '📁 Hide Item Catalog'}</span>
           </button>
         </div>
       </div>
@@ -898,109 +1044,166 @@ const PurchaseBill = () => {
       <div className="flex-1 flex overflow-hidden">
         
         {/* Left Side: Purchase Bill Form */}
-        <div className={`${viewMode === 'table-only' ? 'hidden' : viewMode === 'form-only' ? 'w-full' : 'w-[64%]'} overflow-y-auto p-3 bg-white flex flex-col justify-between border-r border-gray-300`}>
+        <div className={`${viewMode === 'table-only' ? 'hidden' : viewMode === 'form-only' ? 'w-full' : 'w-[64%]'} overflow-y-auto p-3 bg-white flex flex-col justify-between border-r border-slate-200`}>
           <div>
             {/* Top Metadata Header inside form */}
-            <div className="bg-slate-50 p-3 border border-gray-300 shadow-sm rounded mb-2">
-              <div className="grid grid-cols-5 gap-3">
+            <div className="bg-white p-3 border border-slate-200 shadow-[0_2px_15px_rgba(0,0,0,0.02)] rounded-lg mb-3 space-y-2.5">
+              {/* Row 1 */}
+              <div className="grid grid-cols-3 gap-2.5">
                 <div>
-                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Voucher No</label>
-                  <input type="text" value={billNo} onChange={e => setBillNo(e.target.value)} className="w-full border border-gray-400 p-1.5 rounded text-sm bg-gray-50 font-bold focus:bg-white focus:outline-none" readOnly={!!editingId} />
+                  <label className="block text-[9px] font-black text-slate-500 uppercase tracking-wider mb-0.5">Voucher No</label>
+                  <input 
+                    type="text" 
+                    value={billNo} 
+                    onChange={e => setBillNo(e.target.value)} 
+                    className="w-full border border-slate-200 bg-slate-50/50 p-1.5 rounded-md text-xs font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all shadow-inner" 
+                    readOnly={!!editingId} 
+                  />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Date</label>
-                  <input type="date" value={billDate} onChange={e => setBillDate(e.target.value)} className="w-full border border-gray-400 p-1.5 rounded text-sm focus:border-blue-500 focus:outline-none bg-white" />
+                  <label className="block text-[9px] font-black text-slate-500 uppercase tracking-wider mb-0.5">Purchase Date</label>
+                  <input 
+                    type="date" 
+                    value={billDate} 
+                    onChange={e => setBillDate(e.target.value)} 
+                    className="w-full border border-slate-200 bg-white p-1.5 rounded-md text-xs focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold text-slate-800" 
+                  />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Vendor Name</label>
+                  <div className="flex justify-between items-center mb-0.5">
+                    <label className="block text-[9px] font-black text-slate-500 uppercase tracking-wider">Vendor Name</label>
+                    <button
+                      type="button"
+                      onClick={() => setIsVendorModalOpen(true)}
+                      className="text-[8px] font-extrabold text-blue-600 hover:text-blue-800 uppercase tracking-wider cursor-pointer"
+                    >
+                      + Save Vendor
+                    </button>
+                  </div>
+                  <input 
+                    type="text" 
+                    list="vendors-list" 
+                    value={vendorName} 
+                    onChange={handleVendorChange}
+                    placeholder="Type or select vendor name..."
+                    className="w-full border border-slate-200 bg-white p-1.5 rounded-md text-xs focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-bold text-slate-800 shadow-sm" 
+                  />
+                  <datalist id="vendors-list">
+                    {vendors.map(v => (
+                      <option key={v.id} value={v.name} />
+                    ))}
+                  </datalist>
+                </div>
+              </div>
+
+              {/* Row 2 */}
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-[9px] font-black text-slate-500 uppercase tracking-wider mb-0.5">Supplier Invoice Number</label>
+                  <input 
+                    type="text" 
+                    value={supplierInvoiceNo} 
+                    onChange={e => setSupplierInvoiceNo(e.target.value)} 
+                    placeholder="Enter Supplier Invoice Number..."
+                    className="w-full border border-slate-200 bg-white p-1.5 rounded-md text-xs focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all text-slate-800" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-[9px] font-black text-slate-500 uppercase tracking-wider mb-0.5">Supplier Invoice Date</label>
+                  <input 
+                    type="date" 
+                    value={supplierInvoiceDate} 
+                    onChange={e => setSupplierInvoiceDate(e.target.value)} 
+                    className="w-full border border-slate-200 bg-white p-1.5 rounded-md text-xs focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold text-slate-800" 
+                  />
+                </div>
+              </div>
+
+              {/* Row 3 */}
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-[9px] font-black text-slate-500 uppercase tracking-wider mb-0.5">GSTIN</label>
+                  <input 
+                    type="text" 
+                    value={gstin} 
+                    onChange={e => setGstin(e.target.value.toUpperCase())}
+                    placeholder="Enter supplier GSTIN (optional)..."
+                    className="w-full border border-slate-200 p-1.5 rounded-md text-xs bg-white text-slate-800 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-[9px] font-black text-slate-500 uppercase tracking-wider mb-0.5">Place of Supply</label>
                   <select 
-                    value={vendorId} 
-                    onChange={e => {
-                      if (e.target.value === 'NEW') {
-                        setIsVendorModalOpen(true);
-                      } else {
-                        setVendorId(e.target.value);
-                      }
-                    }} 
-                    className="w-full border border-gray-400 p-1.5 rounded text-sm focus:border-blue-500 focus:outline-none bg-white font-semibold text-gray-800"
+                    value={supplyPlace} 
+                    onChange={e => setSupplyPlace(e.target.value)}
+                    className="w-full border border-slate-200 p-1.5 rounded-md text-xs bg-white text-slate-800 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold"
                   >
-                    <option value="">-- Select Vendor --</option>
-                    {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-                    <option value="NEW" className="font-bold text-blue-600 bg-blue-50">+ Add New Vendor...</option>
+                    <option value="Tamil Nadu">Tamil Nadu (Local)</option>
+                    <option value="Other State">Other State (Central)</option>
                   </select>
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-gray-700 mb-1">GSTIN</label>
-                  <input type="text" value={gstin} readOnly className="w-full border border-gray-300 p-1.5 rounded text-sm bg-gray-200 text-gray-700 focus:outline-none" />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Place of Supply</label>
-                  <input type="text" value={supplyPlace} readOnly className="w-full border border-gray-300 p-1.5 rounded text-sm bg-gray-200 text-gray-700 focus:outline-none" />
                 </div>
               </div>
             </div>
 
-            {/* Main Items Grid */}
-            <div className="flex flex-col bg-white border border-gray-400 shadow-sm relative rounded overflow-hidden mb-2">
-              <div className="bg-[#d1e8e2] p-2 border-b border-gray-400 flex items-center justify-between gap-4">
-                <div className="flex items-center space-x-2 flex-1 max-w-md">
-                  <label className="text-xs font-bold text-slate-700 uppercase whitespace-nowrap">Scan Barcode / Code:</label>
+            {/* Main Items Grid Container */}
+            <div className="flex flex-col bg-white border border-slate-200 shadow-[0_2px_10px_rgba(0,0,0,0.01)] relative overflow-hidden rounded-lg mb-2">
+              <div className="bg-gradient-to-r from-slate-50 to-indigo-50/30 p-2.5 border-b border-slate-200 flex items-center justify-between gap-4">
+                <div className="flex items-center space-x-2.5 flex-1 max-w-md">
+                  <label className="text-[11px] font-black text-slate-700 uppercase whitespace-nowrap tracking-wide">Scan Barcode / Code:</label>
                   <input
                     ref={scanInputRef}
                     type="text"
                     value={scanInput}
                     onChange={e => setScanInput(e.target.value)}
                     onKeyDown={handleBarcodeScan}
-                    placeholder="Scan USB barcode or type code & press Enter..."
-                    className="flex-1 border border-indigo-400 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 p-1.5 rounded text-xs font-mono font-bold bg-white focus:outline-none placeholder:font-sans placeholder:font-normal shadow-sm"
+                    placeholder="Scan barcode or type code & Enter..."
+                    className="flex-1 border border-indigo-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 p-1.5 rounded-md text-xs font-mono font-bold bg-white focus:outline-none placeholder:font-sans placeholder:font-normal shadow-inner"
                   />
                 </div>
-                <div className="text-[10px] text-indigo-700 font-semibold italic bg-indigo-50 px-2.5 py-1 rounded border border-indigo-200">
-                  Ready for scanning. Focus is kept automatically.
+                <div className="text-[10px] text-indigo-600 font-bold bg-indigo-50 border border-indigo-100 px-3 py-1.5 rounded-full animate-pulse">
+                  System Listening for Scans
                 </div>
               </div>
 
-              <div className="overflow-x-auto max-h-[550px]">
+              <div className="overflow-x-auto max-h-[550px] custom-scrollbar">
                 <table className="w-full text-left text-xs border-collapse whitespace-nowrap min-w-max">
-                  <thead className="bg-[#2b579a] text-white sticky top-0 z-10">
+                  <thead className="bg-slate-900 text-white sticky top-0 z-10 border-b border-slate-800">
                     <tr>
-                      <th className="border-r border-gray-400 p-1.5 w-8 text-center font-semibold">S.No</th>
-                      <th className="border-r border-gray-400 p-1.5 w-48 font-semibold">Product Name</th>
-                      <th className="border-r border-gray-400 p-1.5 w-28 font-semibold">Item Code (Barcode)</th>
-                      <th className="border-r border-gray-400 p-1.5 w-28 font-semibold">Vendor Item Code</th>
-                      <th className="border-r border-gray-400 p-1.5 w-16 font-semibold">Dress Size</th>
-                      <th className="border-r border-gray-400 p-1.5 w-24 font-semibold">Variety</th>
-                      <th className="border-r border-gray-400 p-1.5 w-24 font-semibold">Category</th>
-                      <th className="border-r border-gray-400 p-1.5 font-semibold">Description</th>
-                      <th className="border-r border-gray-400 p-1.5 w-24 font-semibold">Factory</th>
-                      <th className="border-r border-gray-400 p-1.5 w-16 font-semibold text-right">Qty</th>
-                      <th className="border-r border-gray-400 p-1.5 w-20 font-semibold text-right">Unit Price</th>
-                      <th className="border-r border-gray-400 p-1.5 w-20 font-semibold text-right">Sales Price</th>
-                      <th className="border-r border-gray-400 p-1.5 w-20 font-semibold text-right">MRP</th>
-                      <th className="border-r border-gray-400 p-1.5 w-12 font-semibold text-right">Disc %</th>
-                      <th className="border-r border-gray-400 p-1.5 w-12 font-semibold text-right">Tax %</th>
-                      <th className="border-r border-gray-400 p-1.5 w-20 font-semibold text-right">Total Amt</th>
-                      <th className="p-1.5 w-8 text-center font-semibold">Del</th>
+                      <th className="border-r border-slate-800 p-2 text-center font-bold text-[10px] uppercase tracking-wider w-8">S.No</th>
+                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-28">Barcode</th>
+                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-48">Product Name</th>
+                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-28">Vendor Item Code</th>
+                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-16">Dress Size</th>
+                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-24">Variety</th>
+                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-20">Color</th>
+                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-24">Category</th>
+                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-16 text-right">Purchase Qty</th>
+                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-16 text-right">Free Qty</th>
+                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-20 text-right">Purchase Rate</th>
+                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-12 text-right">Discount %</th>
+                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-12 text-right">GST %</th>
+                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-20 text-right">MRP</th>
+                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-20 text-right">Selling Price</th>
+                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-20 text-right">Amount</th>
+                      <th className="p-2 w-8 text-center font-bold text-[10px] uppercase tracking-wider">Del</th>
                     </tr>
                   </thead>
                   <tbody>
                     {items.length === 0 && (
                       <tr>
-                        <td colSpan={17} className="p-6 text-gray-400 italic">
-                          <div className="sticky left-0 text-center w-[75vw]">
-                            No items added.
-                          </div>
+                        <td colSpan={17} className="p-6 text-gray-400 italic text-center">
+                          No items added.
                         </td>
                       </tr>
                     )}
                     {items.map((item, idx) => (
-                      <tr key={item.id} className="border-b border-gray-300 hover:bg-yellow-50 focus-within:bg-blue-50 transition-colors">
-                        <td className="border-r border-gray-300 p-1 text-center text-gray-500 bg-gray-50">{idx + 1}</td>
-                        <td className="border-r border-gray-300 p-2 font-semibold text-gray-800 bg-gray-50">
-                          {item.itemName}
-                        </td>
-                        <td className="border-r border-gray-300 p-2 font-mono font-bold text-slate-700 bg-gray-50">
+                      <tr key={item.id} className="border-b border-slate-200 hover:bg-slate-50/50 focus-within:bg-indigo-50/50 transition-colors">
+                        <td className="border-r border-slate-200 p-2 text-center text-slate-500 font-medium">{idx + 1}</td>
+                        <td className="border-r border-slate-200 p-2 font-mono font-bold text-slate-600">
                           {item.itemCode}
+                        </td>
+                        <td className="border-r border-slate-200 p-2 font-semibold text-slate-800">
+                          {item.itemName || item.itemDesc}
                         </td>
                         <td className="border-r border-gray-300 p-0">
                           <input 
@@ -1008,6 +1211,10 @@ const PurchaseBill = () => {
                             value={item.vendorItemCode || ''} 
                             onChange={e => updateItem(item.id, 'vendorItemCode', e.target.value)} 
                             onKeyDown={e => handleKeyDown(e, idx, 'vendorItemCode')}
+                            onBlur={() => {
+                              const latest = items.find(i => i.id === item.id);
+                              if (latest) saveProductToDb(latest);
+                            }}
                             className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none font-mono" 
                             placeholder="Vendor Code" 
                           />
@@ -1018,6 +1225,10 @@ const PurchaseBill = () => {
                             value={item.size} 
                             onChange={e => updateItem(item.id, 'size', e.target.value)} 
                             onKeyDown={e => handleKeyDown(e, idx, 'size')}
+                            onBlur={() => {
+                              const latest = items.find(i => i.id === item.id);
+                              if (latest) saveProductToDb(latest);
+                            }}
                             className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-center" 
                             placeholder="M, L..."
                           />
@@ -1028,15 +1239,41 @@ const PurchaseBill = () => {
                             value={item.variety} 
                             onChange={e => updateItem(item.id, 'variety', e.target.value)} 
                             onKeyDown={e => handleKeyDown(e, idx, 'variety')}
+                            onBlur={() => {
+                              const latest = items.find(i => i.id === item.id);
+                              if (latest) saveProductToDb(latest);
+                            }}
                             className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none" 
-                            placeholder="Kurti, Jeans..."
+                            placeholder="Kurti..."
+                          />
+                        </td>
+                        <td className="border-r border-gray-300 p-0">
+                          <input 
+                            type="text" 
+                            value={item.color || ''} 
+                            onChange={e => updateItem(item.id, 'color', e.target.value)} 
+                            onKeyDown={e => handleKeyDown(e, idx, 'color')}
+                            onBlur={() => {
+                              const latest = items.find(i => i.id === item.id);
+                              if (latest) saveProductToDb(latest);
+                            }}
+                            className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none" 
+                            placeholder="Red..."
                           />
                         </td>
                         <td className="border-r border-gray-300 p-0">
                           <select
                             value={item.category}
-                            onChange={e => updateItem(item.id, 'category', e.target.value)}
+                            onChange={e => {
+                              updateItem(item.id, 'category', e.target.value);
+                              const latest = items.find(i => i.id === item.id);
+                              if (latest) saveProductToDb({ ...latest, category: e.target.value });
+                            }}
                             onKeyDown={e => handleKeyDown(e, idx, 'category')}
+                            onBlur={() => {
+                              const latest = items.find(i => i.id === item.id);
+                              if (latest) saveProductToDb(latest);
+                            }}
                             className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none"
                           >
                             <option value="None">None</option>
@@ -1047,31 +1284,22 @@ const PurchaseBill = () => {
                         </td>
                         <td className="border-r border-gray-300 p-0">
                           <input 
-                            type="text" 
-                            value={item.itemDesc} 
-                            onChange={e => updateItem(item.id, 'itemDesc', e.target.value)} 
-                            onKeyDown={e => handleKeyDown(e, idx, 'itemDesc')}
-                            className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none" 
-                          />
-                        </td>
-                        <td className="border-r border-gray-300 p-0">
-                          <input 
-                            type="text" 
-                            value={item.factory} 
-                            onChange={e => updateItem(item.id, 'factory', e.target.value)} 
-                            onKeyDown={e => handleKeyDown(e, idx, 'factory')}
-                            className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none" 
-                            placeholder="Factory Name"
+                            type="number" 
+                            value={item.qty === 0 ? '' : item.qty} 
+                            onChange={e => updateItem(item.id, 'qty', Number(e.target.value))} 
+                            onKeyDown={e => handleKeyDown(e, idx, 'qty')}
+                            className="w-full p-1.5 bg-slate-50/50 focus:bg-white focus:outline-none text-right font-bold text-blue-900 border border-transparent focus:border-indigo-400" 
+                            min="1" 
                           />
                         </td>
                         <td className="border-r border-gray-300 p-0">
                           <input 
                             type="number" 
-                            value={item.qty === 0 ? '' : item.qty} 
-                            onChange={e => updateItem(item.id, 'qty', Number(e.target.value))} 
-                            onKeyDown={e => handleKeyDown(e, idx, 'qty')}
-                            className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-right font-bold text-blue-800" 
-                            min="1" 
+                            value={item.freeQty === 0 ? '' : item.freeQty} 
+                            onChange={e => updateItem(item.id, 'freeQty', Number(e.target.value))} 
+                            onKeyDown={e => handleKeyDown(e, idx, 'freeQty')}
+                            className="w-full p-1.5 bg-slate-50/50 focus:bg-white focus:outline-none text-right font-bold text-blue-900 border border-transparent focus:border-indigo-400" 
+                            min="0" 
                           />
                         </td>
                         <td className="border-r border-gray-300 p-0">
@@ -1080,27 +1308,11 @@ const PurchaseBill = () => {
                             value={item.unitPrice === 0 ? '' : item.unitPrice} 
                             onChange={e => updateItem(item.id, 'unitPrice', Number(e.target.value))} 
                             onKeyDown={e => handleKeyDown(e, idx, 'unitPrice')}
-                            className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-right" 
-                          />
-                        </td>
-                        <td className="border-r border-gray-300 p-0">
-                          <input 
-                            type="number" 
-                            value={item.salesRate === 0 ? '' : item.salesRate} 
-                            onChange={e => updateItem(item.id, 'salesRate', Number(e.target.value))} 
-                            onKeyDown={e => handleKeyDown(e, idx, 'salesRate')}
-                            className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-right font-semibold text-indigo-700" 
-                            placeholder="0.00"
-                          />
-                        </td>
-                        <td className="border-r border-gray-300 p-0">
-                          <input 
-                            type="number" 
-                            value={item.mrp === 0 ? '' : item.mrp} 
-                            onChange={e => updateItem(item.id, 'mrp', Number(e.target.value))} 
-                            onKeyDown={e => handleKeyDown(e, idx, 'mrp')}
-                            className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-right text-gray-700" 
-                            placeholder="0.00"
+                            onBlur={() => {
+                              const latest = items.find(i => i.id === item.id);
+                              if (latest) saveProductToDb(latest);
+                            }}
+                            className="w-full p-1.5 bg-slate-50/50 focus:bg-white focus:outline-none text-right border border-transparent focus:border-indigo-400" 
                           />
                         </td>
                         <td className="border-r border-gray-300 p-0">
@@ -1109,7 +1321,7 @@ const PurchaseBill = () => {
                             value={item.discPercent === 0 ? '' : item.discPercent} 
                             onChange={e => updateItem(item.id, 'discPercent', Number(e.target.value))} 
                             onKeyDown={e => handleKeyDown(e, idx, 'discPercent')}
-                            className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-right" 
+                            className="w-full p-1.5 bg-slate-50/50 focus:bg-white focus:outline-none text-right border border-transparent focus:border-indigo-400" 
                           />
                         </td>
                         <td className="border-r border-gray-300 p-0">
@@ -1118,13 +1330,45 @@ const PurchaseBill = () => {
                             value={item.taxPercent} 
                             onChange={e => updateItem(item.id, 'taxPercent', Number(e.target.value))} 
                             onKeyDown={e => handleKeyDown(e, idx, 'taxPercent')}
+                            onBlur={() => {
+                              const latest = items.find(i => i.id === item.id);
+                              if (latest) saveProductToDb(latest);
+                            }}
                             className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-right text-gray-500" 
                           />
                         </td>
-                        <td className="border-r border-gray-300 p-1.5 text-right font-mono font-bold text-green-700 bg-gray-50">{item.total.toFixed(2)}</td>
-                        <td className="p-1 text-center bg-gray-50">
-                          <button onClick={() => removeRow(item.id)} className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-100 transition-colors">
-                            <Trash2 size={12} />
+                        <td className="border-r border-gray-300 p-0">
+                          <input 
+                            type="number" 
+                            value={item.mrp === 0 ? '' : item.mrp} 
+                            onChange={e => updateItem(item.id, 'mrp', Number(e.target.value))} 
+                            onKeyDown={e => handleKeyDown(e, idx, 'mrp')}
+                            onBlur={() => {
+                              const latest = items.find(i => i.id === item.id);
+                              if (latest) saveProductToDb(latest);
+                            }}
+                            className="w-full p-1.5 bg-slate-50/50 focus:bg-white focus:outline-none text-right border border-transparent focus:border-indigo-400" 
+                            placeholder="0.00"
+                          />
+                        </td>
+                        <td className="border-r border-gray-300 p-0">
+                          <input 
+                            type="number" 
+                            value={item.salesRate === 0 ? '' : item.salesRate} 
+                            onChange={e => updateItem(item.id, 'salesRate', Number(e.target.value))} 
+                            onKeyDown={e => handleKeyDown(e, idx, 'salesRate')}
+                            onBlur={() => {
+                              const latest = items.find(i => i.id === item.id);
+                              if (latest) saveProductToDb(latest);
+                            }}
+                            className="w-full p-1.5 bg-slate-50/50 focus:bg-white focus:outline-none text-right font-semibold text-indigo-700 border border-transparent focus:border-indigo-400" 
+                            placeholder="0.00"
+                          />
+                        </td>
+                        <td className="border-r border-slate-200 p-2 text-right font-mono font-bold text-emerald-600 bg-slate-50/10">{item.total.toFixed(2)}</td>
+                        <td className="p-2 text-center bg-slate-50/10">
+                          <button onClick={() => removeRow(item.id)} className="text-rose-500 hover:text-rose-700 p-1.5 rounded-full hover:bg-rose-50 active:scale-95 transition-all">
+                            <Trash2 size={14} />
                           </button>
                         </td>
                       </tr>
@@ -1136,19 +1380,19 @@ const PurchaseBill = () => {
           </div>
 
           {/* Bottom Panel containing Action Buttons and Grand Total Card */}
-          <div className="flex items-center justify-between mt-2 p-2 bg-slate-50 border border-gray-300 rounded shadow-sm flex-shrink-0">
+          <div className="flex items-center justify-between mt-3 p-3 bg-white border border-slate-200 rounded-xl shadow-[0_-4px_20px_rgba(0,0,0,0.02)] flex-shrink-0">
             <div className="flex space-x-2">
               <button 
                 onClick={handleSaveBill}
                 disabled={loading}
-                className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded shadow flex items-center space-x-1.5 text-xs transition-colors"
+                className="px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold rounded-lg shadow-md hover:shadow-lg focus:ring-4 focus:ring-emerald-500/20 active:scale-95 transition-all duration-200 flex items-center space-x-2 text-xs"
               >
                 <span>{editingId ? '✓ Update Bill' : '💾 Save Bill'}</span>
               </button>
               
               <button 
                 onClick={clearForm}
-                className="px-4 py-2.5 bg-white border border-gray-300 text-gray-700 hover:bg-slate-100 font-semibold rounded shadow-sm text-xs transition-colors"
+                className="px-5 py-2.5 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 font-bold rounded-lg shadow-sm focus:ring-4 focus:ring-slate-100 active:scale-95 transition-all duration-200 text-xs"
               >
                 Clear / New
               </button>
@@ -1156,44 +1400,44 @@ const PurchaseBill = () => {
               {editingId && (
                 <button 
                   onClick={() => handleDeleteBill(editingId, billNo)}
-                  className="px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded shadow-sm text-xs transition-colors"
+                  className="px-5 py-2.5 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white font-bold rounded-lg shadow-md focus:ring-4 focus:ring-red-500/20 active:scale-95 transition-all duration-200 text-xs"
                 >
                   Delete Bill
                 </button>
               )}
             </div>
 
-            <div className="w-[450px] bg-[#1e3f70] text-white p-3 border border-[#142d54] shadow-md rounded flex flex-col justify-between">
-              <div className="grid grid-cols-6 gap-2 text-xs font-bold text-right border-b border-[#2b579a] pb-2 mb-2">
+            <div className="w-[450px] bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white p-4 border border-slate-800 shadow-xl rounded-xl flex flex-col justify-between">
+              <div className="grid grid-cols-6 gap-2 text-xs font-bold text-right border-b border-slate-800 pb-2.5 mb-2.5">
                 <div>
-                  <span className="block text-[9px] uppercase tracking-wider text-blue-200 mb-1">Sub Total</span>
-                  ₹{subTotal.toFixed(2)}
+                  <span className="block text-[8px] uppercase tracking-wider text-slate-400 mb-1">Sub Total</span>
+                  ₹{subTotal.toFixed(0)}
                 </div>
                 <div>
-                  <span className="block text-[9px] uppercase tracking-wider text-blue-200 mb-1">Discount</span>
-                  - ₹{discTotal.toFixed(2)}
+                  <span className="block text-[8px] uppercase tracking-wider text-slate-400 mb-1">Discount</span>
+                  - ₹{discTotal.toFixed(0)}
                 </div>
                 <div>
-                  <span className="block text-[9px] uppercase tracking-wider text-blue-200 mb-1">CGST</span>
-                  ₹{totalCgst.toFixed(2)}
+                  <span className="block text-[8px] uppercase tracking-wider text-slate-400 mb-1">CGST</span>
+                  ₹{totalCgst.toFixed(0)}
                 </div>
                 <div>
-                  <span className="block text-[9px] uppercase tracking-wider text-blue-200 mb-1">SGST</span>
-                  ₹{totalSgst.toFixed(2)}
+                  <span className="block text-[8px] uppercase tracking-wider text-slate-400 mb-1">SGST</span>
+                  ₹{totalSgst.toFixed(0)}
                 </div>
                 <div>
-                  <span className="block text-[9px] uppercase tracking-wider text-blue-200 mb-1">IGST</span>
-                  ₹{totalIgst.toFixed(2)}
+                  <span className="block text-[8px] uppercase tracking-wider text-slate-400 mb-1">IGST</span>
+                  ₹{totalIgst.toFixed(0)}
                 </div>
                 <div>
-                  <span className="block text-[9px] uppercase tracking-wider text-blue-200 mb-1">Round Off</span>
+                  <span className="block text-[8px] uppercase tracking-wider text-slate-400 mb-1">Round Off</span>
                   {roundedOff > 0 ? '+' : ''}{roundedOff.toFixed(2)}
                 </div>
               </div>
               
               <div className="flex justify-between items-center px-1">
-                <span className="text-xs font-bold text-blue-200 uppercase tracking-widest">Grand Total</span>
-                <div className="text-2xl font-black text-yellow-300 drop-shadow-md">
+                <span className="text-xs font-extrabold text-indigo-300 uppercase tracking-widest">Grand Total</span>
+                <div className="text-3xl font-black text-yellow-400 drop-shadow-[0_2px_4px_rgba(0,0,0,0.4)]">
                   ₹ {grandTotal.toFixed(2)}
                 </div>
               </div>
@@ -1201,162 +1445,77 @@ const PurchaseBill = () => {
           </div>
         </div>
 
-        {/* Right Side: Saved Bills / Item Master Sidebar Panel */}
-        <div className={`${viewMode === 'form-only' ? 'hidden' : viewMode === 'table-only' ? 'w-full' : 'w-[36%]'} bg-slate-100 p-3 flex flex-col overflow-hidden border-l border-gray-300`}>
-          <div className="flex-shrink-0 mb-2">
-            {/* Tabs */}
-            <div className="flex space-x-1 bg-slate-200 p-1 rounded-md border border-slate-300 mb-2">
-              <button
-                onClick={() => setSidebarTab('bills')}
-                className={`flex-1 text-center py-1 text-xs font-bold rounded transition-all ${
-                  sidebarTab === 'bills'
-                    ? 'bg-[#1e3f70] text-white shadow'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-300/50'
-                }`}
-              >
-                Saved Bills ({filteredBills.length})
-              </button>
-              <button
-                onClick={() => setSidebarTab('items')}
-                className={`flex-1 text-center py-1 text-xs font-bold rounded transition-all ${
-                  sidebarTab === 'items'
-                    ? 'bg-[#1e3f70] text-white shadow'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-300/50'
-                }`}
-              >
-                Item Master ({filteredProducts.length})
-              </button>
+        {/* Right Side: Item Master Sidebar Panel */}
+        <div className={`${viewMode === 'form-only' ? 'hidden' : viewMode === 'table-only' ? 'w-full' : 'w-[36%]'} bg-slate-50/50 p-3 flex flex-col overflow-hidden border-l border-slate-200`}>
+          <div className="flex-shrink-0 mb-2.5">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-xs font-black uppercase text-slate-700 tracking-wider">Item Master Catalog</span>
+              <span className="text-[10px] font-bold bg-indigo-50 border border-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full">
+                {filteredProducts.length} Items
+              </span>
             </div>
 
-            {/* Search Input depending on active tab */}
-            {sidebarTab === 'bills' ? (
-              <div className="relative">
-                <input 
-                  type="text" 
-                  placeholder="Search voucher, vendor..." 
-                  value={billSearchQuery}
-                  onChange={e => setBillSearchQuery(e.target.value)}
-                  className="w-full bg-white border border-slate-300 p-1.5 pl-8 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 transition-shadow"
-                />
-                <Search size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
-              </div>
-            ) : (
-              <div className="relative">
-                <input 
-                  type="text" 
-                  placeholder="Search code, name, category, variety..." 
-                  value={itemSearchQuery}
-                  onChange={e => setItemSearchQuery(e.target.value)}
-                  className="w-full bg-white border border-slate-300 p-1.5 pl-8 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 transition-shadow"
-                />
-                <Search size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
-              </div>
-            )}
+            {/* Search Input */}
+            <div className="relative">
+              <input 
+                type="text" 
+                placeholder="Search code, name, category, variety..." 
+                value={itemSearchQuery}
+                onChange={e => setItemSearchQuery(e.target.value)}
+                className="w-full bg-white border border-slate-200 p-2 pl-8 rounded-lg text-xs focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all shadow-sm"
+              />
+              <Search size={14} className="absolute left-2.5 top-3 text-slate-400" />
+            </div>
           </div>
 
           {/* Sidebar Content */}
-          <div className="flex-1 overflow-auto border border-slate-200 rounded bg-white">
-            {sidebarTab === 'bills' ? (
-              <table className="w-full text-left text-xs border-collapse whitespace-nowrap">
-                <thead className="bg-[#1e3f70] text-white sticky top-0 z-10">
+          <div className="flex-1 overflow-auto border border-slate-200 rounded-xl bg-white shadow-sm overflow-hidden custom-scrollbar">
+            <table className="w-full text-left text-xs border-collapse whitespace-nowrap">
+              <thead className="bg-slate-900 text-white sticky top-0 z-10 border-b border-slate-800">
+                <tr>
+                  <th className="p-2.5 font-bold uppercase tracking-wider text-[10px]">Item Code</th>
+                  <th className="p-2.5 font-bold uppercase tracking-wider text-[10px]">Item Name</th>
+                  <th className="p-2.5 font-bold uppercase tracking-wider text-[10px] text-right">Stock</th>
+                  <th className="p-2.5 font-bold uppercase tracking-wider text-[10px] text-center w-12">Add</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredProducts.length === 0 ? (
                   <tr>
-                    <th className="p-2 font-semibold">Vch No</th>
-                    <th className="p-2 font-semibold">Vendor</th>
-                    <th className="p-2 font-semibold text-right">Net Payable</th>
-                    <th className="p-2 font-semibold text-center w-16">Actions</th>
+                    <td colSpan={4} className="p-6 text-center text-slate-400 italic bg-slate-50">No products found.</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {filteredBills.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="p-6 text-center text-slate-400 italic bg-slate-50">No saved bills found.</td>
+                ) : (
+                  filteredProducts.map((prod) => (
+                    <tr 
+                      key={prod.id || prod._id} 
+                      className="border-b border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer"
+                      onClick={() => addProductFromMaster(prod)}
+                      title="Click to add to purchase bill"
+                    >
+                      <td className="p-2 font-mono text-slate-800">
+                        <div className="text-blue-600 font-bold">{prod.itemCode}</div>
+                        {prod.vendorItemCode && <div className="text-[10px] text-gray-400 font-medium">VC: {prod.vendorItemCode}</div>}
+                      </td>
+                      <td className="p-2 text-slate-800 max-w-[150px] truncate" title={prod.name}>
+                        <div>{prod.name}</div>
+                        {prod.size && <span className="text-[10px] text-gray-500 bg-gray-100 px-1 py-0.2 rounded border mr-1">Size {prod.size}</span>}
+                        {prod.variety && <span className="text-[10px] text-slate-500 italic">{prod.variety}</span>}
+                      </td>
+                      <td className="p-2 text-right font-mono font-bold text-gray-700">{prod.stock}</td>
+                      <td className="p-2 text-center h-[41px]" onClick={e => e.stopPropagation()}>
+                        <button
+                          onClick={() => addProductFromMaster(prod)}
+                          className="bg-green-100 hover:bg-green-200 active:bg-green-300 text-green-700 p-1.5 rounded transition-colors font-bold flex items-center justify-center w-6 h-6 mx-auto"
+                          title="Add Product to Bill"
+                        >
+                          +
+                        </button>
+                      </td>
                     </tr>
-                  ) : (
-                    filteredBills.map((bill) => (
-                      <tr 
-                        key={bill.id} 
-                        className={`border-b border-slate-200 hover:bg-slate-50 transition-colors ${editingId === bill.id ? 'bg-blue-50/50 font-semibold' : ''}`}
-                      >
-                        <td className="p-2 font-mono text-slate-700">
-                          {bill.voucherNo}
-                          <div className="text-[10px] text-slate-400 font-normal">{bill.date ? bill.date.split('T')[0] : ''}</div>
-                        </td>
-                        <td className="p-2 text-slate-800 max-w-[120px] truncate" title={bill.supplierName}>
-                          {bill.supplierName}
-                        </td>
-                        <td className="p-2 text-right font-mono text-slate-900 font-bold">
-                          ₹ {bill.netPayable?.toFixed(0) || '0'}
-                        </td>
-                        <td className="p-2 text-center flex items-center justify-center space-x-1.5 h-[41px]">
-                          <button 
-                            onClick={() => handleEditBill(bill)}
-                            className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-1 rounded transition-colors"
-                            title="Edit Purchase Bill"
-                          >
-                            <Edit size={14} />
-                          </button>
-                          <button 
-                            onClick={() => handleDeleteBill(bill.id, bill.voucherNo)}
-                            className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1 rounded transition-colors"
-                            title="Delete Purchase Bill"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            ) : (
-              <table className="w-full text-left text-xs border-collapse whitespace-nowrap">
-                <thead className="bg-[#1e3f70] text-white sticky top-0 z-10">
-                  <tr>
-                    <th className="p-2 font-semibold">Item Code</th>
-                    <th className="p-2 font-semibold">Item Name</th>
-                    <th className="p-2 font-semibold text-right">Stock</th>
-                    <th className="p-2 font-semibold text-center w-12">Add</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredProducts.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="p-6 text-center text-slate-400 italic bg-slate-50">No products found.</td>
-                    </tr>
-                  ) : (
-                    filteredProducts.map((prod) => (
-                      <tr 
-                        key={prod.id || prod._id} 
-                        className="border-b border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer"
-                        style={{padding:"20px"}}
-                        onClick={() => addProductFromMaster(prod)}
-                        title="Click to add to purchase bill"
-                      >
-                        <td className="p-2 font-mono text-slate-800">
-                          <div className="text-blue-600 font-bold">{prod.itemCode}</div>
-                          {prod.vendorItemCode && <div className="text-[10px] text-gray-400 font-medium">VC: {prod.vendorItemCode}</div>}
-                        </td>
-                        <td className="p-2 text-slate-800 max-w-[150px] truncate" title={prod.name}>
-                          <div>{prod.name}</div>
-                          {prod.size && <span className="text-[10px] text-gray-500 bg-gray-100 px-1 py-0.2 rounded border mr-1">Size {prod.size}</span>}
-                          {prod.variety && <span className="text-[10px] text-slate-500 italic">{prod.variety}</span>}
-                        </td>
-                        <td className="p-2 text-right font-mono font-bold text-gray-700">{prod.stock}</td>
-                        <td className="p-2 text-center h-[41px]" onClick={e => e.stopPropagation()}>
-                          <button
-                            onClick={() => addProductFromMaster(prod)}
-                            className="bg-green-100 hover:bg-green-200 active:bg-green-300 text-green-700 p-1.5 rounded transition-colors font-bold flex items-center justify-center w-6 h-6 mx-auto"
-                            title="Add Product to Bill"
-                          >
-                            +
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            )}
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
 
