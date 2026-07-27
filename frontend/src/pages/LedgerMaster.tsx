@@ -39,6 +39,23 @@ const LedgerMaster = () => {
   const [ledgers, setLedgers] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isRegular, setIsRegular] = useState(false);
+  const [summaryCounts, setSummaryCounts] = useState({ staff: 0, customers: 0, suppliers: 0, shops: 0 });
+
+  const loadSummaryCounts = () => {
+    fetch(`${Api}/statistics/summary-counts`)
+      .then(res => res.json())
+      .then(data => {
+        if (data && typeof data === 'object') {
+          setSummaryCounts({
+            staff: data.staff || 0,
+            customers: data.customers || 0,
+            suppliers: data.suppliers || 0,
+            shops: data.shops || 0
+          });
+        }
+      })
+      .catch(err => console.error("Failed to load summary counts", err));
+  };
   
   // Layout view modes: 'split' | 'form-only' | 'table-only'
   const [viewMode, setViewMode] = useState<'split' | 'form-only' | 'table-only'>('split');
@@ -251,6 +268,7 @@ const LedgerMaster = () => {
   useEffect(() => {
     fetchNextCode();
     loadLedgers();
+    loadSummaryCounts();
   }, []);
 
   const handleClear = () => {
@@ -315,6 +333,7 @@ const LedgerMaster = () => {
         }
         handleClear();
         loadLedgers();
+        loadSummaryCounts();
       } else {
         if (setGlobalNotification) {
           setGlobalNotification({msg: "Error deleting: " + data.error, type: 'error'});
@@ -386,6 +405,7 @@ const LedgerMaster = () => {
         }
         handleClear();
         loadLedgers();
+        loadSummaryCounts();
       } else {
         if (setGlobalNotification) {
           setGlobalNotification({msg: "Error saving: " + data.error, type: 'error'});
@@ -636,6 +656,26 @@ const LedgerMaster = () => {
               >
                 ❌ Hide Table
               </button>
+            </div>
+          </div>
+
+          {/* Summary Badges */}
+          <div className="grid grid-cols-4 gap-1 p-2 bg-slate-50 border-b border-gray-300">
+            <div className="bg-blue-50 border border-blue-200 rounded p-1.5 text-center shadow-xs">
+              <span className="text-gray-500 text-[9px] font-bold block uppercase">Staff</span>
+              <span className="text-xs font-black text-blue-900">{summaryCounts.staff}</span>
+            </div>
+            <div className="bg-emerald-50 border border-emerald-200 rounded p-1.5 text-center shadow-xs">
+              <span className="text-gray-500 text-[9px] font-bold block uppercase">Suppliers</span>
+              <span className="text-xs font-black text-emerald-950">{summaryCounts.suppliers}</span>
+            </div>
+            <div className="bg-amber-50 border border-amber-200 rounded p-1.5 text-center shadow-xs">
+              <span className="text-gray-500 text-[9px] font-bold block uppercase">Customers</span>
+              <span className="text-xs font-black text-amber-950">{summaryCounts.customers}</span>
+            </div>
+            <div className="bg-purple-50 border border-purple-200 rounded p-1.5 text-center shadow-xs">
+              <span className="text-gray-500 text-[9px] font-bold block uppercase">Shops</span>
+              <span className="text-xs font-black text-purple-950">{summaryCounts.shops}</span>
             </div>
           </div>
 

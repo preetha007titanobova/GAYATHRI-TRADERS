@@ -37,5 +37,6 @@ const express_1 = require("express");
 const statisticsController = __importStar(require("../controllers/statistics.controller"));
 const router = (0, express_1.Router)();
 router.get('/dashboard', statisticsController.getDashboardStatistics);
+router.get('/summary-counts', statisticsController.getSummaryCounts);
 router.get('/', statisticsController.getStatistics);
 exports.default = router;

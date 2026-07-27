@@ -14,7 +14,7 @@ const mongodb_1 = require("mongodb");
 const db_1 = require("../config/db");
 const getNextStaffCode = () => __awaiter(void 0, void 0, void 0, function* () {
     const db = yield (0, db_1.getDb)();
-    const lastStaff = yield db.collection('Staff').find().sort({ createdAt: -1 }).limit(1).toArray();
+    const lastStaff = yield db.collection('Staff').find().sort({ staffCode: -1 }).limit(1).toArray();
     let nextNum = 1;
     if (lastStaff && lastStaff.length > 0 && lastStaff[0].staffCode) {
         const parts = lastStaff[0].staffCode.split('-');
@@ -131,9 +131,9 @@ const getAttendanceByDate = (dateStr) => __awaiter(void 0, void 0, void 0, funct
             biometricId2: s.biometricId2 || `FP2-${s.staffCode}`,
             biometricEnrolled2: !!s.biometricEnrolled2 || !!s.biometricId2,
             dateStr,
-            status: existing ? existing.status : 'Present',
-            checkIn: existing ? (existing.checkIn !== undefined ? existing.checkIn : '09:05 AM') : '09:05 AM',
-            checkOut: existing ? (existing.checkOut !== undefined ? existing.checkOut : '06:15 PM') : '06:15 PM',
+            status: existing ? existing.status : 'Absent',
+            checkIn: existing ? (existing.checkIn !== undefined ? existing.checkIn : '-') : '-',
+            checkOut: existing ? (existing.checkOut !== undefined ? existing.checkOut : '-') : '-',
             workHours: existing ? existing.workHours || '' : '',
             ot: existing ? existing.ot || '' : '',
             remarks: existing ? existing.remarks || '' : '',

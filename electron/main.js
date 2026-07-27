@@ -154,17 +154,43 @@ function startLocalMongo() {
     }, 3000);
 }
 
+let resolvedDbUrl = 'mongodb://127.0.0.1:27017/ERP_DB';
+
+function resolveDatabaseUrl() {
+    let dbUrl = process.env.DATABASE_URL;
+    if (!dbUrl) {
+        try {
+            const backendEnvPath = path.join(__dirname, '..', 'backend', '.env');
+            const packagedEnvPath = path.join(__dirname, 'backend', '.env');
+            let envPath = fs.existsSync(backendEnvPath) 
+                ? backendEnvPath 
+                : (fs.existsSync(packagedEnvPath) ? packagedEnvPath : null);
+            if (envPath) {
+                const dotenv = require('dotenv');
+                dotenv.config({ path: envPath });
+                dbUrl = process.env.DATABASE_URL;
+            }
+        } catch (e) {
+            console.warn('Failed to load dotenv in Electron:', e.message);
+        }
+    }
+    if (dbUrl) {
+        resolvedDbUrl = dbUrl;
+    }
+    console.log('Using resolved DATABASE_URL:', resolvedDbUrl);
+}
+
 // 3. Spawn Local Express Backend
 function startLocalBackend() {
     console.log('Spawning billing logic server...');
-    const localDbUrl = 'mongodb://127.0.0.1:27017/ERP_DB';
+    const dbUrlToUse = resolvedDbUrl;
 
     if (app.isPackaged) {
         const prodBackendPath = path.join(__dirname, 'backend', 'index.js');
         backendProcess = fork(prodBackendPath, [], {
             env: {
                 PORT: 5000,
-                DATABASE_URL: localDbUrl,
+                DATABASE_URL: dbUrlToUse,
                 NODE_ENV: 'production'
             }
         });
@@ -178,7 +204,7 @@ function startLocalBackend() {
             env: {
                 ...process.env,
                 PORT: 5000,
-                DATABASE_URL: localDbUrl,
+                DATABASE_URL: dbUrlToUse,
                 NODE_ENV: 'development'
             },
             stdio: 'inherit'
@@ -249,8 +275,16 @@ app.whenReady().then(() => {
         });
     }
 
-    // 1. Spawns local MongoDB & Express Service
-    startLocalMongo();
+    resolveDatabaseUrl();
+
+    // Spawn local MongoDB only if resolved database URL points to localhost/127.0.0.1
+    const isLocal = resolvedDbUrl.includes('127.0.0.1') || resolvedDbUrl.includes('localhost');
+    if (isLocal) {
+        startLocalMongo();
+    } else {
+        console.log('Remote DATABASE_URL detected. Skipping local MongoDB startup.');
+    }
+
     startLocalBackend();
 
     // 2. Launch UI Window

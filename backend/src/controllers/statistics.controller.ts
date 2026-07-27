@@ -88,3 +88,17 @@ export const getDashboardStatistics = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Failed to fetch dashboard statistics' });
   }
 };
+
+export const getSummaryCounts = async (req: Request, res: Response) => {
+  try {
+    const db = await getDb();
+    const staff = await db.collection('Staff').countDocuments();
+    const customers = await db.collection('Ledger').countDocuments({ accountGroup: 'Customers' });
+    const suppliers = await db.collection('Ledger').countDocuments({ accountGroup: 'Suppliers' });
+    const shops = await db.collection('Ledger').countDocuments({ accountGroup: 'Shops' });
+    res.json({ staff, customers, suppliers, shops });
+  } catch (error: any) {
+    console.error('Summary Counts Error:', error);
+    res.status(500).json({ error: 'Failed to fetch summary counts', details: error.message });
+  }
+};
