@@ -10,6 +10,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const printerService = require('./printer/printer.service');
+const printManager = require('./printer/PrintManager');
 
 let mainWindow;
 let mongodProcess;
@@ -262,8 +263,9 @@ function createWindow() {
         mainWindow.loadURL('http://localhost:5000');
     }
 
-    // Initialize automated print service
+    // Initialize automated print service & dual-engine manager
     printerService.init(mainWindow, ipcMain);
+    printManager.init(mainWindow, ipcMain);
 }
 
 app.whenReady().then(() => {

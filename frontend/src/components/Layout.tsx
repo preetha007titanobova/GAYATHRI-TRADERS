@@ -480,8 +480,8 @@ const Layout = () => {
         <span className="mr-2">{shopName} BILLING COUNTER - [{getPageTitle(location.pathname)}]</span>
       </div>
 
-      {/* License Renewal Warning Banner (Indication for renewal) */}
-      {daysRemaining !== undefined && daysRemaining <= 15 && daysRemaining >= 0 && (
+      {/* License Renewal Warning Banner (Indication for renewal - only shown if 3 days or fewer remaining) */}
+      {daysRemaining !== undefined && daysRemaining <= 3 && daysRemaining >= 0 && (
         <div className="bg-amber-600 text-white font-semibold text-xs px-4 py-2 text-center flex justify-center items-center gap-3 select-text border-b border-amber-700 shadow-sm">
           <span className="flex items-center gap-1">
             <Shield size={14} className="animate-pulse" />

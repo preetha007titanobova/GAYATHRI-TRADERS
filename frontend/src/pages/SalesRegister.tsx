@@ -1,266 +1,45 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useOutletContext, useNavigate, useLocation } from 'react-router-dom';
 import type { ToolbarActions } from '../components/Layout';
-import { Search, Calendar, X, Eye, Edit, Printer, FileText, Trash2 } from 'lucide-react';
+import { Search, Calendar, X, Eye, Edit, Printer, FileText, Trash2, MessageCircle } from 'lucide-react';
 import Api from '../Api';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { printReceipt, generateReceiptText } from '../utils/printReceipt';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
-const printOrder = (order: any) => {
-  const existingIframe = document.getElementById('printOrderIframe');
-  if (existingIframe) {
-    document.body.removeChild(existingIframe);
-  }
+const printOrder = (order: any, mode: 'print' | 'whatsapp' = 'print') => {
+  const cartItems = (order.items || []).map((it: any) => ({
+    itemCode: it.itemCode,
+    itemDesc: it.itemDescription || it.itemName || 'Item',
+    qty: it.quantityOrdered || it.orderedQty || it.qty || 1,
+    rate: it.unitPrice || it.rate || 0,
+    totalAmt: it.lineSubTotal || it.lineTotal || it.amount || 0
+  }));
 
-  const iframe = document.createElement('iframe');
-  iframe.id = 'printOrderIframe';
-  iframe.style.position = 'absolute';
-  iframe.style.top = '-10000px';
-  iframe.style.left = '-10000px';
-  iframe.style.width = '210mm'; // A4 width
-  iframe.style.opacity = '0';
-  iframe.style.pointerEvents = 'none';
-  
-  document.body.appendChild(iframe);
-  const doc = iframe.contentWindow?.document;
-  if (!doc) return;
+  const printData = {
+    invoiceNo: order.invoiceNo || order.orderNo || order.returnNo || order.orderNumber,
+    date: new Date(order.invDate || order.orderDate || order.returnDate || new Date()).toLocaleDateString('en-IN'),
+    customerName: order.buyerName || order.customer || order.customerName || 'Walk-in',
+    paymentMode: order.paymentMode || order.refundMethod || 'Cash',
+    subTotal: order.summary?.subtotal || order.subtotal,
+    cgst: order.summary?.cgst || order.cgst,
+    sgst: order.summary?.sgst || order.sgst,
+    totalAmount: order.summary?.grandTotal || order.grandTotal || order.netAmount || order.netRefundAmount || 0,
+    customerMobile: order.mobileNo,
+    receiptTitle: order.orderNo ? 'SALES ORDER' : order.returnNo ? 'SALES RETURN' : 'TAX INVOICE'
+  };
 
-  const orderDateStr = new Date(order.orderDate).toLocaleDateString('en-IN');
-  const deliveryDateStr = order.expectedDeliveryDate ? new Date(order.expectedDeliveryDate).toLocaleDateString('en-IN') : 'N/A';
-
-  const htmlContent = `
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <title>Sales Order - ${order.orderNo || order.orderNumber}</title>
-        <style>
-          body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 20px;
-            color: #333;
-            font-size: 14px;
-          }
-          .header {
-            text-align: center;
-            border-bottom: 2px solid #2b579a;
-            padding-bottom: 10px;
-            margin-bottom: 20px;
-          }
-          .shop-name {
-            font-size: 24px;
-            font-weight: bold;
-            color: #2b579a;
-            margin: 0;
-            text-transform: uppercase;
-          }
-          .title {
-            font-size: 18px;
-            font-weight: bold;
-            margin: 5px 0 0 0;
-            letter-spacing: 1px;
-          }
-          .info-table {
-            width: 100%;
-            margin-bottom: 20px;
-            border-collapse: collapse;
-          }
-          .info-table td {
-            padding: 5px;
-            vertical-align: top;
-          }
-          .info-title {
-            font-weight: bold;
-            color: #555;
-            width: 150px;
-          }
-          .items-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 25px;
-          }
-          .items-table th, .items-table td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
-          }
-          .items-table th {
-            background-color: #f2f2f2;
-            color: #2b579a;
-            font-weight: bold;
-          }
-          .text-right {
-            text-align: right;
-          }
-          .text-center {
-            text-align: center;
-          }
-          .summary-container {
-            float: right;
-            width: 300px;
-            margin-bottom: 30px;
-          }
-          .summary-line {
-            display: flex;
-            justify-content: space-between;
-            padding: 4px 0;
-            font-size: 13px;
-          }
-          .summary-line.total {
-            font-size: 16px;
-            font-weight: bold;
-            border-top: 1px solid #333;
-            padding-top: 8px;
-            color: #2b579a;
-          }
-          .footer {
-            margin-top: 50px;
-            clear: both;
-            border-top: 1px solid #eee;
-            padding-top: 15px;
-          }
-          .terms {
-            font-size: 11px;
-            color: #777;
-            width: 60%;
-            float: left;
-          }
-          .signatures {
-            float: right;
-            width: 35%;
-            text-align: center;
-            margin-top: 20px;
-          }
-          .sig-line {
-            border-top: 1px solid #999;
-            margin-top: 40px;
-            padding-top: 5px;
-            font-weight: bold;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h1 class="shop-name">ITHU NAMMA KADA</h1>
-          <div class="title">SALES ORDER</div>
-        </div>
-
-        <table class="info-table">
-          <tr>
-            <td>
-              <div><span class="info-title">Order Number:</span> <strong>${order.orderNo || order.orderNumber}</strong></div>
-              <div><span class="info-title">Order Date:</span> ${orderDateStr}</div>
-              <div><span class="info-title">Expected Delivery:</span> <strong>${deliveryDateStr}</strong></div>
-              <div><span class="info-title">Status:</span> <span style="text-transform: uppercase;">${order.status}</span></div>
-            </td>
-            <td style="text-align: right;">
-              <div><strong>Customer Details:</strong></div>
-              <div>Name: ${order.customer || order.buyerName || 'Walk-in Customer'}</div>
-              ${order.mobileNo ? `<div>Phone: ${order.mobileNo}</div>` : ''}
-              ${order.address ? `<div>Address: ${order.address}</div>` : ''}
-            </td>
-          </tr>
-        </table>
-
-        <table class="items-table">
-          <thead>
-            <tr>
-              <th style="width: 5%;" class="text-center">#</th>
-              <th style="width: 15%;">Item Code</th>
-              <th>Description</th>
-              <th style="width: 10%;">Color</th>
-              <th style="width: 10%;">Size</th>
-              <th style="width: 10%;" class="text-center">Qty Ordered</th>
-              <th style="width: 12%;" class="text-right">Unit Price</th>
-              <th style="width: 10%;" class="text-center">Disc %</th>
-              <th style="width: 15%;" class="text-right">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${order.items.map((item: any, idx: number) => `
-              <tr>
-                <td class="text-center">${idx + 1}</td>
-                <td>${item.itemCode || '-'}</td>
-                <td>${item.itemDescription || item.itemName || 'Unknown Item'}</td>
-                <td>${item.color || '-'}</td>
-                <td>${item.size || '-'}</td>
-                <td class="text-center">${item.quantityOrdered || item.orderedQty}</td>
-                <td class="text-right">₹${Number(item.unitPrice).toFixed(2)}</td>
-                <td class="text-center">${item.discountPercentage || item.discount || 0}%</td>
-                <td class="text-right">₹${Number(item.lineSubTotal || item.lineTotal).toFixed(2)}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-
-        <div class="summary-container">
-          <div class="summary-line">
-            <span>Subtotal:</span>
-            <span>₹${Number(order.summary?.subtotal || order.subtotal).toFixed(2)}</span>
-          </div>
-          ${(order.summary?.cgst || order.cgst) > 0 ? `
-          <div class="summary-line">
-            <span>CGST:</span>
-            <span>₹${Number(order.summary?.cgst || order.cgst).toFixed(2)}</span>
-          </div>` : ''}
-          ${(order.summary?.sgst || order.sgst) > 0 ? `
-          <div class="summary-line">
-            <span>SGST:</span>
-            <span>₹${Number(order.summary?.sgst || order.sgst).toFixed(2)}</span>
-          </div>` : ''}
-          ${(order.summary?.igst || order.igst) > 0 ? `
-          <div class="summary-line">
-            <span>IGST:</span>
-            <span>₹${Number(order.summary?.igst || order.igst).toFixed(2)}</span>
-          </div>` : ''}
-          <div class="summary-line">
-            <span>Rounding:</span>
-            <span>₹${Number(order.summary?.rounding || order.roundOff || 0).toFixed(2)}</span>
-          </div>
-          <div class="summary-line total">
-            <span>Grand Total:</span>
-            <span>₹${Number(order.summary?.grandTotal || order.grandTotal).toFixed(2)}</span>
-          </div>
-          <div class="summary-line" style="font-weight: bold; color: #15803d; border-top: 1px dashed #ddd; padding-top: 4px;">
-            <span>Advance Paid:</span>
-            <span>₹${Number(order.advancePaid || 0).toFixed(2)}</span>
-          </div>
-          <div class="summary-line" style="font-weight: bold; color: #b91c1c;">
-            <span>Balance Due:</span>
-            <span>₹${Number(order.balanceAmount || (order.summary?.grandTotal - order.advancePaid) || 0).toFixed(2)}</span>
-          </div>
-        </div>
-
-        <div class="footer">
-          <div class="terms">
-            <strong>Terms & Conditions:</strong>
-            <ol style="margin: 5px 0; padding-left: 15px;">
-              <li>Goods once ordered cannot be cancelled or returned.</li>
-              <li>Expected delivery dates are estimates subject to transport availability.</li>
-              <li>Balance amount must be cleared prior to or at the time of final delivery.</li>
-            </ol>
-          </div>
-
-          <div class="signatures">
-            <div class="sig-line">Authorized Signature</div>
-          </div>
-        </div>
-      </body>
-    </html>
-  `;
-
-  doc.open();
-  doc.write(htmlContent);
-  doc.close();
-
-  if ((window as any).api) {
-    (window as any).api.send('print-html', htmlContent);
-  } else {
-    setTimeout(() => {
-      if (iframe.contentWindow) {
-        iframe.contentWindow.focus();
-        iframe.contentWindow.print();
-      }
-    }, 250);
+  if (mode === 'print') {
+    printReceipt(cartItems, printData);
+  } else if (mode === 'whatsapp') {
+    const text = '```\n' + generateReceiptText(cartItems, printData) + '\n```';
+    const encodedText = encodeURIComponent(text);
+    let phone = (order.mobileNo || '').replace(/\D/g, '');
+    if (phone.length === 10) phone = '91' + phone;
+    const url = phone ? `https://api.whatsapp.com/send?phone=${phone}&text=${encodedText}` : `https://api.whatsapp.com/send?text=${encodedText}`;
+    window.open(url, '_blank');
   }
 };
 
@@ -849,7 +628,8 @@ const SalesRegister = () => {
                   <th className="border-r border-b border-gray-400 p-2 font-bold text-right">Gross Amt</th>
                   <th className="border-r border-b border-gray-400 p-2 font-bold text-right">Tax Amt</th>
                   <th className="border-r border-b border-gray-400 p-2 font-bold text-right">Net Amt</th>
-                  <th className="border-b border-gray-400 p-2 font-bold text-center">Status</th>
+                  <th className="border-r border-b border-gray-400 p-2 font-bold text-center">Status</th>
+                  <th className="border-b border-gray-400 p-2 font-bold text-center">Actions</th>
                 </tr>
               )}
               {activeTab === 'orders' && (
@@ -943,8 +723,37 @@ const SalesRegister = () => {
                         <td className="border-r border-gray-300 p-1.5 text-right font-mono">₹{rec.totalAmount?.toFixed(2) || '0.00'}</td>
                         <td className="border-r border-gray-300 p-1.5 text-right font-mono text-red-600">₹{taxAmt.toFixed(2)}</td>
                         <td className="border-r border-gray-300 p-1.5 text-right font-mono font-bold text-green-700">₹{rec.netAmount?.toFixed(2) || '0.00'}</td>
-                        <td className="p-1.5 text-center">
+                        <td className="border-r border-gray-300 p-1.5 text-center">
                           <span className="bg-green-100 text-green-800 text-[10px] font-bold px-2 py-0.5 rounded border border-green-300">CLEARED</span>
+                        </td>
+                        <td className="p-1.5 text-center space-x-1.5 whitespace-nowrap">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleOpenDetailModal('bill', rec); }}
+                            className="inline-flex items-center justify-center p-1 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-600 rounded transition-colors"
+                            title="View"
+                          >
+                            <Eye size={14} />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              printOrder(rec, 'print');
+                            }}
+                            className="inline-flex items-center justify-center p-1 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 rounded transition-colors"
+                            title="Print"
+                          >
+                            <Printer size={14} />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              printOrder(rec, 'whatsapp');
+                            }}
+                            className="inline-flex items-center justify-center p-1 bg-green-50 hover:bg-green-100 border border-green-200 text-green-600 rounded transition-colors"
+                            title="WhatsApp"
+                          >
+                            <MessageCircle size={14} />
+                          </button>
                         </td>
                       </tr>
                     );
@@ -977,40 +786,7 @@ const SalesRegister = () => {
                       }
                     };
 
-                    const handlePrintClick = (e: React.MouseEvent) => {
-                      e.stopPropagation();
-                      const printPayload = {
-                        orderNo: rec.orderNumber || rec.orderNo,
-                        orderDate: rec.orderDate,
-                        customer: rec.buyerName || rec.customer,
-                        mobileNo: rec.mobileNo,
-                        address: rec.address,
-                        expectedDeliveryDate: rec.expectedDeliveryDate,
-                        status: rec.status,
-                        summary: {
-                          subtotal: rec.subtotal,
-                          cgst: rec.cgst,
-                          sgst: rec.sgst,
-                          igst: rec.igst,
-                          rounding: rec.roundOff,
-                          grandTotal: rec.grandTotal
-                        },
-                        advancePaid: rec.advancePaid,
-                        balanceAmount: rec.balanceAmount,
-                        items: rec.items?.map((it: any) => ({
-                          itemCode: it.itemCode,
-                          itemDescription: it.itemName,
-                          color: it.color,
-                          size: it.size,
-                          quantityOrdered: it.orderedQty,
-                          quantityFulfilled: it.deliveredQty,
-                          unitPrice: it.unitPrice,
-                          discountPercentage: it.discount,
-                          lineSubTotal: it.lineTotal
-                        })) || []
-                      };
-                      printOrder(printPayload);
-                    };
+                    // handlePrintClick removed, replaced by inline calls to printOrder(rec, ...)
 
                     const handleConvertClick = (e: React.MouseEvent) => {
                       e.stopPropagation();
@@ -1091,11 +867,24 @@ const SalesRegister = () => {
                             </button>
                           )}
                           <button
-                            onClick={handlePrintClick}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              printOrder(rec, 'print');
+                            }}
                             className="inline-flex items-center justify-center p-1 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 rounded transition-colors"
                             title="Print"
                           >
                             <Printer size={14} />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              printOrder(rec, 'whatsapp');
+                            }}
+                            className="inline-flex items-center justify-center p-1 bg-green-50 hover:bg-green-100 border border-green-200 text-green-600 rounded transition-colors"
+                            title="WhatsApp"
+                          >
+                            <MessageCircle size={14} />
                           </button>
                           {rec.status !== 'Completed' && rec.status !== 'Cancelled' && (
                             <>

@@ -31,6 +31,8 @@ import BalanceSheet from './pages/BalanceSheet';
 import StaffMaster from './pages/StaffMaster';
 import StaffAttendance from './pages/StaffAttendance';
 import ModernErpLayout from './pages/ModernErpLayout';
+import ModernPOSCheckout from './pages/ModernPOSCheckout';
+import { ThermalBillingForm } from './components/printing/ThermalBillingForm';
 import Activation from './pages/Activation';
 import License from './pages/License';
 
@@ -45,8 +47,10 @@ function App() {
     <Router>
       <Routes>
         <Route path="/" element={<Layout />}>
-          <Route index element={<Navigate to="/sales-bill" replace />} />
-          <Route path="pos" element={<Navigate to="/sales-bill" replace />} />
+          <Route index element={<Navigate to="/pos-modern" replace />} />
+          <Route path="pos" element={<Navigate to="/pos-modern" replace />} />
+          <Route path="pos-legacy" element={<POSCheckout />} />
+          <Route path="thermal-billing" element={<ThermalBillingForm />} />
           
           {/* Master */}
           <Route path="ledger-master" element={<LedgerMaster />} />
@@ -61,7 +65,7 @@ function App() {
           {/* Sales */}
           <Route path="quotation" element={<Quotation />} />
           <Route path="sales-order" element={<SalesOrder />} />
-          <Route path="sales-bill" element={<POSCheckout />} />
+          <Route path="sales-bill" element={<ModernPOSCheckout />} />
           <Route path="sales-return" element={<SalesReturn />} />
           <Route path="sales-register" element={<SalesRegister />} />
           <Route path="sales-status" element={<SalesStatus />} />
@@ -87,6 +91,8 @@ function App() {
           <Route path="balance-sheet" element={<BalanceSheet />} />
           <Route path="license" element={<License />} />
         </Route>
+        <Route path="/pos-modern" element={<ModernPOSCheckout />} />
+        <Route path="/thermal-billing" element={<ThermalBillingForm />} />
         <Route path="/modern" element={<ModernErpLayout />} />
         <Route path="/activation" element={<Activation />} />
       </Routes>
