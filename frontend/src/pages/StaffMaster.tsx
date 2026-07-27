@@ -11,6 +11,23 @@ const StaffMaster = () => {
   const [staffList, setStaffList] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [summaryCounts, setSummaryCounts] = useState({ staff: 0, customers: 0, suppliers: 0, shops: 0 });
+
+  const loadSummaryCounts = () => {
+    fetch(`${Api}/statistics/summary-counts`)
+      .then(res => res.json())
+      .then(data => {
+        if (data && typeof data === 'object') {
+          setSummaryCounts({
+            staff: data.staff || 0,
+            customers: data.customers || 0,
+            suppliers: data.suppliers || 0,
+            shops: data.shops || 0
+          });
+        }
+      })
+      .catch(err => console.error("Failed to load summary counts", err));
+  };
   
   // Form State
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -74,6 +91,7 @@ const StaffMaster = () => {
   useEffect(() => {
     loadStaff();
     fetchNextCode();
+    loadSummaryCounts();
   }, []);
 
   const handleAdminVerify = (e: React.FormEvent) => {
@@ -104,6 +122,7 @@ const StaffMaster = () => {
     setIsBiometricEnrolled1(false);
     setBiometricId2('');
     setIsBiometricEnrolled2(false);
+    setSearchQuery('');
     fetchNextCode();
   };
 
@@ -236,6 +255,7 @@ const StaffMaster = () => {
           }
           handleResetForm();
           loadStaff();
+          loadSummaryCounts();
         } else {
           if (setGlobalNotification) setGlobalNotification({ msg: resData.error || 'Failed to save staff', type: 'error' });
         }
@@ -256,6 +276,7 @@ const StaffMaster = () => {
           if (setGlobalNotification) setGlobalNotification({ msg: 'Staff deleted successfully!', type: 'success' });
           if (selectedId === id) handleResetForm();
           loadStaff();
+          loadSummaryCounts();
         }
       })
       .catch(err => console.error("Error deleting staff", err));
@@ -544,6 +565,26 @@ const StaffMaster = () => {
 
         {/* Right Table: Staff Directory & Fingerprint Badges */}
         <div className="md:col-span-2 bg-white border border-gray-400 rounded p-3 flex flex-col justify-between overflow-hidden shadow-sm">
+          {/* Summary Badges */}
+          <div className="grid grid-cols-4 gap-2 mb-3">
+            <div className="bg-blue-50 border border-blue-200 rounded p-2 text-center shadow-xs">
+              <span className="text-gray-500 text-[10px] font-bold block uppercase">Total Staff</span>
+              <span className="text-sm font-black text-blue-900">{summaryCounts.staff}</span>
+            </div>
+            <div className="bg-emerald-50 border border-emerald-200 rounded p-2 text-center shadow-xs">
+              <span className="text-gray-500 text-[10px] font-bold block uppercase">Suppliers</span>
+              <span className="text-sm font-black text-emerald-950">{summaryCounts.suppliers}</span>
+            </div>
+            <div className="bg-amber-50 border border-amber-200 rounded p-2 text-center shadow-xs">
+              <span className="text-gray-500 text-[10px] font-bold block uppercase">Customers</span>
+              <span className="text-sm font-black text-amber-950">{summaryCounts.customers}</span>
+            </div>
+            <div className="bg-purple-50 border border-purple-200 rounded p-2 text-center shadow-xs">
+              <span className="text-gray-500 text-[10px] font-bold block uppercase">Wholesale Shops</span>
+              <span className="text-sm font-black text-purple-950">{summaryCounts.shops}</span>
+            </div>
+          </div>
+
           <div className="flex justify-between items-center mb-2">
             <div className="relative w-64">
               <input

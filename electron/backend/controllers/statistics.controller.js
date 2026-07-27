@@ -9,7 +9,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getDashboardStatistics = exports.getStatistics = void 0;
+exports.getSummaryCounts = exports.getDashboardStatistics = exports.getStatistics = void 0;
 const db_1 = require("../config/db");
 const getStatistics = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
@@ -92,3 +92,18 @@ const getDashboardStatistics = (req, res) => __awaiter(void 0, void 0, void 0, f
     }
 });
 exports.getDashboardStatistics = getDashboardStatistics;
+const getSummaryCounts = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const db = yield (0, db_1.getDb)();
+        const staff = yield db.collection('Staff').countDocuments();
+        const customers = yield db.collection('Ledger').countDocuments({ accountGroup: 'Customers' });
+        const suppliers = yield db.collection('Ledger').countDocuments({ accountGroup: 'Suppliers' });
+        const shops = yield db.collection('Ledger').countDocuments({ accountGroup: 'Shops' });
+        res.json({ staff, customers, suppliers, shops });
+    }
+    catch (error) {
+        console.error('Summary Counts Error:', error);
+        res.status(500).json({ error: 'Failed to fetch summary counts', details: error.message });
+    }
+});
+exports.getSummaryCounts = getSummaryCounts;

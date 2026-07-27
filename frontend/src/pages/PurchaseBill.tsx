@@ -580,6 +580,167 @@ const PurchaseBill = () => {
     };
   };
 
+  const triggerScannerScan = async (code: string) => {
+    if (!code) return;
+
+    try {
+      setLoading(true);
+      const res = await fetch(`${Api}/products/barcode/${encodeURIComponent(code)}`);
+      if (!res.ok) {
+        if (res.status === 404) {
+          // Fetch next available system item code
+          try {
+            const codeRes = await fetch(`${Api}/products/next-code`);
+            let nextItemCode = 'ITM-1000';
+            if (codeRes.ok) {
+              const codeData = await codeRes.json();
+              if (codeData.itemCode) nextItemCode = codeData.itemCode;
+            }
+            setQuickAddForm({
+              barcode: code,
+              itemCode: nextItemCode,
+              name: '',
+              size: 'L',
+              variety: 'Standard',
+              department: 'Mens',
+              purchaseRate: 0,
+              price: 0,
+              mrp: 0,
+              taxPercent: 18,
+              factory: '',
+              qty: 1
+            });
+            setIsQuickAddModalOpen(true);
+          } catch (ce) {
+            console.error("Failed to fetch next sequence code:", ce);
+          }
+        } else {
+          setGlobalNotification({ msg: "Error fetching product.", type: 'error' });
+          setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
+        }
+        return;
+      }
+
+      const product = await res.json();
+      if (product) {
+        // Check if item already exists in purchase items
+        const existingItemIndex = items.findIndex(item => item.itemCode.toUpperCase() === product.itemCode.toUpperCase());
+        
+        if (existingItemIndex > -1) {
+          // Increment quantity
+          setItems(prev => prev.map((item, idx) => {
+            if (idx === existingItemIndex) {
+              const updatedQty = item.qty + 1;
+              return calculateItemValues({ ...item, qty: updatedQty }, supplyPlace);
+            }
+            return item;
+          }));
+          setGlobalNotification({
+            msg: `Increased quantity of ${product.name} to ${items[existingItemIndex].qty + 1}`,
+            type: 'success'
+          });
+          setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 2000);
+        } else {
+          // Add new row
+          const newItem: PurchaseItem = {
+            id: Math.random().toString(),
+            itemCode: product.itemCode,
+            vendorItemCode: product.vendorItemCode || '',
+            itemName: product.name,
+            size: product.size || '',
+            variety: product.variety || '',
+            category: product.department || 'None',
+            itemDesc: product.name,
+            hsn: product.barcode || '',
+            factory: product.factory || '',
+            qty: 1,
+            unitPrice: product.purchaseRate || 0,
+            salesRate: product.price || 0,
+            mrp: product.mrp || 0,
+            discPercent: 0,
+            taxPercent: product.taxPercent || 18,
+            cgstAmt: 0,
+            sgstAmt: 0,
+            igstAmt: 0,
+            total: 0
+          };
+          const calculated = calculateItemValues(newItem, supplyPlace);
+          setItems(prev => [...prev, calculated]);
+          setGlobalNotification({
+            msg: `Added product ${product.name} to purchase list`,
+            type: 'success'
+          });
+          setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 2000);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      setGlobalNotification({ msg: "Error searching barcode.", type: 'error' });
+      setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
+    } finally {
+      setLoading(false);
+      // Keep input focused
+      setTimeout(() => {
+        scanInputRef.current?.focus();
+      }, 100);
+    }
+  };
+
+  const handleBarcodeScan = async (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const code = scanInput.trim();
+      if (!code) return;
+      await triggerScannerScan(code);
+      setScanInput('');
+    }
+  };
+
+  // Global hardware barcode scanner keypress detector
+  const scannerBufferRef = useRef('');
+  const lastKeyTimeRef = useRef(0);
+
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      const activeElem = document.activeElement;
+
+      // Skip global intercept if they are typing inside the scan input itself
+      if (activeElem?.id === 'purchase-scan-input') {
+        return;
+      }
+
+      // Check if active element is a text input. If so, let them type normally.
+      // (Unless it is very fast scanner input, but standard inputs are bypassed)
+      const isInput = activeElem?.tagName === 'INPUT' || activeElem?.tagName === 'TEXTAREA' || activeElem?.tagName === 'SELECT';
+      if (isInput && scannerBufferRef.current.length === 0) {
+        // Let user type normally in normal input fields (except scan input)
+        return;
+      }
+
+      const currentTime = Date.now();
+      const timeDiff = currentTime - lastKeyTimeRef.current;
+      lastKeyTimeRef.current = currentTime;
+
+      if (timeDiff > 80 && scannerBufferRef.current.length < 5) {
+        scannerBufferRef.current = '';
+      }
+
+      if (e.key === 'Enter') {
+        if (scannerBufferRef.current.length >= 3) {
+          e.preventDefault();
+          const scannedCode = scannerBufferRef.current;
+          scannerBufferRef.current = '';
+          triggerScannerScan(scannedCode);
+        }
+      } else if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        scannerBufferRef.current += e.key;
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [vendorId, items, supplyPlace]);
+
   // Generate a unique sequential item code for a row
   const generateCodeForRow = async (rowId: string) => {
     try {
@@ -905,7 +1066,7 @@ const PurchaseBill = () => {
       if (data.success) {
         setGlobalNotification({ msg: 'New vendor added to database successfully', type: 'success' });
         await fetchVendors();
-        setVendorId(data.ledger.id || data.ledger.ledgerCode);
+        setVendorId(data.ledger._id || data.ledger.id || data.ledger.ledgerCode);
         setIsVendorModalOpen(false);
         setNewVendorForm({ name: '', gstin: '', state: 'Tamil Nadu' });
       } else {
@@ -1151,6 +1312,7 @@ const PurchaseBill = () => {
                 <div className="flex items-center space-x-2.5 flex-1 max-w-md">
                   <label className="text-[11px] font-black text-slate-700 uppercase whitespace-nowrap tracking-wide">Scan Barcode / Code:</label>
                   <input
+                    id="purchase-scan-input"
                     ref={scanInputRef}
                     type="text"
                     value={scanInput}

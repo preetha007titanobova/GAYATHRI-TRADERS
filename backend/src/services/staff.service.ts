@@ -4,7 +4,7 @@ import { Staff } from '../models/staff.model';
 
 export const getNextStaffCode = async (): Promise<string> => {
   const db = await getDb();
-  const lastStaff = await db.collection('Staff').find().sort({ createdAt: -1 }).limit(1).toArray();
+  const lastStaff = await db.collection('Staff').find().sort({ staffCode: -1 }).limit(1).toArray();
   
   let nextNum = 1;
   if (lastStaff && lastStaff.length > 0 && lastStaff[0].staffCode) {
@@ -128,9 +128,9 @@ export const getAttendanceByDate = async (dateStr: string): Promise<any[]> => {
       biometricId2: s.biometricId2 || `FP2-${s.staffCode}`,
       biometricEnrolled2: !!s.biometricEnrolled2 || !!s.biometricId2,
       dateStr,
-      status: existing ? existing.status : 'Present',
-      checkIn: existing ? (existing.checkIn !== undefined ? existing.checkIn : '09:05 AM') : '09:05 AM',
-      checkOut: existing ? (existing.checkOut !== undefined ? existing.checkOut : '06:15 PM') : '06:15 PM',
+      status: existing ? existing.status : 'Absent',
+      checkIn: existing ? (existing.checkIn !== undefined ? existing.checkIn : '-') : '-',
+      checkOut: existing ? (existing.checkOut !== undefined ? existing.checkOut : '-') : '-',
       workHours: existing ? existing.workHours || '' : '',
       ot: existing ? existing.ot || '' : '',
       remarks: existing ? existing.remarks || '' : '',
