@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
+import { useLicense } from '../context/LicenseContext';
 import type { ToolbarActions } from '../components/Layout';
 import { Trash2, AlertCircle } from 'lucide-react';
 import { printReceipt } from '../utils/printReceipt';
@@ -7,7 +8,7 @@ import Api from '../Api';
 
 // Models
 interface ReturnItem {
-  id: string; 
+  id: string;
   itemCode: string;
   itemDesc: string;
   batchNo: string;
@@ -39,18 +40,19 @@ const SETTLEMENT_MODES = [
   'Bank Transfer'
 ];
 
-const COMPANY_STATE = 'Tamil Nadu'; 
+const COMPANY_STATE = 'Tamil Nadu';
 
 const PurReturn = () => {
+  const { shopName } = useLicense();
   const { setToolbarActions, setGlobalNotification } = useOutletContext<{
     setToolbarActions: (actions: ToolbarActions) => void;
-    setGlobalNotification: (notif: {msg: string, type: 'error' | 'success' | 'info' | ''}) => void;
+    setGlobalNotification: (notif: { msg: string, type: 'error' | 'success' | 'info' | '' }) => void;
   }>();
 
   // Invoices & Saved Returns
   const [invoices, setInvoices] = useState<any[]>([]);
   const [savedReturns, setSavedReturns] = useState<any[]>([]);
-  
+
   // Selection/Edit State
   const [selectedReturnId, setSelectedReturnId] = useState('');
   const [editingReturnId, setEditingReturnId] = useState<string | null>(null);
@@ -60,7 +62,7 @@ const PurReturn = () => {
   const [returnDate, setReturnDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState('');
   const [reason, setReason] = useState(REASONS[0]);
-  
+
   // Vendor State (Derived from Invoice)
   const [vendorDetails, setVendorDetails] = useState({ name: '', gstin: '', state: '' });
 
@@ -68,7 +70,7 @@ const PurReturn = () => {
   const [items, setItems] = useState<ReturnItem[]>([]);
   const [scanInput, setScanInput] = useState('');
   const scanInputRef = React.useRef<HTMLInputElement>(null);
-  
+
   // Footer State
   const [settlementMode, setSettlementMode] = useState(SETTLEMENT_MODES[0]);
 
@@ -143,16 +145,16 @@ const PurReturn = () => {
         }
         const product = await res.json();
         if (product) {
-          const itemIndex = items.findIndex(item => 
+          const itemIndex = items.findIndex(item =>
             item.itemCode.toUpperCase() === product.itemCode.toUpperCase()
           );
 
           if (itemIndex > -1) {
             const currentItem = items[itemIndex];
             if (currentItem.returnQty >= currentItem.purchasedQty) {
-              setGlobalNotification({ 
-                msg: `Cannot return more than purchased quantity (${currentItem.purchasedQty}) for ${currentItem.itemDesc}.`, 
-                type: 'error' 
+              setGlobalNotification({
+                msg: `Cannot return more than purchased quantity (${currentItem.purchasedQty}) for ${currentItem.itemDesc}.`,
+                type: 'error'
               });
               setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
             } else {
@@ -188,12 +190,12 @@ const PurReturn = () => {
   const calculateReturnItem = (item: ReturnItem, supplierState: string) => {
     const qtyToCalc = isNaN(item.returnQty) ? 0 : item.returnQty;
     const rate = isNaN(item.unitPrice) ? 0 : item.unitPrice;
-    
+
     const baseVal = qtyToCalc * rate;
     const afterDisc = baseVal - (baseVal * (item.discPercent / 100));
-    
+
     const isInterstate = supplierState.toLowerCase() !== COMPANY_STATE.toLowerCase();
-    
+
     let igstAmt = 0;
     let cgstAmt = 0;
     let sgstAmt = 0;
@@ -226,7 +228,7 @@ const PurReturn = () => {
           gstin: invoice.supplierGstin || '',
           state: supplierState
         });
-        
+
         const initialItems: ReturnItem[] = (invoice.items || []).map((item: any) => {
           let initialReturnQty = 0;
           if (editingReturnId) {
@@ -269,18 +271,18 @@ const PurReturn = () => {
   const updateItem = (id: string, field: keyof ReturnItem, value: any) => {
     setItems(prev => prev.map(item => {
       if (item.id !== id) return item;
-      
+
       const updated = { ...item, [field]: value };
-      
+
       // Validation
       if (field === 'returnQty') {
-         if (value > updated.purchasedQty) {
-           updated.error = 'Qty exceeds purchase';
-         } else if (value < 0) {
-           updated.error = 'Invalid Qty';
-         } else {
-           updated.error = undefined;
-         }
+        if (value > updated.purchasedQty) {
+          updated.error = 'Qty exceeds purchase';
+        } else if (value < 0) {
+          updated.error = 'Invalid Qty';
+        } else {
+          updated.error = undefined;
+        }
       }
 
       return calculateReturnItem(updated, vendorDetails.state);
@@ -296,7 +298,7 @@ const PurReturn = () => {
   const totalCgst = items.reduce((acc, curr) => acc + curr.cgstAmt, 0);
   const totalSgst = items.reduce((acc, curr) => acc + curr.sgstAmt, 0);
   const totalIgst = items.reduce((acc, curr) => acc + curr.igstAmt, 0);
-  
+
   const rawTotal = grossTotal + totalCgst + totalSgst + totalIgst;
   const roundedOff = Math.round(rawTotal) - rawTotal;
   const netReturnAmount = Math.round(rawTotal);
@@ -325,7 +327,7 @@ const PurReturn = () => {
       setReturnDate(ret.returnDate ? ret.returnDate.split('T')[0] : '');
       setReason(ret.reason);
       setSettlementMode(ret.settlementMode);
-      
+
       // Select the original invoice
       const matchingInv = invoices.find(inv => inv.voucherNo === ret.originalInvoice || inv.id === ret.originalInvoice);
       if (matchingInv) {
@@ -339,7 +341,7 @@ const PurReturn = () => {
     if (!selectedInvoiceId) {
       return setGlobalNotification({ msg: 'Please select an Original Purchase Invoice.', type: 'error' });
     }
-    
+
     const hasErrors = items.some(i => i.error);
     if (hasErrors) {
       return setGlobalNotification({ msg: 'Please fix validation errors in the item grid before saving.', type: 'error' });
@@ -347,7 +349,7 @@ const PurReturn = () => {
 
     const validReturnItems = items.filter(i => i.returnQty > 0);
     if (validReturnItems.length === 0) {
-       return setGlobalNotification({ msg: 'Please enter a valid return quantity for at least one item.', type: 'error' });
+      return setGlobalNotification({ msg: 'Please enter a valid return quantity for at least one item.', type: 'error' });
     }
 
     const invoice = invoices.find(inv => inv.id === selectedInvoiceId || inv.voucherNo === selectedInvoiceId);
@@ -380,8 +382,8 @@ const PurReturn = () => {
     };
 
     try {
-      const url = editingReturnId 
-        ? `${Api}/purchase-bills/returns/${editingReturnId}` 
+      const url = editingReturnId
+        ? `${Api}/purchase-bills/returns/${editingReturnId}`
         : `${Api}/purchase-bills/returns`;
       const method = editingReturnId ? 'PUT' : 'POST';
 
@@ -446,6 +448,8 @@ const PurReturn = () => {
           rate: item.unitPrice,
           totalAmt: item.totalAmt
         }));
+        const storePhone = localStorage.getItem('close_day_whatsapp') || '+919698819482';
+
         printReceipt(formattedItems, {
           invoiceNo: returnNo,
           date: returnDate,
@@ -455,7 +459,9 @@ const PurReturn = () => {
           subTotal: grossTotal,
           cgst: totalCgst,
           sgst: totalSgst,
-          totalAmount: netReturnAmount
+          totalAmount: netReturnAmount,
+          storeName: shopName,
+          storePhone
         });
       }
     });
@@ -464,14 +470,14 @@ const PurReturn = () => {
 
   return (
     <div className="flex flex-col h-full bg-[#f8fafc] p-3 overflow-hidden">
-      
+
       {/* Selection row for edit/delete */}
       <div className="bg-gradient-to-r from-blue-50/80 to-indigo-50/80 border-l-4 border-blue-500 p-2 shadow-md rounded-xl mb-3 flex-shrink-0 flex items-center justify-between transition-all duration-300">
         <div className="flex items-center space-x-3 w-1/2">
           <label className="text-xs font-extrabold text-blue-900 uppercase tracking-wider whitespace-nowrap">Edit Saved Return:</label>
-          <select 
-            value={selectedReturnId} 
-            onChange={e => handleSelectReturn(e.target.value)} 
+          <select
+            value={selectedReturnId}
+            onChange={e => handleSelectReturn(e.target.value)}
             className="w-full border border-blue-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 p-1.5 rounded-lg text-sm bg-white font-bold text-gray-700 shadow-sm transition-all outline-none"
           >
             <option value="">-- New Purchase Return (Create Mode) --</option>
@@ -495,7 +501,7 @@ const PurReturn = () => {
             Purchase Return (Debit Note)
           </h2>
         </div>
-        
+
         <div className="grid grid-cols-6 gap-4">
           <div>
             <label className="block text-xs font-bold text-gray-600 mb-1">Pur Return No</label>
@@ -510,7 +516,7 @@ const PurReturn = () => {
             <select value={selectedInvoiceId} onChange={e => setSelectedInvoiceId(e.target.value)} className="w-full border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 p-2 rounded-lg text-sm bg-white font-semibold text-gray-700 shadow-sm transition-all outline-none">
               <option value="">-- Select Original Invoice --</option>
               {invoices.length === 0 ? (
-                 <option disabled>No saved purchase bills found</option>
+                <option disabled>No saved purchase bills found</option>
               ) : (
                 invoices.map(inv => (
                   <option key={inv.id} value={inv.id}>{inv.voucherNo} (Dated: {inv.date ? inv.date.split('T')[0] : ''}) - {inv.supplierName}</option>
@@ -540,27 +546,27 @@ const PurReturn = () => {
       {/* Main Grid Area (Flex-1 stretches to take all remaining height) */}
       <div className="flex-1 flex flex-col bg-white border border-gray-200 shadow-md relative overflow-hidden mb-3 rounded-xl">
         <div className="bg-gradient-to-r from-teal-50/80 to-emerald-50/80 p-2 border-b border-gray-200 flex items-center justify-between gap-4">
-           <span className="text-xs font-extrabold text-teal-800 tracking-wider uppercase pl-2 flex items-center whitespace-nowrap">
-             <span className="bg-teal-500 w-1.5 h-3.5 mr-2 rounded-full block"></span>
-             Return Items
-           </span>
-           {selectedInvoiceId && (
-             <div className="flex items-center space-x-2 flex-1 max-w-md mx-4">
-               <label className="text-[11px] font-bold text-teal-900 uppercase whitespace-nowrap">Scan Return Item:</label>
-               <input
-                 ref={scanInputRef}
-                 type="text"
-                 value={scanInput}
-                 onChange={e => setScanInput(e.target.value)}
-                 onKeyDown={handleBarcodeScan}
-                 placeholder="Scan barcode to increment return qty..."
-                 className="flex-1 border border-teal-400 focus:border-teal-600 focus:ring-1 focus:ring-teal-600 px-2 py-1 rounded text-xs font-mono font-bold bg-white focus:outline-none placeholder:font-sans placeholder:font-normal shadow-sm"
-               />
-             </div>
-           )}
-           {items.length > 0 && <span className="text-xs text-indigo-650 font-semibold pr-2 hidden md:block">Modifying return quantities updates totals automatically.</span>}
+          <span className="text-xs font-extrabold text-teal-800 tracking-wider uppercase pl-2 flex items-center whitespace-nowrap">
+            <span className="bg-teal-500 w-1.5 h-3.5 mr-2 rounded-full block"></span>
+            Return Items
+          </span>
+          {selectedInvoiceId && (
+            <div className="flex items-center space-x-2 flex-1 max-w-md mx-4">
+              <label className="text-[11px] font-bold text-teal-900 uppercase whitespace-nowrap">Scan Return Item:</label>
+              <input
+                ref={scanInputRef}
+                type="text"
+                value={scanInput}
+                onChange={e => setScanInput(e.target.value)}
+                onKeyDown={handleBarcodeScan}
+                placeholder="Scan barcode to increment return qty..."
+                className="flex-1 border border-teal-400 focus:border-teal-600 focus:ring-1 focus:ring-teal-600 px-2 py-1 rounded text-xs font-mono font-bold bg-white focus:outline-none placeholder:font-sans placeholder:font-normal shadow-sm"
+              />
+            </div>
+          )}
+          {items.length > 0 && <span className="text-xs text-indigo-650 font-semibold pr-2 hidden md:block">Modifying return quantities updates totals automatically.</span>}
         </div>
-        
+
         <div className="flex-1 overflow-auto">
           <table className="w-full text-left text-sm border-collapse whitespace-nowrap min-w-max">
             <thead className="bg-gradient-to-r from-[#2b579a] to-[#3a75c4] text-white sticky top-0 z-10 shadow-sm">
@@ -569,7 +575,7 @@ const PurReturn = () => {
                 <th className="border-r border-blue-400/30 p-2.5 w-24 text-xs font-semibold">Item Code</th>
                 <th className="border-r border-blue-400/30 p-2.5 text-xs font-semibold">Item Description</th>
                 <th className="border-r border-blue-400/30 p-2.5 w-20 text-xs font-semibold">Batch No</th>
-                <th className="border-r border-blue-400/30 p-2.5 w-20 text-xs font-semibold text-right">Purchased<br/>Qty</th>
+                <th className="border-r border-blue-400/30 p-2.5 w-20 text-xs font-semibold text-right">Purchased<br />Qty</th>
                 <th className="border-r border-blue-400/30 p-2.5 w-24 text-xs font-semibold text-right bg-blue-700/60">Return Qty</th>
                 <th className="border-r border-blue-400/30 p-2.5 w-24 text-xs font-semibold text-right">Purchase Rate</th>
                 <th className="border-r border-blue-400/30 p-2.5 w-16 text-xs font-semibold text-right">Disc %</th>
@@ -584,9 +590,9 @@ const PurReturn = () => {
                 <tr>
                   <td colSpan={12} className="p-16 text-center text-gray-500">
                     <div className="flex flex-col items-center justify-center">
-                       <AlertCircle className="w-12 h-12 text-blue-200 mb-3" />
-                       <p className="text-lg font-bold text-gray-400">No Invoice Selected</p>
-                       <p className="text-sm text-gray-400 mt-1">Please select an Original Purchase Invoice to view and return items.</p>
+                      <AlertCircle className="w-12 h-12 text-blue-200 mb-3" />
+                      <p className="text-lg font-bold text-gray-400">No Invoice Selected</p>
+                      <p className="text-sm text-gray-400 mt-1">Please select an Original Purchase Invoice to view and return items.</p>
                     </div>
                   </td>
                 </tr>
@@ -599,11 +605,11 @@ const PurReturn = () => {
                     <td className="border-r border-gray-200 p-2.5 bg-gray-50/50 text-gray-600 text-center font-medium">{item.batchNo}</td>
                     <td className="border-r border-gray-200 p-2.5 bg-gray-100/50 text-right font-extrabold text-gray-600">{item.purchasedQty}</td>
                     <td className={`border-r p-0 relative ${item.error ? 'border-red-500 border-2' : 'border-gray-200'}`}>
-                      <input 
-                        type="number" 
-                        value={item.returnQty === 0 && !item.error ? '' : item.returnQty} 
-                        onChange={e => updateItem(item.id, 'returnQty', e.target.value === '' ? 0 : Number(e.target.value))} 
-                        className="w-full p-2.5 bg-yellow-50 focus:bg-white focus:outline-none text-right font-extrabold text-red-650 h-full placeholder:text-gray-300 transition-colors" 
+                      <input
+                        type="number"
+                        value={item.returnQty === 0 && !item.error ? '' : item.returnQty}
+                        onChange={e => updateItem(item.id, 'returnQty', e.target.value === '' ? 0 : Number(e.target.value))}
+                        className="w-full p-2.5 bg-yellow-50 focus:bg-white focus:outline-none text-right font-extrabold text-red-650 h-full placeholder:text-gray-300 transition-colors"
                         placeholder="0"
                         min="0"
                         max={item.purchasedQty}
@@ -611,11 +617,11 @@ const PurReturn = () => {
                       {item.error && <span className="absolute -bottom-4 right-0 text-[9px] text-red-650 font-bold bg-white px-1 shadow rounded z-20">{item.error}</span>}
                     </td>
                     <td className="border-r border-gray-200 p-0">
-                      <input 
-                        type="number" 
-                        value={item.unitPrice || ''} 
-                        onChange={e => updateItem(item.id, 'unitPrice', Number(e.target.value))} 
-                        className="w-full p-2.5 bg-transparent focus:bg-white focus:outline-none text-right font-mono font-medium" 
+                      <input
+                        type="number"
+                        value={item.unitPrice || ''}
+                        onChange={e => updateItem(item.id, 'unitPrice', Number(e.target.value))}
+                        className="w-full p-2.5 bg-transparent focus:bg-white focus:outline-none text-right font-mono font-medium"
                       />
                     </td>
                     <td className="border-r border-gray-200 p-2.5 bg-gray-50/50 text-right text-gray-500 font-medium">{item.discPercent}%</td>
@@ -647,14 +653,14 @@ const PurReturn = () => {
           </div>
 
           <div className="flex space-x-2">
-            <button 
+            <button
               onClick={handleSaveReturn}
               className="px-4 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-700 hover:to-teal-600 text-white font-extrabold rounded-lg shadow-md hover:shadow-lg text-xs transition-all duration-200 transform hover:-translate-y-0.5 flex items-center space-x-1 border border-emerald-600/10"
             >
               <span>{editingReturnId ? '✓ Update' : '💾 Save'}</span>
             </button>
-            
-            <button 
+
+            <button
               onClick={clearForm}
               className="px-3.5 py-1.5 bg-white border border-gray-300 text-gray-650 hover:text-gray-900 hover:bg-gray-50 font-bold rounded-lg shadow-sm text-xs transition-all duration-200 transform hover:-translate-y-0.5"
             >
@@ -662,7 +668,7 @@ const PurReturn = () => {
             </button>
 
             {editingReturnId && (
-              <button 
+              <button
                 onClick={handleDeleteReturn}
                 className="px-3.5 py-1.5 bg-gradient-to-r from-red-600 to-rose-500 hover:from-red-700 hover:to-rose-600 text-white font-bold rounded-lg shadow-md hover:shadow-lg text-xs transition-all duration-200 transform hover:-translate-y-0.5"
               >

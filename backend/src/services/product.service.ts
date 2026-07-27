@@ -447,6 +447,7 @@ export const getStockRegisterReport = async (): Promise<any[]> => {
   }
 
   let salesReturns: any[] = [];
+  let salesReturnItems: any[] = [];
   try {
     const db = await getDb();
     salesReturns = await db.collection('SalesReturn').find({}).toArray();
@@ -514,8 +515,8 @@ export const getStockRegisterReport = async (): Promise<any[]> => {
     for (const ret of salesReturns) {
       if (ret.returnType === 'Exchange (Replacement)' && ret.replacementItems && Array.isArray(ret.replacementItems)) {
         ret.replacementItems.forEach((repItem: any) => {
-          const isMatch = (itemCode && repItem.itemCode === itemCode) ||
-                          (name && repItem.itemName?.toLowerCase() === name.toLowerCase());
+          const isMatch = (product.itemCode && repItem.itemCode === product.itemCode) ||
+                          (product.name && repItem.itemName?.toLowerCase() === product.name.toLowerCase());
           if (isMatch) {
             dbMovements.push({
               id: `${ret._id?.toString() || ret.id}-rep-${repItem.itemCode || repItem.itemName}`,

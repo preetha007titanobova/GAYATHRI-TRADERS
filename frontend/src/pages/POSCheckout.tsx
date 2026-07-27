@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useOutletContext, useLocation, useNavigate } from 'react-router-dom';
 import { Plus, Edit, Trash2, ArrowLeft, ArrowRight, Search, Printer, Mail, Paperclip, MessageSquare, Download, Send, QrCode, CreditCard, Smartphone, CheckCircle, Sparkles, MessageCircle, FileText, Zap } from 'lucide-react';
+import { useLicense } from '../context/LicenseContext';
 import { printReceipt } from '../utils/printReceipt';
 import { downloadPdfBill } from '../utils/downloadPdfBill';
 import { sendWhatsAppBill } from '../utils/whatsappHelper';
@@ -60,6 +61,7 @@ const POSCheckout = () => {
   const [remarks, setRemarks] = useState('');
 
 
+  const { shopName } = useLicense();
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [favourDiscount, setFavourDiscount] = useState<number>(0);
 
@@ -553,10 +555,6 @@ const POSCheckout = () => {
   // --- API Integrations ---
 
   const handleInstantCheckout = async () => {
-    if (setGlobalNotification) {
-      setGlobalNotification({ msg: "⚠️ WhatsApp feature is blocked. Please renew the plan.", type: 'error' });
-      setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
-    }
     const validItems = gridData.filter(row => row.itemName && row.qty > 0 && row.rate > 0);
     if (validItems.length === 0) {
       if (setGlobalNotification) {
@@ -584,7 +582,9 @@ const POSCheckout = () => {
       subTotal: totalAmount,
       cgst: cgst,
       sgst: sgst,
-      totalAmount: netAmount
+      totalAmount: netAmount,
+      storeName: shopName,
+      storePhone: localStorage.getItem('close_day_whatsapp') || undefined
     });
 
     // 2. Send WhatsApp Bill if mobile exists
@@ -768,7 +768,9 @@ const POSCheckout = () => {
       subTotal: totalAmount,
       cgst: cgst,
       sgst: sgst,
-      totalAmount: netAmount
+      totalAmount: netAmount,
+      storeName: shopName,
+      storePhone: localStorage.getItem('close_day_whatsapp') || undefined
     });
 
     setTimeout(() => {
@@ -854,11 +856,6 @@ const POSCheckout = () => {
   };
 
   const handleSendWhatsApp = () => {
-    if (setGlobalNotification) {
-      setGlobalNotification({ msg: "❌ Customer WhatsApp bill sharing is blocked. Please renew the plan.", type: 'error' });
-      setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
-    }
-    return;
     const validItems = gridData.filter(row => row.itemName && row.qty > 0 && row.rate > 0);
     if (validItems.length === 0) {
       if (setGlobalNotification) {

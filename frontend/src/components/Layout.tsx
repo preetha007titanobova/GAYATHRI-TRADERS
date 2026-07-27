@@ -79,7 +79,7 @@ const Layout = () => {
   const [isCloseDayModalOpen, setIsCloseDayModalOpen] = useState(false);
   const [isCloseRequested, setIsCloseRequested] = useState(false);
   const [closeDayLoading, setCloseDayLoading] = useState(false);
-  const [ownerWhatsApp, setOwnerWhatsApp] = useState(() => localStorage.getItem('close_day_whatsapp') || '+919876543210');
+  const [ownerWhatsApp, setOwnerWhatsApp] = useState(() => localStorage.getItem('close_day_whatsapp') || '+919698819482');
   const [ownerEmail, setOwnerEmail] = useState(() => localStorage.getItem('close_day_email') || 'titanobovapvt@gmail.com');
   const [isOwnerSettingsModalOpen, setIsOwnerSettingsModalOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);

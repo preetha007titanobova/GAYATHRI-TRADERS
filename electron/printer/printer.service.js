@@ -85,7 +85,13 @@ function printHTML(htmlContent) {
                 processedHtml = `<base href="http://localhost:5000/">` + htmlContent;
             }
 
-            printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(processedHtml)}`);
+            const fs = require('fs');
+            const path = require('path');
+            const { app } = require('electron');
+            const tempWritePath = path.join(app.getPath('userData'), 'temp_print.html');
+            fs.writeFileSync(tempWritePath, processedHtml, 'utf8');
+
+            printWindow.loadFile(tempWritePath);
 
             printWindow.webContents.on('did-finish-load', () => {
                 const printOptions = {
@@ -101,6 +107,7 @@ function printHTML(htmlContent) {
                 printWindow.webContents.print(printOptions, (success, errorType) => {
                     printWindow.destroy();
                     printWindow = null;
+                    try { if (fs.existsSync(tempWritePath)) fs.unlinkSync(tempWritePath); } catch (e) {}
 
                     if (success) {
                         resolve(true);
@@ -117,7 +124,9 @@ function printHTML(htmlContent) {
                             }
                         });
 
-                        fallbackWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(processedHtml)}`);
+                        const fallbackWritePath = path.join(app.getPath('userData'), 'fallback_print.html');
+                        fs.writeFileSync(fallbackWritePath, processedHtml, 'utf8');
+                        fallbackWindow.loadFile(fallbackWritePath);
                         fallbackWindow.webContents.on('did-finish-load', () => {
                             fallbackWindow.webContents.print({
                                 silent: false,
@@ -126,6 +135,7 @@ function printHTML(htmlContent) {
                             }, (fallbackSuccess, fallbackError) => {
                                 fallbackWindow.destroy();
                                 fallbackWindow = null;
+                                try { if (fs.existsSync(fallbackWritePath)) fs.unlinkSync(fallbackWritePath); } catch (e) {}
                                 if (fallbackSuccess) {
                                     resolve(true);
                                 } else {

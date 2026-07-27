@@ -2,9 +2,10 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import Api from '../Api';
 import { printReceipt } from '../utils/printReceipt';
-import { 
-  Mail, RefreshCcw, Plus, Trash2, Calendar, 
-  FileSignature, Loader2, Search 
+import { useLicense } from '../context/LicenseContext';
+import {
+  Mail, RefreshCcw, Plus, Trash2, Calendar,
+  FileSignature, Loader2, Search
 } from 'lucide-react';
 
 interface LineItem {
@@ -19,6 +20,7 @@ interface LineItem {
 
 const Quotation = () => {
   const navigate = useNavigate();
+  const { shopName } = useLicense();
   const { setGlobalNotification } = useOutletContext<{ setGlobalNotification?: any }>() || {};
 
   // --- Initializing Dynamic System Dates ---
@@ -65,7 +67,7 @@ const Quotation = () => {
   const modalFilteredProducts = useMemo(() => {
     const q = modalSearchQuery.toLowerCase().trim();
     if (!q) return availableProducts;
-    return availableProducts.filter(p => 
+    return availableProducts.filter(p =>
       p.name?.toLowerCase().includes(q) ||
       p.itemCode?.toLowerCase().includes(q) ||
       p.barcode?.toLowerCase().includes(q) ||
@@ -176,9 +178,9 @@ const Quotation = () => {
   const handleItemChange = (id: string, field: keyof LineItem, value: any) => {
     setLineItems(prev => prev.map(item => {
       if (item.id !== id) return item;
-      
+
       const updated = { ...item, [field]: value };
-      
+
       // Auto-populate description and price if a valid itemCode is matched
       if (field === 'itemCode' && value) {
         const product = availableProducts.find(p => p.itemCode === value || p.barcode === value || p.name === value);
@@ -210,7 +212,7 @@ const Quotation = () => {
   // --- Unified Dynamic Data Validation Matrix ---
   const validateStructuralIntegrity = () => {
     if (lineItems.length === 0) {
-      if (setGlobalNotification) setGlobalNotification({msg: "Cannot save: Transaction array contains no lines.", type: "error"});
+      if (setGlobalNotification) setGlobalNotification({ msg: "Cannot save: Transaction array contains no lines.", type: "error" });
       return null;
     }
 
@@ -221,7 +223,7 @@ const Quotation = () => {
     });
 
     if (validItems.length === 0) {
-      if (setGlobalNotification) setGlobalNotification({msg: "Cannot save: Please add at least one valid item with a price.", type: "error"});
+      if (setGlobalNotification) setGlobalNotification({ msg: "Cannot save: Please add at least one valid item with a price.", type: "error" });
       return null;
     }
 
@@ -234,13 +236,13 @@ const Quotation = () => {
     if (!validItems) return; // Validation failed, halt pipeline
 
     setIsConverting(true);
-    
+
     // Simulate pipeline hand-off and push array rows cleanly into POSCheckout state
     setTimeout(() => {
       setIsConverting(false);
       setStatus('CONVERTED');
       if (setGlobalNotification) {
-        setGlobalNotification({msg: "Quotation Converted! Moving to Sales Bill...", type: "success"});
+        setGlobalNotification({ msg: "Quotation Converted! Moving to Sales Bill...", type: "success" });
       }
 
       const quotationPayload = {
@@ -267,7 +269,7 @@ const Quotation = () => {
     if (!validItems) return; // Halt exhaustive merge
 
     setIsEmailing(true);
-    
+
     try {
       const response = await fetch(`${Api}/quotations/send-email`, {
         method: 'POST',
@@ -280,17 +282,17 @@ const Quotation = () => {
           items: validItems
         })
       });
-      
+
       const data = await response.json();
       if (data.success) {
         if (status === 'DRAFT') setStatus('SENT');
-        if (setGlobalNotification) setGlobalNotification({msg: "Quotation Email Sent Successfully!", type: "success"});
+        if (setGlobalNotification) setGlobalNotification({ msg: "Quotation Email Sent Successfully!", type: "success" });
       } else {
-        if (setGlobalNotification) setGlobalNotification({msg: `Email Failed: ${data.details || 'Unknown Error'}`, type: "error"});
+        if (setGlobalNotification) setGlobalNotification({ msg: `Email Failed: ${data.details || 'Unknown Error'}`, type: "error" });
       }
     } catch (error: any) {
       console.error(error);
-      if (setGlobalNotification) setGlobalNotification({msg: `Network Error: ${error.message}`, type: "error"});
+      if (setGlobalNotification) setGlobalNotification({ msg: `Network Error: ${error.message}`, type: "error" });
     } finally {
       setIsEmailing(false);
     }
@@ -317,7 +319,7 @@ const Quotation = () => {
       };
     });
 
-    const storePhone = localStorage.getItem('close_day_whatsapp') || '8508703636, 8526677999';
+    const storePhone = localStorage.getItem('close_day_whatsapp') || '+919698819482';
 
     printReceipt(formattedItems, {
       invoiceNo: quoteNo,
@@ -329,6 +331,7 @@ const Quotation = () => {
       cgst: totalCgst,
       sgst: totalSgst,
       totalAmount: roundedGrandTotal,
+      storeName: shopName,
       storePhone: storePhone,
       receiptTitle: 'QUOTATION'
     });
@@ -349,12 +352,11 @@ const Quotation = () => {
           </div>
         </div>
 
-        <div className={`px-4 py-1 rounded-full text-xs font-black tracking-wide uppercase ${
-          status === 'DRAFT' ? 'bg-slate-700 text-slate-200' :
-          status === 'SENT' ? 'bg-blue-600 text-white' :
-          status === 'ACCEPTED' ? 'bg-green-600 text-white animate-pulse' :
-          'bg-purple-600 text-white'
-        }`}>
+        <div className={`px-4 py-1 rounded-full text-xs font-black tracking-wide uppercase ${status === 'DRAFT' ? 'bg-slate-700 text-slate-200' :
+            status === 'SENT' ? 'bg-blue-600 text-white' :
+              status === 'ACCEPTED' ? 'bg-green-600 text-white animate-pulse' :
+                'bg-purple-600 text-white'
+          }`}>
           {status}
         </div>
       </div>
@@ -419,8 +421,8 @@ const Quotation = () => {
                 <td className="legacy-grid-cell text-center font-semibold text-gray-700">{index + 1}</td>
                 <td className="legacy-grid-cell p-0 relative">
                   <div className="flex items-center relative w-full h-full">
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       className="w-full h-full p-1 pl-2 pr-12 border-none outline-none focus:bg-yellow-100 font-mono text-blue-900 font-bold uppercase"
                       value={item.itemCode}
                       onChange={(e) => handleItemChange(item.id, 'itemCode', e.target.value)}
@@ -461,8 +463,8 @@ const Quotation = () => {
                   </div>
                 </td>
                 <td className="legacy-grid-cell p-0">
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     className="w-full h-full p-1 pl-2 border-none outline-none focus:bg-yellow-100 font-semibold text-gray-800"
                     value={item.itemDescription}
                     onChange={(e) => handleItemChange(item.id, 'itemDescription', e.target.value)}
@@ -470,8 +472,8 @@ const Quotation = () => {
                   />
                 </td>
                 <td className="legacy-grid-cell p-0">
-                  <input 
-                    type="number" 
+                  <input
+                    type="number"
                     className="w-full h-full p-1 text-center border-none outline-none focus:bg-yellow-100 font-bold"
                     value={item.quantity}
                     onChange={(e) => handleItemChange(item.id, 'quantity', e.target.value)}
@@ -479,16 +481,16 @@ const Quotation = () => {
                   />
                 </td>
                 <td className="legacy-grid-cell p-0">
-                  <input 
-                    type="number" 
+                  <input
+                    type="number"
                     className="w-full h-full p-1 text-right border-none outline-none focus:bg-yellow-100 font-mono font-bold"
                     value={item.unitPrice}
                     onChange={(e) => handleItemChange(item.id, 'unitPrice', e.target.value)}
                   />
                 </td>
                 <td className="legacy-grid-cell p-0">
-                  <input 
-                    type="number" 
+                  <input
+                    type="number"
                     className="w-full h-full p-1 text-center border-none outline-none focus:bg-yellow-100 font-bold"
                     value={item.discountPercent}
                     onChange={(e) => handleItemChange(item.id, 'discountPercent', e.target.value)}
@@ -498,7 +500,7 @@ const Quotation = () => {
                   ₹{item.taxableValue.toFixed(2)}
                 </td>
                 <td className="legacy-grid-cell p-0">
-                  <select 
+                  <select
                     className="w-full h-full p-1 text-center border-none outline-none focus:bg-yellow-100 font-bold bg-transparent"
                     value={item.taxRate}
                     onChange={(e) => handleItemChange(item.id, 'taxRate', e.target.value)}
@@ -514,7 +516,7 @@ const Quotation = () => {
                   ₹{item.subtotal.toFixed(2)}
                 </td>
                 <td className="legacy-grid-cell text-center p-0">
-                  <button 
+                  <button
                     onClick={() => handleRemoveItem(item.id)}
                     className="text-red-500 hover:text-red-700 font-bold p-1 rounded hover:bg-red-50 transition-all text-xs"
                     title="Delete row"
@@ -533,21 +535,21 @@ const Quotation = () => {
         {/* Left Actions */}
         <div className="col-span-2 flex flex-col justify-end space-y-2 pb-1">
           <div className="flex flex-wrap gap-2 items-center">
-            <button 
+            <button
               onClick={handleAddItem}
               className="legacy-button py-1.5 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded text-xs transition-colors flex items-center space-x-1"
             >
               <Plus className="w-3.5 h-3.5" /> <span>Add Row</span>
             </button>
-            <button 
-              onClick={handleConvert} 
+            <button
+              onClick={handleConvert}
               disabled={isConverting || status === 'CONVERTED'}
               className="legacy-button py-1.5 px-4 bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white font-extrabold rounded text-xs transition-all flex items-center space-x-1.5"
             >
               {isConverting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCcw className="w-3.5 h-3.5" />}
               <span>{status === 'CONVERTED' ? 'Converted to Tax Bill' : 'Convert to Tax Bill'}</span>
             </button>
-            <button 
+            <button
               onClick={handleEmail}
               disabled={isEmailing}
               className="legacy-button py-1.5 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 text-white font-extrabold rounded text-xs transition-all flex items-center space-x-1.5 cursor-pointer"
@@ -555,7 +557,7 @@ const Quotation = () => {
               {isEmailing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
               <span>Email Quote</span>
             </button>
-            <button 
+            <button
               onClick={handlePrintQuote}
               type="button"
               className="legacy-button py-1.5 px-4 bg-[#2b579a] hover:bg-[#1a386b] text-white font-extrabold rounded text-xs transition-all flex items-center space-x-1.5 cursor-pointer"

@@ -30,6 +30,7 @@ interface Product {
   purchaseRate?: number;
   price?: number;
   stock?: number;
+  dbStock?: number;
   openingBalance?: number;
   pendingOrderQty?: number;
   movements?: StockMove[];
@@ -49,6 +50,8 @@ const StockRegister = () => {
   // View state: 'summary' shows all products table, 'ledger' shows selected product details
   const [viewMode, setViewMode] = useState<'summary' | 'ledger'>('summary');
   const [searchQuery, setSearchQuery] = useState('');
+  const [filterDept, setFilterDept] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
   
   const [reportData, setReportData] = useState<Product[]>([]);
   const [loadingReport, setLoadingReport] = useState(false);
@@ -304,22 +307,41 @@ const StockRegister = () => {
         ...ledger
       };
     });
-  }, [reportData, localPurchaseBills, damages, fromDate, toDate]);
+  }, [reportData, localPurchaseBills, localShopSalesBills, damages, fromDate, toDate]);
+
+  // All unique departments from products
+  const allDepartments = useMemo(() => {
+    const depts = new Set<string>();
+    reportData.forEach(p => { if (p.department) depts.add(p.department); });
+    return Array.from(depts).sort();
+  }, [reportData]);
 
   const filteredProducts = useMemo(() => {
     return processedProducts.filter(p => {
-      if (!searchQuery) return true;
-      const q = searchQuery.toLowerCase();
-      return (
-        p.itemCode?.toLowerCase().includes(q) ||
-        p.vendorItemCode?.toLowerCase().includes(q) ||
-        p.name?.toLowerCase().includes(q) ||
-        p.department?.toLowerCase().includes(q) ||
-        p.variety?.toLowerCase().includes(q) ||
-        p.size?.toLowerCase().includes(q)
-      );
+      // Text search
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        const textMatch =
+          p.itemCode?.toLowerCase().includes(q) ||
+          p.vendorItemCode?.toLowerCase().includes(q) ||
+          p.name?.toLowerCase().includes(q) ||
+          p.department?.toLowerCase().includes(q) ||
+          p.variety?.toLowerCase().includes(q) ||
+          p.size?.toLowerCase().includes(q);
+        if (!textMatch) return false;
+      }
+      // Department filter
+      if (filterDept && p.department !== filterDept) return false;
+      // Stock status filter
+      if (filterStatus) {
+        const stock = p.dbStock ?? p.stock ?? 0;
+        if (filterStatus === 'in-stock' && stock <= 0) return false;
+        if (filterStatus === 'low-stock' && (stock <= 0 || stock >= 10)) return false;
+        if (filterStatus === 'out-of-stock' && stock > 0) return false;
+      }
+      return true;
     });
-  }, [processedProducts, searchQuery]);
+  }, [processedProducts, searchQuery, filterDept, filterStatus]);
 
   // Compute column totals for the summary view footer
   const summaryTotals = useMemo(() => {
@@ -329,8 +351,9 @@ const StockRegister = () => {
       acc.outward += p.outward || 0;
       acc.damages += p.damages || 0;
       acc.closing += p.closingStock || 0;
+      acc.totalStock += p.dbStock || p.stock || 0;
       return acc;
-    }, { opening: 0, inward: 0, outward: 0, damages: 0, closing: 0 });
+    }, { opening: 0, inward: 0, outward: 0, damages: 0, closing: 0, totalStock: 0 });
   }, [filteredProducts]);
 
   // Selected product's detailed ledger
@@ -711,16 +734,61 @@ const StockRegister = () => {
 
           {/* Common Filter Search Input (Visible in both views) */}
           <div className="flex items-center space-x-2 bg-gray-50 border border-gray-300 px-3 py-1.5 rounded-md shadow-sm">
-            <Search size={16} className="text-gray-400" />
+            <Search size={16} className="text-gray-400 flex-shrink-0" />
             <input
               id="summary-search-input"
               type="text"
-              placeholder="Search code, name, category..."
+              placeholder="Search code, name, variety..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="bg-transparent text-sm focus:outline-none w-64 placeholder-gray-400 font-medium text-gray-700"
+              className="bg-transparent text-sm focus:outline-none w-52 placeholder-gray-400 font-medium text-gray-700"
             />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="text-gray-400 hover:text-gray-600 transition-colors ml-1 flex-shrink-0"
+                title="Clear search"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            )}
           </div>
+
+          {/* Department filter */}
+          <select
+            value={filterDept}
+            onChange={e => setFilterDept(e.target.value)}
+            className="bg-gray-50 border border-gray-300 text-sm font-medium text-gray-700 rounded-md px-2 py-1.5 focus:outline-none focus:border-blue-400 cursor-pointer shadow-sm"
+          >
+            <option value="">All Categories</option>
+            {allDepartments.map(d => (
+              <option key={d} value={d}>{d}</option>
+            ))}
+          </select>
+
+          {/* Stock status filter */}
+          <select
+            value={filterStatus}
+            onChange={e => setFilterStatus(e.target.value)}
+            className="bg-gray-50 border border-gray-300 text-sm font-medium text-gray-700 rounded-md px-2 py-1.5 focus:outline-none focus:border-blue-400 cursor-pointer shadow-sm"
+          >
+            <option value="">All Stock Status</option>
+            <option value="in-stock">✅ In Stock</option>
+            <option value="low-stock">⚠️ Low Stock (&lt;10)</option>
+            <option value="out-of-stock">❌ Out of Stock</option>
+          </select>
+
+          {/* Clear all filters */}
+          {(searchQuery || filterDept || filterStatus) && (
+            <button
+              onClick={() => { setSearchQuery(''); setFilterDept(''); setFilterStatus(''); }}
+              className="flex items-center gap-1 bg-red-50 border border-red-300 text-red-600 text-xs font-bold px-3 py-1.5 rounded-md hover:bg-red-100 transition-colors shadow-sm"
+              title="Clear all filters"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              Clear Filters
+            </button>
+          )}
 
           {/* Product Dropdown for Ledger view */}
           {viewMode === 'ledger' && (
@@ -829,19 +897,20 @@ const StockRegister = () => {
                     <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-28 text-right text-red-300">Qty Out (Outward)</th>
                     <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-28 text-right text-orange-300">Damages</th>
                     <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-28 text-right bg-[#142d54]/25">Closing Stock</th>
+                    <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-28 text-right bg-yellow-400/20 text-yellow-200">Total Stock</th>
                     <th className="p-2 text-xs font-semibold w-24 text-center">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loadingReport ? (
                     <tr>
-                      <td colSpan={11} className="p-12 text-center text-gray-500 font-bold">
+                      <td colSpan={12} className="p-12 text-center text-gray-500 font-bold">
                         Loading products register data...
                       </td>
                     </tr>
                   ) : filteredProducts.length === 0 ? (
                     <tr>
-                      <td colSpan={11} className="p-12 text-center text-gray-400">
+                      <td colSpan={12} className="p-12 text-center text-gray-400">
                         <div className="flex flex-col items-center">
                           <Package size={32} className="mb-2 opacity-50" />
                           <p className="italic text-sm">No items found matching search criteria.</p>
@@ -885,6 +954,9 @@ const StockRegister = () => {
                             </div>
                           )}
                         </td>
+                        <td className="border-r border-gray-200 p-2 text-right font-mono font-black text-yellow-700 bg-yellow-50/30">
+                          {p.dbStock ?? p.stock ?? 0}
+                        </td>
                         
                         <td className="p-2 text-center">
                           <button
@@ -912,7 +984,7 @@ const StockRegister = () => {
                 Total Products: {filteredProducts.length}
               </div>
 
-              <div className="flex space-x-4 items-center">
+              <div className="flex space-x-3 items-center flex-wrap gap-y-2">
                 <div className="flex items-center bg-[#142d54] px-4 py-1.5 rounded border border-[#0d1e38] shadow-inner text-xs font-bold text-blue-200">
                   <span className="uppercase mr-2">Total Op:</span>
                   <span className="font-mono text-sm font-black text-white">{summaryTotals.opening}</span>
@@ -932,6 +1004,10 @@ const StockRegister = () => {
                 <div className="flex items-center bg-[#142d54] px-5 py-1.5 rounded border border-[#0d1e38] shadow-inner text-xs font-bold text-blue-200">
                   <span className="uppercase mr-2">Total Cl:</span>
                   <span className="font-mono text-sm font-black text-yellow-300">{summaryTotals.closing}</span>
+                </div>
+                <div className="flex items-center bg-yellow-500 px-5 py-1.5 rounded border border-yellow-600 shadow-inner text-xs font-bold text-yellow-900">
+                  <span className="uppercase mr-2">📦 Total Stock:</span>
+                  <span className="font-mono text-lg font-black text-yellow-900">{summaryTotals.totalStock}</span>
                 </div>
               </div>
             </div>

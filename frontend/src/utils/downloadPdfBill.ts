@@ -46,7 +46,7 @@ export const downloadPdfBill = (data: BillData) => {
   });
 
   const storeName = data.storeName || 'ITHU NAMMA KADA';
-  const storePhone = data.storePhone || `Mobile: ${localStorage.getItem('close_day_whatsapp') || '+91 8508703636, +91 8526677999'}`;
+  const storePhone = data.storePhone || `Mobile: ${localStorage.getItem('close_day_whatsapp') || '+919876543210'}`;
   const storeAddress = data.storeAddress || 'Main Road, Commercial Complex, Tamil Nadu';
 
   // --- Header ---

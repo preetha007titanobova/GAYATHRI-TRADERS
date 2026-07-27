@@ -17,6 +17,7 @@ export interface PrintReceiptData {
   sgst?: number;
   totalAmount: number;
   customerMobile?: string;
+  storeName?: string;
   storePhone?: string;
   receiptTitle?: string;
 }
@@ -25,217 +26,142 @@ export const printReceipt = (cartItems: PrintCartItem[], data: PrintReceiptData)
   const now = new Date();
   const timestamp = now.toLocaleString();
   const displayDate = data.date || timestamp;
-  
-  const storePhone = data.storePhone || localStorage.getItem('close_day_whatsapp') || '8508703636, 8526677999';
+
+  const storeName = data.storeName || 'ITHU NAMMA KADA';
+  let storePhone = data.storePhone || localStorage.getItem('close_day_whatsapp') || '+919698819482';
+
+  // Format phone number to prepend +91 if user just gave 10 digits
+  if (storePhone.length === 10 && !isNaN(Number(storePhone))) {
+    storePhone = '+91' + storePhone;
+  }
+
   const receiptTitle = data.receiptTitle || 'TAX INVOICE';
-  
+
   const totalQtyCalc = data.totalQty || cartItems.reduce((acc, it) => acc + (it.qty || 0), 0);
-  
+
   // HTML structure
+  const LINE_WIDTH = 42;
+  const padCenter = (str: string, length: number) => {
+    if (str.length >= length) return str.substring(0, length);
+    const leftPad = Math.floor((length - str.length) / 2);
+    const rightPad = length - str.length - leftPad;
+    return ' '.repeat(leftPad) + str + ' '.repeat(rightPad);
+  };
+  const padRight = (str: string, length: number) => {
+    if (str.length >= length) return str.substring(0, length);
+    return str + ' '.repeat(length - str.length);
+  };
+  const padLeft = (str: string, length: number) => {
+    if (str.length >= length) return str.substring(0, length);
+    return ' '.repeat(length - str.length) + str;
+  };
+
+  const separator = '-'.repeat(LINE_WIDTH);
+
+  let text = '';
+  text += padCenter(storeName, LINE_WIDTH) + '\n';
+  text += padCenter(`Mobile: ${storePhone}`, LINE_WIDTH) + '\n';
+  text += padCenter(receiptTitle, LINE_WIDTH) + '\n\n';
+
+  const invStr = `Inv: ${data.invoiceNo || 'N/A'}`;
+  let shortDate = displayDate.split(' ')[0];
+  if (shortDate.length > 10 && displayDate.includes('T')) shortDate = displayDate.split('T')[0];
+  const dateStr = `Date: ${shortDate}`;
+  text += invStr + ' '.repeat(Math.max(0, LINE_WIDTH - invStr.length - dateStr.length)) + dateStr + '\n';
+
+  const custStr = `Cust: ${data.customerName || 'CASH'}`;
+  const modeStr = `Mode: ${data.paymentMode || 'Cash'}`;
+  text += custStr + ' '.repeat(Math.max(0, LINE_WIDTH - custStr.length - modeStr.length)) + modeStr + '\n';
+
+  if (data.customerMobile) {
+    const telStr = `Tel: ${data.customerMobile}`;
+    text += telStr + '\n';
+  }
+
+  text += separator + '\n';
+  text += padRight('#', 2) + padRight('Item', 16) + ' ' + padLeft('Qty', 4) + padLeft('Rate', 9) + padLeft('Amt', 10) + '\n';
+  text += separator + '\n';
+
+  cartItems.forEach((item, index) => {
+    const idxStr = String(index + 1);
+    let nameStr = item.itemDesc || item.itemCode || '';
+    const qtyStr = String(item.qty);
+    const rateStr = item.rate.toFixed(2);
+    const amtStr = item.totalAmt.toFixed(2);
+
+    if (nameStr.length <= 16) {
+      text += padRight(idxStr, 2) + padRight(nameStr, 16) + ' ' + padLeft(qtyStr, 4) + padLeft(rateStr, 9) + padLeft(amtStr, 10) + '\n';
+    } else {
+      text += padRight(idxStr, 2) + padRight(nameStr.substring(0, 16), 16) + ' ' + padLeft(qtyStr, 4) + padLeft(rateStr, 9) + padLeft(amtStr, 10) + '\n';
+      let remaining = nameStr.substring(16);
+      while (remaining.length > 0) {
+        text += padRight('', 2) + padRight(remaining.substring(0, 16), 16) + '\n';
+        remaining = remaining.substring(16);
+      }
+    }
+  });
+
+  text += separator + '\n';
+  const itemsStr = `Items: ${cartItems.length}`;
+  const totalQtyStr = `Total Qty: ${totalQtyCalc}`;
+  text += itemsStr + ' '.repeat(Math.max(0, LINE_WIDTH - itemsStr.length - totalQtyStr.length)) + totalQtyStr + '\n';
+
+  if (data.subTotal !== undefined) {
+    const subStr = `SubTotal:`;
+    const subAmt = `₹${data.subTotal.toFixed(2)}`;
+    text += subStr + ' '.repeat(Math.max(0, LINE_WIDTH - subStr.length - subAmt.length)) + subAmt + '\n';
+  }
+
+  if (data.cgst !== undefined && data.cgst > 0) {
+    const cgstStr = `CGST:`;
+    const cgstAmt = `₹${data.cgst.toFixed(2)}`;
+    text += cgstStr + ' '.repeat(Math.max(0, LINE_WIDTH - cgstStr.length - cgstAmt.length)) + cgstAmt + '\n';
+  }
+
+  if (data.sgst !== undefined && data.sgst > 0) {
+    const sgstStr = `SGST:`;
+    const sgstAmt = `₹${data.sgst.toFixed(2)}`;
+    text += sgstStr + ' '.repeat(Math.max(0, LINE_WIDTH - sgstStr.length - sgstAmt.length)) + sgstAmt + '\n';
+  }
+
+  text += separator + '\n';
+  const grandStr = `Grand Total: ₹${Number(data.totalAmount).toFixed(2)}`;
+  text += padCenter(grandStr, LINE_WIDTH) + '\n';
+  text += separator + '\n';
+  
+  text += padCenter('Thank you for purchasing!', LINE_WIDTH) + '\n';
+  text += padCenter('Have a great day!', LINE_WIDTH) + '\n';
+
   const htmlContent = `
     <!DOCTYPE html>
     <html>
       <head>
         <title>Receipt</title>
         <style>
-          /* Base styles for the thermal receipt (approx 80mm width) */
+          @page {
+            margin: 0;
+            size: 80mm auto;
+          }
           body {
             font-family: 'Courier New', Courier, monospace;
-            font-size: 12px;
-            margin: 0;
-            padding: 0;
-            color: #000;
-            width: 300px; /* Force approx 80mm width */
-          }
-          .receipt-container {
-            padding: 5px 10px;
-          }
-          .header {
-            text-align: center;
-            margin-bottom: 10px;
-          }
-          .enterprise-name {
-            font-size: 16px;
-            font-weight: bold;
-            margin: 0 0 4px 0;
-            text-transform: uppercase;
-          }
-          .contact-info {
-            margin: 2px 0;
-            font-size: 12px;
-            font-weight: bold;
-          }
-          .divider {
-            border-bottom: 1px dashed #000;
-            margin: 5px 0;
-          }
-          .meta-data {
-            font-size: 11px;
-            font-weight: bold;
-            margin-bottom: 5px;
-            padding-bottom: 5px;
-            display: flex;
-            justify-content: space-between;
-          }
-          .meta-data .left, .meta-data .right {
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-            width: 50%;
-          }
-          .meta-data .right {
-            text-align: right;
-          }
-          table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 5px;
-            table-layout: fixed;
-          }
-          th, td {
-            text-align: left;
-            padding: 3px 1px;
-            font-size: 12px;
-            font-weight: bold;
-            word-wrap: break-word;
-            vertical-align: top;
-          }
-          th {
-            border-bottom: 1px dashed #000;
-            border-top: 1px dashed #000;
-            padding: 4px 1px;
-          }
-          .text-right {
-            text-align: right;
-          }
-          .text-center {
-            text-align: center;
-          }
-          .nowrap {
-            white-space: nowrap;
-          }
-          .summary-section {
-            border-top: 1px dashed #000;
-            padding-top: 5px;
-            margin-top: 5px;
             font-size: 13px;
             font-weight: bold;
+            margin: 0;
+            padding: 10px;
+            color: #000;
+            background: #fff;
           }
-          .summary-line {
-            display: flex;
-            justify-content: space-between;
-            margin: 2px 0;
-          }
-          .summary-line.tax-line {
-            font-size: 11px;
-          }
-          .footer-total {
-            text-align: right;
-            font-size: 16px;
-            font-weight: 900;
-            margin-top: 8px;
-            padding-top: 5px;
-            border-top: 2px dashed #000;
-          }
-          .thank-you-msg {
-            text-align: center;
-            font-size: 12px;
-            font-weight: bold;
-            margin-top: 15px;
-            padding-top: 10px;
-            border-top: 1px dashed #000;
-          }
-
-          /* Print specific styles */
-          @media print {
-            @page {
-              margin: 0;
-              size: 80mm auto; /* 80mm width thermal paper */
-            }
-            body {
-              width: 100%;
-              margin: 0;
-              padding: 0;
-            }
-            ::-webkit-scrollbar {
-              display: none;
-            }
+          pre {
+            margin: 0;
+            font-family: inherit;
+            font-size: inherit;
+            white-space: pre-wrap;
+            word-wrap: break-word;
           }
         </style>
       </head>
       <body>
-        <div class="receipt-container">
-          <div class="header">
-            <h1 class="enterprise-name">${(data as any).storeName || 'ITHU NAMMA KADA'}</h1>
-            <p class="contact-info">Mobile: ${storePhone}</p>
-            <p class="contact-info">${receiptTitle}</p>
-          </div>
-          
-          <div class="meta-data">
-            <div class="left">
-              <span>Inv: ${data.invoiceNo || 'N/A'}</span>
-              <span>Cust: ${data.customerName || 'CASH'}</span>
-              ${data.customerMobile ? `<span>Tel: ${data.customerMobile}</span>` : ''}
-            </div>
-            <div class="right">
-              <span>Date: ${displayDate}</span>
-              <span>Mode: ${data.paymentMode || 'Cash'}</span>
-            </div>
-          </div>
-          
-          <table>
-            <thead>
-              <tr>
-                <th style="width: 8%" class="text-center">#</th>
-                <th style="width: 38%">Item</th>
-                <th style="width: 12%" class="text-center">Qty</th>
-                <th style="width: 19%" class="text-right">Rate</th>
-                <th style="width: 23%" class="text-right">Amt</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${cartItems.map((item, index) => `
-                <tr>
-                  <td class="text-center">${index + 1}</td>
-                  <td>${item.itemDesc}</td>
-                  <td class="text-center">${item.qty}</td>
-                  <td class="text-right nowrap">${item.rate.toFixed(2)}</td>
-                  <td class="text-right nowrap">${item.totalAmt.toFixed(2)}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-          
-          <div class="summary-section">
-            <div class="summary-line">
-               <span>Items: ${cartItems.length}</span>
-               <span>Total Qty: ${totalQtyCalc}</span>
-            </div>
-            ${data.subTotal !== undefined ? `
-            <div class="summary-line tax-line">
-               <span>SubTotal:</span>
-               <span>₹${data.subTotal.toFixed(2)}</span>
-            </div>` : ''}
-            ${data.cgst !== undefined && data.cgst > 0 ? `
-            <div class="summary-line tax-line">
-               <span>CGST:</span>
-               <span>₹${data.cgst.toFixed(2)}</span>
-            </div>` : ''}
-            ${data.sgst !== undefined && data.sgst > 0 ? `
-            <div class="summary-line tax-line">
-               <span>SGST:</span>
-               <span>₹${data.sgst.toFixed(2)}</span>
-            </div>` : ''}
-            
-            <div class="footer-total">
-              Grand Total: ₹${Number(data.totalAmount).toFixed(2)}
-            </div>
-          </div>
-          
-          <div class="thank-you-msg">
-            Thank you for purchasing!<br>Have a great day!
-          </div>
-        </div>
+        <pre>\${text}</pre>
       </body>
     </html>
   `;
@@ -262,19 +188,19 @@ export const printReceipt = (cartItems: PrintCartItem[], data: PrintReceiptData)
   iframe.style.height = '100px';
   iframe.style.opacity = '0';
   iframe.style.pointerEvents = 'none';
-  
+
   document.body.appendChild(iframe);
-  
+
   const doc = iframe.contentWindow?.document;
   if (!doc) {
     console.error("Could not access iframe document");
     return;
   }
-  
+
   doc.open();
   doc.write(htmlContent);
   doc.close();
-  
+
   if ((window as any).api) {
     (window as any).api.send('print-html', htmlContent);
   } else {

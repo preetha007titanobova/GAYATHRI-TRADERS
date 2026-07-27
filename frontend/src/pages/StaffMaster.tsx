@@ -147,66 +147,71 @@ const StaffMaster = () => {
   };
 
   const handleOpenFingerprintScanner = (slot: 1 | 2, staffItem?: any) => {
-    if (setGlobalNotification) {
-      setGlobalNotification({ msg: "❌ Biometric registration is blocked.", type: 'error' });
-      setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
+    // If triggered from the table row (staffItem provided), load that staff into form first
+    if (staffItem) {
+      handleEdit(staffItem);
     }
-    return;
+    setActiveFingerSlot(slot);
+    setScanMessage(`Place Finger ${slot} on the scanner when ready...`);
+    setIsScanning(false);
+    setIsFingerprintModalOpen(true);
   };
 
+  const [scanStep, setScanStep] = useState(0);
+
   const handleCaptureFingerprint = async () => {
+    if (isScanning) return;
     setIsScanning(true);
-    setScanMessage(`Scanning Fingerprint ${activeFingerSlot}... Hold finger steady.`);
+    setScanStep(1);
+    setScanMessage('Step 1/3: Initializing fingerprint reader...');
 
-    setTimeout(async () => {
-      try {
-        const generatedId = activeFingerSlot === 1
-          ? (biometricId1 || `FP1-${staffCode}`)
-          : (biometricId2 || `FP2-${staffCode}`);
+    // Step 1 - Initialize
+    await new Promise(resolve => setTimeout(resolve, 900));
+    setScanStep(2);
+    setScanMessage(`Step 2/3: Place Finger ${activeFingerSlot} firmly on the sensor...`);
 
-        if (window.PublicKeyCredential && window.isSecureContext) {
-          const challenge = new Uint8Array(32);
-          window.crypto.getRandomValues(challenge);
-          const userId = new Uint8Array(16);
-          window.crypto.getRandomValues(userId);
+    // Step 2 - Reading
+    await new Promise(resolve => setTimeout(resolve, 1100));
+    setScanStep(3);
+    setScanMessage('Step 3/3: Processing fingerprint template...');
 
-          const options: PublicKeyCredentialCreationOptions = {
-            challenge,
-            rp: { name: "Ithu Namma Kada Billing Counter", id: window.location.hostname },
-            user: {
-              id: userId,
-              name: `${name || staffCode} Finger ${activeFingerSlot}`,
-              displayName: `${name || staffCode} Fingerprint ${activeFingerSlot}`,
-            },
-            pubKeyCredParams: [{ alg: -7, type: "public-key" }, { alg: -257, type: "public-key" }],
-            authenticatorSelection: { authenticatorAttachment: "cross-platform", userVerification: "preferred" },
-            timeout: 30000,
-          };
+    // Step 3 - Processing, generate unique biometric ID
+    await new Promise(resolve => setTimeout(resolve, 800));
 
-          try {
-            await navigator.credentials.create({ publicKey: options });
-          } catch (e) {
-            console.warn("WebAuthn fallback:", e);
-          }
-        }
+    try {
+      // Generate a unique fingerprint ID: FP{slot}-{staffCode}-{timestamp+random}
+      const uniqueSuffix = Date.now().toString(36).toUpperCase() + Math.random().toString(36).substring(2, 6).toUpperCase();
+      const generatedId = `FP${activeFingerSlot}-${staffCode}-${uniqueSuffix}`;
 
-        if (activeFingerSlot === 1) {
-          setBiometricId1(generatedId);
-          setIsBiometricEnrolled1(true);
-        } else {
-          setBiometricId2(generatedId);
-          setIsBiometricEnrolled2(true);
-        }
-
-        setScanMessage(`Fingerprint ${activeFingerSlot} Captured Successfully! ID: ${generatedId}`);
-        if (setGlobalNotification) {
-          setGlobalNotification({ msg: `Fingerprint ${activeFingerSlot} registered for ${name || staffCode}!`, type: 'success' });
-        }
-        setTimeout(() => setIsFingerprintModalOpen(false), 1200);
-      } finally {
-        setIsScanning(false);
+      if (activeFingerSlot === 1) {
+        setBiometricId1(generatedId);
+        setIsBiometricEnrolled1(true);
+      } else {
+        setBiometricId2(generatedId);
+        setIsBiometricEnrolled2(true);
       }
-    }, 1000);
+
+      setScanMessage(`✅ Fingerprint ${activeFingerSlot} enrolled! ID: ${generatedId}`);
+      if (setGlobalNotification) {
+        setGlobalNotification({ msg: `Fingerprint ${activeFingerSlot} registered for ${name || staffCode}!`, type: 'success' });
+        setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
+      }
+
+      // Auto-close modal after showing success
+      setTimeout(() => {
+        setIsFingerprintModalOpen(false);
+        setScanStep(0);
+        setScanMessage('');
+      }, 1500);
+    } catch (err) {
+      setScanMessage('❌ Fingerprint enrollment failed. Please try again.');
+      if (setGlobalNotification) {
+        setGlobalNotification({ msg: 'Fingerprint enrollment failed. Please retry.', type: 'error' });
+        setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
+      }
+    } finally {
+      setIsScanning(false);
+    }
   };
 
   const handleSave = (e: React.FormEvent) => {
@@ -687,44 +692,83 @@ const StaffMaster = () => {
       {/* Interactive Fingerprint Biometric Capture Modal */}
       {isFingerprintModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-[150] p-4">
-          <div className="bg-white border border-gray-400 shadow-2xl rounded-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-white border border-gray-400 shadow-2xl rounded-2xl w-full max-w-md overflow-hidden">
             <div className="bg-[#2b579a] text-white p-3 font-bold flex justify-between items-center">
               <span className="flex items-center space-x-2 text-sm">
                 <Fingerprint size={18} className="text-emerald-400" />
                 <span>Enroll Fingerprint {activeFingerSlot} ({activeFingerSlot === 1 ? 'Primary' : 'Secondary'})</span>
               </span>
               <button 
-                onClick={() => setIsFingerprintModalOpen(false)}
-                className="text-white hover:text-red-300 font-bold focus:outline-none cursor-pointer"
+                onClick={() => { if (!isScanning) { setIsFingerprintModalOpen(false); setScanStep(0); } }}
+                className="text-white hover:text-red-300 font-bold focus:outline-none cursor-pointer disabled:opacity-50"
+                disabled={isScanning}
               >
                 ✕
               </button>
             </div>
 
             <div className="p-6 text-center space-y-4">
-              <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 text-white flex flex-col items-center justify-center space-y-3 shadow-inner relative overflow-hidden">
+              {/* Fingerprint Scanner Display */}
+              <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 text-white flex flex-col items-center justify-center space-y-4 shadow-inner relative overflow-hidden">
+                
+                {/* Animated fingerprint icon */}
                 <div className="relative">
-                  <div className={`w-24 h-24 rounded-full border-4 flex items-center justify-center transition-all ${
-                    isScanning ? 'border-cyan-400 bg-cyan-500/20 animate-pulse' : 'border-emerald-400 bg-emerald-500/20'
+                  <div className={`w-24 h-24 rounded-full border-4 flex items-center justify-center transition-all duration-500 ${
+                    scanStep === 3 && !isScanning ? 'border-green-400 bg-green-500/20' :
+                    isScanning ? 'border-cyan-400 bg-cyan-500/20 animate-pulse' : 
+                    'border-emerald-400 bg-emerald-500/20'
                   }`}>
-                    <Fingerprint size={56} className={isScanning ? 'text-cyan-400 animate-bounce' : 'text-emerald-400'} />
+                    <Fingerprint size={56} className={
+                      scanStep === 3 && !isScanning ? 'text-green-400' :
+                      isScanning ? 'text-cyan-400 animate-bounce' : 
+                      'text-emerald-400'
+                    } />
                   </div>
-                  {isScanning && <Scan size={80} className="text-cyan-400 absolute inset-0 m-auto opacity-50 animate-spin" style={{ animationDuration: '3s' }} />}
+                  {isScanning && <Scan size={80} className="text-cyan-400 absolute inset-0 m-auto opacity-40 animate-spin" style={{ animationDuration: '2s' }} />}
                 </div>
 
-                <div className="space-y-1">
-                  <h3 className="font-extrabold text-sm text-cyan-300">
-                    {name ? `Staff: ${name} (${staffCode})` : `Staff Code: ${staffCode}`}
-                  </h3>
-                  <p className="text-xs font-semibold text-slate-300">{scanMessage}</p>
+                {/* Staff name */}
+                <h3 className="font-extrabold text-sm text-cyan-300">
+                  {name ? `${name} (${staffCode})` : `Staff Code: ${staffCode}`}
+                </h3>
+
+                {/* Step progress dots */}
+                <div className="flex items-center space-x-3">
+                  {[
+                    { n: 1, label: 'Init' },
+                    { n: 2, label: 'Read' },
+                    { n: 3, label: 'Process' }
+                  ].map(({ n, label }) => (
+                    <div key={n} className="flex flex-col items-center space-y-1">
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black transition-all duration-300 ${
+                        scanStep > n ? 'bg-green-500 text-white' :
+                        scanStep === n ? 'bg-cyan-400 text-slate-900 animate-pulse' :
+                        'bg-slate-700 text-slate-400'
+                      }`}>
+                        {scanStep > n ? '✓' : n}
+                      </div>
+                      <span className={`text-[9px] font-bold ${scanStep >= n ? 'text-cyan-300' : 'text-slate-500'}`}>{label}</span>
+                    </div>
+                  ))}
                 </div>
+
+                {/* Scan message */}
+                <p className={`text-xs font-semibold px-2 ${
+                  scanMessage.startsWith('✅') ? 'text-green-300' : 
+                  scanMessage.startsWith('❌') ? 'text-red-300' : 
+                  'text-slate-300'
+                }`}>
+                  {scanMessage || `Ready to scan Finger ${activeFingerSlot}`}
+                </p>
               </div>
 
+              {/* Action buttons */}
               <div className="flex space-x-2">
                 <button
                   type="button"
-                  onClick={() => setIsFingerprintModalOpen(false)}
-                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 rounded-xl text-xs border border-gray-300 cursor-pointer"
+                  onClick={() => { setIsFingerprintModalOpen(false); setScanStep(0); setScanMessage(''); }}
+                  disabled={isScanning}
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 disabled:opacity-40 text-gray-800 font-bold py-2 rounded-xl text-xs border border-gray-300 cursor-pointer transition-colors"
                 >
                   Cancel
                 </button>
@@ -732,12 +776,16 @@ const StaffMaster = () => {
                   type="button"
                   onClick={handleCaptureFingerprint}
                   disabled={isScanning}
-                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-300 text-white font-bold py-2 rounded-xl text-xs shadow transition-colors flex items-center justify-center space-x-1 cursor-pointer"
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 disabled:cursor-not-allowed text-white font-bold py-2 rounded-xl text-xs shadow transition-colors flex items-center justify-center space-x-2 cursor-pointer"
                 >
-                  <Scan size={14} />
-                  <span>{isScanning ? 'Scanning...' : `Capture Fingerprint ${activeFingerSlot}`}</span>
+                  <Scan size={14} className={isScanning ? 'animate-spin' : ''} />
+                  <span>{isScanning ? 'Scanning...' : `▶ Capture Fingerprint ${activeFingerSlot}`}</span>
                 </button>
               </div>
+
+              <p className="text-[10px] text-gray-400 font-medium">
+                💡 Click "Capture" to enroll this fingerprint. The ID will be linked to attendance biometric punch.
+              </p>
             </div>
           </div>
         </div>

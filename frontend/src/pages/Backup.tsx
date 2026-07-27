@@ -72,6 +72,35 @@ const Backup = () => {
     fileInputRef.current?.click();
   };
 
+  const handleResetDatabase = async () => {
+    const confirm1 = window.confirm("🚨 WARNING: THIS WILL PERMANENTLY ERASE all transactional records, bills, stock inventory, ledgers, staff database, and all other items from the cloud database. Are you absolutely sure you want to proceed?");
+    if (!confirm1) return;
+
+    const confirm2 = window.prompt("Type 'RESET DATABASE' in all capitals to confirm the deletion:");
+    if (confirm2 !== 'RESET DATABASE') {
+      alert("Verification failed. Database reset cancelled.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch(`${Api}/backup/reset`, {
+        method: 'POST'
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert("Database has been factory reset successfully! All transactional and master data cleared.");
+      } else {
+        alert("Reset failed: " + data.error);
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Network error. Reset failed.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -112,17 +141,17 @@ const Backup = () => {
         <Database size={16} className="mr-2" /> Backup & Restore Management
       </div>
 
-      <div className="grid grid-cols-3 gap-6 p-4">
+      <div className="grid grid-cols-4 gap-4 p-4">
         {/* EXPORT JSON PANEL */}
         <div className="border border-gray-400 bg-white p-6 shadow-md flex flex-col items-center text-center">
           <Download size={48} className="text-blue-500 mb-4" />
-          <h2 className="text-xl font-bold text-gray-800 mb-2">System Backup (JSON)</h2>
-          <p className="text-gray-600 text-sm mb-6">
+          <h2 className="text-lg font-bold text-gray-800 mb-2">System Backup (JSON)</h2>
+          <p className="text-gray-600 text-xs mb-6">
             Download a raw JSON snapshot for system restoration. Required for database recovery.
           </p>
           <button 
             onClick={handleExportJSON}
-            className="legacy-button bg-blue-100 border-blue-400 font-bold px-4 py-2 w-full mt-auto"
+            className="legacy-button bg-blue-100 border-blue-400 font-bold px-4 py-2 w-full mt-auto text-xs"
           >
             Download JSON Backup
           </button>
@@ -131,14 +160,14 @@ const Backup = () => {
         {/* EXPORT PDF PANEL */}
         <div className="border border-gray-400 bg-white p-6 shadow-md flex flex-col items-center text-center">
           <FileText size={48} className="text-green-600 mb-4" />
-          <h2 className="text-xl font-bold text-gray-800 mb-2">Printable Backup (PDF)</h2>
-          <p className="text-gray-600 text-sm mb-6">
+          <h2 className="text-lg font-bold text-gray-800 mb-2">Printable Backup (PDF)</h2>
+          <p className="text-gray-600 text-xs mb-6">
             Generate a human-readable, multi-page PDF document containing all inventory and ledger accounts.
           </p>
           <button 
             onClick={handleExportPDF}
             disabled={loading}
-            className="legacy-button bg-green-100 border-green-500 text-green-900 font-bold px-4 py-2 w-full mt-auto"
+            className="legacy-button bg-green-100 border-green-500 text-green-900 font-bold px-4 py-2 w-full mt-auto text-xs"
           >
             {loading ? "Generating..." : "Download PDF Report"}
           </button>
@@ -147,12 +176,12 @@ const Backup = () => {
         {/* IMPORT PANEL */}
         <div className="border border-gray-400 bg-white p-6 shadow-md flex flex-col items-center text-center">
           <Upload size={48} className="text-red-500 mb-4" />
-          <h2 className="text-xl font-bold text-gray-800 mb-2">Restore Database</h2>
-          <p className="text-gray-600 text-sm mb-2">
+          <h2 className="text-lg font-bold text-gray-800 mb-2">Restore Database</h2>
+          <p className="text-gray-600 text-xs mb-2">
             Upload a JSON snapshot to restore the cloud database.
           </p>
-          <div className="flex items-center text-red-600 text-xs mb-4 font-semibold">
-            <AlertTriangle size={14} className="mr-1" /> Overwrites existing data!
+          <div className="flex items-center text-red-600 text-[10px] mb-4 font-semibold">
+            <AlertTriangle size={12} className="mr-1" /> Overwrites existing data!
           </div>
           
           <input 
@@ -166,9 +195,29 @@ const Backup = () => {
           <button 
             onClick={handleImportClick}
             disabled={loading}
-            className="legacy-button bg-red-100 border-red-400 font-bold px-4 py-2 w-full mt-auto"
+            className="legacy-button bg-red-100 border-red-400 font-bold px-4 py-2 w-full mt-auto text-xs"
           >
             {loading ? "Restoring..." : "Upload JSON Backup"}
+          </button>
+        </div>
+
+        {/* RESET DATABASE PANEL */}
+        <div className="border border-red-400 bg-red-50/10 p-6 shadow-md flex flex-col items-center text-center">
+          <AlertTriangle size={48} className="text-rose-600 mb-4" />
+          <h2 className="text-lg font-bold text-rose-800 mb-2">Factory Reset</h2>
+          <p className="text-gray-650 text-xs mb-2">
+            Permanently clear all bills, products, ledgers, and transactional data.
+          </p>
+          <div className="text-rose-700 text-[10px] mb-4 font-extrabold uppercase">
+            ⚠️ Warning: Cannot be undone!
+          </div>
+          
+          <button 
+            onClick={handleResetDatabase}
+            disabled={loading}
+            className="legacy-button bg-rose-600 hover:bg-rose-700 text-white border-rose-600 font-bold px-4 py-2 w-full mt-auto text-xs cursor-pointer active:scale-95 transition-all"
+          >
+            Reset Database
           </button>
         </div>
       </div>

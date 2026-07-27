@@ -85,3 +85,29 @@ export const restoreBackup = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Failed to restore database', details: error.message });
   }
 };
+
+export const resetDatabase = async (req: Request, res: Response) => {
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.shopSalesItem.deleteMany();
+      await tx.shopSalesBill.deleteMany();
+      await tx.staffAttendance.deleteMany();
+      await tx.staff.deleteMany();
+      await tx.salesOrderItem.deleteMany();
+      await tx.salesOrder.deleteMany();
+      await tx.purchaseItem.deleteMany();
+      await tx.purchaseBill.deleteMany();
+      await tx.salesReturnItem.deleteMany();
+      await tx.salesReturn.deleteMany();
+      await tx.salesItem.deleteMany();
+      await tx.salesBill.deleteMany();
+      await tx.product.deleteMany();
+      await tx.category.deleteMany();
+      await tx.ledger.deleteMany();
+    });
+    res.json({ success: true, message: 'Database reset completed successfully' });
+  } catch (error: any) {
+    console.error('Database Reset Error:', error);
+    res.status(500).json({ error: 'Failed to reset database', details: error.message });
+  }
+};
