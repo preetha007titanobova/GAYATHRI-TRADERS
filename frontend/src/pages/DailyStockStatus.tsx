@@ -394,14 +394,20 @@ const DailyStockStatus = () => {
     <div className="flex flex-col h-full bg-[#f0f9f4] p-2 overflow-hidden">
       
       {/* DAILY SALES PAYMENT METHODS SUMMARY BANNER (TOP ROW) */}
-      <div className="bg-[#1e3f70] text-white p-2.5 border border-gray-400 shadow-sm rounded mb-2 flex items-center justify-between text-xs print:hidden">
-        <div className="flex items-center space-x-2 font-bold">
+      <div className="bg-[#1e3f70] text-white p-3 border border-gray-400 shadow-sm rounded mb-2 flex flex-col space-y-2.5 text-xs print:hidden">
+        {/* Top Row: Title and Total Sales */}
+        <div className="flex justify-between items-center border-b border-blue-900/60 pb-2">
           <span className="text-blue-200 font-extrabold uppercase tracking-wider text-[11px] flex items-center">
-            <FileText size={14} className="mr-1 text-blue-300" /> Daily Sales Payment Method Breakdown ({paymentSummary.count} Bills):
+            <FileText size={15} className="mr-1.5 text-blue-300" /> Daily Sales Payment Method Breakdown ({paymentSummary.count} Bills)
           </span>
+          <div className="bg-yellow-400 text-slate-900 px-3 py-1 rounded font-black flex items-center space-x-1.5 shadow border border-yellow-500">
+            <span className="text-[10px] uppercase tracking-wider text-slate-800">Total Sales:</span>
+            <span className="font-mono text-sm font-extrabold">₹{paymentSummary.total.toFixed(2)}</span>
+          </div>
         </div>
 
-        <div className="flex items-center space-x-2.5 font-semibold flex-wrap">
+        {/* Bottom Row: Breakdown tags */}
+        <div className="flex items-center space-x-2.5 font-semibold flex-wrap justify-end">
           <div className="bg-emerald-50 border border-emerald-300 px-2.5 py-1 rounded-md text-emerald-800 flex items-center space-x-1">
             <span>💵 Cash:</span>
             <span className="font-mono font-bold text-sm text-emerald-950">₹{paymentSummary.cash.toFixed(2)}</span>
@@ -420,11 +426,6 @@ const DailyStockStatus = () => {
           <div className="bg-rose-50 border border-rose-300 px-2.5 py-1 rounded-md text-rose-800 flex items-center space-x-1">
             <span>📜 Credit / Ledger:</span>
             <span className="font-mono font-bold text-sm text-rose-950">₹{paymentSummary.credit.toFixed(2)}</span>
-          </div>
-
-          <div className="bg-[#142d54] text-white px-3 py-1 rounded-md font-bold flex items-center space-x-1 shadow-inner border border-blue-900">
-            <span className="text-[11px] uppercase tracking-wider text-blue-200">Total Sales:</span>
-            <span className="font-mono text-sm text-yellow-300 font-extrabold">₹{paymentSummary.total.toFixed(2)}</span>
           </div>
         </div>
       </div>
