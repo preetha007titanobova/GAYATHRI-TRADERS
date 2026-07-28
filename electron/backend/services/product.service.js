@@ -425,7 +425,7 @@ const getDailyStockStatus = (dateStr) => __awaiter(void 0, void 0, void 0, funct
 });
 exports.getDailyStockStatus = getDailyStockStatus;
 const getStockRegisterReport = () => __awaiter(void 0, void 0, void 0, function* () {
-    var _a;
+    var _a, _b;
     const products = yield (0, exports.searchItems)('');
     let salesItems = [];
     try {
@@ -436,15 +436,17 @@ const getStockRegisterReport = () => __awaiter(void 0, void 0, void 0, function*
     catch (e) {
         console.error("Error in getStockRegisterReport salesItems:", e);
     }
+    let salesReturns = [];
     let salesReturnItems = [];
     try {
+        const db = yield (0, db_1.getDb)();
+        salesReturns = yield db.collection('SalesReturn').find({}).toArray();
         salesReturnItems = yield db_1.prisma.salesReturnItem.findMany({
             where: { disposition: 'Return to Warehouse' }
         });
-        const salesReturns = yield db_1.prisma.salesReturn.findMany();
-        const salesReturnMap = new Map(salesReturns.map(r => [r.id, r]));
+        const salesReturnMap = new Map(salesReturns.map(r => [r._id.toString() || r.id, r]));
         for (const item of salesReturnItems) {
-            item.salesReturn = salesReturnMap.get(item.salesReturnId) || null;
+            item.salesReturn = salesReturnMap.get((_a = item.salesReturnId) === null || _a === void 0 ? void 0 : _a.toString()) || null;
         }
     }
     catch (e) {
@@ -457,7 +459,7 @@ const getStockRegisterReport = () => __awaiter(void 0, void 0, void 0, function*
         const purchaseBills = yield db.collection('PurchaseBill').find({}).toArray();
         const purchaseBillMap = new Map(purchaseBills.map(b => [b._id.toString(), b]));
         for (const item of purchaseItems) {
-            item.purchaseBill = purchaseBillMap.get((_a = item.purchaseBillId) === null || _a === void 0 ? void 0 : _a.toString()) || null;
+            item.purchaseBill = purchaseBillMap.get((_b = item.purchaseBillId) === null || _b === void 0 ? void 0 : _b.toString()) || null;
         }
     }
     catch (e) {
@@ -497,6 +499,26 @@ const getStockRegisterReport = () => __awaiter(void 0, void 0, void 0, function*
                 });
             }
         }
+        for (const ret of salesReturns) {
+            if (ret.returnType === 'Exchange (Replacement)' && ret.replacementItems && Array.isArray(ret.replacementItems)) {
+                ret.replacementItems.forEach((repItem) => {
+                    var _a, _b;
+                    const isMatch = (product.itemCode && repItem.itemCode === product.itemCode) ||
+                        (product.name && ((_a = repItem.itemName) === null || _a === void 0 ? void 0 : _a.toLowerCase()) === product.name.toLowerCase());
+                    if (isMatch) {
+                        dbMovements.push({
+                            id: `${((_b = ret._id) === null || _b === void 0 ? void 0 : _b.toString()) || ret.id}-rep-${repItem.itemCode || repItem.itemName}`,
+                            date: ret.returnDate,
+                            vchType: 'Sales Return Exchange',
+                            vchNo: ret.returnNo,
+                            particulars: `Replacement item to: ${ret.customerName}`,
+                            inward: 0,
+                            outward: Number(repItem.qty) || 0
+                        });
+                    }
+                });
+            }
+        }
         for (const item of prodPurchases) {
             if (item.purchaseBill) {
                 dbMovements.push({
@@ -517,6 +539,7 @@ const getStockRegisterReport = () => __awaiter(void 0, void 0, void 0, function*
         return {
             id: prodId,
             itemCode: product.itemCode || '',
+            vendorItemCode: product.vendorItemCode || '',
             name: product.name,
             department: product.department || '',
             variety: product.variety || '',

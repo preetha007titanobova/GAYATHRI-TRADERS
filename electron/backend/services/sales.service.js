@@ -842,7 +842,8 @@ const deleteSalesReturn = (id) => __awaiter(void 0, void 0, void 0, function* ()
 });
 exports.deleteSalesReturn = deleteSalesReturn;
 const getStockLedger = (productId) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a;
+    var _a, _b;
+    const db = yield (0, db_1.getDb)();
     const product = yield db_1.prisma.product.findUnique({
         where: { id: productId }
     });
@@ -857,15 +858,15 @@ const getStockLedger = (productId) => __awaiter(void 0, void 0, void 0, function
     const returnItems = yield db_1.prisma.salesReturnItem.findMany({
         where: { productId }
     });
-    const salesReturns = yield db_1.prisma.salesReturn.findMany();
-    const salesReturnMap = new Map(salesReturns.map(r => [r.id, r]));
+    const salesReturns = yield db.collection('SalesReturn').find({}).toArray();
+    const salesReturnMap = new Map(salesReturns.map(r => [r._id.toString() || r.id, r]));
     for (const item of returnItems) {
-        item.salesReturn = salesReturnMap.get(item.salesReturnId) || null;
+        item.salesReturn = salesReturnMap.get((_a = item.salesReturnId) === null || _a === void 0 ? void 0 : _a.toString()) || null;
     }
     // Virtual Movements (Sales Orders)
     let orderItems = [];
     try {
-        orderItems = (yield ((_a = db_1.prisma.salesOrderItem) === null || _a === void 0 ? void 0 : _a.findMany({
+        orderItems = (yield ((_b = db_1.prisma.salesOrderItem) === null || _b === void 0 ? void 0 : _b.findMany({
             where: {
                 productId,
                 salesOrder: {
@@ -906,6 +907,27 @@ const getStockLedger = (productId) => __awaiter(void 0, void 0, void 0, function
                 outward: 0,
                 disposition: item.disposition,
                 reason: item.salesReturn.reason
+            });
+        }
+    }
+    // Outward replacement movements from sales returns
+    for (const ret of salesReturns) {
+        if (ret.returnType === 'Exchange (Replacement)' && ret.replacementItems && Array.isArray(ret.replacementItems)) {
+            ret.replacementItems.forEach((repItem) => {
+                var _a, _b;
+                const isMatch = (product.itemCode && repItem.itemCode === product.itemCode) ||
+                    (product.name && ((_a = repItem.itemName) === null || _a === void 0 ? void 0 : _a.toLowerCase()) === product.name.toLowerCase());
+                if (isMatch) {
+                    movements.push({
+                        id: `${((_b = ret._id) === null || _b === void 0 ? void 0 : _b.toString()) || ret.id}-rep-${repItem.itemCode || repItem.itemName}`,
+                        date: ret.returnDate,
+                        vchType: 'Sales Return Exchange',
+                        vchNo: ret.returnNo,
+                        particulars: `Replacement item to: ${ret.customerName}`,
+                        inward: 0,
+                        outward: Number(repItem.qty) || 0
+                    });
+                }
             });
         }
     }

@@ -9,7 +9,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.restoreBackup = exports.exportBackup = void 0;
+exports.resetDatabase = exports.restoreBackup = exports.exportBackup = void 0;
 const db_1 = require("../config/db");
 const exportBackup = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
@@ -105,3 +105,30 @@ const restoreBackup = (req, res) => __awaiter(void 0, void 0, void 0, function* 
     }
 });
 exports.restoreBackup = restoreBackup;
+const resetDatabase = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        yield db_1.prisma.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
+            yield tx.shopSalesItem.deleteMany();
+            yield tx.shopSalesBill.deleteMany();
+            yield tx.staffAttendance.deleteMany();
+            yield tx.staff.deleteMany();
+            yield tx.salesOrderItem.deleteMany();
+            yield tx.salesOrder.deleteMany();
+            yield tx.purchaseItem.deleteMany();
+            yield tx.purchaseBill.deleteMany();
+            yield tx.salesReturnItem.deleteMany();
+            yield tx.salesReturn.deleteMany();
+            yield tx.salesItem.deleteMany();
+            yield tx.salesBill.deleteMany();
+            yield tx.product.deleteMany();
+            yield tx.category.deleteMany();
+            yield tx.ledger.deleteMany();
+        }));
+        res.json({ success: true, message: 'Database reset completed successfully' });
+    }
+    catch (error) {
+        console.error('Database Reset Error:', error);
+        res.status(500).json({ error: 'Failed to reset database', details: error.message });
+    }
+});
+exports.resetDatabase = resetDatabase;

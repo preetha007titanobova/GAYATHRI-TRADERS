@@ -38,4 +38,5 @@ const backupController = __importStar(require("../controllers/backup.controller"
 const router = (0, express_1.Router)();
 router.get('/export', backupController.exportBackup);
 router.post('/restore', backupController.restoreBackup);
+router.post('/reset', backupController.resetDatabase);
 exports.default = router;

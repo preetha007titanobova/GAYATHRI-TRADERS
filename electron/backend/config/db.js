@@ -17,6 +17,8 @@ exports.getDb = getDb;
 exports.setupDatabase = setupDatabase;
 const client_1 = require("../generated/client");
 const mongodb_1 = require("mongodb");
+const dotenv_1 = __importDefault(require("dotenv"));
+const dns_1 = __importDefault(require("dns"));
 dotenv_1.default.config();
 if (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('mongodb+srv')) {
     try {
@@ -26,7 +28,6 @@ if (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('mongodb+srv')
         console.warn('Could not set custom DNS servers:', e);
     }
 }
-dotenv_1.default.config();
 exports.prisma = new client_1.PrismaClient();
 exports.mongoClient = new mongodb_1.MongoClient(process.env.DATABASE_URL);
 let isConnected = false;

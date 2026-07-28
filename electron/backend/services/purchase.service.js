@@ -31,20 +31,24 @@ const getNextPurchaseVoucher = () => __awaiter(void 0, void 0, void 0, function*
 });
 exports.getNextPurchaseVoucher = getNextPurchaseVoucher;
 const createPurchaseBill = (data) => __awaiter(void 0, void 0, void 0, function* () {
-    const { voucherNo, date, supplierInvoiceNo, supplierName, supplierGstin, taxableAmt, cgst, sgst, igst, otherCharges, netPayable, status, type, paymentMode, items } = data;
+    const { voucherNo, date, supplierInvoiceNo, supplierInvoiceDate, supplierName, supplierGstin, taxableAmt, cgst, sgst, igst, otherCharges, discount, roundOff, netPayable, status, type, paymentMode, items, vendorId } = data;
     const db = yield (0, db_1.getDb)();
     // 1. Create the PurchaseBill
     const billDoc = {
         voucherNo,
         date: date ? new Date(date) : new Date(),
         supplierInvoiceNo: supplierInvoiceNo || 'N/A',
+        supplierInvoiceDate: supplierInvoiceDate ? new Date(supplierInvoiceDate) : null,
         supplierName,
         supplierGstin,
+        vendorId: vendorId ? new mongodb_1.ObjectId(vendorId) : null,
         taxableAmt: Number(taxableAmt) || 0,
         cgst: Number(cgst) || 0,
         sgst: Number(sgst) || 0,
         igst: Number(igst) || 0,
         otherCharges: Number(otherCharges) || 0,
+        discount: Number(discount) || 0,
+        roundOff: Number(roundOff) || 0,
         netPayable: Number(netPayable) || 0,
         status: status || 'Paid',
         type: type || 'Local',
@@ -59,9 +63,13 @@ const createPurchaseBill = (data) => __awaiter(void 0, void 0, void 0, function*
         const itemsToInsert = [];
         for (const item of items) {
             const qty = Number(item.qty || item.purchasedQty) || 0;
-            const rate = Number(item.rate || item.unitPrice) || 0;
+            const freeQty = Number(item.freeQty) || 0;
+            const rate = Number(item.rate || item.unitPrice || item.purchaseRate) || 0;
+            const mrp = Number(item.mrp) || 0;
+            const sellingPrice = Number(item.sellingPrice || item.salesRate) || 0;
             const taxPercent = Number(item.taxPercent) || 0;
             const discPercent = Number(item.discPercent) || 0;
+            const discountVal = Number(item.discount) || 0;
             const total = Number(item.total) || 0;
             // Check if product exists in DB by itemCode
             let product = null;
@@ -78,11 +86,11 @@ const createPurchaseBill = (data) => __awaiter(void 0, void 0, void 0, function*
                     where: { id: product.id },
                     data: {
                         stock: {
-                            increment: Math.round(qty)
+                            increment: Math.round(qty + freeQty)
                         },
                         purchaseRate: rate,
-                        price: item.salesRate ? Number(item.salesRate) : product.price,
-                        mrp: item.mrp ? Number(item.mrp) : product.mrp,
+                        price: sellingPrice ? Number(sellingPrice) : product.price,
+                        mrp: mrp ? Number(mrp) : product.mrp,
                         size: item.size || product.size,
                         variety: item.variety || product.variety,
                         department: item.category || item.department || product.department,
@@ -97,13 +105,13 @@ const createPurchaseBill = (data) => __awaiter(void 0, void 0, void 0, function*
                     data: {
                         itemCode: item.itemCode,
                         name: item.itemName || item.itemDesc || item.itemCode,
-                        barcode: item.itemCode, // Default barcode to itemCode
+                        barcode: item.barcode || item.itemCode, // Default barcode to itemCode
                         uom: 'Piece', // Default UOM
                         purchaseRate: rate,
-                        price: Number(item.salesRate || rate),
-                        mrp: Number(item.mrp || rate),
+                        price: Number(sellingPrice || rate),
+                        mrp: Number(mrp || rate),
                         taxPercent: taxPercent,
-                        stock: Math.round(qty),
+                        stock: Math.round(qty + freeQty),
                         department: item.category || item.department || 'None',
                         variety: item.variety || '',
                         size: item.size || '',
@@ -118,15 +126,21 @@ const createPurchaseBill = (data) => __awaiter(void 0, void 0, void 0, function*
                 productId: productId,
                 itemCode: item.itemCode,
                 itemName: item.itemName || item.itemDesc || item.itemCode,
+                barcode: item.barcode || item.itemCode,
                 size: item.size || '',
                 variety: item.variety || '',
+                color: item.color || '',
                 category: item.category || item.department || 'None',
                 factory: item.factory || '',
                 vendorItemCode: item.vendorItemCode || '',
                 qty: qty,
+                freeQty: freeQty,
                 rate: rate,
+                mrp: mrp,
+                sellingPrice: sellingPrice,
                 taxPercent: taxPercent,
                 discPercent: discPercent,
+                discount: discountVal,
                 total: total
             });
         }
@@ -172,12 +186,13 @@ const updatePurchaseBill = (id, data) => __awaiter(void 0, void 0, void 0, funct
     const oldItems = yield db.collection('PurchaseItem').find({ purchaseBillId: billId }).toArray();
     for (const item of oldItems) {
         const qty = Number(item.qty) || 0;
-        if (qty > 0 && item.productId) {
+        const freeQty = Number(item.freeQty) || 0;
+        if ((qty + freeQty) > 0 && item.productId) {
             yield db_1.prisma.product.update({
                 where: { id: item.productId.toString() },
                 data: {
                     stock: {
-                        decrement: Math.round(qty)
+                        decrement: Math.round(qty + freeQty)
                     }
                 }
             });
@@ -186,19 +201,23 @@ const updatePurchaseBill = (id, data) => __awaiter(void 0, void 0, void 0, funct
     // 2. Delete old items
     yield db.collection('PurchaseItem').deleteMany({ purchaseBillId: billId });
     // 3. Update the PurchaseBill document
-    const { voucherNo, date, supplierInvoiceNo, supplierName, supplierGstin, taxableAmt, cgst, sgst, igst, otherCharges, netPayable, status, type, paymentMode, items } = data;
+    const { voucherNo, date, supplierInvoiceNo, supplierInvoiceDate, supplierName, supplierGstin, taxableAmt, cgst, sgst, igst, otherCharges, discount, roundOff, netPayable, status, type, paymentMode, items, vendorId } = data;
     const result = yield db.collection('PurchaseBill').updateOne({ _id: billId }, {
         $set: {
             voucherNo,
             date: date ? new Date(date) : new Date(),
             supplierInvoiceNo: supplierInvoiceNo || 'N/A',
+            supplierInvoiceDate: supplierInvoiceDate ? new Date(supplierInvoiceDate) : null,
             supplierName,
             supplierGstin,
+            vendorId: vendorId ? new mongodb_1.ObjectId(vendorId) : null,
             taxableAmt: Number(taxableAmt) || 0,
             cgst: Number(cgst) || 0,
             sgst: Number(sgst) || 0,
             igst: Number(igst) || 0,
             otherCharges: Number(otherCharges) || 0,
+            discount: Number(discount) || 0,
+            roundOff: Number(roundOff) || 0,
             netPayable: Number(netPayable) || 0,
             status: status || 'Paid',
             type: type || 'Local',
@@ -211,9 +230,13 @@ const updatePurchaseBill = (id, data) => __awaiter(void 0, void 0, void 0, funct
         const itemsToInsert = [];
         for (const item of items) {
             const qty = Number(item.qty || item.purchasedQty) || 0;
-            const rate = Number(item.rate || item.unitPrice) || 0;
+            const freeQty = Number(item.freeQty) || 0;
+            const rate = Number(item.rate || item.unitPrice || item.purchaseRate) || 0;
+            const mrp = Number(item.mrp) || 0;
+            const sellingPrice = Number(item.sellingPrice || item.salesRate) || 0;
             const taxPercent = Number(item.taxPercent) || 0;
             const discPercent = Number(item.discPercent) || 0;
+            const discountVal = Number(item.discount) || 0;
             const total = Number(item.total) || 0;
             let product = null;
             if (item.itemCode) {
@@ -228,11 +251,11 @@ const updatePurchaseBill = (id, data) => __awaiter(void 0, void 0, void 0, funct
                     where: { id: product.id },
                     data: {
                         stock: {
-                            increment: Math.round(qty)
+                            increment: Math.round(qty + freeQty)
                         },
                         purchaseRate: rate,
-                        price: item.salesRate ? Number(item.salesRate) : product.price,
-                        mrp: item.mrp ? Number(item.mrp) : product.mrp,
+                        price: sellingPrice ? Number(sellingPrice) : product.price,
+                        mrp: mrp ? Number(mrp) : product.mrp,
                         size: item.size || product.size,
                         variety: item.variety || product.variety,
                         department: item.category || item.department || product.department,
@@ -246,13 +269,13 @@ const updatePurchaseBill = (id, data) => __awaiter(void 0, void 0, void 0, funct
                     data: {
                         itemCode: item.itemCode,
                         name: item.itemName || item.itemDesc || item.itemCode,
-                        barcode: item.itemCode,
+                        barcode: item.barcode || item.itemCode,
                         uom: 'Piece',
                         purchaseRate: rate,
-                        price: Number(item.salesRate || rate),
-                        mrp: Number(item.mrp || rate),
+                        price: Number(sellingPrice || rate),
+                        mrp: Number(mrp || rate),
                         taxPercent: taxPercent,
-                        stock: Math.round(qty),
+                        stock: Math.round(qty + freeQty),
                         department: item.category || item.department || 'None',
                         variety: item.variety || '',
                         size: item.size || '',
@@ -267,15 +290,21 @@ const updatePurchaseBill = (id, data) => __awaiter(void 0, void 0, void 0, funct
                 productId: productId,
                 itemCode: item.itemCode,
                 itemName: item.itemName || item.itemDesc || item.itemCode,
+                barcode: item.barcode || item.itemCode,
                 size: item.size || '',
                 variety: item.variety || '',
+                color: item.color || '',
                 category: item.category || item.department || 'None',
                 factory: item.factory || '',
                 vendorItemCode: item.vendorItemCode || '',
                 qty: qty,
+                freeQty: freeQty,
                 rate: rate,
+                mrp: mrp,
+                sellingPrice: sellingPrice,
                 taxPercent: taxPercent,
                 discPercent: discPercent,
+                discount: discountVal,
                 total: total
             });
         }
@@ -293,12 +322,13 @@ const deletePurchaseBill = (id) => __awaiter(void 0, void 0, void 0, function* (
     const oldItems = yield db.collection('PurchaseItem').find({ purchaseBillId: billId }).toArray();
     for (const item of oldItems) {
         const qty = Number(item.qty) || 0;
-        if (qty > 0 && item.productId) {
+        const freeQty = Number(item.freeQty) || 0;
+        if ((qty + freeQty) > 0 && item.productId) {
             yield db_1.prisma.product.update({
                 where: { id: item.productId.toString() },
                 data: {
                     stock: {
-                        decrement: Math.round(qty)
+                        decrement: Math.round(qty + freeQty)
                     }
                 }
             });

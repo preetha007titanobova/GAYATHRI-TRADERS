@@ -11280,6 +11280,8 @@ export namespace Prisma {
     sgst: number | null
     igst: number | null
     otherCharges: number | null
+    discount: number | null
+    roundOff: number | null
     netPayable: number | null
   }
 
@@ -11289,6 +11291,8 @@ export namespace Prisma {
     sgst: number | null
     igst: number | null
     otherCharges: number | null
+    discount: number | null
+    roundOff: number | null
     netPayable: number | null
   }
 
@@ -11297,13 +11301,17 @@ export namespace Prisma {
     voucherNo: string | null
     date: Date | null
     supplierInvoiceNo: string | null
+    supplierInvoiceDate: Date | null
     supplierName: string | null
     supplierGstin: string | null
+    vendorId: string | null
     taxableAmt: number | null
     cgst: number | null
     sgst: number | null
     igst: number | null
     otherCharges: number | null
+    discount: number | null
+    roundOff: number | null
     netPayable: number | null
     status: string | null
     type: string | null
@@ -11317,13 +11325,17 @@ export namespace Prisma {
     voucherNo: string | null
     date: Date | null
     supplierInvoiceNo: string | null
+    supplierInvoiceDate: Date | null
     supplierName: string | null
     supplierGstin: string | null
+    vendorId: string | null
     taxableAmt: number | null
     cgst: number | null
     sgst: number | null
     igst: number | null
     otherCharges: number | null
+    discount: number | null
+    roundOff: number | null
     netPayable: number | null
     status: string | null
     type: string | null
@@ -11337,13 +11349,17 @@ export namespace Prisma {
     voucherNo: number
     date: number
     supplierInvoiceNo: number
+    supplierInvoiceDate: number
     supplierName: number
     supplierGstin: number
+    vendorId: number
     taxableAmt: number
     cgst: number
     sgst: number
     igst: number
     otherCharges: number
+    discount: number
+    roundOff: number
     netPayable: number
     status: number
     type: number
@@ -11360,6 +11376,8 @@ export namespace Prisma {
     sgst?: true
     igst?: true
     otherCharges?: true
+    discount?: true
+    roundOff?: true
     netPayable?: true
   }
 
@@ -11369,6 +11387,8 @@ export namespace Prisma {
     sgst?: true
     igst?: true
     otherCharges?: true
+    discount?: true
+    roundOff?: true
     netPayable?: true
   }
 
@@ -11377,13 +11397,17 @@ export namespace Prisma {
     voucherNo?: true
     date?: true
     supplierInvoiceNo?: true
+    supplierInvoiceDate?: true
     supplierName?: true
     supplierGstin?: true
+    vendorId?: true
     taxableAmt?: true
     cgst?: true
     sgst?: true
     igst?: true
     otherCharges?: true
+    discount?: true
+    roundOff?: true
     netPayable?: true
     status?: true
     type?: true
@@ -11397,13 +11421,17 @@ export namespace Prisma {
     voucherNo?: true
     date?: true
     supplierInvoiceNo?: true
+    supplierInvoiceDate?: true
     supplierName?: true
     supplierGstin?: true
+    vendorId?: true
     taxableAmt?: true
     cgst?: true
     sgst?: true
     igst?: true
     otherCharges?: true
+    discount?: true
+    roundOff?: true
     netPayable?: true
     status?: true
     type?: true
@@ -11417,13 +11445,17 @@ export namespace Prisma {
     voucherNo?: true
     date?: true
     supplierInvoiceNo?: true
+    supplierInvoiceDate?: true
     supplierName?: true
     supplierGstin?: true
+    vendorId?: true
     taxableAmt?: true
     cgst?: true
     sgst?: true
     igst?: true
     otherCharges?: true
+    discount?: true
+    roundOff?: true
     netPayable?: true
     status?: true
     type?: true
@@ -11524,13 +11556,17 @@ export namespace Prisma {
     voucherNo: string
     date: Date
     supplierInvoiceNo: string | null
+    supplierInvoiceDate: Date | null
     supplierName: string
     supplierGstin: string | null
+    vendorId: string | null
     taxableAmt: number
     cgst: number
     sgst: number
     igst: number
     otherCharges: number
+    discount: number
+    roundOff: number
     netPayable: number
     status: string
     type: string
@@ -11563,13 +11599,17 @@ export namespace Prisma {
     voucherNo?: boolean
     date?: boolean
     supplierInvoiceNo?: boolean
+    supplierInvoiceDate?: boolean
     supplierName?: boolean
     supplierGstin?: boolean
+    vendorId?: boolean
     taxableAmt?: boolean
     cgst?: boolean
     sgst?: boolean
     igst?: boolean
     otherCharges?: boolean
+    discount?: boolean
+    roundOff?: boolean
     netPayable?: boolean
     status?: boolean
     type?: boolean
@@ -11586,13 +11626,17 @@ export namespace Prisma {
     voucherNo?: boolean
     date?: boolean
     supplierInvoiceNo?: boolean
+    supplierInvoiceDate?: boolean
     supplierName?: boolean
     supplierGstin?: boolean
+    vendorId?: boolean
     taxableAmt?: boolean
     cgst?: boolean
     sgst?: boolean
     igst?: boolean
     otherCharges?: boolean
+    discount?: boolean
+    roundOff?: boolean
     netPayable?: boolean
     status?: boolean
     type?: boolean
@@ -11616,13 +11660,17 @@ export namespace Prisma {
       voucherNo: string
       date: Date
       supplierInvoiceNo: string | null
+      supplierInvoiceDate: Date | null
       supplierName: string
       supplierGstin: string | null
+      vendorId: string | null
       taxableAmt: number
       cgst: number
       sgst: number
       igst: number
       otherCharges: number
+      discount: number
+      roundOff: number
       netPayable: number
       status: string
       type: string
@@ -12026,13 +12074,17 @@ export namespace Prisma {
     readonly voucherNo: FieldRef<"PurchaseBill", 'String'>
     readonly date: FieldRef<"PurchaseBill", 'DateTime'>
     readonly supplierInvoiceNo: FieldRef<"PurchaseBill", 'String'>
+    readonly supplierInvoiceDate: FieldRef<"PurchaseBill", 'DateTime'>
     readonly supplierName: FieldRef<"PurchaseBill", 'String'>
     readonly supplierGstin: FieldRef<"PurchaseBill", 'String'>
+    readonly vendorId: FieldRef<"PurchaseBill", 'String'>
     readonly taxableAmt: FieldRef<"PurchaseBill", 'Float'>
     readonly cgst: FieldRef<"PurchaseBill", 'Float'>
     readonly sgst: FieldRef<"PurchaseBill", 'Float'>
     readonly igst: FieldRef<"PurchaseBill", 'Float'>
     readonly otherCharges: FieldRef<"PurchaseBill", 'Float'>
+    readonly discount: FieldRef<"PurchaseBill", 'Float'>
+    readonly roundOff: FieldRef<"PurchaseBill", 'Float'>
     readonly netPayable: FieldRef<"PurchaseBill", 'Float'>
     readonly status: FieldRef<"PurchaseBill", 'String'>
     readonly type: FieldRef<"PurchaseBill", 'String'>
@@ -12413,17 +12465,25 @@ export namespace Prisma {
 
   export type PurchaseItemAvgAggregateOutputType = {
     qty: number | null
+    freeQty: number | null
     rate: number | null
+    mrp: number | null
+    sellingPrice: number | null
     taxPercent: number | null
     discPercent: number | null
+    discount: number | null
     total: number | null
   }
 
   export type PurchaseItemSumAggregateOutputType = {
     qty: number | null
+    freeQty: number | null
     rate: number | null
+    mrp: number | null
+    sellingPrice: number | null
     taxPercent: number | null
     discPercent: number | null
+    discount: number | null
     total: number | null
   }
 
@@ -12433,15 +12493,21 @@ export namespace Prisma {
     productId: string | null
     itemCode: string | null
     itemName: string | null
+    barcode: string | null
     size: string | null
     variety: string | null
+    color: string | null
     category: string | null
     factory: string | null
     vendorItemCode: string | null
     qty: number | null
+    freeQty: number | null
     rate: number | null
+    mrp: number | null
+    sellingPrice: number | null
     taxPercent: number | null
     discPercent: number | null
+    discount: number | null
     total: number | null
   }
 
@@ -12451,15 +12517,21 @@ export namespace Prisma {
     productId: string | null
     itemCode: string | null
     itemName: string | null
+    barcode: string | null
     size: string | null
     variety: string | null
+    color: string | null
     category: string | null
     factory: string | null
     vendorItemCode: string | null
     qty: number | null
+    freeQty: number | null
     rate: number | null
+    mrp: number | null
+    sellingPrice: number | null
     taxPercent: number | null
     discPercent: number | null
+    discount: number | null
     total: number | null
   }
 
@@ -12469,15 +12541,21 @@ export namespace Prisma {
     productId: number
     itemCode: number
     itemName: number
+    barcode: number
     size: number
     variety: number
+    color: number
     category: number
     factory: number
     vendorItemCode: number
     qty: number
+    freeQty: number
     rate: number
+    mrp: number
+    sellingPrice: number
     taxPercent: number
     discPercent: number
+    discount: number
     total: number
     _all: number
   }
@@ -12485,17 +12563,25 @@ export namespace Prisma {
 
   export type PurchaseItemAvgAggregateInputType = {
     qty?: true
+    freeQty?: true
     rate?: true
+    mrp?: true
+    sellingPrice?: true
     taxPercent?: true
     discPercent?: true
+    discount?: true
     total?: true
   }
 
   export type PurchaseItemSumAggregateInputType = {
     qty?: true
+    freeQty?: true
     rate?: true
+    mrp?: true
+    sellingPrice?: true
     taxPercent?: true
     discPercent?: true
+    discount?: true
     total?: true
   }
 
@@ -12505,15 +12591,21 @@ export namespace Prisma {
     productId?: true
     itemCode?: true
     itemName?: true
+    barcode?: true
     size?: true
     variety?: true
+    color?: true
     category?: true
     factory?: true
     vendorItemCode?: true
     qty?: true
+    freeQty?: true
     rate?: true
+    mrp?: true
+    sellingPrice?: true
     taxPercent?: true
     discPercent?: true
+    discount?: true
     total?: true
   }
 
@@ -12523,15 +12615,21 @@ export namespace Prisma {
     productId?: true
     itemCode?: true
     itemName?: true
+    barcode?: true
     size?: true
     variety?: true
+    color?: true
     category?: true
     factory?: true
     vendorItemCode?: true
     qty?: true
+    freeQty?: true
     rate?: true
+    mrp?: true
+    sellingPrice?: true
     taxPercent?: true
     discPercent?: true
+    discount?: true
     total?: true
   }
 
@@ -12541,15 +12639,21 @@ export namespace Prisma {
     productId?: true
     itemCode?: true
     itemName?: true
+    barcode?: true
     size?: true
     variety?: true
+    color?: true
     category?: true
     factory?: true
     vendorItemCode?: true
     qty?: true
+    freeQty?: true
     rate?: true
+    mrp?: true
+    sellingPrice?: true
     taxPercent?: true
     discPercent?: true
+    discount?: true
     total?: true
     _all?: true
   }
@@ -12646,15 +12750,21 @@ export namespace Prisma {
     productId: string | null
     itemCode: string
     itemName: string
+    barcode: string | null
     size: string | null
     variety: string | null
+    color: string | null
     category: string | null
     factory: string | null
     vendorItemCode: string | null
     qty: number
+    freeQty: number
     rate: number
+    mrp: number
+    sellingPrice: number
     taxPercent: number
     discPercent: number
+    discount: number
     total: number
     _count: PurchaseItemCountAggregateOutputType | null
     _avg: PurchaseItemAvgAggregateOutputType | null
@@ -12683,15 +12793,21 @@ export namespace Prisma {
     productId?: boolean
     itemCode?: boolean
     itemName?: boolean
+    barcode?: boolean
     size?: boolean
     variety?: boolean
+    color?: boolean
     category?: boolean
     factory?: boolean
     vendorItemCode?: boolean
     qty?: boolean
+    freeQty?: boolean
     rate?: boolean
+    mrp?: boolean
+    sellingPrice?: boolean
     taxPercent?: boolean
     discPercent?: boolean
+    discount?: boolean
     total?: boolean
     purchaseBill?: boolean | PurchaseBillDefaultArgs<ExtArgs>
     product?: boolean | PurchaseItem$productArgs<ExtArgs>
@@ -12704,15 +12820,21 @@ export namespace Prisma {
     productId?: boolean
     itemCode?: boolean
     itemName?: boolean
+    barcode?: boolean
     size?: boolean
     variety?: boolean
+    color?: boolean
     category?: boolean
     factory?: boolean
     vendorItemCode?: boolean
     qty?: boolean
+    freeQty?: boolean
     rate?: boolean
+    mrp?: boolean
+    sellingPrice?: boolean
     taxPercent?: boolean
     discPercent?: boolean
+    discount?: boolean
     total?: boolean
   }
 
@@ -12733,15 +12855,21 @@ export namespace Prisma {
       productId: string | null
       itemCode: string
       itemName: string
+      barcode: string | null
       size: string | null
       variety: string | null
+      color: string | null
       category: string | null
       factory: string | null
       vendorItemCode: string | null
       qty: number
+      freeQty: number
       rate: number
+      mrp: number
+      sellingPrice: number
       taxPercent: number
       discPercent: number
+      discount: number
       total: number
     }, ExtArgs["result"]["purchaseItem"]>
     composites: {}
@@ -13142,15 +13270,21 @@ export namespace Prisma {
     readonly productId: FieldRef<"PurchaseItem", 'String'>
     readonly itemCode: FieldRef<"PurchaseItem", 'String'>
     readonly itemName: FieldRef<"PurchaseItem", 'String'>
+    readonly barcode: FieldRef<"PurchaseItem", 'String'>
     readonly size: FieldRef<"PurchaseItem", 'String'>
     readonly variety: FieldRef<"PurchaseItem", 'String'>
+    readonly color: FieldRef<"PurchaseItem", 'String'>
     readonly category: FieldRef<"PurchaseItem", 'String'>
     readonly factory: FieldRef<"PurchaseItem", 'String'>
     readonly vendorItemCode: FieldRef<"PurchaseItem", 'String'>
     readonly qty: FieldRef<"PurchaseItem", 'Float'>
+    readonly freeQty: FieldRef<"PurchaseItem", 'Float'>
     readonly rate: FieldRef<"PurchaseItem", 'Float'>
+    readonly mrp: FieldRef<"PurchaseItem", 'Float'>
+    readonly sellingPrice: FieldRef<"PurchaseItem", 'Float'>
     readonly taxPercent: FieldRef<"PurchaseItem", 'Float'>
     readonly discPercent: FieldRef<"PurchaseItem", 'Float'>
+    readonly discount: FieldRef<"PurchaseItem", 'Float'>
     readonly total: FieldRef<"PurchaseItem", 'Float'>
   }
     
@@ -20285,13 +20419,17 @@ export namespace Prisma {
     voucherNo: 'voucherNo',
     date: 'date',
     supplierInvoiceNo: 'supplierInvoiceNo',
+    supplierInvoiceDate: 'supplierInvoiceDate',
     supplierName: 'supplierName',
     supplierGstin: 'supplierGstin',
+    vendorId: 'vendorId',
     taxableAmt: 'taxableAmt',
     cgst: 'cgst',
     sgst: 'sgst',
     igst: 'igst',
     otherCharges: 'otherCharges',
+    discount: 'discount',
+    roundOff: 'roundOff',
     netPayable: 'netPayable',
     status: 'status',
     type: 'type',
@@ -20309,15 +20447,21 @@ export namespace Prisma {
     productId: 'productId',
     itemCode: 'itemCode',
     itemName: 'itemName',
+    barcode: 'barcode',
     size: 'size',
     variety: 'variety',
+    color: 'color',
     category: 'category',
     factory: 'factory',
     vendorItemCode: 'vendorItemCode',
     qty: 'qty',
+    freeQty: 'freeQty',
     rate: 'rate',
+    mrp: 'mrp',
+    sellingPrice: 'sellingPrice',
     taxPercent: 'taxPercent',
     discPercent: 'discPercent',
+    discount: 'discount',
     total: 'total'
   };
 
@@ -21368,13 +21512,17 @@ export namespace Prisma {
     voucherNo?: StringFilter<"PurchaseBill"> | string
     date?: DateTimeFilter<"PurchaseBill"> | Date | string
     supplierInvoiceNo?: StringNullableFilter<"PurchaseBill"> | string | null
+    supplierInvoiceDate?: DateTimeNullableFilter<"PurchaseBill"> | Date | string | null
     supplierName?: StringFilter<"PurchaseBill"> | string
     supplierGstin?: StringNullableFilter<"PurchaseBill"> | string | null
+    vendorId?: StringNullableFilter<"PurchaseBill"> | string | null
     taxableAmt?: FloatFilter<"PurchaseBill"> | number
     cgst?: FloatFilter<"PurchaseBill"> | number
     sgst?: FloatFilter<"PurchaseBill"> | number
     igst?: FloatFilter<"PurchaseBill"> | number
     otherCharges?: FloatFilter<"PurchaseBill"> | number
+    discount?: FloatFilter<"PurchaseBill"> | number
+    roundOff?: FloatFilter<"PurchaseBill"> | number
     netPayable?: FloatFilter<"PurchaseBill"> | number
     status?: StringFilter<"PurchaseBill"> | string
     type?: StringFilter<"PurchaseBill"> | string
@@ -21389,13 +21537,17 @@ export namespace Prisma {
     voucherNo?: SortOrder
     date?: SortOrder
     supplierInvoiceNo?: SortOrder
+    supplierInvoiceDate?: SortOrder
     supplierName?: SortOrder
     supplierGstin?: SortOrder
+    vendorId?: SortOrder
     taxableAmt?: SortOrder
     cgst?: SortOrder
     sgst?: SortOrder
     igst?: SortOrder
     otherCharges?: SortOrder
+    discount?: SortOrder
+    roundOff?: SortOrder
     netPayable?: SortOrder
     status?: SortOrder
     type?: SortOrder
@@ -21413,13 +21565,17 @@ export namespace Prisma {
     NOT?: PurchaseBillWhereInput | PurchaseBillWhereInput[]
     date?: DateTimeFilter<"PurchaseBill"> | Date | string
     supplierInvoiceNo?: StringNullableFilter<"PurchaseBill"> | string | null
+    supplierInvoiceDate?: DateTimeNullableFilter<"PurchaseBill"> | Date | string | null
     supplierName?: StringFilter<"PurchaseBill"> | string
     supplierGstin?: StringNullableFilter<"PurchaseBill"> | string | null
+    vendorId?: StringNullableFilter<"PurchaseBill"> | string | null
     taxableAmt?: FloatFilter<"PurchaseBill"> | number
     cgst?: FloatFilter<"PurchaseBill"> | number
     sgst?: FloatFilter<"PurchaseBill"> | number
     igst?: FloatFilter<"PurchaseBill"> | number
     otherCharges?: FloatFilter<"PurchaseBill"> | number
+    discount?: FloatFilter<"PurchaseBill"> | number
+    roundOff?: FloatFilter<"PurchaseBill"> | number
     netPayable?: FloatFilter<"PurchaseBill"> | number
     status?: StringFilter<"PurchaseBill"> | string
     type?: StringFilter<"PurchaseBill"> | string
@@ -21434,13 +21590,17 @@ export namespace Prisma {
     voucherNo?: SortOrder
     date?: SortOrder
     supplierInvoiceNo?: SortOrder
+    supplierInvoiceDate?: SortOrder
     supplierName?: SortOrder
     supplierGstin?: SortOrder
+    vendorId?: SortOrder
     taxableAmt?: SortOrder
     cgst?: SortOrder
     sgst?: SortOrder
     igst?: SortOrder
     otherCharges?: SortOrder
+    discount?: SortOrder
+    roundOff?: SortOrder
     netPayable?: SortOrder
     status?: SortOrder
     type?: SortOrder
@@ -21462,13 +21622,17 @@ export namespace Prisma {
     voucherNo?: StringWithAggregatesFilter<"PurchaseBill"> | string
     date?: DateTimeWithAggregatesFilter<"PurchaseBill"> | Date | string
     supplierInvoiceNo?: StringNullableWithAggregatesFilter<"PurchaseBill"> | string | null
+    supplierInvoiceDate?: DateTimeNullableWithAggregatesFilter<"PurchaseBill"> | Date | string | null
     supplierName?: StringWithAggregatesFilter<"PurchaseBill"> | string
     supplierGstin?: StringNullableWithAggregatesFilter<"PurchaseBill"> | string | null
+    vendorId?: StringNullableWithAggregatesFilter<"PurchaseBill"> | string | null
     taxableAmt?: FloatWithAggregatesFilter<"PurchaseBill"> | number
     cgst?: FloatWithAggregatesFilter<"PurchaseBill"> | number
     sgst?: FloatWithAggregatesFilter<"PurchaseBill"> | number
     igst?: FloatWithAggregatesFilter<"PurchaseBill"> | number
     otherCharges?: FloatWithAggregatesFilter<"PurchaseBill"> | number
+    discount?: FloatWithAggregatesFilter<"PurchaseBill"> | number
+    roundOff?: FloatWithAggregatesFilter<"PurchaseBill"> | number
     netPayable?: FloatWithAggregatesFilter<"PurchaseBill"> | number
     status?: StringWithAggregatesFilter<"PurchaseBill"> | string
     type?: StringWithAggregatesFilter<"PurchaseBill"> | string
@@ -21486,15 +21650,21 @@ export namespace Prisma {
     productId?: StringNullableFilter<"PurchaseItem"> | string | null
     itemCode?: StringFilter<"PurchaseItem"> | string
     itemName?: StringFilter<"PurchaseItem"> | string
+    barcode?: StringNullableFilter<"PurchaseItem"> | string | null
     size?: StringNullableFilter<"PurchaseItem"> | string | null
     variety?: StringNullableFilter<"PurchaseItem"> | string | null
+    color?: StringNullableFilter<"PurchaseItem"> | string | null
     category?: StringNullableFilter<"PurchaseItem"> | string | null
     factory?: StringNullableFilter<"PurchaseItem"> | string | null
     vendorItemCode?: StringNullableFilter<"PurchaseItem"> | string | null
     qty?: FloatFilter<"PurchaseItem"> | number
+    freeQty?: FloatFilter<"PurchaseItem"> | number
     rate?: FloatFilter<"PurchaseItem"> | number
+    mrp?: FloatFilter<"PurchaseItem"> | number
+    sellingPrice?: FloatFilter<"PurchaseItem"> | number
     taxPercent?: FloatFilter<"PurchaseItem"> | number
     discPercent?: FloatFilter<"PurchaseItem"> | number
+    discount?: FloatFilter<"PurchaseItem"> | number
     total?: FloatFilter<"PurchaseItem"> | number
     purchaseBill?: XOR<PurchaseBillRelationFilter, PurchaseBillWhereInput>
     product?: XOR<ProductNullableRelationFilter, ProductWhereInput> | null
@@ -21506,15 +21676,21 @@ export namespace Prisma {
     productId?: SortOrder
     itemCode?: SortOrder
     itemName?: SortOrder
+    barcode?: SortOrder
     size?: SortOrder
     variety?: SortOrder
+    color?: SortOrder
     category?: SortOrder
     factory?: SortOrder
     vendorItemCode?: SortOrder
     qty?: SortOrder
+    freeQty?: SortOrder
     rate?: SortOrder
+    mrp?: SortOrder
+    sellingPrice?: SortOrder
     taxPercent?: SortOrder
     discPercent?: SortOrder
+    discount?: SortOrder
     total?: SortOrder
     purchaseBill?: PurchaseBillOrderByWithRelationInput
     product?: ProductOrderByWithRelationInput
@@ -21529,15 +21705,21 @@ export namespace Prisma {
     productId?: StringNullableFilter<"PurchaseItem"> | string | null
     itemCode?: StringFilter<"PurchaseItem"> | string
     itemName?: StringFilter<"PurchaseItem"> | string
+    barcode?: StringNullableFilter<"PurchaseItem"> | string | null
     size?: StringNullableFilter<"PurchaseItem"> | string | null
     variety?: StringNullableFilter<"PurchaseItem"> | string | null
+    color?: StringNullableFilter<"PurchaseItem"> | string | null
     category?: StringNullableFilter<"PurchaseItem"> | string | null
     factory?: StringNullableFilter<"PurchaseItem"> | string | null
     vendorItemCode?: StringNullableFilter<"PurchaseItem"> | string | null
     qty?: FloatFilter<"PurchaseItem"> | number
+    freeQty?: FloatFilter<"PurchaseItem"> | number
     rate?: FloatFilter<"PurchaseItem"> | number
+    mrp?: FloatFilter<"PurchaseItem"> | number
+    sellingPrice?: FloatFilter<"PurchaseItem"> | number
     taxPercent?: FloatFilter<"PurchaseItem"> | number
     discPercent?: FloatFilter<"PurchaseItem"> | number
+    discount?: FloatFilter<"PurchaseItem"> | number
     total?: FloatFilter<"PurchaseItem"> | number
     purchaseBill?: XOR<PurchaseBillRelationFilter, PurchaseBillWhereInput>
     product?: XOR<ProductNullableRelationFilter, ProductWhereInput> | null
@@ -21549,15 +21731,21 @@ export namespace Prisma {
     productId?: SortOrder
     itemCode?: SortOrder
     itemName?: SortOrder
+    barcode?: SortOrder
     size?: SortOrder
     variety?: SortOrder
+    color?: SortOrder
     category?: SortOrder
     factory?: SortOrder
     vendorItemCode?: SortOrder
     qty?: SortOrder
+    freeQty?: SortOrder
     rate?: SortOrder
+    mrp?: SortOrder
+    sellingPrice?: SortOrder
     taxPercent?: SortOrder
     discPercent?: SortOrder
+    discount?: SortOrder
     total?: SortOrder
     _count?: PurchaseItemCountOrderByAggregateInput
     _avg?: PurchaseItemAvgOrderByAggregateInput
@@ -21575,15 +21763,21 @@ export namespace Prisma {
     productId?: StringNullableWithAggregatesFilter<"PurchaseItem"> | string | null
     itemCode?: StringWithAggregatesFilter<"PurchaseItem"> | string
     itemName?: StringWithAggregatesFilter<"PurchaseItem"> | string
+    barcode?: StringNullableWithAggregatesFilter<"PurchaseItem"> | string | null
     size?: StringNullableWithAggregatesFilter<"PurchaseItem"> | string | null
     variety?: StringNullableWithAggregatesFilter<"PurchaseItem"> | string | null
+    color?: StringNullableWithAggregatesFilter<"PurchaseItem"> | string | null
     category?: StringNullableWithAggregatesFilter<"PurchaseItem"> | string | null
     factory?: StringNullableWithAggregatesFilter<"PurchaseItem"> | string | null
     vendorItemCode?: StringNullableWithAggregatesFilter<"PurchaseItem"> | string | null
     qty?: FloatWithAggregatesFilter<"PurchaseItem"> | number
+    freeQty?: FloatWithAggregatesFilter<"PurchaseItem"> | number
     rate?: FloatWithAggregatesFilter<"PurchaseItem"> | number
+    mrp?: FloatWithAggregatesFilter<"PurchaseItem"> | number
+    sellingPrice?: FloatWithAggregatesFilter<"PurchaseItem"> | number
     taxPercent?: FloatWithAggregatesFilter<"PurchaseItem"> | number
     discPercent?: FloatWithAggregatesFilter<"PurchaseItem"> | number
+    discount?: FloatWithAggregatesFilter<"PurchaseItem"> | number
     total?: FloatWithAggregatesFilter<"PurchaseItem"> | number
   }
 
@@ -23182,13 +23376,17 @@ export namespace Prisma {
     voucherNo: string
     date?: Date | string
     supplierInvoiceNo?: string | null
+    supplierInvoiceDate?: Date | string | null
     supplierName: string
     supplierGstin?: string | null
+    vendorId?: string | null
     taxableAmt: number
     cgst: number
     sgst: number
     igst: number
     otherCharges: number
+    discount?: number
+    roundOff?: number
     netPayable: number
     status?: string
     type?: string
@@ -23203,13 +23401,17 @@ export namespace Prisma {
     voucherNo: string
     date?: Date | string
     supplierInvoiceNo?: string | null
+    supplierInvoiceDate?: Date | string | null
     supplierName: string
     supplierGstin?: string | null
+    vendorId?: string | null
     taxableAmt: number
     cgst: number
     sgst: number
     igst: number
     otherCharges: number
+    discount?: number
+    roundOff?: number
     netPayable: number
     status?: string
     type?: string
@@ -23223,13 +23425,17 @@ export namespace Prisma {
     voucherNo?: StringFieldUpdateOperationsInput | string
     date?: DateTimeFieldUpdateOperationsInput | Date | string
     supplierInvoiceNo?: NullableStringFieldUpdateOperationsInput | string | null
+    supplierInvoiceDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     supplierName?: StringFieldUpdateOperationsInput | string
     supplierGstin?: NullableStringFieldUpdateOperationsInput | string | null
+    vendorId?: NullableStringFieldUpdateOperationsInput | string | null
     taxableAmt?: FloatFieldUpdateOperationsInput | number
     cgst?: FloatFieldUpdateOperationsInput | number
     sgst?: FloatFieldUpdateOperationsInput | number
     igst?: FloatFieldUpdateOperationsInput | number
     otherCharges?: FloatFieldUpdateOperationsInput | number
+    discount?: FloatFieldUpdateOperationsInput | number
+    roundOff?: FloatFieldUpdateOperationsInput | number
     netPayable?: FloatFieldUpdateOperationsInput | number
     status?: StringFieldUpdateOperationsInput | string
     type?: StringFieldUpdateOperationsInput | string
@@ -23243,13 +23449,17 @@ export namespace Prisma {
     voucherNo?: StringFieldUpdateOperationsInput | string
     date?: DateTimeFieldUpdateOperationsInput | Date | string
     supplierInvoiceNo?: NullableStringFieldUpdateOperationsInput | string | null
+    supplierInvoiceDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     supplierName?: StringFieldUpdateOperationsInput | string
     supplierGstin?: NullableStringFieldUpdateOperationsInput | string | null
+    vendorId?: NullableStringFieldUpdateOperationsInput | string | null
     taxableAmt?: FloatFieldUpdateOperationsInput | number
     cgst?: FloatFieldUpdateOperationsInput | number
     sgst?: FloatFieldUpdateOperationsInput | number
     igst?: FloatFieldUpdateOperationsInput | number
     otherCharges?: FloatFieldUpdateOperationsInput | number
+    discount?: FloatFieldUpdateOperationsInput | number
+    roundOff?: FloatFieldUpdateOperationsInput | number
     netPayable?: FloatFieldUpdateOperationsInput | number
     status?: StringFieldUpdateOperationsInput | string
     type?: StringFieldUpdateOperationsInput | string
@@ -23264,13 +23474,17 @@ export namespace Prisma {
     voucherNo: string
     date?: Date | string
     supplierInvoiceNo?: string | null
+    supplierInvoiceDate?: Date | string | null
     supplierName: string
     supplierGstin?: string | null
+    vendorId?: string | null
     taxableAmt: number
     cgst: number
     sgst: number
     igst: number
     otherCharges: number
+    discount?: number
+    roundOff?: number
     netPayable: number
     status?: string
     type?: string
@@ -23283,13 +23497,17 @@ export namespace Prisma {
     voucherNo?: StringFieldUpdateOperationsInput | string
     date?: DateTimeFieldUpdateOperationsInput | Date | string
     supplierInvoiceNo?: NullableStringFieldUpdateOperationsInput | string | null
+    supplierInvoiceDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     supplierName?: StringFieldUpdateOperationsInput | string
     supplierGstin?: NullableStringFieldUpdateOperationsInput | string | null
+    vendorId?: NullableStringFieldUpdateOperationsInput | string | null
     taxableAmt?: FloatFieldUpdateOperationsInput | number
     cgst?: FloatFieldUpdateOperationsInput | number
     sgst?: FloatFieldUpdateOperationsInput | number
     igst?: FloatFieldUpdateOperationsInput | number
     otherCharges?: FloatFieldUpdateOperationsInput | number
+    discount?: FloatFieldUpdateOperationsInput | number
+    roundOff?: FloatFieldUpdateOperationsInput | number
     netPayable?: FloatFieldUpdateOperationsInput | number
     status?: StringFieldUpdateOperationsInput | string
     type?: StringFieldUpdateOperationsInput | string
@@ -23302,13 +23520,17 @@ export namespace Prisma {
     voucherNo?: StringFieldUpdateOperationsInput | string
     date?: DateTimeFieldUpdateOperationsInput | Date | string
     supplierInvoiceNo?: NullableStringFieldUpdateOperationsInput | string | null
+    supplierInvoiceDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     supplierName?: StringFieldUpdateOperationsInput | string
     supplierGstin?: NullableStringFieldUpdateOperationsInput | string | null
+    vendorId?: NullableStringFieldUpdateOperationsInput | string | null
     taxableAmt?: FloatFieldUpdateOperationsInput | number
     cgst?: FloatFieldUpdateOperationsInput | number
     sgst?: FloatFieldUpdateOperationsInput | number
     igst?: FloatFieldUpdateOperationsInput | number
     otherCharges?: FloatFieldUpdateOperationsInput | number
+    discount?: FloatFieldUpdateOperationsInput | number
+    roundOff?: FloatFieldUpdateOperationsInput | number
     netPayable?: FloatFieldUpdateOperationsInput | number
     status?: StringFieldUpdateOperationsInput | string
     type?: StringFieldUpdateOperationsInput | string
@@ -23321,15 +23543,21 @@ export namespace Prisma {
     id?: string
     itemCode: string
     itemName: string
+    barcode?: string | null
     size?: string | null
     variety?: string | null
+    color?: string | null
     category?: string | null
     factory?: string | null
     vendorItemCode?: string | null
     qty: number
+    freeQty?: number
     rate: number
+    mrp?: number
+    sellingPrice?: number
     taxPercent: number
     discPercent?: number
+    discount?: number
     total: number
     purchaseBill: PurchaseBillCreateNestedOneWithoutItemsInput
     product?: ProductCreateNestedOneWithoutPurchaseItemsInput
@@ -23341,30 +23569,42 @@ export namespace Prisma {
     productId?: string | null
     itemCode: string
     itemName: string
+    barcode?: string | null
     size?: string | null
     variety?: string | null
+    color?: string | null
     category?: string | null
     factory?: string | null
     vendorItemCode?: string | null
     qty: number
+    freeQty?: number
     rate: number
+    mrp?: number
+    sellingPrice?: number
     taxPercent: number
     discPercent?: number
+    discount?: number
     total: number
   }
 
   export type PurchaseItemUpdateInput = {
     itemCode?: StringFieldUpdateOperationsInput | string
     itemName?: StringFieldUpdateOperationsInput | string
+    barcode?: NullableStringFieldUpdateOperationsInput | string | null
     size?: NullableStringFieldUpdateOperationsInput | string | null
     variety?: NullableStringFieldUpdateOperationsInput | string | null
+    color?: NullableStringFieldUpdateOperationsInput | string | null
     category?: NullableStringFieldUpdateOperationsInput | string | null
     factory?: NullableStringFieldUpdateOperationsInput | string | null
     vendorItemCode?: NullableStringFieldUpdateOperationsInput | string | null
     qty?: FloatFieldUpdateOperationsInput | number
+    freeQty?: FloatFieldUpdateOperationsInput | number
     rate?: FloatFieldUpdateOperationsInput | number
+    mrp?: FloatFieldUpdateOperationsInput | number
+    sellingPrice?: FloatFieldUpdateOperationsInput | number
     taxPercent?: FloatFieldUpdateOperationsInput | number
     discPercent?: FloatFieldUpdateOperationsInput | number
+    discount?: FloatFieldUpdateOperationsInput | number
     total?: FloatFieldUpdateOperationsInput | number
     purchaseBill?: PurchaseBillUpdateOneRequiredWithoutItemsNestedInput
     product?: ProductUpdateOneWithoutPurchaseItemsNestedInput
@@ -23375,15 +23615,21 @@ export namespace Prisma {
     productId?: NullableStringFieldUpdateOperationsInput | string | null
     itemCode?: StringFieldUpdateOperationsInput | string
     itemName?: StringFieldUpdateOperationsInput | string
+    barcode?: NullableStringFieldUpdateOperationsInput | string | null
     size?: NullableStringFieldUpdateOperationsInput | string | null
     variety?: NullableStringFieldUpdateOperationsInput | string | null
+    color?: NullableStringFieldUpdateOperationsInput | string | null
     category?: NullableStringFieldUpdateOperationsInput | string | null
     factory?: NullableStringFieldUpdateOperationsInput | string | null
     vendorItemCode?: NullableStringFieldUpdateOperationsInput | string | null
     qty?: FloatFieldUpdateOperationsInput | number
+    freeQty?: FloatFieldUpdateOperationsInput | number
     rate?: FloatFieldUpdateOperationsInput | number
+    mrp?: FloatFieldUpdateOperationsInput | number
+    sellingPrice?: FloatFieldUpdateOperationsInput | number
     taxPercent?: FloatFieldUpdateOperationsInput | number
     discPercent?: FloatFieldUpdateOperationsInput | number
+    discount?: FloatFieldUpdateOperationsInput | number
     total?: FloatFieldUpdateOperationsInput | number
   }
 
@@ -23393,30 +23639,42 @@ export namespace Prisma {
     productId?: string | null
     itemCode: string
     itemName: string
+    barcode?: string | null
     size?: string | null
     variety?: string | null
+    color?: string | null
     category?: string | null
     factory?: string | null
     vendorItemCode?: string | null
     qty: number
+    freeQty?: number
     rate: number
+    mrp?: number
+    sellingPrice?: number
     taxPercent: number
     discPercent?: number
+    discount?: number
     total: number
   }
 
   export type PurchaseItemUpdateManyMutationInput = {
     itemCode?: StringFieldUpdateOperationsInput | string
     itemName?: StringFieldUpdateOperationsInput | string
+    barcode?: NullableStringFieldUpdateOperationsInput | string | null
     size?: NullableStringFieldUpdateOperationsInput | string | null
     variety?: NullableStringFieldUpdateOperationsInput | string | null
+    color?: NullableStringFieldUpdateOperationsInput | string | null
     category?: NullableStringFieldUpdateOperationsInput | string | null
     factory?: NullableStringFieldUpdateOperationsInput | string | null
     vendorItemCode?: NullableStringFieldUpdateOperationsInput | string | null
     qty?: FloatFieldUpdateOperationsInput | number
+    freeQty?: FloatFieldUpdateOperationsInput | number
     rate?: FloatFieldUpdateOperationsInput | number
+    mrp?: FloatFieldUpdateOperationsInput | number
+    sellingPrice?: FloatFieldUpdateOperationsInput | number
     taxPercent?: FloatFieldUpdateOperationsInput | number
     discPercent?: FloatFieldUpdateOperationsInput | number
+    discount?: FloatFieldUpdateOperationsInput | number
     total?: FloatFieldUpdateOperationsInput | number
   }
 
@@ -23425,15 +23683,21 @@ export namespace Prisma {
     productId?: NullableStringFieldUpdateOperationsInput | string | null
     itemCode?: StringFieldUpdateOperationsInput | string
     itemName?: StringFieldUpdateOperationsInput | string
+    barcode?: NullableStringFieldUpdateOperationsInput | string | null
     size?: NullableStringFieldUpdateOperationsInput | string | null
     variety?: NullableStringFieldUpdateOperationsInput | string | null
+    color?: NullableStringFieldUpdateOperationsInput | string | null
     category?: NullableStringFieldUpdateOperationsInput | string | null
     factory?: NullableStringFieldUpdateOperationsInput | string | null
     vendorItemCode?: NullableStringFieldUpdateOperationsInput | string | null
     qty?: FloatFieldUpdateOperationsInput | number
+    freeQty?: FloatFieldUpdateOperationsInput | number
     rate?: FloatFieldUpdateOperationsInput | number
+    mrp?: FloatFieldUpdateOperationsInput | number
+    sellingPrice?: FloatFieldUpdateOperationsInput | number
     taxPercent?: FloatFieldUpdateOperationsInput | number
     discPercent?: FloatFieldUpdateOperationsInput | number
+    discount?: FloatFieldUpdateOperationsInput | number
     total?: FloatFieldUpdateOperationsInput | number
   }
 
@@ -24937,18 +25201,34 @@ export namespace Prisma {
     subtotal?: SortOrder
   }
 
+  export type DateTimeNullableFilter<$PrismaModel = never> = {
+    equals?: Date | string | DateTimeFieldRefInput<$PrismaModel> | null
+    in?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel> | null
+    notIn?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel> | null
+    lt?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    lte?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    gt?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    gte?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    not?: NestedDateTimeNullableFilter<$PrismaModel> | Date | string | null
+    isSet?: boolean
+  }
+
   export type PurchaseBillCountOrderByAggregateInput = {
     id?: SortOrder
     voucherNo?: SortOrder
     date?: SortOrder
     supplierInvoiceNo?: SortOrder
+    supplierInvoiceDate?: SortOrder
     supplierName?: SortOrder
     supplierGstin?: SortOrder
+    vendorId?: SortOrder
     taxableAmt?: SortOrder
     cgst?: SortOrder
     sgst?: SortOrder
     igst?: SortOrder
     otherCharges?: SortOrder
+    discount?: SortOrder
+    roundOff?: SortOrder
     netPayable?: SortOrder
     status?: SortOrder
     type?: SortOrder
@@ -24963,6 +25243,8 @@ export namespace Prisma {
     sgst?: SortOrder
     igst?: SortOrder
     otherCharges?: SortOrder
+    discount?: SortOrder
+    roundOff?: SortOrder
     netPayable?: SortOrder
   }
 
@@ -24971,13 +25253,17 @@ export namespace Prisma {
     voucherNo?: SortOrder
     date?: SortOrder
     supplierInvoiceNo?: SortOrder
+    supplierInvoiceDate?: SortOrder
     supplierName?: SortOrder
     supplierGstin?: SortOrder
+    vendorId?: SortOrder
     taxableAmt?: SortOrder
     cgst?: SortOrder
     sgst?: SortOrder
     igst?: SortOrder
     otherCharges?: SortOrder
+    discount?: SortOrder
+    roundOff?: SortOrder
     netPayable?: SortOrder
     status?: SortOrder
     type?: SortOrder
@@ -24991,13 +25277,17 @@ export namespace Prisma {
     voucherNo?: SortOrder
     date?: SortOrder
     supplierInvoiceNo?: SortOrder
+    supplierInvoiceDate?: SortOrder
     supplierName?: SortOrder
     supplierGstin?: SortOrder
+    vendorId?: SortOrder
     taxableAmt?: SortOrder
     cgst?: SortOrder
     sgst?: SortOrder
     igst?: SortOrder
     otherCharges?: SortOrder
+    discount?: SortOrder
+    roundOff?: SortOrder
     netPayable?: SortOrder
     status?: SortOrder
     type?: SortOrder
@@ -25012,7 +25302,24 @@ export namespace Prisma {
     sgst?: SortOrder
     igst?: SortOrder
     otherCharges?: SortOrder
+    discount?: SortOrder
+    roundOff?: SortOrder
     netPayable?: SortOrder
+  }
+
+  export type DateTimeNullableWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: Date | string | DateTimeFieldRefInput<$PrismaModel> | null
+    in?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel> | null
+    notIn?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel> | null
+    lt?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    lte?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    gt?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    gte?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    not?: NestedDateTimeNullableWithAggregatesFilter<$PrismaModel> | Date | string | null
+    _count?: NestedIntNullableFilter<$PrismaModel>
+    _min?: NestedDateTimeNullableFilter<$PrismaModel>
+    _max?: NestedDateTimeNullableFilter<$PrismaModel>
+    isSet?: boolean
   }
 
   export type PurchaseBillRelationFilter = {
@@ -25026,23 +25333,33 @@ export namespace Prisma {
     productId?: SortOrder
     itemCode?: SortOrder
     itemName?: SortOrder
+    barcode?: SortOrder
     size?: SortOrder
     variety?: SortOrder
+    color?: SortOrder
     category?: SortOrder
     factory?: SortOrder
     vendorItemCode?: SortOrder
     qty?: SortOrder
+    freeQty?: SortOrder
     rate?: SortOrder
+    mrp?: SortOrder
+    sellingPrice?: SortOrder
     taxPercent?: SortOrder
     discPercent?: SortOrder
+    discount?: SortOrder
     total?: SortOrder
   }
 
   export type PurchaseItemAvgOrderByAggregateInput = {
     qty?: SortOrder
+    freeQty?: SortOrder
     rate?: SortOrder
+    mrp?: SortOrder
+    sellingPrice?: SortOrder
     taxPercent?: SortOrder
     discPercent?: SortOrder
+    discount?: SortOrder
     total?: SortOrder
   }
 
@@ -25052,15 +25369,21 @@ export namespace Prisma {
     productId?: SortOrder
     itemCode?: SortOrder
     itemName?: SortOrder
+    barcode?: SortOrder
     size?: SortOrder
     variety?: SortOrder
+    color?: SortOrder
     category?: SortOrder
     factory?: SortOrder
     vendorItemCode?: SortOrder
     qty?: SortOrder
+    freeQty?: SortOrder
     rate?: SortOrder
+    mrp?: SortOrder
+    sellingPrice?: SortOrder
     taxPercent?: SortOrder
     discPercent?: SortOrder
+    discount?: SortOrder
     total?: SortOrder
   }
 
@@ -25070,36 +25393,34 @@ export namespace Prisma {
     productId?: SortOrder
     itemCode?: SortOrder
     itemName?: SortOrder
+    barcode?: SortOrder
     size?: SortOrder
     variety?: SortOrder
+    color?: SortOrder
     category?: SortOrder
     factory?: SortOrder
     vendorItemCode?: SortOrder
     qty?: SortOrder
+    freeQty?: SortOrder
     rate?: SortOrder
+    mrp?: SortOrder
+    sellingPrice?: SortOrder
     taxPercent?: SortOrder
     discPercent?: SortOrder
+    discount?: SortOrder
     total?: SortOrder
   }
 
   export type PurchaseItemSumOrderByAggregateInput = {
     qty?: SortOrder
+    freeQty?: SortOrder
     rate?: SortOrder
+    mrp?: SortOrder
+    sellingPrice?: SortOrder
     taxPercent?: SortOrder
     discPercent?: SortOrder
+    discount?: SortOrder
     total?: SortOrder
-  }
-
-  export type DateTimeNullableFilter<$PrismaModel = never> = {
-    equals?: Date | string | DateTimeFieldRefInput<$PrismaModel> | null
-    in?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel> | null
-    notIn?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel> | null
-    lt?: Date | string | DateTimeFieldRefInput<$PrismaModel>
-    lte?: Date | string | DateTimeFieldRefInput<$PrismaModel>
-    gt?: Date | string | DateTimeFieldRefInput<$PrismaModel>
-    gte?: Date | string | DateTimeFieldRefInput<$PrismaModel>
-    not?: NestedDateTimeNullableFilter<$PrismaModel> | Date | string | null
-    isSet?: boolean
   }
 
   export type SalesOrderCountOrderByAggregateInput = {
@@ -25206,21 +25527,6 @@ export namespace Prisma {
     grandTotal?: SortOrder
     advancePaid?: SortOrder
     balanceAmount?: SortOrder
-  }
-
-  export type DateTimeNullableWithAggregatesFilter<$PrismaModel = never> = {
-    equals?: Date | string | DateTimeFieldRefInput<$PrismaModel> | null
-    in?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel> | null
-    notIn?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel> | null
-    lt?: Date | string | DateTimeFieldRefInput<$PrismaModel>
-    lte?: Date | string | DateTimeFieldRefInput<$PrismaModel>
-    gt?: Date | string | DateTimeFieldRefInput<$PrismaModel>
-    gte?: Date | string | DateTimeFieldRefInput<$PrismaModel>
-    not?: NestedDateTimeNullableWithAggregatesFilter<$PrismaModel> | Date | string | null
-    _count?: NestedIntNullableFilter<$PrismaModel>
-    _min?: NestedDateTimeNullableFilter<$PrismaModel>
-    _max?: NestedDateTimeNullableFilter<$PrismaModel>
-    isSet?: boolean
   }
 
   export type SalesOrderRelationFilter = {
@@ -26126,6 +26432,11 @@ export namespace Prisma {
     connect?: PurchaseItemWhereUniqueInput | PurchaseItemWhereUniqueInput[]
   }
 
+  export type NullableDateTimeFieldUpdateOperationsInput = {
+    set?: Date | string | null
+    unset?: boolean
+  }
+
   export type PurchaseItemUpdateManyWithoutPurchaseBillNestedInput = {
     create?: XOR<PurchaseItemCreateWithoutPurchaseBillInput, PurchaseItemUncheckedCreateWithoutPurchaseBillInput> | PurchaseItemCreateWithoutPurchaseBillInput[] | PurchaseItemUncheckedCreateWithoutPurchaseBillInput[]
     connectOrCreate?: PurchaseItemCreateOrConnectWithoutPurchaseBillInput | PurchaseItemCreateOrConnectWithoutPurchaseBillInput[]
@@ -26196,11 +26507,6 @@ export namespace Prisma {
     connectOrCreate?: SalesOrderItemCreateOrConnectWithoutSalesOrderInput | SalesOrderItemCreateOrConnectWithoutSalesOrderInput[]
     createMany?: SalesOrderItemCreateManySalesOrderInputEnvelope
     connect?: SalesOrderItemWhereUniqueInput | SalesOrderItemWhereUniqueInput[]
-  }
-
-  export type NullableDateTimeFieldUpdateOperationsInput = {
-    set?: Date | string | null
-    unset?: boolean
   }
 
   export type SalesOrderItemUpdateManyWithoutSalesOrderNestedInput = {
@@ -26953,15 +27259,21 @@ export namespace Prisma {
     id?: string
     itemCode: string
     itemName: string
+    barcode?: string | null
     size?: string | null
     variety?: string | null
+    color?: string | null
     category?: string | null
     factory?: string | null
     vendorItemCode?: string | null
     qty: number
+    freeQty?: number
     rate: number
+    mrp?: number
+    sellingPrice?: number
     taxPercent: number
     discPercent?: number
+    discount?: number
     total: number
     purchaseBill: PurchaseBillCreateNestedOneWithoutItemsInput
   }
@@ -26971,15 +27283,21 @@ export namespace Prisma {
     purchaseBillId: string
     itemCode: string
     itemName: string
+    barcode?: string | null
     size?: string | null
     variety?: string | null
+    color?: string | null
     category?: string | null
     factory?: string | null
     vendorItemCode?: string | null
     qty: number
+    freeQty?: number
     rate: number
+    mrp?: number
+    sellingPrice?: number
     taxPercent: number
     discPercent?: number
+    discount?: number
     total: number
   }
 
@@ -27191,15 +27509,21 @@ export namespace Prisma {
     productId?: StringNullableFilter<"PurchaseItem"> | string | null
     itemCode?: StringFilter<"PurchaseItem"> | string
     itemName?: StringFilter<"PurchaseItem"> | string
+    barcode?: StringNullableFilter<"PurchaseItem"> | string | null
     size?: StringNullableFilter<"PurchaseItem"> | string | null
     variety?: StringNullableFilter<"PurchaseItem"> | string | null
+    color?: StringNullableFilter<"PurchaseItem"> | string | null
     category?: StringNullableFilter<"PurchaseItem"> | string | null
     factory?: StringNullableFilter<"PurchaseItem"> | string | null
     vendorItemCode?: StringNullableFilter<"PurchaseItem"> | string | null
     qty?: FloatFilter<"PurchaseItem"> | number
+    freeQty?: FloatFilter<"PurchaseItem"> | number
     rate?: FloatFilter<"PurchaseItem"> | number
+    mrp?: FloatFilter<"PurchaseItem"> | number
+    sellingPrice?: FloatFilter<"PurchaseItem"> | number
     taxPercent?: FloatFilter<"PurchaseItem"> | number
     discPercent?: FloatFilter<"PurchaseItem"> | number
+    discount?: FloatFilter<"PurchaseItem"> | number
     total?: FloatFilter<"PurchaseItem"> | number
   }
 
@@ -27928,15 +28252,21 @@ export namespace Prisma {
     id?: string
     itemCode: string
     itemName: string
+    barcode?: string | null
     size?: string | null
     variety?: string | null
+    color?: string | null
     category?: string | null
     factory?: string | null
     vendorItemCode?: string | null
     qty: number
+    freeQty?: number
     rate: number
+    mrp?: number
+    sellingPrice?: number
     taxPercent: number
     discPercent?: number
+    discount?: number
     total: number
     product?: ProductCreateNestedOneWithoutPurchaseItemsInput
   }
@@ -27946,15 +28276,21 @@ export namespace Prisma {
     productId?: string | null
     itemCode: string
     itemName: string
+    barcode?: string | null
     size?: string | null
     variety?: string | null
+    color?: string | null
     category?: string | null
     factory?: string | null
     vendorItemCode?: string | null
     qty: number
+    freeQty?: number
     rate: number
+    mrp?: number
+    sellingPrice?: number
     taxPercent: number
     discPercent?: number
+    discount?: number
     total: number
   }
 
@@ -27988,13 +28324,17 @@ export namespace Prisma {
     voucherNo: string
     date?: Date | string
     supplierInvoiceNo?: string | null
+    supplierInvoiceDate?: Date | string | null
     supplierName: string
     supplierGstin?: string | null
+    vendorId?: string | null
     taxableAmt: number
     cgst: number
     sgst: number
     igst: number
     otherCharges: number
+    discount?: number
+    roundOff?: number
     netPayable: number
     status?: string
     type?: string
@@ -28008,13 +28348,17 @@ export namespace Prisma {
     voucherNo: string
     date?: Date | string
     supplierInvoiceNo?: string | null
+    supplierInvoiceDate?: Date | string | null
     supplierName: string
     supplierGstin?: string | null
+    vendorId?: string | null
     taxableAmt: number
     cgst: number
     sgst: number
     igst: number
     otherCharges: number
+    discount?: number
+    roundOff?: number
     netPayable: number
     status?: string
     type?: string
@@ -28100,13 +28444,17 @@ export namespace Prisma {
     voucherNo?: StringFieldUpdateOperationsInput | string
     date?: DateTimeFieldUpdateOperationsInput | Date | string
     supplierInvoiceNo?: NullableStringFieldUpdateOperationsInput | string | null
+    supplierInvoiceDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     supplierName?: StringFieldUpdateOperationsInput | string
     supplierGstin?: NullableStringFieldUpdateOperationsInput | string | null
+    vendorId?: NullableStringFieldUpdateOperationsInput | string | null
     taxableAmt?: FloatFieldUpdateOperationsInput | number
     cgst?: FloatFieldUpdateOperationsInput | number
     sgst?: FloatFieldUpdateOperationsInput | number
     igst?: FloatFieldUpdateOperationsInput | number
     otherCharges?: FloatFieldUpdateOperationsInput | number
+    discount?: FloatFieldUpdateOperationsInput | number
+    roundOff?: FloatFieldUpdateOperationsInput | number
     netPayable?: FloatFieldUpdateOperationsInput | number
     status?: StringFieldUpdateOperationsInput | string
     type?: StringFieldUpdateOperationsInput | string
@@ -28119,13 +28467,17 @@ export namespace Prisma {
     voucherNo?: StringFieldUpdateOperationsInput | string
     date?: DateTimeFieldUpdateOperationsInput | Date | string
     supplierInvoiceNo?: NullableStringFieldUpdateOperationsInput | string | null
+    supplierInvoiceDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     supplierName?: StringFieldUpdateOperationsInput | string
     supplierGstin?: NullableStringFieldUpdateOperationsInput | string | null
+    vendorId?: NullableStringFieldUpdateOperationsInput | string | null
     taxableAmt?: FloatFieldUpdateOperationsInput | number
     cgst?: FloatFieldUpdateOperationsInput | number
     sgst?: FloatFieldUpdateOperationsInput | number
     igst?: FloatFieldUpdateOperationsInput | number
     otherCharges?: FloatFieldUpdateOperationsInput | number
+    discount?: FloatFieldUpdateOperationsInput | number
+    roundOff?: FloatFieldUpdateOperationsInput | number
     netPayable?: FloatFieldUpdateOperationsInput | number
     status?: StringFieldUpdateOperationsInput | string
     type?: StringFieldUpdateOperationsInput | string
@@ -29184,15 +29536,21 @@ export namespace Prisma {
     purchaseBillId: string
     itemCode: string
     itemName: string
+    barcode?: string | null
     size?: string | null
     variety?: string | null
+    color?: string | null
     category?: string | null
     factory?: string | null
     vendorItemCode?: string | null
     qty: number
+    freeQty?: number
     rate: number
+    mrp?: number
+    sellingPrice?: number
     taxPercent: number
     discPercent?: number
+    discount?: number
     total: number
   }
 
@@ -29307,15 +29665,21 @@ export namespace Prisma {
   export type PurchaseItemUpdateWithoutProductInput = {
     itemCode?: StringFieldUpdateOperationsInput | string
     itemName?: StringFieldUpdateOperationsInput | string
+    barcode?: NullableStringFieldUpdateOperationsInput | string | null
     size?: NullableStringFieldUpdateOperationsInput | string | null
     variety?: NullableStringFieldUpdateOperationsInput | string | null
+    color?: NullableStringFieldUpdateOperationsInput | string | null
     category?: NullableStringFieldUpdateOperationsInput | string | null
     factory?: NullableStringFieldUpdateOperationsInput | string | null
     vendorItemCode?: NullableStringFieldUpdateOperationsInput | string | null
     qty?: FloatFieldUpdateOperationsInput | number
+    freeQty?: FloatFieldUpdateOperationsInput | number
     rate?: FloatFieldUpdateOperationsInput | number
+    mrp?: FloatFieldUpdateOperationsInput | number
+    sellingPrice?: FloatFieldUpdateOperationsInput | number
     taxPercent?: FloatFieldUpdateOperationsInput | number
     discPercent?: FloatFieldUpdateOperationsInput | number
+    discount?: FloatFieldUpdateOperationsInput | number
     total?: FloatFieldUpdateOperationsInput | number
     purchaseBill?: PurchaseBillUpdateOneRequiredWithoutItemsNestedInput
   }
@@ -29324,15 +29688,21 @@ export namespace Prisma {
     purchaseBillId?: StringFieldUpdateOperationsInput | string
     itemCode?: StringFieldUpdateOperationsInput | string
     itemName?: StringFieldUpdateOperationsInput | string
+    barcode?: NullableStringFieldUpdateOperationsInput | string | null
     size?: NullableStringFieldUpdateOperationsInput | string | null
     variety?: NullableStringFieldUpdateOperationsInput | string | null
+    color?: NullableStringFieldUpdateOperationsInput | string | null
     category?: NullableStringFieldUpdateOperationsInput | string | null
     factory?: NullableStringFieldUpdateOperationsInput | string | null
     vendorItemCode?: NullableStringFieldUpdateOperationsInput | string | null
     qty?: FloatFieldUpdateOperationsInput | number
+    freeQty?: FloatFieldUpdateOperationsInput | number
     rate?: FloatFieldUpdateOperationsInput | number
+    mrp?: FloatFieldUpdateOperationsInput | number
+    sellingPrice?: FloatFieldUpdateOperationsInput | number
     taxPercent?: FloatFieldUpdateOperationsInput | number
     discPercent?: FloatFieldUpdateOperationsInput | number
+    discount?: FloatFieldUpdateOperationsInput | number
     total?: FloatFieldUpdateOperationsInput | number
   }
 
@@ -29340,15 +29710,21 @@ export namespace Prisma {
     purchaseBillId?: StringFieldUpdateOperationsInput | string
     itemCode?: StringFieldUpdateOperationsInput | string
     itemName?: StringFieldUpdateOperationsInput | string
+    barcode?: NullableStringFieldUpdateOperationsInput | string | null
     size?: NullableStringFieldUpdateOperationsInput | string | null
     variety?: NullableStringFieldUpdateOperationsInput | string | null
+    color?: NullableStringFieldUpdateOperationsInput | string | null
     category?: NullableStringFieldUpdateOperationsInput | string | null
     factory?: NullableStringFieldUpdateOperationsInput | string | null
     vendorItemCode?: NullableStringFieldUpdateOperationsInput | string | null
     qty?: FloatFieldUpdateOperationsInput | number
+    freeQty?: FloatFieldUpdateOperationsInput | number
     rate?: FloatFieldUpdateOperationsInput | number
+    mrp?: FloatFieldUpdateOperationsInput | number
+    sellingPrice?: FloatFieldUpdateOperationsInput | number
     taxPercent?: FloatFieldUpdateOperationsInput | number
     discPercent?: FloatFieldUpdateOperationsInput | number
+    discount?: FloatFieldUpdateOperationsInput | number
     total?: FloatFieldUpdateOperationsInput | number
   }
 
@@ -29552,30 +29928,42 @@ export namespace Prisma {
     productId?: string | null
     itemCode: string
     itemName: string
+    barcode?: string | null
     size?: string | null
     variety?: string | null
+    color?: string | null
     category?: string | null
     factory?: string | null
     vendorItemCode?: string | null
     qty: number
+    freeQty?: number
     rate: number
+    mrp?: number
+    sellingPrice?: number
     taxPercent: number
     discPercent?: number
+    discount?: number
     total: number
   }
 
   export type PurchaseItemUpdateWithoutPurchaseBillInput = {
     itemCode?: StringFieldUpdateOperationsInput | string
     itemName?: StringFieldUpdateOperationsInput | string
+    barcode?: NullableStringFieldUpdateOperationsInput | string | null
     size?: NullableStringFieldUpdateOperationsInput | string | null
     variety?: NullableStringFieldUpdateOperationsInput | string | null
+    color?: NullableStringFieldUpdateOperationsInput | string | null
     category?: NullableStringFieldUpdateOperationsInput | string | null
     factory?: NullableStringFieldUpdateOperationsInput | string | null
     vendorItemCode?: NullableStringFieldUpdateOperationsInput | string | null
     qty?: FloatFieldUpdateOperationsInput | number
+    freeQty?: FloatFieldUpdateOperationsInput | number
     rate?: FloatFieldUpdateOperationsInput | number
+    mrp?: FloatFieldUpdateOperationsInput | number
+    sellingPrice?: FloatFieldUpdateOperationsInput | number
     taxPercent?: FloatFieldUpdateOperationsInput | number
     discPercent?: FloatFieldUpdateOperationsInput | number
+    discount?: FloatFieldUpdateOperationsInput | number
     total?: FloatFieldUpdateOperationsInput | number
     product?: ProductUpdateOneWithoutPurchaseItemsNestedInput
   }
@@ -29584,15 +29972,21 @@ export namespace Prisma {
     productId?: NullableStringFieldUpdateOperationsInput | string | null
     itemCode?: StringFieldUpdateOperationsInput | string
     itemName?: StringFieldUpdateOperationsInput | string
+    barcode?: NullableStringFieldUpdateOperationsInput | string | null
     size?: NullableStringFieldUpdateOperationsInput | string | null
     variety?: NullableStringFieldUpdateOperationsInput | string | null
+    color?: NullableStringFieldUpdateOperationsInput | string | null
     category?: NullableStringFieldUpdateOperationsInput | string | null
     factory?: NullableStringFieldUpdateOperationsInput | string | null
     vendorItemCode?: NullableStringFieldUpdateOperationsInput | string | null
     qty?: FloatFieldUpdateOperationsInput | number
+    freeQty?: FloatFieldUpdateOperationsInput | number
     rate?: FloatFieldUpdateOperationsInput | number
+    mrp?: FloatFieldUpdateOperationsInput | number
+    sellingPrice?: FloatFieldUpdateOperationsInput | number
     taxPercent?: FloatFieldUpdateOperationsInput | number
     discPercent?: FloatFieldUpdateOperationsInput | number
+    discount?: FloatFieldUpdateOperationsInput | number
     total?: FloatFieldUpdateOperationsInput | number
   }
 
@@ -29600,15 +29994,21 @@ export namespace Prisma {
     productId?: NullableStringFieldUpdateOperationsInput | string | null
     itemCode?: StringFieldUpdateOperationsInput | string
     itemName?: StringFieldUpdateOperationsInput | string
+    barcode?: NullableStringFieldUpdateOperationsInput | string | null
     size?: NullableStringFieldUpdateOperationsInput | string | null
     variety?: NullableStringFieldUpdateOperationsInput | string | null
+    color?: NullableStringFieldUpdateOperationsInput | string | null
     category?: NullableStringFieldUpdateOperationsInput | string | null
     factory?: NullableStringFieldUpdateOperationsInput | string | null
     vendorItemCode?: NullableStringFieldUpdateOperationsInput | string | null
     qty?: FloatFieldUpdateOperationsInput | number
+    freeQty?: FloatFieldUpdateOperationsInput | number
     rate?: FloatFieldUpdateOperationsInput | number
+    mrp?: FloatFieldUpdateOperationsInput | number
+    sellingPrice?: FloatFieldUpdateOperationsInput | number
     taxPercent?: FloatFieldUpdateOperationsInput | number
     discPercent?: FloatFieldUpdateOperationsInput | number
+    discount?: FloatFieldUpdateOperationsInput | number
     total?: FloatFieldUpdateOperationsInput | number
   }
 
