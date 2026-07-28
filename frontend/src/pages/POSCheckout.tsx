@@ -6,6 +6,7 @@ import { printReceipt } from '../utils/printReceipt';
 import { downloadPdfBill } from '../utils/downloadPdfBill';
 import { sendWhatsAppBill } from '../utils/whatsappHelper';
 import Api from '../Api';
+import { BillingTabBar, type TabSummary } from '../components/BillingTabBar';
 
 // Types for our grid
 interface GridRow {
@@ -60,6 +61,16 @@ const POSCheckout = () => {
   const [shippingAddress, setShippingAddress] = useState('');
   const [remarks, setRemarks] = useState('');
 
+  // --- Totals State ---
+  const [totalQty, setTotalQty] = useState(0);
+  const [totalAmount, setTotalAmount] = useState(0);
+  const [cgstPercent, setCgstPercent] = useState(0);
+  const [sgstPercent, setSgstPercent] = useState(0);
+  const [cgst, setCgst] = useState(0);
+  const [sgst, setSgst] = useState(0);
+  const [roundOff, setRoundOff] = useState(0);
+  const [netAmount, setNetAmount] = useState(0);
+  const [tendered, setTendered] = useState(0);
 
   const { shopName } = useLicense();
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
@@ -152,16 +163,272 @@ const POSCheckout = () => {
     }
   }, [initialGridData]);
 
-  // --- Totals State ---
-  const [totalQty, setTotalQty] = useState(0);
-  const [totalAmount, setTotalAmount] = useState(0);
-  const [cgstPercent, setCgstPercent] = useState(0);
-  const [sgstPercent, setSgstPercent] = useState(0);
-  const [cgst, setCgst] = useState(0);
-  const [sgst, setSgst] = useState(0);
-  const [roundOff, setRoundOff] = useState(0);
-  const [netAmount, setNetAmount] = useState(0);
-  const [tendered, setTendered] = useState(0);
+  // --- Multi-Bill / Hold Billing System State ---
+  interface BillTab {
+    id: string;
+    tabTitle: string;
+    invoiceNo: string;
+    invDate: string;
+    payDays: number;
+    buyerName: string;
+    salesman: string;
+    paymentMode: string;
+    address: string;
+    eType: string;
+    mobileNo: string;
+    gstNo: string;
+    shippingAddress: string;
+    remarks: string;
+    favourDiscount: number;
+    tendered: number;
+    gridData: GridRow[];
+    editingBillId: string | null;
+    fromSalesOrderId: string | null;
+  }
+
+  const [tabs, setTabs] = useState<BillTab[]>(() => {
+    return [{
+      id: 'tab-1',
+      tabTitle: 'Bill #001',
+      invoiceNo: 'Loading...',
+      invDate: new Date().toISOString().split('T')[0],
+      payDays: 0,
+      buyerName: incomingPayload?.buyerName || orderToConvert?.buyerName || '',
+      salesman: '',
+      paymentMode: 'Cash',
+      address: orderToConvert?.address || '',
+      eType: 'Local',
+      mobileNo: orderToConvert?.mobileNo || '',
+      gstNo: '',
+      shippingAddress: '',
+      remarks: '',
+      favourDiscount: 0,
+      tendered: 0,
+      gridData: initialGridData,
+      editingBillId: null,
+      fromSalesOrderId: null
+    }];
+  });
+
+  const [activeTabId, setActiveTabId] = useState<string>('tab-1');
+
+  // Compute tab summaries for BillingTabBar
+  const tabSummaries: TabSummary[] = useMemo(() => {
+    return tabs.map(t => {
+      const isAct = t.id === activeTabId;
+      const curGrid = isAct ? gridData : t.gridData;
+      const validItems = curGrid.filter(row => row.itemName && row.qty > 0);
+      const curBuyer = isAct ? buyerName : t.buyerName;
+
+      return {
+        id: t.id,
+        title: t.tabTitle,
+        invoiceNo: isAct ? invoiceNo : t.invoiceNo,
+        itemCount: validItems.length,
+        totalAmount: isAct ? netAmount : validItems.reduce((acc, row) => acc + (row.amount || 0), 0),
+        buyerName: curBuyer
+      };
+    });
+  }, [tabs, activeTabId, gridData, buyerName, invoiceNo, netAmount]);
+
+  const handleSelectTab = (targetTabId: string) => {
+    if (targetTabId === activeTabId) return;
+
+    setTabs(prevTabs =>
+      prevTabs.map(t => {
+        if (t.id === activeTabId) {
+          return {
+            ...t,
+            invoiceNo,
+            invDate,
+            payDays,
+            buyerName,
+            salesman,
+            paymentMode,
+            address,
+            eType,
+            mobileNo,
+            gstNo,
+            shippingAddress,
+            remarks,
+            favourDiscount,
+            tendered,
+            gridData,
+            editingBillId,
+            fromSalesOrderId
+          };
+        }
+        return t;
+      })
+    );
+
+    const targetTab = tabs.find(t => t.id === targetTabId);
+    if (targetTab) {
+      setInvoiceNo(targetTab.invoiceNo);
+      setInvDate(targetTab.invDate);
+      setPayDays(targetTab.payDays);
+      setBuyerName(targetTab.buyerName);
+      setSalesman(targetTab.salesman);
+      setPaymentMode(targetTab.paymentMode);
+      setAddress(targetTab.address);
+      setEType(targetTab.eType);
+      setMobileNo(targetTab.mobileNo);
+      setGstNo(targetTab.gstNo);
+      setShippingAddress(targetTab.shippingAddress);
+      setRemarks(targetTab.remarks);
+      setFavourDiscount(targetTab.favourDiscount);
+      setTendered(targetTab.tendered);
+      setGridData(targetTab.gridData.length > 0 ? targetTab.gridData : [{ id: 1, itemName: '', itemDesc: '', qty: 0, uom: '', rate: 0, discPercent: 0, discAmt: 0, amount: 0 }]);
+      setEditingBillId(targetTab.editingBillId);
+      setFromSalesOrderId(targetTab.fromSalesOrderId);
+      setActiveTabId(targetTabId);
+    }
+  };
+
+  const handleAddTab = () => {
+    if (tabs.length >= 15) {
+      if (setGlobalNotification) {
+        setGlobalNotification({ msg: 'Maximum limit of 15 open billing tabs reached.', type: 'error' });
+      }
+      return;
+    }
+
+    const updatedTabs = tabs.map(t => {
+      if (t.id === activeTabId) {
+        return {
+          ...t,
+          invoiceNo,
+          invDate,
+          payDays,
+          buyerName,
+          salesman,
+          paymentMode,
+          address,
+          eType,
+          mobileNo,
+          gstNo,
+          shippingAddress,
+          remarks,
+          favourDiscount,
+          tendered,
+          gridData,
+          editingBillId,
+          fromSalesOrderId
+        };
+      }
+      return t;
+    });
+
+    const newTabId = `tab-${Date.now()}`;
+    const nextTabNum = tabs.length + 1;
+    const newTabTitle = `Bill #${String(nextTabNum).padStart(3, '0')}`;
+
+    const newTab: BillTab = {
+      id: newTabId,
+      tabTitle: newTabTitle,
+      invoiceNo: 'Loading...',
+      invDate: new Date().toISOString().split('T')[0],
+      payDays: 0,
+      buyerName: '',
+      salesman: '',
+      paymentMode: 'Cash',
+      address: '',
+      eType: 'Local',
+      mobileNo: '',
+      gstNo: '',
+      shippingAddress: '',
+      remarks: '',
+      favourDiscount: 0,
+      tendered: 0,
+      gridData: [{ id: Date.now(), itemName: '', itemDesc: '', qty: 0, uom: '', rate: 0, discPercent: 0, discAmt: 0, amount: 0 }],
+      editingBillId: null,
+      fromSalesOrderId: null
+    };
+
+    setTabs([...updatedTabs, newTab]);
+    setActiveTabId(newTabId);
+
+    setInvoiceNo('Loading...');
+    setInvDate(new Date().toISOString().split('T')[0]);
+    setPayDays(0);
+    setBuyerName('');
+    setSalesman('');
+    setPaymentMode('Cash');
+    setAddress('');
+    setEType('Local');
+    setMobileNo('');
+    setGstNo('');
+    setShippingAddress('');
+    setRemarks('');
+    setFavourDiscount(0);
+    setTendered(0);
+    setGridData([{ id: Date.now(), itemName: '', itemDesc: '', qty: 0, uom: '', rate: 0, discPercent: 0, discAmt: 0, amount: 0 }]);
+    setEditingBillId(null);
+    setFromSalesOrderId(null);
+
+    fetch(`${Api}/sales/next-invoice`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.invoiceNo) {
+          setInvoiceNo(data.invoiceNo);
+        }
+      })
+      .catch(err => console.error("Error fetching next invoice for new tab:", err));
+  };
+
+  const handleCloseTab = (targetTabId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (tabs.length <= 1) return;
+
+    const remainingTabs = tabs.filter(t => t.id !== targetTabId);
+    setTabs(remainingTabs);
+
+    if (targetTabId === activeTabId) {
+      const nextActive = remainingTabs[remainingTabs.length - 1];
+      if (nextActive) {
+        setActiveTabId(nextActive.id);
+        setInvoiceNo(nextActive.invoiceNo);
+        setInvDate(nextActive.invDate);
+        setPayDays(nextActive.payDays);
+        setBuyerName(nextActive.buyerName);
+        setSalesman(nextActive.salesman);
+        setPaymentMode(nextActive.paymentMode);
+        setAddress(nextActive.address);
+        setEType(nextActive.eType);
+        setMobileNo(nextActive.mobileNo);
+        setGstNo(nextActive.gstNo);
+        setShippingAddress(nextActive.shippingAddress);
+        setRemarks(nextActive.remarks);
+        setFavourDiscount(nextActive.favourDiscount);
+        setTendered(nextActive.tendered);
+        setGridData(nextActive.gridData.length > 0 ? nextActive.gridData : [{ id: 1, itemName: '', itemDesc: '', qty: 0, uom: '', rate: 0, discPercent: 0, discAmt: 0, amount: 0 }]);
+        setEditingBillId(nextActive.editingBillId);
+        setFromSalesOrderId(nextActive.fromSalesOrderId);
+      }
+    }
+  };
+
+  useEffect(() => {
+    const handleKeyNav = (e: KeyboardEvent) => {
+      if (e.altKey && e.key.toLowerCase() === 'n') {
+        e.preventDefault();
+        handleAddTab();
+      } else if (e.altKey && e.key.toLowerCase() === 'w') {
+        e.preventDefault();
+        if (activeTabId && tabs.length > 1) {
+          handleCloseTab(activeTabId, new MouseEvent('click') as any);
+        }
+      } else if (e.altKey && !isNaN(Number(e.key))) {
+        const idx = Number(e.key) - 1;
+        if (idx >= 0 && idx < tabs.length) {
+          e.preventDefault();
+          handleSelectTab(tabs[idx].id);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyNav);
+    return () => window.removeEventListener('keydown', handleKeyNav);
+  }, [tabs, activeTabId, gridData, buyerName, invoiceNo]);
 
   // --- Modal Search State ---
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
@@ -1213,6 +1480,16 @@ const POSCheckout = () => {
 
   return (
     <div className="flex flex-col h-full space-y-2">
+
+      {/* Multi-Bill / Hold Billing Tabs */}
+      <BillingTabBar
+        tabs={tabSummaries}
+        activeTabId={activeTabId}
+        onSelectTab={handleSelectTab}
+        onAddTab={handleAddTab}
+        onCloseTab={handleCloseTab}
+        maxTabs={15}
+      />
 
       {/* 1. Header & Rapid Scan */}
       <div className="bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-900 border border-blue-700 p-2.5 rounded-md shadow-md text-white flex flex-col md:flex-row items-center justify-between gap-3">
