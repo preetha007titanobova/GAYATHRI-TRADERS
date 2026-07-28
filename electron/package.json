@@ -33,6 +33,7 @@
       "main.js",
       "preload.js",
       "package.json",
+      "printer/**/*",
       "frontend/dist/**/*",
       "backend/**/*"
     ],
