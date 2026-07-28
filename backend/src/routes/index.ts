@@ -8,6 +8,7 @@ import statisticsRoutes from './statistics.route';
 import purchaseRoutes from './purchase.route';
 import staffRoutes from './staff.route';
 import shopSalesRoutes from './shopSales.route';
+import cashDrawerRoutes from './cashDrawer.route';
 
 const router = Router();
 
@@ -20,5 +21,6 @@ router.use('/statistics', statisticsRoutes);
 router.use('/purchase-bills', purchaseRoutes);
 router.use('/staff', staffRoutes);
 router.use('/shop-sales-bills', shopSalesRoutes);
+router.use('/cash-drawer', cashDrawerRoutes);
 
 export default router;

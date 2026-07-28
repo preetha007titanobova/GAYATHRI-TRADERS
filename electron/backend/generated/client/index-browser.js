@@ -406,6 +406,20 @@ exports.Prisma.ShopSalesItemScalarFieldEnum = {
   total: 'total'
 };
 
+exports.Prisma.OpeningCashScalarFieldEnum = {
+  id: 'id',
+  date: 'date',
+  dateStr: 'dateStr',
+  counter: 'counter',
+  shift: 'shift',
+  cashier: 'cashier',
+  denominations: 'denominations',
+  totalOpeningCash: 'totalOpeningCash',
+  remarks: 'remarks',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
 exports.Prisma.SortOrder = {
   asc: 'asc',
   desc: 'desc'
@@ -433,7 +447,8 @@ exports.Prisma.ModelName = {
   Staff: 'Staff',
   StaffAttendance: 'StaffAttendance',
   ShopSalesBill: 'ShopSalesBill',
-  ShopSalesItem: 'ShopSalesItem'
+  ShopSalesItem: 'ShopSalesItem',
+  OpeningCash: 'OpeningCash'
 };
 
 /**

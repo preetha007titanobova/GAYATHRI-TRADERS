@@ -333,3 +333,17 @@ model ShopSalesItem {
   discPercent     Float         @default(0)
   total           Float
 }
+
+model OpeningCash {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  date             DateTime @default(now())
+  dateStr          String   @unique // YYYY-MM-DD for fast daily check
+  counter          String   @default("Counter 1")
+  shift            String   @default("Morning")
+  cashier          String   @default("Admin")
+  denominations    Json? // Stores counts for 500, 200, 100, 50, 20, 10, 5, 2, 1
+  totalOpeningCash Float    @default(0)
+  remarks          String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}

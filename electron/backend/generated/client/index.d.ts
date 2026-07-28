@@ -93,6 +93,11 @@ export type ShopSalesBill = $Result.DefaultSelection<Prisma.$ShopSalesBillPayloa
  * 
  */
 export type ShopSalesItem = $Result.DefaultSelection<Prisma.$ShopSalesItemPayload>
+/**
+ * Model OpeningCash
+ * 
+ */
+export type OpeningCash = $Result.DefaultSelection<Prisma.$OpeningCashPayload>
 
 /**
  * ##  Prisma Client ʲˢ
@@ -343,6 +348,16 @@ export class PrismaClient<
     * ```
     */
   get shopSalesItem(): Prisma.ShopSalesItemDelegate<ExtArgs>;
+
+  /**
+   * `prisma.openingCash`: Exposes CRUD operations for the **OpeningCash** model.
+    * Example usage:
+    * ```ts
+    * // Fetch zero or more OpeningCashes
+    * const openingCashes = await prisma.openingCash.findMany()
+    * ```
+    */
+  get openingCash(): Prisma.OpeningCashDelegate<ExtArgs>;
 }
 
 export namespace Prisma {
@@ -799,7 +814,8 @@ export namespace Prisma {
     Staff: 'Staff',
     StaffAttendance: 'StaffAttendance',
     ShopSalesBill: 'ShopSalesBill',
-    ShopSalesItem: 'ShopSalesItem'
+    ShopSalesItem: 'ShopSalesItem',
+    OpeningCash: 'OpeningCash'
   };
 
   export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -815,7 +831,7 @@ export namespace Prisma {
 
   export type TypeMap<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, ClientOptions = {}> = {
     meta: {
-      modelProps: "user" | "category" | "product" | "salesBill" | "salesItem" | "ledger" | "salesReturn" | "salesReturnItem" | "purchaseBill" | "purchaseItem" | "salesOrder" | "salesOrderItem" | "staff" | "staffAttendance" | "shopSalesBill" | "shopSalesItem"
+      modelProps: "user" | "category" | "product" | "salesBill" | "salesItem" | "ledger" | "salesReturn" | "salesReturnItem" | "purchaseBill" | "purchaseItem" | "salesOrder" | "salesOrderItem" | "staff" | "staffAttendance" | "shopSalesBill" | "shopSalesItem" | "openingCash"
       txIsolationLevel: never
     }
     model: {
@@ -2000,6 +2016,80 @@ export namespace Prisma {
           count: {
             args: Prisma.ShopSalesItemCountArgs<ExtArgs>
             result: $Utils.Optional<ShopSalesItemCountAggregateOutputType> | number
+          }
+        }
+      }
+      OpeningCash: {
+        payload: Prisma.$OpeningCashPayload<ExtArgs>
+        fields: Prisma.OpeningCashFieldRefs
+        operations: {
+          findUnique: {
+            args: Prisma.OpeningCashFindUniqueArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$OpeningCashPayload> | null
+          }
+          findUniqueOrThrow: {
+            args: Prisma.OpeningCashFindUniqueOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$OpeningCashPayload>
+          }
+          findFirst: {
+            args: Prisma.OpeningCashFindFirstArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$OpeningCashPayload> | null
+          }
+          findFirstOrThrow: {
+            args: Prisma.OpeningCashFindFirstOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$OpeningCashPayload>
+          }
+          findMany: {
+            args: Prisma.OpeningCashFindManyArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$OpeningCashPayload>[]
+          }
+          create: {
+            args: Prisma.OpeningCashCreateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$OpeningCashPayload>
+          }
+          createMany: {
+            args: Prisma.OpeningCashCreateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          delete: {
+            args: Prisma.OpeningCashDeleteArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$OpeningCashPayload>
+          }
+          update: {
+            args: Prisma.OpeningCashUpdateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$OpeningCashPayload>
+          }
+          deleteMany: {
+            args: Prisma.OpeningCashDeleteManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          updateMany: {
+            args: Prisma.OpeningCashUpdateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          upsert: {
+            args: Prisma.OpeningCashUpsertArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$OpeningCashPayload>
+          }
+          aggregate: {
+            args: Prisma.OpeningCashAggregateArgs<ExtArgs>
+            result: $Utils.Optional<AggregateOpeningCash>
+          }
+          groupBy: {
+            args: Prisma.OpeningCashGroupByArgs<ExtArgs>
+            result: $Utils.Optional<OpeningCashGroupByOutputType>[]
+          }
+          findRaw: {
+            args: Prisma.OpeningCashFindRawArgs<ExtArgs>
+            result: JsonObject
+          }
+          aggregateRaw: {
+            args: Prisma.OpeningCashAggregateRawArgs<ExtArgs>
+            result: JsonObject
+          }
+          count: {
+            args: Prisma.OpeningCashCountArgs<ExtArgs>
+            result: $Utils.Optional<OpeningCashCountAggregateOutputType> | number
           }
         }
       }
@@ -20253,6 +20343,984 @@ export namespace Prisma {
 
 
   /**
+   * Model OpeningCash
+   */
+
+  export type AggregateOpeningCash = {
+    _count: OpeningCashCountAggregateOutputType | null
+    _avg: OpeningCashAvgAggregateOutputType | null
+    _sum: OpeningCashSumAggregateOutputType | null
+    _min: OpeningCashMinAggregateOutputType | null
+    _max: OpeningCashMaxAggregateOutputType | null
+  }
+
+  export type OpeningCashAvgAggregateOutputType = {
+    totalOpeningCash: number | null
+  }
+
+  export type OpeningCashSumAggregateOutputType = {
+    totalOpeningCash: number | null
+  }
+
+  export type OpeningCashMinAggregateOutputType = {
+    id: string | null
+    date: Date | null
+    dateStr: string | null
+    counter: string | null
+    shift: string | null
+    cashier: string | null
+    totalOpeningCash: number | null
+    remarks: string | null
+    createdAt: Date | null
+    updatedAt: Date | null
+  }
+
+  export type OpeningCashMaxAggregateOutputType = {
+    id: string | null
+    date: Date | null
+    dateStr: string | null
+    counter: string | null
+    shift: string | null
+    cashier: string | null
+    totalOpeningCash: number | null
+    remarks: string | null
+    createdAt: Date | null
+    updatedAt: Date | null
+  }
+
+  export type OpeningCashCountAggregateOutputType = {
+    id: number
+    date: number
+    dateStr: number
+    counter: number
+    shift: number
+    cashier: number
+    denominations: number
+    totalOpeningCash: number
+    remarks: number
+    createdAt: number
+    updatedAt: number
+    _all: number
+  }
+
+
+  export type OpeningCashAvgAggregateInputType = {
+    totalOpeningCash?: true
+  }
+
+  export type OpeningCashSumAggregateInputType = {
+    totalOpeningCash?: true
+  }
+
+  export type OpeningCashMinAggregateInputType = {
+    id?: true
+    date?: true
+    dateStr?: true
+    counter?: true
+    shift?: true
+    cashier?: true
+    totalOpeningCash?: true
+    remarks?: true
+    createdAt?: true
+    updatedAt?: true
+  }
+
+  export type OpeningCashMaxAggregateInputType = {
+    id?: true
+    date?: true
+    dateStr?: true
+    counter?: true
+    shift?: true
+    cashier?: true
+    totalOpeningCash?: true
+    remarks?: true
+    createdAt?: true
+    updatedAt?: true
+  }
+
+  export type OpeningCashCountAggregateInputType = {
+    id?: true
+    date?: true
+    dateStr?: true
+    counter?: true
+    shift?: true
+    cashier?: true
+    denominations?: true
+    totalOpeningCash?: true
+    remarks?: true
+    createdAt?: true
+    updatedAt?: true
+    _all?: true
+  }
+
+  export type OpeningCashAggregateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which OpeningCash to aggregate.
+     */
+    where?: OpeningCashWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of OpeningCashes to fetch.
+     */
+    orderBy?: OpeningCashOrderByWithRelationInput | OpeningCashOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the start position
+     */
+    cursor?: OpeningCashWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` OpeningCashes from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` OpeningCashes.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Count returned OpeningCashes
+    **/
+    _count?: true | OpeningCashCountAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to average
+    **/
+    _avg?: OpeningCashAvgAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to sum
+    **/
+    _sum?: OpeningCashSumAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the minimum value
+    **/
+    _min?: OpeningCashMinAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the maximum value
+    **/
+    _max?: OpeningCashMaxAggregateInputType
+  }
+
+  export type GetOpeningCashAggregateType<T extends OpeningCashAggregateArgs> = {
+        [P in keyof T & keyof AggregateOpeningCash]: P extends '_count' | 'count'
+      ? T[P] extends true
+        ? number
+        : GetScalarType<T[P], AggregateOpeningCash[P]>
+      : GetScalarType<T[P], AggregateOpeningCash[P]>
+  }
+
+
+
+
+  export type OpeningCashGroupByArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: OpeningCashWhereInput
+    orderBy?: OpeningCashOrderByWithAggregationInput | OpeningCashOrderByWithAggregationInput[]
+    by: OpeningCashScalarFieldEnum[] | OpeningCashScalarFieldEnum
+    having?: OpeningCashScalarWhereWithAggregatesInput
+    take?: number
+    skip?: number
+    _count?: OpeningCashCountAggregateInputType | true
+    _avg?: OpeningCashAvgAggregateInputType
+    _sum?: OpeningCashSumAggregateInputType
+    _min?: OpeningCashMinAggregateInputType
+    _max?: OpeningCashMaxAggregateInputType
+  }
+
+  export type OpeningCashGroupByOutputType = {
+    id: string
+    date: Date
+    dateStr: string
+    counter: string
+    shift: string
+    cashier: string
+    denominations: JsonValue | null
+    totalOpeningCash: number
+    remarks: string | null
+    createdAt: Date
+    updatedAt: Date
+    _count: OpeningCashCountAggregateOutputType | null
+    _avg: OpeningCashAvgAggregateOutputType | null
+    _sum: OpeningCashSumAggregateOutputType | null
+    _min: OpeningCashMinAggregateOutputType | null
+    _max: OpeningCashMaxAggregateOutputType | null
+  }
+
+  type GetOpeningCashGroupByPayload<T extends OpeningCashGroupByArgs> = Prisma.PrismaPromise<
+    Array<
+      PickEnumerable<OpeningCashGroupByOutputType, T['by']> &
+        {
+          [P in ((keyof T) & (keyof OpeningCashGroupByOutputType))]: P extends '_count'
+            ? T[P] extends boolean
+              ? number
+              : GetScalarType<T[P], OpeningCashGroupByOutputType[P]>
+            : GetScalarType<T[P], OpeningCashGroupByOutputType[P]>
+        }
+      >
+    >
+
+
+  export type OpeningCashSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    date?: boolean
+    dateStr?: boolean
+    counter?: boolean
+    shift?: boolean
+    cashier?: boolean
+    denominations?: boolean
+    totalOpeningCash?: boolean
+    remarks?: boolean
+    createdAt?: boolean
+    updatedAt?: boolean
+  }, ExtArgs["result"]["openingCash"]>
+
+
+  export type OpeningCashSelectScalar = {
+    id?: boolean
+    date?: boolean
+    dateStr?: boolean
+    counter?: boolean
+    shift?: boolean
+    cashier?: boolean
+    denominations?: boolean
+    totalOpeningCash?: boolean
+    remarks?: boolean
+    createdAt?: boolean
+    updatedAt?: boolean
+  }
+
+
+  export type $OpeningCashPayload<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    name: "OpeningCash"
+    objects: {}
+    scalars: $Extensions.GetPayloadResult<{
+      id: string
+      date: Date
+      dateStr: string
+      counter: string
+      shift: string
+      cashier: string
+      denominations: Prisma.JsonValue | null
+      totalOpeningCash: number
+      remarks: string | null
+      createdAt: Date
+      updatedAt: Date
+    }, ExtArgs["result"]["openingCash"]>
+    composites: {}
+  }
+
+  type OpeningCashGetPayload<S extends boolean | null | undefined | OpeningCashDefaultArgs> = $Result.GetResult<Prisma.$OpeningCashPayload, S>
+
+  type OpeningCashCountArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = 
+    Omit<OpeningCashFindManyArgs, 'select' | 'include' | 'distinct'> & {
+      select?: OpeningCashCountAggregateInputType | true
+    }
+
+  export interface OpeningCashDelegate<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> {
+    [K: symbol]: { types: Prisma.TypeMap<ExtArgs>['model']['OpeningCash'], meta: { name: 'OpeningCash' } }
+    /**
+     * Find zero or one OpeningCash that matches the filter.
+     * @param {OpeningCashFindUniqueArgs} args - Arguments to find a OpeningCash
+     * @example
+     * // Get one OpeningCash
+     * const openingCash = await prisma.openingCash.findUnique({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUnique<T extends OpeningCashFindUniqueArgs>(args: SelectSubset<T, OpeningCashFindUniqueArgs<ExtArgs>>): Prisma__OpeningCashClient<$Result.GetResult<Prisma.$OpeningCashPayload<ExtArgs>, T, "findUnique"> | null, null, ExtArgs>
+
+    /**
+     * Find one OpeningCash that matches the filter or throw an error with `error.code='P2025'` 
+     * if no matches were found.
+     * @param {OpeningCashFindUniqueOrThrowArgs} args - Arguments to find a OpeningCash
+     * @example
+     * // Get one OpeningCash
+     * const openingCash = await prisma.openingCash.findUniqueOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUniqueOrThrow<T extends OpeningCashFindUniqueOrThrowArgs>(args: SelectSubset<T, OpeningCashFindUniqueOrThrowArgs<ExtArgs>>): Prisma__OpeningCashClient<$Result.GetResult<Prisma.$OpeningCashPayload<ExtArgs>, T, "findUniqueOrThrow">, never, ExtArgs>
+
+    /**
+     * Find the first OpeningCash that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {OpeningCashFindFirstArgs} args - Arguments to find a OpeningCash
+     * @example
+     * // Get one OpeningCash
+     * const openingCash = await prisma.openingCash.findFirst({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirst<T extends OpeningCashFindFirstArgs>(args?: SelectSubset<T, OpeningCashFindFirstArgs<ExtArgs>>): Prisma__OpeningCashClient<$Result.GetResult<Prisma.$OpeningCashPayload<ExtArgs>, T, "findFirst"> | null, null, ExtArgs>
+
+    /**
+     * Find the first OpeningCash that matches the filter or
+     * throw `PrismaKnownClientError` with `P2025` code if no matches were found.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {OpeningCashFindFirstOrThrowArgs} args - Arguments to find a OpeningCash
+     * @example
+     * // Get one OpeningCash
+     * const openingCash = await prisma.openingCash.findFirstOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirstOrThrow<T extends OpeningCashFindFirstOrThrowArgs>(args?: SelectSubset<T, OpeningCashFindFirstOrThrowArgs<ExtArgs>>): Prisma__OpeningCashClient<$Result.GetResult<Prisma.$OpeningCashPayload<ExtArgs>, T, "findFirstOrThrow">, never, ExtArgs>
+
+    /**
+     * Find zero or more OpeningCashes that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {OpeningCashFindManyArgs} args - Arguments to filter and select certain fields only.
+     * @example
+     * // Get all OpeningCashes
+     * const openingCashes = await prisma.openingCash.findMany()
+     * 
+     * // Get first 10 OpeningCashes
+     * const openingCashes = await prisma.openingCash.findMany({ take: 10 })
+     * 
+     * // Only select the `id`
+     * const openingCashWithIdOnly = await prisma.openingCash.findMany({ select: { id: true } })
+     * 
+     */
+    findMany<T extends OpeningCashFindManyArgs>(args?: SelectSubset<T, OpeningCashFindManyArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$OpeningCashPayload<ExtArgs>, T, "findMany">>
+
+    /**
+     * Create a OpeningCash.
+     * @param {OpeningCashCreateArgs} args - Arguments to create a OpeningCash.
+     * @example
+     * // Create one OpeningCash
+     * const OpeningCash = await prisma.openingCash.create({
+     *   data: {
+     *     // ... data to create a OpeningCash
+     *   }
+     * })
+     * 
+     */
+    create<T extends OpeningCashCreateArgs>(args: SelectSubset<T, OpeningCashCreateArgs<ExtArgs>>): Prisma__OpeningCashClient<$Result.GetResult<Prisma.$OpeningCashPayload<ExtArgs>, T, "create">, never, ExtArgs>
+
+    /**
+     * Create many OpeningCashes.
+     * @param {OpeningCashCreateManyArgs} args - Arguments to create many OpeningCashes.
+     * @example
+     * // Create many OpeningCashes
+     * const openingCash = await prisma.openingCash.createMany({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     *     
+     */
+    createMany<T extends OpeningCashCreateManyArgs>(args?: SelectSubset<T, OpeningCashCreateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Delete a OpeningCash.
+     * @param {OpeningCashDeleteArgs} args - Arguments to delete one OpeningCash.
+     * @example
+     * // Delete one OpeningCash
+     * const OpeningCash = await prisma.openingCash.delete({
+     *   where: {
+     *     // ... filter to delete one OpeningCash
+     *   }
+     * })
+     * 
+     */
+    delete<T extends OpeningCashDeleteArgs>(args: SelectSubset<T, OpeningCashDeleteArgs<ExtArgs>>): Prisma__OpeningCashClient<$Result.GetResult<Prisma.$OpeningCashPayload<ExtArgs>, T, "delete">, never, ExtArgs>
+
+    /**
+     * Update one OpeningCash.
+     * @param {OpeningCashUpdateArgs} args - Arguments to update one OpeningCash.
+     * @example
+     * // Update one OpeningCash
+     * const openingCash = await prisma.openingCash.update({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    update<T extends OpeningCashUpdateArgs>(args: SelectSubset<T, OpeningCashUpdateArgs<ExtArgs>>): Prisma__OpeningCashClient<$Result.GetResult<Prisma.$OpeningCashPayload<ExtArgs>, T, "update">, never, ExtArgs>
+
+    /**
+     * Delete zero or more OpeningCashes.
+     * @param {OpeningCashDeleteManyArgs} args - Arguments to filter OpeningCashes to delete.
+     * @example
+     * // Delete a few OpeningCashes
+     * const { count } = await prisma.openingCash.deleteMany({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     * 
+     */
+    deleteMany<T extends OpeningCashDeleteManyArgs>(args?: SelectSubset<T, OpeningCashDeleteManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Update zero or more OpeningCashes.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {OpeningCashUpdateManyArgs} args - Arguments to update one or more rows.
+     * @example
+     * // Update many OpeningCashes
+     * const openingCash = await prisma.openingCash.updateMany({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    updateMany<T extends OpeningCashUpdateManyArgs>(args: SelectSubset<T, OpeningCashUpdateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Create or update one OpeningCash.
+     * @param {OpeningCashUpsertArgs} args - Arguments to update or create a OpeningCash.
+     * @example
+     * // Update or create a OpeningCash
+     * const openingCash = await prisma.openingCash.upsert({
+     *   create: {
+     *     // ... data to create a OpeningCash
+     *   },
+     *   update: {
+     *     // ... in case it already exists, update
+     *   },
+     *   where: {
+     *     // ... the filter for the OpeningCash we want to update
+     *   }
+     * })
+     */
+    upsert<T extends OpeningCashUpsertArgs>(args: SelectSubset<T, OpeningCashUpsertArgs<ExtArgs>>): Prisma__OpeningCashClient<$Result.GetResult<Prisma.$OpeningCashPayload<ExtArgs>, T, "upsert">, never, ExtArgs>
+
+    /**
+     * Find zero or more OpeningCashes that matches the filter.
+     * @param {OpeningCashFindRawArgs} args - Select which filters you would like to apply.
+     * @example
+     * const openingCash = await prisma.openingCash.findRaw({
+     *   filter: { age: { $gt: 25 } } 
+     * })
+     */
+    findRaw(args?: OpeningCashFindRawArgs): Prisma.PrismaPromise<JsonObject>
+
+    /**
+     * Perform aggregation operations on a OpeningCash.
+     * @param {OpeningCashAggregateRawArgs} args - Select which aggregations you would like to apply.
+     * @example
+     * const openingCash = await prisma.openingCash.aggregateRaw({
+     *   pipeline: [
+     *     { $match: { status: "registered" } },
+     *     { $group: { _id: "$country", total: { $sum: 1 } } }
+     *   ]
+     * })
+     */
+    aggregateRaw(args?: OpeningCashAggregateRawArgs): Prisma.PrismaPromise<JsonObject>
+
+
+    /**
+     * Count the number of OpeningCashes.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {OpeningCashCountArgs} args - Arguments to filter OpeningCashes to count.
+     * @example
+     * // Count the number of OpeningCashes
+     * const count = await prisma.openingCash.count({
+     *   where: {
+     *     // ... the filter for the OpeningCashes we want to count
+     *   }
+     * })
+    **/
+    count<T extends OpeningCashCountArgs>(
+      args?: Subset<T, OpeningCashCountArgs>,
+    ): Prisma.PrismaPromise<
+      T extends $Utils.Record<'select', any>
+        ? T['select'] extends true
+          ? number
+          : GetScalarType<T['select'], OpeningCashCountAggregateOutputType>
+        : number
+    >
+
+    /**
+     * Allows you to perform aggregations operations on a OpeningCash.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {OpeningCashAggregateArgs} args - Select which aggregations you would like to apply and on what fields.
+     * @example
+     * // Ordered by age ascending
+     * // Where email contains prisma.io
+     * // Limited to the 10 users
+     * const aggregations = await prisma.user.aggregate({
+     *   _avg: {
+     *     age: true,
+     *   },
+     *   where: {
+     *     email: {
+     *       contains: "prisma.io",
+     *     },
+     *   },
+     *   orderBy: {
+     *     age: "asc",
+     *   },
+     *   take: 10,
+     * })
+    **/
+    aggregate<T extends OpeningCashAggregateArgs>(args: Subset<T, OpeningCashAggregateArgs>): Prisma.PrismaPromise<GetOpeningCashAggregateType<T>>
+
+    /**
+     * Group by OpeningCash.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {OpeningCashGroupByArgs} args - Group by arguments.
+     * @example
+     * // Group by city, order by createdAt, get count
+     * const result = await prisma.user.groupBy({
+     *   by: ['city', 'createdAt'],
+     *   orderBy: {
+     *     createdAt: true
+     *   },
+     *   _count: {
+     *     _all: true
+     *   },
+     * })
+     * 
+    **/
+    groupBy<
+      T extends OpeningCashGroupByArgs,
+      HasSelectOrTake extends Or<
+        Extends<'skip', Keys<T>>,
+        Extends<'take', Keys<T>>
+      >,
+      OrderByArg extends True extends HasSelectOrTake
+        ? { orderBy: OpeningCashGroupByArgs['orderBy'] }
+        : { orderBy?: OpeningCashGroupByArgs['orderBy'] },
+      OrderFields extends ExcludeUnderscoreKeys<Keys<MaybeTupleToUnion<T['orderBy']>>>,
+      ByFields extends MaybeTupleToUnion<T['by']>,
+      ByValid extends Has<ByFields, OrderFields>,
+      HavingFields extends GetHavingFields<T['having']>,
+      HavingValid extends Has<ByFields, HavingFields>,
+      ByEmpty extends T['by'] extends never[] ? True : False,
+      InputErrors extends ByEmpty extends True
+      ? `Error: "by" must not be empty.`
+      : HavingValid extends False
+      ? {
+          [P in HavingFields]: P extends ByFields
+            ? never
+            : P extends string
+            ? `Error: Field "${P}" used in "having" needs to be provided in "by".`
+            : [
+                Error,
+                'Field ',
+                P,
+                ` in "having" needs to be provided in "by"`,
+              ]
+        }[HavingFields]
+      : 'take' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "take", you also need to provide "orderBy"'
+      : 'skip' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "skip", you also need to provide "orderBy"'
+      : ByValid extends True
+      ? {}
+      : {
+          [P in OrderFields]: P extends ByFields
+            ? never
+            : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+        }[OrderFields]
+    >(args: SubsetIntersection<T, OpeningCashGroupByArgs, OrderByArg> & InputErrors): {} extends InputErrors ? GetOpeningCashGroupByPayload<T> : Prisma.PrismaPromise<InputErrors>
+  /**
+   * Fields of the OpeningCash model
+   */
+  readonly fields: OpeningCashFieldRefs;
+  }
+
+  /**
+   * The delegate class that acts as a "Promise-like" for OpeningCash.
+   * Why is this prefixed with `Prisma__`?
+   * Because we want to prevent naming conflicts as mentioned in
+   * https://github.com/prisma/prisma-client-js/issues/707
+   */
+  export interface Prisma__OpeningCashClient<T, Null = never, ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> extends Prisma.PrismaPromise<T> {
+    readonly [Symbol.toStringTag]: "PrismaPromise"
+    /**
+     * Attaches callbacks for the resolution and/or rejection of the Promise.
+     * @param onfulfilled The callback to execute when the Promise is resolved.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of which ever callback is executed.
+     */
+    then<TResult1 = T, TResult2 = never>(onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | undefined | null, onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null): $Utils.JsPromise<TResult1 | TResult2>
+    /**
+     * Attaches a callback for only the rejection of the Promise.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of the callback.
+     */
+    catch<TResult = never>(onrejected?: ((reason: any) => TResult | PromiseLike<TResult>) | undefined | null): $Utils.JsPromise<T | TResult>
+    /**
+     * Attaches a callback that is invoked when the Promise is settled (fulfilled or rejected). The
+     * resolved value cannot be modified from the callback.
+     * @param onfinally The callback to execute when the Promise is settled (fulfilled or rejected).
+     * @returns A Promise for the completion of the callback.
+     */
+    finally(onfinally?: (() => void) | undefined | null): $Utils.JsPromise<T>
+  }
+
+
+
+
+  /**
+   * Fields of the OpeningCash model
+   */ 
+  interface OpeningCashFieldRefs {
+    readonly id: FieldRef<"OpeningCash", 'String'>
+    readonly date: FieldRef<"OpeningCash", 'DateTime'>
+    readonly dateStr: FieldRef<"OpeningCash", 'String'>
+    readonly counter: FieldRef<"OpeningCash", 'String'>
+    readonly shift: FieldRef<"OpeningCash", 'String'>
+    readonly cashier: FieldRef<"OpeningCash", 'String'>
+    readonly denominations: FieldRef<"OpeningCash", 'Json'>
+    readonly totalOpeningCash: FieldRef<"OpeningCash", 'Float'>
+    readonly remarks: FieldRef<"OpeningCash", 'String'>
+    readonly createdAt: FieldRef<"OpeningCash", 'DateTime'>
+    readonly updatedAt: FieldRef<"OpeningCash", 'DateTime'>
+  }
+    
+
+  // Custom InputTypes
+  /**
+   * OpeningCash findUnique
+   */
+  export type OpeningCashFindUniqueArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the OpeningCash
+     */
+    select?: OpeningCashSelect<ExtArgs> | null
+    /**
+     * Filter, which OpeningCash to fetch.
+     */
+    where: OpeningCashWhereUniqueInput
+  }
+
+  /**
+   * OpeningCash findUniqueOrThrow
+   */
+  export type OpeningCashFindUniqueOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the OpeningCash
+     */
+    select?: OpeningCashSelect<ExtArgs> | null
+    /**
+     * Filter, which OpeningCash to fetch.
+     */
+    where: OpeningCashWhereUniqueInput
+  }
+
+  /**
+   * OpeningCash findFirst
+   */
+  export type OpeningCashFindFirstArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the OpeningCash
+     */
+    select?: OpeningCashSelect<ExtArgs> | null
+    /**
+     * Filter, which OpeningCash to fetch.
+     */
+    where?: OpeningCashWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of OpeningCashes to fetch.
+     */
+    orderBy?: OpeningCashOrderByWithRelationInput | OpeningCashOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for OpeningCashes.
+     */
+    cursor?: OpeningCashWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` OpeningCashes from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` OpeningCashes.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of OpeningCashes.
+     */
+    distinct?: OpeningCashScalarFieldEnum | OpeningCashScalarFieldEnum[]
+  }
+
+  /**
+   * OpeningCash findFirstOrThrow
+   */
+  export type OpeningCashFindFirstOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the OpeningCash
+     */
+    select?: OpeningCashSelect<ExtArgs> | null
+    /**
+     * Filter, which OpeningCash to fetch.
+     */
+    where?: OpeningCashWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of OpeningCashes to fetch.
+     */
+    orderBy?: OpeningCashOrderByWithRelationInput | OpeningCashOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for OpeningCashes.
+     */
+    cursor?: OpeningCashWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` OpeningCashes from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` OpeningCashes.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of OpeningCashes.
+     */
+    distinct?: OpeningCashScalarFieldEnum | OpeningCashScalarFieldEnum[]
+  }
+
+  /**
+   * OpeningCash findMany
+   */
+  export type OpeningCashFindManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the OpeningCash
+     */
+    select?: OpeningCashSelect<ExtArgs> | null
+    /**
+     * Filter, which OpeningCashes to fetch.
+     */
+    where?: OpeningCashWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of OpeningCashes to fetch.
+     */
+    orderBy?: OpeningCashOrderByWithRelationInput | OpeningCashOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for listing OpeningCashes.
+     */
+    cursor?: OpeningCashWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` OpeningCashes from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` OpeningCashes.
+     */
+    skip?: number
+    distinct?: OpeningCashScalarFieldEnum | OpeningCashScalarFieldEnum[]
+  }
+
+  /**
+   * OpeningCash create
+   */
+  export type OpeningCashCreateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the OpeningCash
+     */
+    select?: OpeningCashSelect<ExtArgs> | null
+    /**
+     * The data needed to create a OpeningCash.
+     */
+    data: XOR<OpeningCashCreateInput, OpeningCashUncheckedCreateInput>
+  }
+
+  /**
+   * OpeningCash createMany
+   */
+  export type OpeningCashCreateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to create many OpeningCashes.
+     */
+    data: OpeningCashCreateManyInput | OpeningCashCreateManyInput[]
+  }
+
+  /**
+   * OpeningCash update
+   */
+  export type OpeningCashUpdateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the OpeningCash
+     */
+    select?: OpeningCashSelect<ExtArgs> | null
+    /**
+     * The data needed to update a OpeningCash.
+     */
+    data: XOR<OpeningCashUpdateInput, OpeningCashUncheckedUpdateInput>
+    /**
+     * Choose, which OpeningCash to update.
+     */
+    where: OpeningCashWhereUniqueInput
+  }
+
+  /**
+   * OpeningCash updateMany
+   */
+  export type OpeningCashUpdateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to update OpeningCashes.
+     */
+    data: XOR<OpeningCashUpdateManyMutationInput, OpeningCashUncheckedUpdateManyInput>
+    /**
+     * Filter which OpeningCashes to update
+     */
+    where?: OpeningCashWhereInput
+  }
+
+  /**
+   * OpeningCash upsert
+   */
+  export type OpeningCashUpsertArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the OpeningCash
+     */
+    select?: OpeningCashSelect<ExtArgs> | null
+    /**
+     * The filter to search for the OpeningCash to update in case it exists.
+     */
+    where: OpeningCashWhereUniqueInput
+    /**
+     * In case the OpeningCash found by the `where` argument doesn't exist, create a new OpeningCash with this data.
+     */
+    create: XOR<OpeningCashCreateInput, OpeningCashUncheckedCreateInput>
+    /**
+     * In case the OpeningCash was found with the provided `where` argument, update it with this data.
+     */
+    update: XOR<OpeningCashUpdateInput, OpeningCashUncheckedUpdateInput>
+  }
+
+  /**
+   * OpeningCash delete
+   */
+  export type OpeningCashDeleteArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the OpeningCash
+     */
+    select?: OpeningCashSelect<ExtArgs> | null
+    /**
+     * Filter which OpeningCash to delete.
+     */
+    where: OpeningCashWhereUniqueInput
+  }
+
+  /**
+   * OpeningCash deleteMany
+   */
+  export type OpeningCashDeleteManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which OpeningCashes to delete
+     */
+    where?: OpeningCashWhereInput
+  }
+
+  /**
+   * OpeningCash findRaw
+   */
+  export type OpeningCashFindRawArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The query predicate filter. If unspecified, then all documents in the collection will match the predicate. ${@link https://docs.mongodb.com/manual/reference/operator/query MongoDB Docs}.
+     */
+    filter?: InputJsonValue
+    /**
+     * Additional options to pass to the `find` command ${@link https://docs.mongodb.com/manual/reference/command/find/#command-fields MongoDB Docs}.
+     */
+    options?: InputJsonValue
+  }
+
+  /**
+   * OpeningCash aggregateRaw
+   */
+  export type OpeningCashAggregateRawArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * An array of aggregation stages to process and transform the document stream via the aggregation pipeline. ${@link https://docs.mongodb.com/manual/reference/operator/aggregation-pipeline MongoDB Docs}.
+     */
+    pipeline?: InputJsonValue[]
+    /**
+     * Additional options to pass to the `aggregate` command ${@link https://docs.mongodb.com/manual/reference/command/aggregate/#command-fields MongoDB Docs}.
+     */
+    options?: InputJsonValue
+  }
+
+  /**
+   * OpeningCash without action
+   */
+  export type OpeningCashDefaultArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the OpeningCash
+     */
+    select?: OpeningCashSelect<ExtArgs> | null
+  }
+
+
+  /**
    * Enums
    */
 
@@ -20595,6 +21663,23 @@ export namespace Prisma {
   export type ShopSalesItemScalarFieldEnum = (typeof ShopSalesItemScalarFieldEnum)[keyof typeof ShopSalesItemScalarFieldEnum]
 
 
+  export const OpeningCashScalarFieldEnum: {
+    id: 'id',
+    date: 'date',
+    dateStr: 'dateStr',
+    counter: 'counter',
+    shift: 'shift',
+    cashier: 'cashier',
+    denominations: 'denominations',
+    totalOpeningCash: 'totalOpeningCash',
+    remarks: 'remarks',
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt'
+  };
+
+  export type OpeningCashScalarFieldEnum = (typeof OpeningCashScalarFieldEnum)[keyof typeof OpeningCashScalarFieldEnum]
+
+
   export const SortOrder: {
     asc: 'asc',
     desc: 'desc'
@@ -20669,6 +21754,13 @@ export namespace Prisma {
    * Reference to a field of type 'Int[]'
    */
   export type ListIntFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Int[]'>
+    
+
+
+  /**
+   * Reference to a field of type 'Json'
+   */
+  export type JsonFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Json'>
     
   /**
    * Deep Input Types
@@ -22430,6 +23522,90 @@ export namespace Prisma {
     taxPercent?: FloatWithAggregatesFilter<"ShopSalesItem"> | number
     discPercent?: FloatWithAggregatesFilter<"ShopSalesItem"> | number
     total?: FloatWithAggregatesFilter<"ShopSalesItem"> | number
+  }
+
+  export type OpeningCashWhereInput = {
+    AND?: OpeningCashWhereInput | OpeningCashWhereInput[]
+    OR?: OpeningCashWhereInput[]
+    NOT?: OpeningCashWhereInput | OpeningCashWhereInput[]
+    id?: StringFilter<"OpeningCash"> | string
+    date?: DateTimeFilter<"OpeningCash"> | Date | string
+    dateStr?: StringFilter<"OpeningCash"> | string
+    counter?: StringFilter<"OpeningCash"> | string
+    shift?: StringFilter<"OpeningCash"> | string
+    cashier?: StringFilter<"OpeningCash"> | string
+    denominations?: JsonNullableFilter<"OpeningCash">
+    totalOpeningCash?: FloatFilter<"OpeningCash"> | number
+    remarks?: StringNullableFilter<"OpeningCash"> | string | null
+    createdAt?: DateTimeFilter<"OpeningCash"> | Date | string
+    updatedAt?: DateTimeFilter<"OpeningCash"> | Date | string
+  }
+
+  export type OpeningCashOrderByWithRelationInput = {
+    id?: SortOrder
+    date?: SortOrder
+    dateStr?: SortOrder
+    counter?: SortOrder
+    shift?: SortOrder
+    cashier?: SortOrder
+    denominations?: SortOrder
+    totalOpeningCash?: SortOrder
+    remarks?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+  }
+
+  export type OpeningCashWhereUniqueInput = Prisma.AtLeast<{
+    id?: string
+    dateStr?: string
+    AND?: OpeningCashWhereInput | OpeningCashWhereInput[]
+    OR?: OpeningCashWhereInput[]
+    NOT?: OpeningCashWhereInput | OpeningCashWhereInput[]
+    date?: DateTimeFilter<"OpeningCash"> | Date | string
+    counter?: StringFilter<"OpeningCash"> | string
+    shift?: StringFilter<"OpeningCash"> | string
+    cashier?: StringFilter<"OpeningCash"> | string
+    denominations?: JsonNullableFilter<"OpeningCash">
+    totalOpeningCash?: FloatFilter<"OpeningCash"> | number
+    remarks?: StringNullableFilter<"OpeningCash"> | string | null
+    createdAt?: DateTimeFilter<"OpeningCash"> | Date | string
+    updatedAt?: DateTimeFilter<"OpeningCash"> | Date | string
+  }, "id" | "dateStr">
+
+  export type OpeningCashOrderByWithAggregationInput = {
+    id?: SortOrder
+    date?: SortOrder
+    dateStr?: SortOrder
+    counter?: SortOrder
+    shift?: SortOrder
+    cashier?: SortOrder
+    denominations?: SortOrder
+    totalOpeningCash?: SortOrder
+    remarks?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+    _count?: OpeningCashCountOrderByAggregateInput
+    _avg?: OpeningCashAvgOrderByAggregateInput
+    _max?: OpeningCashMaxOrderByAggregateInput
+    _min?: OpeningCashMinOrderByAggregateInput
+    _sum?: OpeningCashSumOrderByAggregateInput
+  }
+
+  export type OpeningCashScalarWhereWithAggregatesInput = {
+    AND?: OpeningCashScalarWhereWithAggregatesInput | OpeningCashScalarWhereWithAggregatesInput[]
+    OR?: OpeningCashScalarWhereWithAggregatesInput[]
+    NOT?: OpeningCashScalarWhereWithAggregatesInput | OpeningCashScalarWhereWithAggregatesInput[]
+    id?: StringWithAggregatesFilter<"OpeningCash"> | string
+    date?: DateTimeWithAggregatesFilter<"OpeningCash"> | Date | string
+    dateStr?: StringWithAggregatesFilter<"OpeningCash"> | string
+    counter?: StringWithAggregatesFilter<"OpeningCash"> | string
+    shift?: StringWithAggregatesFilter<"OpeningCash"> | string
+    cashier?: StringWithAggregatesFilter<"OpeningCash"> | string
+    denominations?: JsonNullableWithAggregatesFilter<"OpeningCash">
+    totalOpeningCash?: FloatWithAggregatesFilter<"OpeningCash"> | number
+    remarks?: StringNullableWithAggregatesFilter<"OpeningCash"> | string | null
+    createdAt?: DateTimeWithAggregatesFilter<"OpeningCash"> | Date | string
+    updatedAt?: DateTimeWithAggregatesFilter<"OpeningCash"> | Date | string
   }
 
   export type UserCreateInput = {
@@ -24447,6 +25623,100 @@ export namespace Prisma {
     total?: FloatFieldUpdateOperationsInput | number
   }
 
+  export type OpeningCashCreateInput = {
+    id?: string
+    date?: Date | string
+    dateStr: string
+    counter?: string
+    shift?: string
+    cashier?: string
+    denominations?: InputJsonValue | null
+    totalOpeningCash?: number
+    remarks?: string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
+  export type OpeningCashUncheckedCreateInput = {
+    id?: string
+    date?: Date | string
+    dateStr: string
+    counter?: string
+    shift?: string
+    cashier?: string
+    denominations?: InputJsonValue | null
+    totalOpeningCash?: number
+    remarks?: string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
+  export type OpeningCashUpdateInput = {
+    date?: DateTimeFieldUpdateOperationsInput | Date | string
+    dateStr?: StringFieldUpdateOperationsInput | string
+    counter?: StringFieldUpdateOperationsInput | string
+    shift?: StringFieldUpdateOperationsInput | string
+    cashier?: StringFieldUpdateOperationsInput | string
+    denominations?: InputJsonValue | InputJsonValue | null
+    totalOpeningCash?: FloatFieldUpdateOperationsInput | number
+    remarks?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type OpeningCashUncheckedUpdateInput = {
+    date?: DateTimeFieldUpdateOperationsInput | Date | string
+    dateStr?: StringFieldUpdateOperationsInput | string
+    counter?: StringFieldUpdateOperationsInput | string
+    shift?: StringFieldUpdateOperationsInput | string
+    cashier?: StringFieldUpdateOperationsInput | string
+    denominations?: InputJsonValue | InputJsonValue | null
+    totalOpeningCash?: FloatFieldUpdateOperationsInput | number
+    remarks?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type OpeningCashCreateManyInput = {
+    id?: string
+    date?: Date | string
+    dateStr: string
+    counter?: string
+    shift?: string
+    cashier?: string
+    denominations?: InputJsonValue | null
+    totalOpeningCash?: number
+    remarks?: string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
+  export type OpeningCashUpdateManyMutationInput = {
+    date?: DateTimeFieldUpdateOperationsInput | Date | string
+    dateStr?: StringFieldUpdateOperationsInput | string
+    counter?: StringFieldUpdateOperationsInput | string
+    shift?: StringFieldUpdateOperationsInput | string
+    cashier?: StringFieldUpdateOperationsInput | string
+    denominations?: InputJsonValue | InputJsonValue | null
+    totalOpeningCash?: FloatFieldUpdateOperationsInput | number
+    remarks?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type OpeningCashUncheckedUpdateManyInput = {
+    date?: DateTimeFieldUpdateOperationsInput | Date | string
+    dateStr?: StringFieldUpdateOperationsInput | string
+    counter?: StringFieldUpdateOperationsInput | string
+    shift?: StringFieldUpdateOperationsInput | string
+    cashier?: StringFieldUpdateOperationsInput | string
+    denominations?: InputJsonValue | InputJsonValue | null
+    totalOpeningCash?: FloatFieldUpdateOperationsInput | number
+    remarks?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
   export type StringFilter<$PrismaModel = never> = {
     equals?: string | StringFieldRefInput<$PrismaModel>
     in?: string[] | ListStringFieldRefInput<$PrismaModel>
@@ -25860,6 +27130,81 @@ export namespace Prisma {
     discPercent?: SortOrder
     total?: SortOrder
   }
+  export type JsonNullableFilter<$PrismaModel = never> = 
+    | PatchUndefined<
+        Either<Required<JsonNullableFilterBase<$PrismaModel>>, Exclude<keyof Required<JsonNullableFilterBase<$PrismaModel>>, 'path'>>,
+        Required<JsonNullableFilterBase<$PrismaModel>>
+      >
+    | OptionalFlat<Omit<Required<JsonNullableFilterBase<$PrismaModel>>, 'path'>>
+
+  export type JsonNullableFilterBase<$PrismaModel = never> = {
+    equals?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
+    not?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
+    isSet?: boolean
+  }
+
+  export type OpeningCashCountOrderByAggregateInput = {
+    id?: SortOrder
+    date?: SortOrder
+    dateStr?: SortOrder
+    counter?: SortOrder
+    shift?: SortOrder
+    cashier?: SortOrder
+    denominations?: SortOrder
+    totalOpeningCash?: SortOrder
+    remarks?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+  }
+
+  export type OpeningCashAvgOrderByAggregateInput = {
+    totalOpeningCash?: SortOrder
+  }
+
+  export type OpeningCashMaxOrderByAggregateInput = {
+    id?: SortOrder
+    date?: SortOrder
+    dateStr?: SortOrder
+    counter?: SortOrder
+    shift?: SortOrder
+    cashier?: SortOrder
+    totalOpeningCash?: SortOrder
+    remarks?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+  }
+
+  export type OpeningCashMinOrderByAggregateInput = {
+    id?: SortOrder
+    date?: SortOrder
+    dateStr?: SortOrder
+    counter?: SortOrder
+    shift?: SortOrder
+    cashier?: SortOrder
+    totalOpeningCash?: SortOrder
+    remarks?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+  }
+
+  export type OpeningCashSumOrderByAggregateInput = {
+    totalOpeningCash?: SortOrder
+  }
+  export type JsonNullableWithAggregatesFilter<$PrismaModel = never> = 
+    | PatchUndefined<
+        Either<Required<JsonNullableWithAggregatesFilterBase<$PrismaModel>>, Exclude<keyof Required<JsonNullableWithAggregatesFilterBase<$PrismaModel>>, 'path'>>,
+        Required<JsonNullableWithAggregatesFilterBase<$PrismaModel>>
+      >
+    | OptionalFlat<Omit<Required<JsonNullableWithAggregatesFilterBase<$PrismaModel>>, 'path'>>
+
+  export type JsonNullableWithAggregatesFilterBase<$PrismaModel = never> = {
+    equals?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
+    not?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
+    _count?: NestedIntNullableFilter<$PrismaModel>
+    _min?: NestedJsonNullableFilter<$PrismaModel>
+    _max?: NestedJsonNullableFilter<$PrismaModel>
+    isSet?: boolean
+  }
 
   export type SalesBillCreateNestedManyWithoutUserInput = {
     create?: XOR<SalesBillCreateWithoutUserInput, SalesBillUncheckedCreateWithoutUserInput> | SalesBillCreateWithoutUserInput[] | SalesBillUncheckedCreateWithoutUserInput[]
@@ -26874,6 +28219,18 @@ export namespace Prisma {
     _count?: NestedIntNullableFilter<$PrismaModel>
     _min?: NestedDateTimeNullableFilter<$PrismaModel>
     _max?: NestedDateTimeNullableFilter<$PrismaModel>
+    isSet?: boolean
+  }
+  export type NestedJsonNullableFilter<$PrismaModel = never> = 
+    | PatchUndefined<
+        Either<Required<NestedJsonNullableFilterBase<$PrismaModel>>, Exclude<keyof Required<NestedJsonNullableFilterBase<$PrismaModel>>, 'path'>>,
+        Required<NestedJsonNullableFilterBase<$PrismaModel>>
+      >
+    | OptionalFlat<Omit<Required<NestedJsonNullableFilterBase<$PrismaModel>>, 'path'>>
+
+  export type NestedJsonNullableFilterBase<$PrismaModel = never> = {
+    equals?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
+    not?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
     isSet?: boolean
   }
 
@@ -30284,6 +31641,10 @@ export namespace Prisma {
      * @deprecated Use ShopSalesItemDefaultArgs instead
      */
     export type ShopSalesItemArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = ShopSalesItemDefaultArgs<ExtArgs>
+    /**
+     * @deprecated Use OpeningCashDefaultArgs instead
+     */
+    export type OpeningCashArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = OpeningCashDefaultArgs<ExtArgs>
 
   /**
    * Batch Payload for updateMany & deleteMany & createMany

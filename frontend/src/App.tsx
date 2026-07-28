@@ -33,6 +33,7 @@ import StaffAttendance from './pages/StaffAttendance';
 import ModernErpLayout from './pages/ModernErpLayout';
 import ModernPOSCheckout from './pages/ModernPOSCheckout';
 import { ThermalBillingForm } from './components/printing/ThermalBillingForm';
+import { OpeningCashStatus } from './pages/OpeningCashStatus';
 import Activation from './pages/Activation';
 import License from './pages/License';
 
@@ -54,6 +55,7 @@ function App() {
           <Route path="pos-modern" element={<ModernPOSCheckout />} />
           
           {/* Master */}
+          <Route path="opening-cash" element={<OpeningCashStatus />} />
           <Route path="ledger-master" element={<LedgerMaster />} />
           <Route path="item-master" element={<ItemMaster />} />
           <Route path="barcode-generation" element={<BarcodeGeneration />} />

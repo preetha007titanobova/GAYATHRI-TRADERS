@@ -6,6 +6,7 @@ import { useLicense } from '../context/LicenseContext';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import PrinterStatus from './PrinterStatus';
+import { OpeningCashModal } from './OpeningCashModal';
 
 export type ToolbarActions = {
   onAdd?: () => void;
@@ -514,6 +515,8 @@ const Layout = () => {
                <Link to="/item-master" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Item Master</Link>
                <Link to="/barcode-generation" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Barcode Generation</Link>
                <div className="border-t border-gray-300 my-1"></div>
+               <Link to="/opening-cash" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-bold text-emerald-700 hover:text-white">Cash Drawer Opening</Link>
+               <div className="border-t border-gray-300 my-1"></div>
                <Link to="/staff-master" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium flex items-center justify-between">
                  <span>Staff Master (Admin)</span>
                  <Lock size={12} className="text-amber-600" />
@@ -648,12 +651,19 @@ const Layout = () => {
             <TrendingUp size={16} />
             <span className="text-[10px] mt-1 font-bold">DAILY STOCK STATUS</span>
           </Link>
+          <Link to="/opening-cash" className="flex flex-col items-center justify-center p-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded min-w-[85px] focus:outline-none transition-colors shadow no-underline text-center">
+            <RefreshCw size={16} />
+            <span className="text-[10px] mt-1 font-bold">OPENING CASH</span>
+          </Link>
           <button onClick={() => setIsCloseDayModalOpen(true)} className="flex flex-col items-center justify-center p-1 bg-red-600 hover:bg-red-700 text-white rounded min-w-[70px] focus:outline-none transition-colors shadow">
             <Power size={16} />
             <span className="text-[10px] mt-1 font-bold">CLOSE DAY</span>
           </button>
         </div>
       </div>
+
+      {/* Daily Startup Opening Cash Prompt Modal */}
+      <OpeningCashModal />
 
       {/* Main Content Area */}
       <div className="flex-1 flex overflow-hidden relative">
