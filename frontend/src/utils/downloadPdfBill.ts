@@ -45,9 +45,9 @@ export const downloadPdfBill = (data: BillData) => {
     format: 'a4'
   });
 
-  const storeName = data.storeName || 'ITHU NAMMA KADA';
-  const storePhone = data.storePhone || `Mobile: ${localStorage.getItem('close_day_whatsapp') || '+919876543210'}`;
-  const storeAddress = data.storeAddress || 'Main Road, Commercial Complex, Tamil Nadu';
+  const storeName = data.storeName || localStorage.getItem('registered_shop_name') || localStorage.getItem('shop_name') || '';
+  const storePhone = data.storePhone || (localStorage.getItem('registered_shop_mobile') ? `Mobile: ${localStorage.getItem('registered_shop_mobile')}` : '');
+  const storeAddress = data.storeAddress || localStorage.getItem('registered_shop_address') || '';
 
   // --- Header ---
   doc.setFillColor(30, 58, 138); // Blue header banner

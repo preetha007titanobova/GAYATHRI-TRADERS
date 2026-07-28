@@ -32,7 +32,7 @@ export const LicenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [features, setFeatures] = useState<LicenseFeatures | null>(null);
   const [daysRemaining, setDaysRemaining] = useState(9999);
   const [loading, setLoading] = useState(true);
-  const [shopName, setShopName] = useState('ITHU NAMMA KADA');
+  const [shopName, setShopName] = useState(localStorage.getItem('registered_shop_name') || localStorage.getItem('shop_name') || '');
   const [licenseKey, setLicenseKey] = useState('');
   const [expiresAt, setExpiresAt] = useState<string | null>(null);
   const [planType, setPlanType] = useState('');
@@ -56,7 +56,9 @@ export const LicenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
         if (arg && arg.valid) {
           setIsActivated(true);
           setFeatures(arg.data.features);
-          setShopName(arg.data.shopName || 'ITHU NAMMA KADA');
+          const activeShopName = arg.data.shopName || localStorage.getItem('registered_shop_name') || localStorage.getItem('shop_name') || '';
+          setShopName(activeShopName);
+          if (activeShopName) localStorage.setItem('registered_shop_name', activeShopName);
           setLicenseKey(arg.data.licenseKey || '');
           setPlanType(arg.data.planType || '');
           if (arg.data.expiresAt) {
@@ -72,7 +74,7 @@ export const LicenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
           setIsActivated(false);
           setFeatures(null);
           setDaysRemaining(0);
-          setShopName('ITHU NAMMA KADA');
+          setShopName(localStorage.getItem('registered_shop_name') || localStorage.getItem('shop_name') || '');
           setLicenseKey('');
           setPlanType('');
           setExpiresAt(null);

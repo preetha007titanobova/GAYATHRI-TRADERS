@@ -108,8 +108,8 @@ class PrintManager {
         </head>
         <body>
           <div class="center">
-            <div class="title">${payload.storeName || 'PREETHA SHOP'}</div>
-            <div class="subtitle">Mobile: ${payload.storeMobile || '+919698819482'}</div>
+            ${payload.storeName ? `<div class="title">${payload.storeName}</div>` : ''}
+            ${payload.storeMobile ? `<div class="subtitle">Mobile: ${payload.storeMobile}</div>` : ''}
             <div class="tax-invoice">${payload.receiptTitle || 'TAX INVOICE'}</div>
           </div>
 

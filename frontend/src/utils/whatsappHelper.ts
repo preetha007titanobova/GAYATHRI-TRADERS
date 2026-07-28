@@ -23,10 +23,12 @@ export const sendWhatsAppBill = (data: BillData, overridePhone?: string, useNati
     return `${idx + 1}. *${item.itemName}*${sizeStr}\n   ${item.qty} ${item.uom || 'PCS'} x ₹${item.rate.toFixed(2)} = *₹${item.amount.toFixed(2)}*`;
   }).join('\n');
 
-  const storeName = data.storeName || localStorage.getItem('registered_shop_name') || localStorage.getItem('shop_name') || 'PREETHA SHOP';
+  const storeName = data.storeName || localStorage.getItem('registered_shop_name') || localStorage.getItem('shop_name') || '';
 
-  const text = 
-`🧾 *${storeName} - TAX INVOICE*
+  const headerLine = storeName ? `🧾 *${storeName} - TAX INVOICE*` : `🧾 *TAX INVOICE*`;
+
+  const text =
+    `${headerLine}
 ----------------------------------------
 📄 *Invoice No:* ${data.invoiceNo}
 📅 *Date:* ${data.invDate}
@@ -39,9 +41,9 @@ ${itemsFormatted}
 ----------------------------------------
 📦 *Total Qty:* ${data.totalQty}
 💵 *SubTotal:* ₹${data.totalAmount.toFixed(2)}` +
-(data.favourDiscount ? `\n🏷️ *Discount:* -₹${data.favourDiscount.toFixed(2)}` : '') +
-(data.cgst || data.sgst ? `\n🏛️ *GST Total:* ₹${((data.cgst || 0) + (data.sgst || 0)).toFixed(2)}` : '') +
-`\n💰 *GRAND TOTAL:* *₹${data.netAmount.toFixed(2)}*
+    (data.favourDiscount ? `\n🏷️ *Discount:* -₹${data.favourDiscount.toFixed(2)}` : '') +
+    (data.cgst || data.sgst ? `\n🏛️ *GST Total:* ₹${((data.cgst || 0) + (data.sgst || 0)).toFixed(2)}` : '') +
+    `\n💰 *GRAND TOTAL:* *₹${data.netAmount.toFixed(2)}*
 ----------------------------------------
 Thank you for shopping with us! 🙏 Have a great day!`;
 

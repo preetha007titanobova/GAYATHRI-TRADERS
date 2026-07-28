@@ -96,15 +96,14 @@ class EscPosBuilder {
     // Header
     this.alignCenter();
     this.setBold(true);
-    this.setDoubleSize();
-    this.text((payload.storeName || 'ITHU NAMMA KADA') + '\n');
+    if (payload.storeName) {
+      this.text(payload.storeName + '\n');
+    }
     this.setNormalSize();
     this.setBold(false);
 
     if (payload.storeMobile) {
       this.text(`Mobile: ${payload.storeMobile}\n`);
-    } else {
-      this.text(`Mobile: 8270691757\n`);
     }
 
     this.setBold(true);

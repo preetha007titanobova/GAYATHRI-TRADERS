@@ -839,6 +839,7 @@ const POSCheckout = () => {
   const getBillPayloadData = () => {
     const validItems = gridData.filter(row => row.itemName && row.qty > 0);
     return {
+      storeName: shopName || localStorage.getItem('registered_shop_name') || localStorage.getItem('shop_name') || '',
       invoiceNo,
       invDate,
       buyerName: buyerName || 'CASH CUSTOMER',

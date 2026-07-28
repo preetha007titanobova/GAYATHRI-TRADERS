@@ -6,10 +6,10 @@ import type { ReceiptPayload, ReceiptItem, PaperWidth, PrinterConfig } from '../
 
 export const ThermalBillingForm: React.FC = () => {
   // Form State
-  const [storeName, setStoreName] = useState('ITHU NAMMA KADA');
-  const [storeMobile, setStoreMobile] = useState('8270691757');
-  const [invoiceNo, setInvoiceNo] = useState('INV-2026-0026');
-  const [customerName, setCustomerName] = useState('karunya');
+  const [storeName, setStoreName] = useState(localStorage.getItem('registered_shop_name') || localStorage.getItem('shop_name') || '');
+  const [storeMobile, setStoreMobile] = useState(localStorage.getItem('registered_shop_mobile') || '');
+  const [invoiceNo, setInvoiceNo] = useState('');
+  const [customerName, setCustomerName] = useState('');
   const [customerMobile, setCustomerMobile] = useState('');
   const [paymentMode, setPaymentMode] = useState('Cash');
   const [paperWidth, setPaperWidth] = useState<PaperWidth>('80mm');

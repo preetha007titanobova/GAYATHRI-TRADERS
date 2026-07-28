@@ -53,8 +53,8 @@ export const PrintSettings: React.FC<PrintSettingsProps> = ({
   const handleTestPrint = () => {
     setIsTestPrinting(true);
     const testPayload = {
-      storeName: 'ITHU NAMMA KADA',
-      storeMobile: '8270691757',
+      storeName: localStorage.getItem('registered_shop_name') || localStorage.getItem('shop_name') || '',
+      storeMobile: localStorage.getItem('registered_shop_mobile') || '',
       invoiceNo: 'TEST-0001',
       date: new Date().toISOString().split('T')[0],
       customerName: 'Test Customer',

@@ -47,11 +47,11 @@ export const convertToReceiptPayload = (data: PrintReceiptData): ReceiptPayload 
   const grandTotalCalc = data.grandTotal !== undefined ? data.grandTotal : (data.totalAmount !== undefined ? data.totalAmount : subTotalCalc);
 
   return {
-    storeName: data.storeName || localStorage.getItem('registered_shop_name') || localStorage.getItem('shop_name') || 'PREETHA SHOP',
-    storeMobile: data.storePhone || localStorage.getItem('registered_shop_mobile') || localStorage.getItem('close_day_whatsapp') || '+919698819482',
-    invoiceNo: data.invoiceNo || 'INV-2026-0026',
+    storeName: data.storeName || localStorage.getItem('registered_shop_name') || localStorage.getItem('shop_name') || '',
+    storeMobile: data.storePhone || localStorage.getItem('registered_shop_mobile') || localStorage.getItem('close_day_whatsapp') || '',
+    invoiceNo: data.invoiceNo || '',
     date: data.invDate || data.date || new Date().toISOString().split('T')[0],
-    customerName: data.buyerName || data.customerName || 'karunya',
+    customerName: data.buyerName || data.customerName || '',
     customerMobile: data.mobileNo || data.customerMobile || '',
     paymentMode: data.paymentMode || 'Cash',
     items: mappedItems,

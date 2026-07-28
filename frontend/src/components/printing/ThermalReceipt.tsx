@@ -11,12 +11,12 @@ export const ThermalReceipt: React.FC<ThermalReceiptProps> = ({
   payload,
   paperWidth = '80mm'
 }) => {
-  const storeName = payload.storeName || 'ITHU NAMMA KADA';
-  const storeMobile = payload.storeMobile || '8270691757';
+  const storeName = payload.storeName || localStorage.getItem('registered_shop_name') || localStorage.getItem('shop_name') || '';
+  const storeMobile = payload.storeMobile || localStorage.getItem('registered_shop_mobile') || '';
   const receiptTitle = payload.receiptTitle || 'TAX INVOICE';
-  const invoiceNo = payload.invoiceNo || 'INV-2026-0026';
+  const invoiceNo = payload.invoiceNo || '';
   const date = payload.date || new Date().toISOString().split('T')[0];
-  const customerName = payload.customerName || 'karunya';
+  const customerName = payload.customerName || '';
   const paymentMode = payload.paymentMode || 'Cash';
 
   const items = payload.items || [];
