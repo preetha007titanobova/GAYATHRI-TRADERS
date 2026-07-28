@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { AppleHeader } from '../components/ModernPOS/AppleHeader';
 import { NavigationDrawer } from '../components/ModernPOS/NavigationDrawer';
 import { CustomerDetailsPanel } from '../components/ModernPOS/CustomerDetailsPanel';
-import { SalesItemTable, InvoiceItem } from '../components/ModernPOS/SalesItemTable';
+import { SalesItemTable, type InvoiceItem } from '../components/ModernPOS/SalesItemTable';
 import { FinancialSummaryPanel } from '../components/ModernPOS/FinancialSummaryPanel';
 import { ActionFooter } from '../components/ModernPOS/ActionFooter';
 import { OwnerDetailsModal, DailyStockStatusModal, CloseDayModal } from '../components/ModernPOS/Modals';
@@ -201,7 +201,7 @@ export const ModernPOSCheckout: React.FC = () => {
           roundOff: financialSummary.roundOff,
           grandTotal: financialSummary.netAmount,
           paymentMode,
-          shopName
+          storeName: shopName
         });
       } catch (e) {
         console.log('Print helper invoked');
@@ -210,11 +210,17 @@ export const ModernPOSCheckout: React.FC = () => {
       // 3. Trigger WhatsApp Bill if phone available
       if (mobileNo) {
         sendWhatsAppBill({
-          mobileNo,
-          buyerName: billData.buyerName,
           invoiceNo,
-          grandTotal: financialSummary.netAmount,
-          shopName
+          invDate: billData.date,
+          buyerName: billData.buyerName,
+          mobileNo,
+          paymentMode,
+          items: billData.items,
+          totalQty: billData.totalQty,
+          totalAmount: billData.totalAmount,
+          favourDiscount,
+          netAmount: financialSummary.netAmount,
+          storeName: shopName
         });
       }
 

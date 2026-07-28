@@ -208,7 +208,7 @@ function startLocalBackend() {
                 DATABASE_URL: dbUrlToUse,
                 NODE_ENV: 'development'
             },
-            stdio: 'inherit'
+            stdio: 'ignore'
         });
     }
 
@@ -232,6 +232,10 @@ function createWindow() {
         mainWindow.webContents.openDevTools();
     }
 
+    mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
+        console.log(`[RENDERER CONSOLE] Level ${level}: ${message} (${sourceId}:${line})`);
+    });
+
     mainWindow.on('close', (e) => {
         if (!isQuitting) {
             if (isFrontendReady) {
@@ -243,24 +247,38 @@ function createWindow() {
         }
     });
 
-    // Retry loading if connection is refused (e.g., backend is still starting up)
+    const route = licenseStatus.valid ? '' : '#/activation';
+
+    let devServerFailed = false;
+
+    // Smart fallback loader: Connect to local Express server on port 5000
     mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
-        if (errorCode === -102) { // ERR_CONNECTION_REFUSED
-            setTimeout(() => {
-                if (mainWindow && !mainWindow.isDestroyed()) {
-                    mainWindow.loadURL(validatedURL);
-                }
-            }, 1000);
+        if (errorCode === -102 || errorCode === -105) { // ERR_CONNECTION_REFUSED / ERR_NAME_NOT_RESOLVED
+            if (validatedURL.includes('5173') && !devServerFailed) {
+                devServerFailed = true;
+                console.log('Vite dev server (5173) not active. Switching to local backend server (http://localhost:5000)...');
+                mainWindow.loadURL(`http://localhost:5000/${route}`);
+            } else if (validatedURL.includes('5000')) {
+                console.log('Backend server (5000) starting up. Retrying in 1 second...');
+                setTimeout(() => {
+                    if (mainWindow && !mainWindow.isDestroyed()) {
+                        mainWindow.loadURL(`http://localhost:5000/${route}`);
+                    }
+                }, 1000);
+            }
         }
     });
 
-    // If license is invalid, redirect to activation page
-    if (!licenseStatus.valid) {
-        // Load the React app's local activation screen
-        mainWindow.loadURL('http://localhost:5000/activation');
+    const isDev = !app.isPackaged;
+    const devServerUrl = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173';
+
+    if (isDev) {
+        console.log(`Attempting to connect to Vite dev server at ${devServerUrl}/${route}`);
+        mainWindow.loadURL(`${devServerUrl}/${route}`).catch(() => {
+            mainWindow.loadURL(`http://localhost:5000/${route}`);
+        });
     } else {
-        // Load the main POS billing dashboard
-        mainWindow.loadURL('http://localhost:5000');
+        mainWindow.loadURL(`http://localhost:5000/${route}`);
     }
 
     // Initialize automated print service & dual-engine manager

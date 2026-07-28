@@ -7,6 +7,9 @@
     "start:backend": "cd backend && npm run dev",
     "start:frontend": "cd frontend && npm run dev",
     "electron": "cd electron && npm start",
+    "start:electron": "cd electron && npm start",
+    "dev": "concurrently \"npm run start:backend\" \"npm run start:frontend\" \"npm run start:electron\"",
+    "build:frontend": "cd frontend && npm run build",
     "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install && cd ../electron && npm install"
   },
   "devDependencies": {

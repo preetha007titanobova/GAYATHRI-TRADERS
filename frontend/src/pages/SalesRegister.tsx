@@ -5,9 +5,8 @@ import { Search, Calendar, X, Eye, Edit, Printer, FileText, Trash2, MessageCircl
 import Api from '../Api';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { printReceipt, generateReceiptText } from '../utils/printReceipt';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import { printReceipt } from '../utils/printReceipt';
+import { sendWhatsAppBill } from '../utils/whatsappHelper';
 
 const printOrder = (order: any, mode: 'print' | 'whatsapp' = 'print') => {
   const cartItems = (order.items || []).map((it: any) => ({
@@ -23,7 +22,8 @@ const printOrder = (order: any, mode: 'print' | 'whatsapp' = 'print') => {
     date: new Date(order.invDate || order.orderDate || order.returnDate || new Date()).toLocaleDateString('en-IN'),
     customerName: order.buyerName || order.customer || order.customerName || 'Walk-in',
     paymentMode: order.paymentMode || order.refundMethod || 'Cash',
-    subTotal: order.summary?.subtotal || order.subtotal,
+    totalQty: order.summary?.totalQty || order.totalQty || cartItems.reduce((a: number, c: any) => a + c.qty, 0),
+    subTotal: order.summary?.subTotal || order.subTotal || order.totalTaxable || 0,
     cgst: order.summary?.cgst || order.cgst,
     sgst: order.summary?.sgst || order.sgst,
     totalAmount: order.summary?.grandTotal || order.grandTotal || order.netAmount || order.netRefundAmount || 0,
@@ -32,14 +32,21 @@ const printOrder = (order: any, mode: 'print' | 'whatsapp' = 'print') => {
   };
 
   if (mode === 'print') {
-    printReceipt(cartItems, printData);
+    printReceipt({ gridData: cartItems, ...printData });
   } else if (mode === 'whatsapp') {
-    const text = '```\n' + generateReceiptText(cartItems, printData) + '\n```';
-    const encodedText = encodeURIComponent(text);
-    let phone = (order.mobileNo || '').replace(/\D/g, '');
-    if (phone.length === 10) phone = '91' + phone;
-    const url = phone ? `https://api.whatsapp.com/send?phone=${phone}&text=${encodedText}` : `https://api.whatsapp.com/send?text=${encodedText}`;
-    window.open(url, '_blank');
+    sendWhatsAppBill({
+      invoiceNo: printData.invoiceNo,
+      invDate: printData.date,
+      buyerName: printData.customerName,
+      mobileNo: printData.customerMobile,
+      paymentMode: printData.paymentMode,
+      items: cartItems.map((i: any) => ({ itemName: i.itemDesc, qty: i.qty, rate: i.rate, amount: i.totalAmt })),
+      totalQty: printData.totalQty,
+      totalAmount: printData.subTotal,
+      cgst: printData.cgst,
+      sgst: printData.sgst,
+      netAmount: printData.totalAmount
+    });
   }
 };
 

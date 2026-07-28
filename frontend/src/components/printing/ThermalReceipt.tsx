@@ -1,5 +1,5 @@
 import React from 'react';
-import { ReceiptPayload, PaperWidth } from '../../types/receipt';
+import type { ReceiptPayload, PaperWidth } from '../../types/receipt';
 import './ThermalReceipt.css';
 
 interface ThermalReceiptProps {
@@ -21,10 +21,10 @@ export const ThermalReceipt: React.FC<ThermalReceiptProps> = ({
 
   const items = payload.items || [];
   const totalItemsCount = items.length;
-  const totalQtyCalc = payload.totalQty || items.reduce((acc, item) => acc + (Number(item.qty) || 0), 0);
+  const totalQtyCalc = payload.totalQty || items.reduce((acc: number, item: any) => acc + (Number(item.qty) || 0), 0);
   const subTotalCalc = payload.subTotal !== undefined 
     ? payload.subTotal 
-    : items.reduce((acc, item) => acc + (Number(item.amount) || 0), 0);
+    : items.reduce((acc: number, item: any) => acc + (Number(item.amount) || 0), 0);
   const grandTotalCalc = payload.netAmount !== undefined ? payload.netAmount : subTotalCalc;
 
   return (
@@ -70,7 +70,7 @@ export const ThermalReceipt: React.FC<ThermalReceiptProps> = ({
 
       <table className="thermal-table">
         <tbody>
-          {items.map((item, index) => {
+          {items.map((item: any, index: number) => {
             const idx = item.index || index + 1;
             const rate = Number(item.rate) || 0;
             const amt = Number(item.amount) || 0;

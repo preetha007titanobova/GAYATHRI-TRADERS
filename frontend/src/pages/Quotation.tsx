@@ -321,7 +321,8 @@ const Quotation = () => {
 
     const storePhone = localStorage.getItem('close_day_whatsapp') || '+919698819482';
 
-    printReceipt(formattedItems, {
+    printReceipt({
+      gridData: formattedItems,
       invoiceNo: quoteNo,
       date: quoteDate,
       customerName: customer || 'VALUED CUSTOMER',

@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useEffect } from 'react';
 import Layout from './components/Layout';
 
@@ -47,10 +47,11 @@ function App() {
     <Router>
       <Routes>
         <Route path="/" element={<Layout />}>
-          <Route index element={<Navigate to="/pos-modern" replace />} />
-          <Route path="pos" element={<Navigate to="/pos-modern" replace />} />
+          <Route index element={<Navigate to="/sales-bill" replace />} />
+          <Route path="pos" element={<Navigate to="/sales-bill" replace />} />
+          <Route path="sales-bill" element={<POSCheckout />} />
           <Route path="pos-legacy" element={<POSCheckout />} />
-          <Route path="thermal-billing" element={<ThermalBillingForm />} />
+          <Route path="pos-modern" element={<ModernPOSCheckout />} />
           
           {/* Master */}
           <Route path="ledger-master" element={<LedgerMaster />} />
@@ -65,7 +66,7 @@ function App() {
           {/* Sales */}
           <Route path="quotation" element={<Quotation />} />
           <Route path="sales-order" element={<SalesOrder />} />
-          <Route path="sales-bill" element={<ModernPOSCheckout />} />
+          <Route path="sales-bill" element={<POSCheckout />} />
           <Route path="sales-return" element={<SalesReturn />} />
           <Route path="sales-register" element={<SalesRegister />} />
           <Route path="sales-status" element={<SalesStatus />} />

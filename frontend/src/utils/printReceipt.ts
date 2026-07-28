@@ -1,4 +1,4 @@
-import { ReceiptPayload, PrinterConfig } from '../types/receipt';
+import type { ReceiptPayload, PrinterConfig } from '../types/receipt';
 
 export interface PrintCartItem {
   itemCode?: string;

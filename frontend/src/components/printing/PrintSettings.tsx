@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Printer, Cpu, Network, CheckCircle2, Shield, Play } from 'lucide-react';
-import { PrinterConfig, PrintEngineMode, PaperWidth, CommunicationType } from '../../types/receipt';
+import type { PrinterConfig, PrintEngineMode, PaperWidth, CommunicationType } from '../../types/receipt';
 
 interface PrintSettingsProps {
   config: PrinterConfig;
@@ -15,7 +15,7 @@ export const PrintSettings: React.FC<PrintSettingsProps> = ({
 }) => {
   const [engineMode, setEngineMode] = useState<PrintEngineMode>(config.engineMode || 'silent-chromium');
   const [paperWidth, setPaperWidth] = useState<PaperWidth>(config.paperWidth || '80mm');
-  const [communicationType, setCommunicationType] = useState<CommunicationType>(config.communicationType || 'win32-spooler');
+  const [communicationType, setCommunicationType] = useState<CommunicationType>((config.communicationType as CommunicationType) || 'win32-spooler');
   const [printerName, setPrinterName] = useState(config.printerName || 'POS-80');
   const [networkIp, setNetworkIp] = useState(config.networkIp || '192.168.1.200');
   const [networkPort, setNetworkPort] = useState(config.networkPort || 9100);

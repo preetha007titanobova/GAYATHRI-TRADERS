@@ -573,7 +573,8 @@ const POSCheckout = () => {
       totalAmt: item.amount
     }));
 
-    printReceipt(formattedItems, {
+    printReceipt({
+      gridData: formattedItems,
       invoiceNo: invoiceNo,
       date: invDate,
       customerName: buyerName,
@@ -758,7 +759,8 @@ const POSCheckout = () => {
         totalAmt: item.amount
       }));
 
-    printReceipt(formattedItems, {
+    printReceipt({
+      gridData: formattedItems,
       invoiceNo: invoiceNo,
       date: invDate,
       customerName: buyerName,

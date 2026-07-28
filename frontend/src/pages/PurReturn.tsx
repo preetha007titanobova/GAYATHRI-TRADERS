@@ -450,7 +450,8 @@ const PurReturn = () => {
         }));
         const storePhone = localStorage.getItem('close_day_whatsapp') || '+919698819482';
 
-        printReceipt(formattedItems, {
+        printReceipt({
+          gridData: formattedItems,
           invoiceNo: returnNo,
           date: returnDate,
           customerName: vendorDetails.name,

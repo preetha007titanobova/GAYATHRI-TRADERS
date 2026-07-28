@@ -4,7 +4,7 @@ import {
   BarChart, QrCode, Database, Settings, ShieldCheck, 
   ChevronRight, ArrowUpRight, HelpCircle
 } from 'lucide-react';
-import { useNavigate } from 'react_router_dom' handle navigate if react-router is used or route callback;
+import { useNavigate } from 'react-router-dom';
 
 interface NavigationDrawerProps {
   isOpen: boolean;

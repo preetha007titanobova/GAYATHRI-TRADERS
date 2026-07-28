@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Plus, Trash2, Printer, Settings, Eye, RefreshCw, ShoppingCart, CheckCircle, Smartphone } from 'lucide-react';
 import { ThermalReceipt } from './ThermalReceipt';
 import { PrintSettings } from './PrintSettings';
-import { ReceiptPayload, ReceiptItem, PaperWidth, PrinterConfig } from '../../types/receipt';
+import type { ReceiptPayload, ReceiptItem, PaperWidth, PrinterConfig } from '../../types/receipt';
 
 export const ThermalBillingForm: React.FC = () => {
   // Form State
@@ -122,7 +122,7 @@ export const ThermalBillingForm: React.FC = () => {
           {/* Paper Size Preview Switcher */}
           <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
             <button
-              onClick={() => { setPaperWidth('80mm'); setPrinterConfig(p => ({ ...p, paperWidth: '80mm' })); }}
+              onClick={() => { setPaperWidth('80mm'); setPrinterConfig((p: any) => ({ ...p, paperWidth: '80mm' })); }}
               className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
                 paperWidth === '80mm' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-600'
               }`}
@@ -130,7 +130,7 @@ export const ThermalBillingForm: React.FC = () => {
               80mm Roll
             </button>
             <button
-              onClick={() => { setPaperWidth('58mm'); setPrinterConfig(p => ({ ...p, paperWidth: '58mm' })); }}
+              onClick={() => { setPaperWidth('58mm'); setPrinterConfig((p: any) => ({ ...p, paperWidth: '58mm' })); }}
               className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
                 paperWidth === '58mm' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-600'
               }`}
