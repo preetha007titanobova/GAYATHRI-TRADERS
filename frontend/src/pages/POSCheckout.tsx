@@ -693,6 +693,24 @@ const POSCheckout = () => {
       const data = await res.json();
       if (data.success) {
         if (setGlobalNotification) setGlobalNotification({ msg: `Sales Bill ${invoiceNo} saved successfully!`, type: 'success' });
+
+        // 1. Auto-Print receipt to printer
+        try {
+          handlePrintAction('Sales Bill');
+        } catch (printErr) {
+          console.error("Auto print error:", printErr);
+        }
+
+        // 2. Auto-Send invoice receipt via WhatsApp if mobile number is available
+        if (mobileNo && mobileNo.replace(/\D/g, '').length >= 10) {
+          try {
+            const billData = getBillPayloadData();
+            sendWhatsAppBill(billData, undefined, true);
+          } catch (waErr) {
+            console.error("Auto WhatsApp error:", waErr);
+          }
+        }
+
         if (editingBillId) {
           setTimeout(() => navigate('/sales-register'), 1500);
         } else if (fromSalesOrderId) {
@@ -750,13 +768,15 @@ const POSCheckout = () => {
 
     // Format items for the print utility
     const formattedItems = gridData
-      .filter(item => item.itemName) // Only print valid items
+      .filter(item => item.itemName && item.itemName.trim() !== '') // Only print valid items
       .map(item => ({
+        itemName: item.itemName,
         itemCode: item.itemDesc || item.itemName,
         itemDesc: item.itemName,
         qty: item.qty,
         rate: item.rate,
-        totalAmt: item.amount
+        amount: item.amount || (item.qty * item.rate),
+        totalAmt: item.amount || (item.qty * item.rate)
       }));
 
     printReceipt({

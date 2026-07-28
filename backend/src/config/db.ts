@@ -3,13 +3,15 @@ import { MongoClient } from 'mongodb';
 import dotenv from 'dotenv';
 import dns from 'dns';
 
-try {
-  dns.setServers(['8.8.8.8', '1.1.1.1', '8.8.4.4']);
-} catch (e) {
-  console.warn('Could not set custom DNS servers:', e);
-}
-
 dotenv.config();
+
+if (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('mongodb+srv')) {
+  try {
+    dns.setServers(['8.8.8.8', '1.1.1.1', '8.8.4.4']);
+  } catch (e) {
+    console.warn('Could not set custom DNS servers:', e);
+  }
+}
 
 export const prisma = new PrismaClient();
 export const mongoClient = new MongoClient(process.env.DATABASE_URL as string);

@@ -47,8 +47,8 @@ export const convertToReceiptPayload = (data: PrintReceiptData): ReceiptPayload 
   const grandTotalCalc = data.grandTotal !== undefined ? data.grandTotal : (data.totalAmount !== undefined ? data.totalAmount : subTotalCalc);
 
   return {
-    storeName: data.storeName || 'ITHU NAMMA KADA',
-    storeMobile: data.storePhone || '8270691757',
+    storeName: data.storeName || localStorage.getItem('registered_shop_name') || localStorage.getItem('shop_name') || 'PREETHA SHOP',
+    storeMobile: data.storePhone || localStorage.getItem('registered_shop_mobile') || localStorage.getItem('close_day_whatsapp') || '+919698819482',
     invoiceNo: data.invoiceNo || 'INV-2026-0026',
     date: data.invDate || data.date || new Date().toISOString().split('T')[0],
     customerName: data.buyerName || data.customerName || 'karunya',
@@ -69,11 +69,12 @@ export const convertToReceiptPayload = (data: PrintReceiptData): ReceiptPayload 
 export const printReceipt = (data: PrintReceiptData, config?: Partial<PrinterConfig>) => {
   const payload = convertToReceiptPayload(data);
 
+  const savedPrinter = localStorage.getItem('selected_printer') || localStorage.getItem('active_printer') || '';
   const activeConfig: PrinterConfig = {
     engineMode: config?.engineMode || 'silent-chromium',
     paperWidth: config?.paperWidth || '80mm',
     communicationType: config?.communicationType || 'win32-spooler',
-    printerName: config?.printerName || 'POS-80',
+    printerName: config?.printerName || savedPrinter || '',
     autoCut: true,
     openCashDrawer: false,
     ...config

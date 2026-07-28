@@ -4,6 +4,8 @@ import { Plus, Trash, Edit, Trash2, ChevronLeft, ChevronRight, Search, FileText,
 import Api from '../Api';
 import type { ToolbarActions } from '../components/Layout';
 import Modal from '../components/Modal';
+import { printReceipt } from '../utils/printReceipt';
+import { sendWhatsAppBill } from '../utils/whatsappHelper';
 
 interface ShopSalesItem {
   id: string;
@@ -706,6 +708,40 @@ const ShopSalesBill = () => {
           msg: `Wholesale Sales Bill ${billNo} ${editingId ? 'updated' : 'saved'} successfully!`, 
           type: 'success' 
         });
+
+        // 1. Auto-Print receipt
+        try {
+          printReceipt({
+            invoiceNo: billNo,
+            date: date,
+            customerName: shopName,
+            subTotal: totals.taxableAmt,
+            totalAmount: totals.netPayable,
+            gridData: items.map(i => ({ itemName: i.itemName, qty: i.qty, rate: i.unitPrice, amount: i.total }))
+          });
+        } catch (pErr) {
+          console.error("Auto print error:", pErr);
+        }
+
+        // 2. Auto-Send via WhatsApp if mobile/phone number is available
+        const rawPhone = shopGstin || '';
+        if (rawPhone && rawPhone.replace(/\D/g, '').length >= 10) {
+          try {
+            sendWhatsAppBill({
+              invoiceNo: billNo,
+              invDate: date,
+              buyerName: shopName,
+              mobileNo: rawPhone,
+              items: items.map(i => ({ itemName: i.itemName, qty: i.qty, rate: i.unitPrice, amount: i.total })),
+              totalQty: items.reduce((acc, i) => acc + i.qty, 0),
+              totalAmount: totals.taxableAmt,
+              netAmount: totals.netPayable
+            }, undefined, true);
+          } catch (waErr) {
+            console.error("Auto WhatsApp error:", waErr);
+          }
+        }
+
         clearForm();
         fetchSavedBills();
       } else {

@@ -23,7 +23,7 @@ export type ToolbarActions = {
 };
 
 const Layout = () => {
-  const { shopName, daysRemaining } = useLicense();
+  const { shopName, daysRemaining, isActivated, loading } = useLicense();
   const [toolbarActions, setToolbarActions] = useState<ToolbarActions>({});
   const [globalNotification, setGlobalNotification] = useState<{msg: string, type: 'error' | 'success' | 'info' | ''}>({msg: '', type: ''});
   const [indianTime, setIndianTime] = useState('');
@@ -126,9 +126,9 @@ const Layout = () => {
     }
   }, []);
 
-  // Trigger warning to renew the plan: on open and every 4 hours
+  // Trigger warning to renew the plan: on open and every 4 hours when daysRemaining <= 4
   useEffect(() => {
-    if (daysRemaining !== undefined && daysRemaining <= 3 && daysRemaining >= 0) {
+    if (!loading && isActivated && daysRemaining !== undefined && daysRemaining !== null && daysRemaining <= 4 && daysRemaining >= 0) {
       const showRenewalNotification = () => {
         setGlobalNotification({
           msg: `⚠️ Attention: Your license will expire in ${daysRemaining} ${daysRemaining === 1 ? 'day' : 'days'}. Please renew the plan.`,
@@ -144,7 +144,7 @@ const Layout = () => {
       const interval = setInterval(showRenewalNotification, 4 * 60 * 60 * 1000);
       return () => clearInterval(interval);
     }
-  }, [daysRemaining]);
+  }, [daysRemaining, isActivated, loading]);
 
 
   const handleVerifyReportPin = (e: React.FormEvent) => {
@@ -480,8 +480,8 @@ const Layout = () => {
         <span className="mr-2">{shopName} BILLING COUNTER - [{getPageTitle(location.pathname)}]</span>
       </div>
 
-      {/* License Renewal Warning Banner (Indication for renewal - only shown if 3 days or fewer remaining) */}
-      {daysRemaining !== undefined && daysRemaining <= 3 && daysRemaining >= 0 && (
+      {/* License Renewal Warning Banner (Indication for renewal - only shown if 4 days or fewer remaining) */}
+      {!loading && isActivated && daysRemaining !== undefined && daysRemaining !== null && daysRemaining <= 4 && daysRemaining >= 0 && (
         <div className="bg-amber-600 text-white font-semibold text-xs px-4 py-2 text-center flex justify-center items-center gap-3 select-text border-b border-amber-700 shadow-sm">
           <span className="flex items-center gap-1">
             <Shield size={14} className="animate-pulse" />
@@ -880,10 +880,12 @@ const Layout = () => {
             </div>
             
             <form onSubmit={handleCloseDay} className="p-4 space-y-4 text-left">
-              {daysRemaining !== undefined && daysRemaining <= 3 && daysRemaining >= 0 && (
-                <div className="bg-red-100 border border-red-300 text-red-700 px-3 py-2 rounded text-xs font-bold mb-2">
-                  <p className="flex items-center gap-1.5 text-sm mb-1 text-red-800">⚠️ RENEW THE PLAN</p>
-                  <p>Your license expires in {daysRemaining} {daysRemaining === 1 ? 'day' : 'days'}. Please renew the plan to prevent software lockout.</p>
+              {!loading && isActivated && daysRemaining !== undefined && daysRemaining !== null && daysRemaining <= 4 && daysRemaining >= 0 && (
+                <div className="bg-red-100 border border-red-300 text-red-700 px-3.5 py-2.5 rounded-lg text-xs font-bold mb-3 shadow-xs">
+                  <p className="flex items-center gap-1.5 text-sm mb-1 text-red-800 font-extrabold">⚠️ ATTENTION: LICENSE EXPIRING SOON</p>
+                  <p className="text-red-700">
+                    Your subscription license expires in <strong>{daysRemaining === 0 ? 'Today (0 days)' : `${daysRemaining} ${daysRemaining === 1 ? 'day' : 'days'}`}</strong>. Please renew your plan to prevent software lockout.
+                  </p>
                 </div>
               )}
               <p className="text-sm font-semibold text-gray-700">

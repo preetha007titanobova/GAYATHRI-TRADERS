@@ -17,13 +17,14 @@ exports.getDb = getDb;
 exports.setupDatabase = setupDatabase;
 const client_1 = require("../generated/client");
 const mongodb_1 = require("mongodb");
-const dotenv_1 = __importDefault(require("dotenv"));
-const dns_1 = __importDefault(require("dns"));
-try {
-    dns_1.default.setServers(['8.8.8.8', '1.1.1.1', '8.8.4.4']);
-}
-catch (e) {
-    console.warn('Could not set custom DNS servers:', e);
+dotenv_1.default.config();
+if (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('mongodb+srv')) {
+    try {
+        dns_1.default.setServers(['8.8.8.8', '1.1.1.1', '8.8.4.4']);
+    }
+    catch (e) {
+        console.warn('Could not set custom DNS servers:', e);
+    }
 }
 dotenv_1.default.config();
 exports.prisma = new client_1.PrismaClient();

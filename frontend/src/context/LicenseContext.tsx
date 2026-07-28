@@ -30,7 +30,7 @@ const LicenseContext = createContext<LicenseContextType | null>(null);
 export const LicenseProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isActivated, setIsActivated] = useState(false);
   const [features, setFeatures] = useState<LicenseFeatures | null>(null);
-  const [daysRemaining, setDaysRemaining] = useState(0);
+  const [daysRemaining, setDaysRemaining] = useState(9999);
   const [loading, setLoading] = useState(true);
   const [shopName, setShopName] = useState('ITHU NAMMA KADA');
   const [licenseKey, setLicenseKey] = useState('');

@@ -208,8 +208,15 @@ function startLocalBackend() {
                 DATABASE_URL: dbUrlToUse,
                 NODE_ENV: 'development'
             },
-            stdio: 'ignore'
+            stdio: 'pipe'
         });
+
+        if (backendProcess.stdout) {
+            backendProcess.stdout.on('data', (d) => console.log('[BACKEND]', d.toString().trim()));
+        }
+        if (backendProcess.stderr) {
+            backendProcess.stderr.on('data', (d) => console.error('[BACKEND ERROR]', d.toString().trim()));
+        }
     }
 
     backendProcess.on('error', (err) => console.error('Backend logic server crashed:', err));
@@ -228,9 +235,10 @@ function createWindow() {
         }
     });
 
-    if (!app.isPackaged) {
-        mainWindow.webContents.openDevTools();
-    }
+    // Disable auto-opening devtools on startup
+    // if (!app.isPackaged) {
+    //     mainWindow.webContents.openDevTools();
+    // }
 
     mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
         console.log(`[RENDERER CONSOLE] Level ${level}: ${message} (${sourceId}:${line})`);

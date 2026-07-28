@@ -70,6 +70,7 @@ class PrintManager {
 
       const totalQty = payload.totalQty || items.reduce((s, i) => s + (Number(i.qty) || 0), 0);
       const subTotal = payload.subTotal !== undefined ? payload.subTotal : items.reduce((s, i) => s + (Number(i.amount) || 0), 0);
+      const cleanInvNo = (payload.invoiceNo || '').replace(/^INV--+/, 'INV-');
 
       const receiptHtml = `
         <!DOCTYPE html>
@@ -86,7 +87,7 @@ class PrintManager {
               font-size: 13px;
               color: #000;
               margin: 0;
-              padding: 4mm 3mm;
+              padding: 3mm 2mm;
               box-sizing: border-box;
               width: ${paperWidthPx};
               line-height: 1.25;
@@ -97,8 +98,8 @@ class PrintManager {
             .tax-invoice { font-size: 1.05em; font-weight: 900; text-transform: uppercase; margin: 4px 0; }
             .meta { flex-direction: row; display: flex; justify-content: space-between; font-size: 0.92em; font-weight: 700; }
             .dashed { border-top: 1px dashed #000; margin: 4px 0; }
-            table { width: 100%; border-collapse: collapse; font-size: 0.95em; font-weight: 700; }
-            th, td { padding: 2px 0; vertical-align: top; }
+            table.items-table { width: 100%; border-collapse: collapse; font-size: 0.95em; font-weight: 700; table-layout: fixed; }
+            th, td { padding: 3px 1px; vertical-align: top; }
             th { font-weight: 900; text-transform: uppercase; }
             .summary { display: flex; justify-content: space-between; font-size: 0.95em; font-weight: 700; margin: 2px 0; }
             .grand-total { text-align: center; font-size: 1.2em; font-weight: 900; margin: 6px 0; }
@@ -107,14 +108,14 @@ class PrintManager {
         </head>
         <body>
           <div class="center">
-            <div class="title">${payload.storeName || 'ITHU NAMMA KADA'}</div>
-            <div class="subtitle">Mobile: ${payload.storeMobile || '8270691757'}</div>
+            <div class="title">${payload.storeName || 'PREETHA SHOP'}</div>
+            <div class="subtitle">Mobile: ${payload.storeMobile || '+919698819482'}</div>
             <div class="tax-invoice">${payload.receiptTitle || 'TAX INVOICE'}</div>
           </div>
 
           <div class="meta">
             <div>
-              <div>Inv: ${payload.invoiceNo}</div>
+              <div>Inv: ${cleanInvNo}</div>
               <div>Cust: ${payload.customerName || 'Cash'}</div>
             </div>
             <div style="text-align: right;">
@@ -125,22 +126,24 @@ class PrintManager {
 
           <div class="dashed"></div>
 
-          <table>
+          <table class="items-table">
             <thead>
               <tr>
-                <th style="text-align:left; width: 50%;"># Item</th>
-                <th style="text-align:right; width: 15%;">Qty</th>
-                <th style="text-align:right; width: 17%;">Rate</th>
-                <th style="text-align:right; width: 18%;">Amt</th>
+                <th style="text-align:left; width: 42%;"># ITEM</th>
+                <th style="text-align:right; width: 14%;">QTY</th>
+                <th style="text-align:right; width: 22%;">RATE</th>
+                <th style="text-align:right; width: 22%;">AMT</th>
               </tr>
             </thead>
-          </table>
-
-          <div class="dashed"></div>
-
-          <table>
             <tbody>
-              ${itemsHtml}
+              ${items.map((item, idx) => `
+                <tr>
+                  <td style="text-align:left; word-break: break-word;">${item.index || idx + 1} ${item.itemName}</td>
+                  <td style="text-align:right;">${item.qty}</td>
+                  <td style="text-align:right;">${Number(item.rate).toFixed(2)}</td>
+                  <td style="text-align:right;">${Number(item.amount).toFixed(2)}</td>
+                </tr>
+              `).join('')}
             </tbody>
           </table>
 
@@ -174,24 +177,97 @@ class PrintManager {
 
       printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(receiptHtml)}`);
 
-      printWindow.webContents.on('did-finish-load', () => {
+      printWindow.webContents.on('did-finish-load', async () => {
         if (!printWindow) return;
 
-        printWindow.webContents.print(
-          {
-            silent: true,
-            printBackground: true,
-            deviceName: config.printerName || '',
-            margin: { marginType: 'none' }
-          },
-          (success, failureReason) => {
-            // STRICT LIFECYCLE CLEANUP TO PREVENT MEMORY LEAKS
-            if (printWindow && !printWindow.isDestroyed()) {
-              printWindow.destroy();
-              printWindow = null;
+        let targetDeviceName = '';
+
+        try {
+          const availablePrinters = await printWindow.webContents.getPrintersAsync();
+          console.log('[PrintManager] Connected System Printers:', availablePrinters.map(p => p.name));
+
+          // 1. Check if user requested a specific printer name that exists in system
+          if (config.printerName && config.printerName.trim() !== '') {
+            const requested = config.printerName.trim().toLowerCase();
+            const matched = availablePrinters.find(p => p.name.toLowerCase() === requested || p.name.toLowerCase().includes(requested));
+            if (matched) {
+              targetDeviceName = matched.name;
             }
-            if (success) resolve();
-            else reject(new Error(`Chromium Silent Print Failed: ${failureReason}`));
+          }
+
+          // 2. Auto-detect RP3200, TVS, Thermal, POS receipt printer in Windows Print Queues
+          if (!targetDeviceName && availablePrinters.length > 0) {
+            const thermalKeywords = ['RP3200', 'TVS', 'POS', 'THERMAL', 'XP-', 'XP ', 'RECEIPT', 'ESC', '80MM', '58MM'];
+            const virtualKeywords = ['PDF', 'XPS', 'ONENOTE', 'FAX', 'MICROSOFT'];
+
+            const thermalPrinter = availablePrinters.find(p => {
+              const nameUpper = p.name.toUpperCase();
+              const isThermal = thermalKeywords.some(kw => nameUpper.includes(kw));
+              const isVirtual = virtualKeywords.some(kw => nameUpper.includes(kw));
+              return isThermal && !isVirtual;
+            });
+
+            if (thermalPrinter) {
+              targetDeviceName = thermalPrinter.name;
+              console.log(`[PrintManager] Auto-selected thermal printer: "${targetDeviceName}"`);
+            } else {
+              // 3. Fallback to default OS printer or first physical printer
+              const defaultPrinter = availablePrinters.find(p => p.isDefault) || availablePrinters.find(p => !virtualKeywords.some(kw => p.name.toUpperCase().includes(kw)));
+              if (defaultPrinter) {
+                targetDeviceName = defaultPrinter.name;
+                console.log(`[PrintManager] Fallback system printer: "${targetDeviceName}"`);
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('[PrintManager] Could not query system printers:', e.message);
+        }
+
+        const printOptions = {
+          silent: true,
+          printBackground: true,
+          margin: { marginType: 'none' }
+        };
+
+        if (targetDeviceName) {
+          printOptions.deviceName = targetDeviceName;
+        }
+
+        console.log(`[PrintManager] Printing bill to device: "${printOptions.deviceName || 'Windows Default'}"`);
+
+        printWindow.webContents.print(
+          printOptions,
+          (success, failureReason) => {
+            if (success) {
+              if (printWindow && !printWindow.isDestroyed()) {
+                printWindow.destroy();
+                printWindow = null;
+              }
+              resolve();
+            } else {
+              console.warn(`[PrintManager] Silent print to "${targetDeviceName}" failed: ${failureReason}. Retrying with system print dialog...`);
+              if (printWindow && !printWindow.isDestroyed()) {
+                try {
+                  printWindow.show();
+                  printWindow.focus();
+                } catch (e) {}
+
+                printWindow.webContents.print({
+                  silent: false,
+                  printBackground: true,
+                  margin: { marginType: 'none' }
+                }, (fallbackSuccess, fallbackFailure) => {
+                  if (printWindow && !printWindow.isDestroyed()) {
+                    printWindow.destroy();
+                    printWindow = null;
+                  }
+                  if (fallbackSuccess) resolve();
+                  else reject(new Error(`Print Failed: ${fallbackFailure}`));
+                });
+              } else {
+                reject(new Error(`Chromium Silent Print Failed: ${failureReason}`));
+              }
+            }
           }
         );
       });
