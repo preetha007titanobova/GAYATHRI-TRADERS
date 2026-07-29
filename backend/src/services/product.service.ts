@@ -5,7 +5,7 @@ import { Product } from '../models/product.model';
 export const getProductByBarcode = async (barcode: string): Promise<any> => {
   try {
     const db = await getDb();
-    let product = await db.collection('Product').findOne({
+    let product: any = await db.collection('Product').findOne({
       $or: [{ barcode: barcode }, { itemCode: barcode }, { vendorItemCode: barcode }]
     });
     if (!product) {

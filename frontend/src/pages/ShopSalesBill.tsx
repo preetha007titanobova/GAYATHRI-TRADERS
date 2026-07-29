@@ -713,10 +713,10 @@ const ShopSalesBill = () => {
         try {
           printReceipt({
             invoiceNo: billNo,
-            date: date,
+            date: billDate,
             customerName: shopName,
-            subTotal: totals.taxableAmt,
-            totalAmount: totals.netPayable,
+            subTotal: taxableTotal,
+            totalAmount: grandTotal,
             gridData: items.map(i => ({ itemName: i.itemName, qty: i.qty, rate: i.unitPrice, amount: i.total }))
           });
         } catch (pErr) {
@@ -724,18 +724,19 @@ const ShopSalesBill = () => {
         }
 
         // 2. Auto-Send via WhatsApp if mobile/phone number is available
-        const rawPhone = shopGstin || '';
+        const rawPhone = gstin || '';
         if (rawPhone && rawPhone.replace(/\D/g, '').length >= 10) {
           try {
             sendWhatsAppBill({
               invoiceNo: billNo,
-              invDate: date,
+              invDate: billDate,
               buyerName: shopName,
               mobileNo: rawPhone,
+              paymentMode: 'Cash',
               items: items.map(i => ({ itemName: i.itemName, qty: i.qty, rate: i.unitPrice, amount: i.total })),
               totalQty: items.reduce((acc, i) => acc + i.qty, 0),
-              totalAmount: totals.taxableAmt,
-              netAmount: totals.netPayable
+              totalAmount: taxableTotal,
+              netAmount: grandTotal
             }, undefined, true);
           } catch (waErr) {
             console.error("Auto WhatsApp error:", waErr);

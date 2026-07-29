@@ -225,13 +225,16 @@ const calculateBiometricMetrics = (checkInStr, checkOutStr, shiftInTime = '09:00
 };
 const processBiometricPunch = (identifier, dateStr) => __awaiter(void 0, void 0, void 0, function* () {
     const db = yield (0, db_1.getDb)();
+    const orConditions = [
+        { staffCode: identifier },
+        { biometricId: identifier },
+        { biometricId2: identifier }
+    ];
+    if (mongodb_1.ObjectId.isValid(identifier)) {
+        orConditions.push({ _id: new mongodb_1.ObjectId(identifier) });
+    }
     let staff = yield db.collection('Staff').findOne({
-        $or: [
-            { staffCode: identifier },
-            { biometricId: identifier },
-            { biometricId2: identifier },
-            { _id: mongodb_1.ObjectId.isValid(identifier) ? new mongodb_1.ObjectId(identifier) : null }
-        ],
+        $or: orConditions,
         status: 'Active'
     });
     if (!staff) {
