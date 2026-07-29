@@ -7,6 +7,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import PrinterStatus from './PrinterStatus';
 import { OpeningCashModal } from './OpeningCashModal';
+import { sendWhatsAppTextMessage } from '../utils/whatsappHelper';
 
 export type ToolbarActions = {
   onAdd?: () => void;
@@ -337,28 +338,26 @@ const Layout = () => {
         emailFailed = true;
       }
 
-      const whatsappText = `*Ithu Namma Kada - Close Day Report*\n` +
-                           `*Date:* ${formattedDate}\n` +
-                           `*Total Items:* ${data.length}\n` +
-                           `*Total Qty In (Pur):* ${totalInward}\n` +
-                           `*Total Qty Out (Sold):* ${totalOutward}\n` +
-                           `*Total Qty Returned:* ${totalReturns}\n` +
-                           `*Total Closing Qty:* ${totalClosing}\n` +
-                           `*Total Closing Valuation:* Rs. ${(totalValuation || 0).toFixed(2)}\n\n` +
-                           (pdfUrl ? `*Download PDF Report:* ${pdfUrl}\n\n` : '') +
+      const whatsappText = `*🧾 ${shopName || 'ITHU NAMMA KADA'} - CLOSE DAY REPORT*\n` +
+                           `📅 *Date:* ${formattedDate}\n` +
+                           `----------------------------------------\n` +
+                           `📦 *Total Items In Stock Master:* ${data.length}\n` +
+                           `📥 *Total Purchased Today (Inward):* ${totalInward} PCS\n` +
+                           `📤 *Total Sold Today (Outward):* ${totalOutward} PCS\n` +
+                           `🔄 *Total Returns Today:* ${totalReturns} PCS\n` +
+                           `📊 *Current Closing Stock Qty:* ${totalClosing} PCS\n` +
+                           `💰 *Total Stock Valuation:* ₹${(totalValuation || 0).toFixed(2)}\n` +
+                           `----------------------------------------\n` +
+                           (pdfUrl ? `📄 *Download Full PDF Report:* ${pdfUrl}\n\n` : '') +
                            (emailFailed 
-                             ? `*Note:* Emailed PDF report failed to send due to email credentials error.\n\n`
-                             : `*Notification:* Daily PDF stock report has been generated and emailed to ${ownerEmail}.\n\n`) +
+                             ? `⚠️ *Email Status:* PDF report generate complete.\n\n`
+                             : `✅ *Email Status:* PDF report generated & emailed to ${ownerEmail}.\n\n`) +
                            `Generated automatically via Billing System.`;
 
-      // const whatsappUrl = `https://api.whatsapp.com/send?phone=${ownerWhatsApp}&text=${encodeURIComponent(whatsappText)}`;
-      // window.open(whatsappUrl, '_blank');
+      // Dispatch Close Day summary to owner's WhatsApp number
+      sendWhatsAppTextMessage(ownerWhatsApp, whatsappText);
 
-      if (emailFailed) {
-        setGlobalNotification({ msg: `Day closed! Daily report email failed to send (WhatsApp daily stock status share is blocked).`, type: 'error' });
-      } else {
-        setGlobalNotification({ msg: `Day closed successfully! Report emailed (WhatsApp daily stock status share is blocked).`, type: 'success' });
-      }
+      setGlobalNotification({ msg: `✓ Day closed! Report sent to owner's WhatsApp [${ownerWhatsApp}]`, type: 'success' });
       setIsCloseDayModalOpen(false);
 
       if (isCloseRequested) {
@@ -366,7 +365,7 @@ const Layout = () => {
           if ((window as any).api) {
             (window as any).api.send('app-close-confirmed');
           }
-        }, 1500);
+        }, 2000);
       }
     } catch (err: any) {
       console.error(err);

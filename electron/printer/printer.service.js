@@ -65,7 +65,7 @@ function init(mainWindow, ipcMainInstance) {
     });
 }
 
-function printHTML(htmlContent) {
+function printHTML(htmlContent, options = {}) {
     // Schedule printing inside the sequential queue
     return queue.addToQueue(() => {
         return new Promise((resolve, reject) => {
@@ -95,12 +95,12 @@ function printHTML(htmlContent) {
 
             printWindow.webContents.on('did-finish-load', () => {
                 const printOptions = {
-                    silent: !!activePrinter, // print silently if we detected a printer
+                    silent: options.silent !== undefined ? options.silent : (options.showDialog ? false : !!activePrinter),
                     printBackground: true,
                     margins: { marginType: 'none' }
                 };
 
-                if (activePrinter) {
+                if (activePrinter && !options.showDialog) {
                     printOptions.deviceName = activePrinter.name;
                 }
 
@@ -108,14 +108,11 @@ function printHTML(htmlContent) {
                     printWindow.destroy();
                     printWindow = null;
                     try { if (fs.existsSync(tempWritePath)) fs.unlinkSync(tempWritePath); } catch (e) {}
-
                     if (success) {
                         resolve(true);
                     } else {
-                        // Fallback to showing system dialog if silent printing fails
                         console.warn(`[PrinterService] Silent print failed: ${errorType}. Falling back to system dialog...`);
                         
-                        // Retry with system dialog
                         let fallbackWindow = new BrowserWindow({
                             show: false,
                             webPreferences: {

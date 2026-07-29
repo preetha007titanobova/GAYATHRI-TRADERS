@@ -49,6 +49,55 @@ const CODE39_MAP: { [key: string]: string } = {
   '/': '010100010', '+': '010001010', '%': '000101010', '*': '010010100'
 };
 
+const CODE128_PATTERNS = [
+  "212221","222121","222221","121223","121322","131222","122213","122312","132212","221213",
+  "221312","231212","112232","122132","122231","113222","123122","123221","223211","221132",
+  "221231","213212","223112","312131","311222","321122","321221","312212","322112","322211",
+  "212123","212321","232121","111323","131123","131321","112313","132113","132311","211313",
+  "231113","231311","112133","112331","132131","113123","113321","133113","133311","211331",
+  "231131","213113","213311","213131","311123","311321","331121","312113","312311","332111",
+  "314111","221411","431111","111224","111422","121124","121421","141122","141221","112214",
+  "112412","122114","122411","142112","142211","241211","221114","413111","241112","134111",
+  "111242","121142","121241","114212","124112","124211","411212","421112","421211","212141",
+  "214121","412121","111143","111341","131141","114113","114311","411113","411311","113141",
+  "114131","311141","411131","211214","211412","2331112"
+];
+
+function generateCode128Bars(text: string): { width: number; type: 'bar' | 'space' }[] {
+  const clean = text || '100002';
+  const patterns: string[] = [];
+  
+  // Start Code B (103)
+  patterns.push(CODE128_PATTERNS[103]);
+  let checksum = 103;
+
+  for (let i = 0; i < clean.length; i++) {
+    let charCode = clean.charCodeAt(i);
+    let codeVal = charCode - 32;
+    if (codeVal < 0 || codeVal > 95) codeVal = 0; // Fallback to space
+    patterns.push(CODE128_PATTERNS[codeVal]);
+    checksum += codeVal * (i + 1);
+  }
+
+  // Checksum & Stop symbol
+  patterns.push(CODE128_PATTERNS[checksum % 103]);
+  patterns.push(CODE128_PATTERNS[105]);
+
+  const result: { width: number; type: 'bar' | 'space' }[] = [];
+  result.push({ width: 8, type: 'space' });
+
+  patterns.forEach(patStr => {
+    for (let j = 0; j < patStr.length; j++) {
+      const width = parseInt(patStr[j], 10);
+      const isBar = j % 2 === 0;
+      result.push({ width, type: isBar ? 'bar' : 'space' });
+    }
+  });
+
+  result.push({ width: 8, type: 'space' });
+  return result;
+}
+
 function generateCode39Bars(text: string): { width: number; type: 'bar' | 'space' }[] {
   const cleanText = text.toUpperCase().replace(/[^0-9A-Z\-.\s$/+%]/g, '');
   const formatted = `*${cleanText}*`;
@@ -77,6 +126,30 @@ function generateCode39Bars(text: string): { width: number; type: 'bar' | 'space
   return result;
 }
 
+function generateBarcodeBars(text: string, type: string = 'Code 128'): { width: number; type: 'bar' | 'space' }[] {
+  if (type === 'Code 39') {
+    return generateCode39Bars(text);
+  }
+  return generateCode128Bars(text);
+}
+
+function getBarcodeSVGString(text: string, type: string = 'Code 128'): string {
+  const bars = generateBarcodeBars(text, type);
+  let totalWidth = 0;
+  bars.forEach(b => totalWidth += b.width);
+
+  let currentX = 0;
+  let rects = '';
+  bars.forEach(b => {
+    if (b.type === 'bar') {
+      rects += `<rect x="${currentX}" y="0" width="${b.width}" height="100%" fill="#000000" />`;
+    }
+    currentX += b.width;
+  });
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalWidth} 100" preserveAspectRatio="none" style="width: 100%; height: 100%; display: block;">${rects}</svg>`;
+}
+
 const BarcodeGeneration = () => {
   const { shopName } = useLicense();
   // --- Form States ---
@@ -92,6 +165,38 @@ const BarcodeGeneration = () => {
   const [salesPrice, setSalesPrice] = useState<number | ''>(799);
   const [barcodeType, setBarcodeType] = useState('Code 128');
   const [printCount, setPrintCount] = useState<number | ''>(1);
+  const [labelLayout, setLabelLayout] = useState<'3-UP' | '1-UP' | 'A4'>('3-UP');
+  const [useSystemPrintDialog, setUseSystemPrintDialog] = useState(false);
+
+  // --- Custom Millimeter Dimension & Layout Controls ---
+  const [labelWidthMm, setLabelWidthMm] = useState<number>(33);
+  const [labelHeightMm, setLabelHeightMm] = useState<number>(24);
+  const [colsAcross, setColsAcross] = useState<number>(3);
+  const [barcodeHeightMm, setBarcodeHeightMm] = useState<number>(7);
+  const [labelRotation, setLabelRotation] = useState<0 | 90 | 180 | 270>(0);
+  const [startColumn, setStartColumn] = useState<number>(1);
+  const [marginLeftMm, setMarginLeftMm] = useState<number>(0);
+  const [showShopHeader, setShowShopHeader] = useState<boolean>(true);
+  const [showMetaLine, setShowMetaLine] = useState<boolean>(true);
+  const [showDatesLine, setShowDatesLine] = useState<boolean>(true);
+  const [showPriceLine, setShowPriceLine] = useState<boolean>(true);
+
+  const handleLayoutPresetChange = (preset: '3-UP' | '1-UP' | 'A4') => {
+    setLabelLayout(preset);
+    if (preset === '3-UP') {
+      setLabelWidthMm(33);
+      setLabelHeightMm(24);
+      setColsAcross(3);
+    } else if (preset === '1-UP') {
+      setLabelWidthMm(35);
+      setLabelHeightMm(25);
+      setColsAcross(1);
+    } else if (preset === 'A4') {
+      setLabelWidthMm(65);
+      setLabelHeightMm(35);
+      setColsAcross(3);
+    }
+  };
 
   // --- Item Master Integration States ---
   const [availableProducts, setAvailableProducts] = useState<Product[]>([]);
@@ -210,7 +315,7 @@ const BarcodeGeneration = () => {
     }
   };
 
-  // Save Barcode Entry to Table List
+  // Save Barcode Entry to Table List & Backend Database
   const handleSaveBarcodeToTable = () => {
     if (!productName.trim() || !barcodeValue.trim()) {
       if (setGlobalNotification) {
@@ -239,51 +344,105 @@ const BarcodeGeneration = () => {
 
     setSavedBarcodes(prev => [newItem, ...prev.filter(b => b.barcodeValue !== newItem.barcodeValue)]);
 
+    // Sync saved barcode product to backend database for instant POS scanner lookup
+    try {
+      fetch(`${Api}/products`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          itemCode: newItem.barcodeValue,
+          barcode: newItem.barcodeValue,
+          name: newItem.productName,
+          department: newItem.department,
+          variety: newItem.variety,
+          size: newItem.size,
+          price: newItem.salesPrice || newItem.mrp || 0,
+          mrp: newItem.mrp || newItem.salesPrice || 0,
+          stock: 100,
+          uom: 'PCS'
+        })
+      }).catch(err => console.error("Sync product barcode error:", err));
+    } catch (e) {
+      console.error("Backend product sync failed:", e);
+    }
+
     if (setGlobalNotification) {
-      setGlobalNotification({ msg: `✓ Saved barcode [${newItem.barcodeValue}] for ${newItem.productName} in table!`, type: 'success' });
+      setGlobalNotification({ msg: `✓ Saved barcode [${newItem.barcodeValue}] for ${newItem.productName} in table & database!`, type: 'success' });
       setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3500);
     }
   };
 
-  // Print Labels Function
+  // Print Labels Function (Supports Custom Millimeter Dimensions, Multi-Column Packaging, Rotation & Column Offset)
   const printLabelHTML = (itemsToPrint: SavedBarcodeItem[]) => {
-    let printHtml = '';
+    let rawLabels: { item: SavedBarcodeItem, mfgFormatted: string, expFormatted: string, mrpFormatted: string, saleFormatted: string, barcodeSvg: string }[] = [];
+
     itemsToPrint.forEach(item => {
       const numLabels = Number(item.printCount) || 1;
       const mfgFormatted = item.mfgDate ? `${item.mfgDate.substring(8, 10)}/${item.mfgDate.substring(5, 7)}/${item.mfgDate.substring(2, 4)}` : '--/--';
       const expFormatted = item.expDate ? `${item.expDate.substring(8, 10)}/${item.expDate.substring(5, 7)}/${item.expDate.substring(2, 4)}` : '--/--';
       const mrpFormatted = Number(item.mrp || 0).toFixed(2);
       const saleFormatted = Number(item.salesPrice || 0).toFixed(2);
-
-      const bars = generateCode39Bars(item.barcodeValue || '100002');
-      const scale = 1.15;
-      const barcodeHtml = bars.map(bar => {
-        if (bar.type === 'bar') {
-          return `<div style="border-left: ${bar.width * scale}px solid #000000; height: 100%; flex-shrink: 0;"></div>`;
-        } else {
-          return `<div style="width: ${bar.width * scale}px; height: 100%; flex-shrink: 0;"></div>`;
-        }
-      }).join('');
+      const barcodeSvg = getBarcodeSVGString(item.barcodeValue || '100002', item.barcodeType || 'Code 128');
 
       for (let i = 0; i < numLabels; i++) {
-        printHtml += `
-          <div id="print-label">
-            <div class="header">${shopName}</div>
-            <div class="product">${item.productName}</div>
-            <div class="meta">${item.department} | ${item.variety} | Size: ${item.size}</div>
-            <div class="dates">pkd ${mfgFormatted} Exp ${expFormatted}</div>
-            <div class="price-container">
-              <span class="mrp">MRP: <del>₹${mrpFormatted}</del></span>
-              <span class="sale">₹${saleFormatted}</span>
-            </div>
-            <div class="barcode-wrapper" style="display: flex; justify-content: center; align-items: stretch; height: 6mm; width: 100%; background-color: #ffffff; overflow: hidden; margin-top: 0.8mm;">
-               ${barcodeHtml}
-            </div>
-            <div class="barcode-text">* ${item.barcodeValue} *</div>
-          </div>
-        `;
+        rawLabels.push({ item, mfgFormatted, expFormatted, mrpFormatted, saleFormatted, barcodeSvg });
       }
     });
+
+    const totalWidthMm = colsAcross > 1 ? colsAcross * labelWidthMm : labelWidthMm;
+    const pageSizeCss = `@page { size: ${totalWidthMm}mm ${labelHeightMm}mm; margin: 0; }`;
+
+    const innerWidth = (labelRotation === 90 || labelRotation === 270) ? labelHeightMm : labelWidthMm;
+    const innerHeight = (labelRotation === 90 || labelRotation === 270) ? labelWidthMm : labelHeightMm;
+
+    const renderLabelContent = (l: (typeof rawLabels)[0]) => `
+      <div class="print-label-outer" style="width: ${labelWidthMm}mm; height: ${labelHeightMm}mm; position: relative; overflow: hidden; display: flex; justify-content: center; align-items: center; box-sizing: border-box;">
+        <div class="print-label-inner" style="width: ${innerWidth}mm; height: ${innerHeight}mm; transform: rotate(${labelRotation}deg); transform-origin: center; display: flex; flex-direction: column; justify-content: space-between; align-items: center; box-sizing: border-box; padding: 0.8mm; background-color: #fff;">
+          ${showShopHeader ? `<div class="header">${shopName}</div>` : ''}
+          <div class="product">${l.item.productName}</div>
+          ${showMetaLine ? `<div class="meta">${l.item.department} | ${l.item.variety} | Size: ${l.item.size}</div>` : ''}
+          ${showDatesLine ? `<div class="dates">pkd ${l.mfgFormatted} Exp ${l.expFormatted}</div>` : ''}
+          ${showPriceLine ? `
+            <div class="price-container">
+              <span class="mrp">MRP: <del>₹${l.mrpFormatted}</del></span>
+              <span class="sale">₹${l.saleFormatted}</span>
+            </div>
+          ` : ''}
+          <div class="barcode-wrapper" style="height: ${barcodeHeightMm}mm; width: 92%; margin: 0.3mm auto 0 auto; display: flex; justify-content: center; align-items: center; background-color: #ffffff;">
+             ${l.barcodeSvg}
+          </div>
+          <div class="barcode-text">${l.item.barcodeType === 'Code 39' ? '* ' + l.item.barcodeValue + ' *' : l.item.barcodeValue}</div>
+        </div>
+      </div>
+    `;
+
+    let bodyContent = '';
+
+    if (colsAcross > 1) {
+      let currentCol = startColumn - 1; // 0-indexed start column
+      let labelIdx = 0;
+
+      while (labelIdx < rawLabels.length) {
+        let rowHtml = `<div class="label-row" style="width: ${totalWidthMm}mm; height: ${labelHeightMm}mm; padding-left: ${marginLeftMm}mm;">`;
+        for (let col = 0; col < colsAcross; col++) {
+          if (col < currentCol) {
+            rowHtml += `<div class="print-label-outer" style="width: ${labelWidthMm}mm; height: ${labelHeightMm}mm; visibility: hidden;"></div>`;
+          } else if (labelIdx < rawLabels.length) {
+            rowHtml += renderLabelContent(rawLabels[labelIdx]);
+            labelIdx++;
+          } else {
+            rowHtml += `<div class="print-label-outer" style="width: ${labelWidthMm}mm; height: ${labelHeightMm}mm; visibility: hidden;"></div>`;
+          }
+        }
+        rowHtml += '</div>';
+        bodyContent += rowHtml;
+        currentCol = 0; // reset for subsequent rows
+      }
+    } else {
+      rawLabels.forEach(l => {
+        bodyContent += renderLabelContent(l);
+      });
+    }
 
     const fullHtml = `
       <!DOCTYPE html>
@@ -291,7 +450,7 @@ const BarcodeGeneration = () => {
         <head>
           <title>Print Barcode Labels</title>
           <style>
-            @page { size: 35mm 25mm; margin: 0; }
+            ${pageSizeCss}
             body { 
               margin: 0; 
               padding: 0; 
@@ -301,45 +460,56 @@ const BarcodeGeneration = () => {
               -webkit-print-color-adjust: exact; 
               print-color-adjust: exact;
             }
-            #print-wrapper {
+            .label-row {
+              display: flex;
+              flex-direction: row;
+              justify-content: space-between;
+              align-items: center;
+              box-sizing: border-box;
+              padding: 0.5mm 1mm;
+              page-break-after: always;
+              overflow: hidden;
+            }
+            .single-label {
+              padding: 0.8mm;
+              box-sizing: border-box;
               display: flex;
               flex-direction: column;
               align-items: center;
-              padding: 0.5mm;
-              box-sizing: border-box;
+              justify-content: space-between;
+              page-break-after: always;
+              margin: 0 auto;
+              overflow: hidden;
             }
-            #print-label {
-              width: 34mm;
-              height: 24mm;
-              padding: 1mm 1.5mm;
+            .print-label {
+              padding: 0.8mm 1mm;
               box-sizing: border-box;
               display: flex;
               flex-direction: column;
               align-items: center;
               justify-content: space-between;
               background-color: #fff;
-              page-break-after: always;
               overflow: hidden;
             }
-            .header { font-size: 5pt; font-weight: bold; text-align: center; text-transform: uppercase; color: #1e3a8a; line-height: 1; margin-bottom: 0.2mm; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-            .product { font-size: 7pt; font-weight: bold; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1; width: 100%; }
-            .meta { font-size: 5pt; font-weight: bold; text-align: center; line-height: 1; color: #333; }
-            .dates { font-size: 5pt; line-height: 1; white-space: nowrap; }
+            .header { font-size: 5pt; font-weight: bold; text-align: center; text-transform: uppercase; color: #1e3a8a; line-height: 1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            .product { font-size: 6.5pt; font-weight: bold; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1; width: 100%; }
+            .meta { font-size: 4.8pt; font-weight: bold; text-align: center; line-height: 1; color: #333; }
+            .dates { font-size: 4.5pt; line-height: 1; white-space: nowrap; }
             .price-container { display: flex; justify-content: center; align-items: baseline; gap: 1.5mm; }
-            .mrp { font-size: 5pt; }
-            .sale { font-size: 8pt; font-weight: bold; }
-            .barcode-wrapper { height: 6mm; width: 90%; display: flex; justify-content: center; align-items: stretch; overflow: hidden; }
-            .barcode-text { font-size: 5pt; font-family: monospace; font-weight: bold; margin-top: 0.5mm; }
+            .mrp { font-size: 4.5pt; }
+            .sale { font-size: 7.5pt; font-weight: bold; }
+            .barcode-wrapper { display: flex; justify-content: center; align-items: center; overflow: hidden; }
+            .barcode-text { font-size: 4.5pt; font-family: monospace; font-weight: bold; margin-top: 0.2mm; }
           </style>
         </head>
         <body>
-          <div id="print-wrapper">${printHtml}</div>
+          ${bodyContent}
         </body>
       </html>
     `;
 
     if ((window as any).api) {
-      (window as any).api.send('print-html', fullHtml);
+      (window as any).api.send('print-html', fullHtml, { showDialog: useSystemPrintDialog });
     } else {
       const printWindow = window.open('', '_blank');
       if (!printWindow) {
@@ -448,14 +618,14 @@ const BarcodeGeneration = () => {
     ctx.fillText(`MRP: ₹${mrpVal}   SALE: ₹${saleVal}`, 200, 146);
 
     // Barcode Visual Lines
-    const bars = generateCode39Bars(item.barcodeValue || '100002');
+    const bars = generateBarcodeBars(item.barcodeValue || '100002', item.barcodeType || 'Code 128');
     const barY = 158;
     const barHeight = 75;
 
     // Calculate total width to center it on the 400px wide canvas
-    const scale = 2.0;
     let totalUnits = 0;
     bars.forEach(bar => totalUnits += bar.width);
+    const scale = Math.min(3.0, Math.max(1.0, 360 / totalUnits));
     const totalWidth = totalUnits * scale;
     let currentX = Math.max(10, 200 - totalWidth / 2); // Center the barcode
 
@@ -470,7 +640,7 @@ const BarcodeGeneration = () => {
     // Barcode text
     ctx.font = 'bold 16px monospace';
     ctx.fillStyle = '#0f172a';
-    ctx.fillText(`* ${code} *`, 200, 258);
+    ctx.fillText(item.barcodeType === 'Code 39' ? `* ${code} *` : code, 200, 258);
 
     // Download PNG
     const dataUrl = canvas.toDataURL('image/png');
@@ -753,18 +923,18 @@ const BarcodeGeneration = () => {
                 />
               </div>
 
-              {/* TYPE & QUANTITY */}
+              {/* TYPE & QUANTITY & ROLL FORMAT */}
               <div>
                 <label className="font-semibold text-slate-700 block mb-1">Barcode Standard</label>
                 <select
-                  className="w-full border border-slate-300 py-1.5 px-2.5 rounded text-slate-800 focus:border-blue-600 focus:outline-none"
+                  className="w-full border border-slate-300 py-1.5 px-2.5 rounded text-slate-800 focus:border-blue-600 focus:outline-none font-bold text-blue-900"
                   value={barcodeType}
                   onChange={e => setBarcodeType(e.target.value)}
                 >
-                  <option value="Code 128">Code 128 (Standard)</option>
-                  <option value="EAN-13">EAN-13</option>
-                  <option value="UPC-A">UPC-A</option>
-                  <option value="QR Code">QR Code</option>
+                  <option value="Code 128">Code 128 (Standard POS)</option>
+                  <option value="Code 39">Code 39 (Alphanumeric)</option>
+                  <option value="EAN-13">EAN-13 (Numeric)</option>
+                  <option value="UPC-A">UPC-A (Numeric)</option>
                 </select>
               </div>
 
@@ -777,6 +947,132 @@ const BarcodeGeneration = () => {
                   value={printCount}
                   onChange={e => setPrintCount(e.target.value ? Number(e.target.value) : '')}
                 />
+              </div>
+
+              {/* LABEL ROLL FORMAT & PRINTER SELECTION */}
+              <div className="col-span-2 md:col-span-1">
+                <label className="font-semibold text-slate-700 block mb-1">Sticker Paper Roll Preset</label>
+                <select
+                  className="w-full border border-blue-400 bg-blue-50/80 py-1.5 px-2.5 rounded font-bold text-blue-950 focus:border-blue-700 focus:outline-none"
+                  value={labelLayout}
+                  onChange={e => handleLayoutPresetChange(e.target.value as any)}
+                >
+                  <option value="3-UP">3-UP Roll (3 Labels across - 105mm x 25mm TSC/TVS)</option>
+                  <option value="1-UP">1-UP Single Roll (35mm x 25mm Continuous Roll)</option>
+                  <option value="A4">A4 Sticker Sheet (24 Labels per A4 Page)</option>
+                </select>
+              </div>
+
+              <div className="col-span-2 md:col-span-1 flex items-center pt-5">
+                <label className="flex items-center space-x-2 cursor-pointer font-bold text-slate-800 select-none">
+                  <input
+                    type="checkbox"
+                    checked={useSystemPrintDialog}
+                    onChange={e => setUseSystemPrintDialog(e.target.checked)}
+                    className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                  />
+                  <span>Show Printer Dialog (Select Driver)</span>
+                </label>
+              </div>
+
+              {/* CUSTOM MILLIMETER DIMENSION CONTROLS */}
+              <div className="col-span-2 bg-slate-50 border border-slate-300 p-2.5 rounded-md space-y-2">
+                <div className="font-extrabold text-[11px] text-blue-900 uppercase tracking-wide flex items-center justify-between">
+                  <span>📐 Custom Sticker Dimension Settings (Millimeters)</span>
+                  <span className="text-[10px] text-slate-500 font-normal">Fine-tune width, height & barcode size</span>
+                </div>
+                
+                <div className="grid grid-cols-6 gap-2">
+                  <div>
+                    <label className="font-bold text-[10px] text-slate-700 block">Sticker Width (mm)</label>
+                    <input
+                      type="number"
+                      min="15"
+                      max="150"
+                      className="w-full border border-slate-300 py-1 px-2 rounded font-bold text-blue-900 text-center text-[11px]"
+                      value={labelWidthMm}
+                      onChange={e => setLabelWidthMm(Number(e.target.value) || 35)}
+                    />
+                  </div>
+                  <div>
+                    <label className="font-bold text-[10px] text-slate-700 block">Sticker Height (mm)</label>
+                    <input
+                      type="number"
+                      min="15"
+                      max="150"
+                      className="w-full border border-slate-300 py-1 px-2 rounded font-bold text-blue-900 text-center text-[11px]"
+                      value={labelHeightMm}
+                      onChange={e => setLabelHeightMm(Number(e.target.value) || 25)}
+                    />
+                  </div>
+                  <div>
+                    <label className="font-bold text-[10px] text-slate-700 block">Columns Across</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="6"
+                      className="w-full border border-slate-300 py-1 px-2 rounded font-bold text-blue-900 text-center text-[11px]"
+                      value={colsAcross}
+                      onChange={e => setColsAcross(Number(e.target.value) || 1)}
+                    />
+                  </div>
+                  <div>
+                    <label className="font-bold text-[10px] text-slate-700 block">Start Column</label>
+                    <select
+                      className="w-full border border-blue-400 bg-blue-50 py-1 px-1 rounded font-bold text-blue-950 text-[10px]"
+                      value={startColumn}
+                      onChange={e => setStartColumn(Number(e.target.value))}
+                    >
+                      <option value={1}>Col 1 (Left)</option>
+                      <option value={2}>Col 2 (Middle)</option>
+                      <option value={3}>Col 3 (Right)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="font-bold text-[10px] text-slate-700 block">Left Margin (mm)</label>
+                    <input
+                      type="number"
+                      min="-10"
+                      max="30"
+                      className="w-full border border-slate-300 py-1 px-2 rounded font-bold text-blue-900 text-center text-[11px]"
+                      value={marginLeftMm}
+                      onChange={e => setMarginLeftMm(Number(e.target.value) || 0)}
+                    />
+                  </div>
+                  <div>
+                    <label className="font-bold text-[10px] text-slate-700 block">Orientation</label>
+                    <select
+                      className="w-full border border-emerald-500 bg-emerald-50 py-1 px-1 rounded font-bold text-emerald-950 text-[10px]"
+                      value={labelRotation}
+                      onChange={e => setLabelRotation(Number(e.target.value) as any)}
+                    >
+                      <option value={0}>0° Normal</option>
+                      <option value={90}>90° Right</option>
+                      <option value={270}>270° Left</option>
+                      <option value={180}>180° Inverted</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* ELEMENT VISIBILITY TOGGLES */}
+                <div className="grid grid-cols-4 gap-2 pt-1 border-t border-slate-200 text-[10px] font-bold text-slate-700">
+                  <label className="flex items-center gap-1 cursor-pointer">
+                    <input type="checkbox" checked={showShopHeader} onChange={e => setShowShopHeader(e.target.checked)} />
+                    <span>Store Name</span>
+                  </label>
+                  <label className="flex items-center gap-1 cursor-pointer">
+                    <input type="checkbox" checked={showMetaLine} onChange={e => setShowMetaLine(e.target.checked)} />
+                    <span>Category/Variety</span>
+                  </label>
+                  <label className="flex items-center gap-1 cursor-pointer">
+                    <input type="checkbox" checked={showDatesLine} onChange={e => setShowDatesLine(e.target.checked)} />
+                    <span>Dates/Batch</span>
+                  </label>
+                  <label className="flex items-center gap-1 cursor-pointer">
+                    <input type="checkbox" checked={showPriceLine} onChange={e => setShowPriceLine(e.target.checked)} />
+                    <span>MRP / Sale Price</span>
+                  </label>
+                </div>
               </div>
 
             </div>
@@ -816,83 +1112,85 @@ const BarcodeGeneration = () => {
         <div className="lg:col-span-5 bg-slate-800 border border-slate-700 rounded-md shadow-md p-4 text-white flex flex-col items-center justify-center relative min-h-[480px]">
           <div className="absolute top-2.5 left-3 text-slate-400 text-[10px] font-bold uppercase tracking-widest flex items-center gap-1">
             <Tag size={12} className="text-yellow-400" />
-            2. Live Thermal Label Preview (35mm x 25mm)
+            2. Live Thermal Label Preview ({labelWidthMm}mm x {labelHeightMm}mm - {colsAcross}-UP - {labelRotation}°)
           </div>
 
           <div className="flex justify-center items-center w-full my-8">
             <div
-              className="bg-white shadow-2xl relative overflow-hidden border border-slate-300"
+              className="bg-white shadow-2xl relative overflow-hidden border border-slate-300 transition-all duration-300"
               style={{
-                width: '35mm',
-                height: '25mm',
+                width: `${labelWidthMm}mm`,
+                height: `${labelHeightMm}mm`,
                 boxSizing: 'border-box',
-                padding: '1.2mm',
+                padding: '1mm',
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 fontFamily: 'Arial, sans-serif',
                 color: '#000',
-                transform: 'scale(3.2)',
+                transform: `scale(3.2) rotate(${labelRotation}deg)`,
                 transformOrigin: 'center'
               }}
             >
               {/* Store Name */}
-              <div className="w-full text-center border-b border-black/20 pb-[0.2mm]">
-                <h1 className="text-[5.5pt] font-extrabold uppercase leading-none m-0 p-0 whitespace-nowrap tracking-tight">
-                  {shopName}
-                </h1>
-              </div>
+              {showShopHeader && (
+                <div className="w-full text-center border-b border-black/20 pb-[0.2mm]">
+                  <h1 className="text-[5.5pt] font-extrabold uppercase leading-none m-0 p-0 whitespace-nowrap tracking-tight">
+                    {shopName}
+                  </h1>
+                </div>
+              )}
 
               {/* Product Name */}
               <div className="w-full text-center">
-                <h2 className="text-[7pt] font-extrabold uppercase leading-none truncate m-0 p-0 w-full text-black">
+                <h2 className="text-[6.5pt] font-extrabold uppercase leading-none truncate m-0 p-0 w-full text-black">
                   {productName || 'PRODUCT NAME'}
                 </h2>
               </div>
 
               {/* Category / Variety / Size Badge */}
-              <div className="w-full text-center">
-                <span className="text-[4.8pt] font-bold leading-none m-0 p-0 text-slate-800 block truncate">
-                  {department || 'General'} | {variety || 'Standard'} | Size: <strong className="text-black font-extrabold">{size || 'L'}</strong>
-                </span>
-              </div>
+              {showMetaLine && (
+                <div className="w-full text-center">
+                  <span className="text-[4.8pt] font-bold leading-none m-0 p-0 text-slate-800 block truncate">
+                    {department || 'General'} | {variety || 'Standard'} | Size: <strong className="text-black font-extrabold">{size || 'L'}</strong>
+                  </span>
+                </div>
+              )}
 
               {/* Dates & Batch */}
-              <div className="w-full text-center">
-                <span className="text-[4.5pt] leading-none m-0 p-0 whitespace-nowrap text-slate-700">
-                  pkd {mfgDate ? `${mfgDate.substring(8, 10)}/${mfgDate.substring(5, 7)}/${mfgDate.substring(2, 4)}` : '--/--'} Exp {expDate ? `${expDate.substring(8, 10)}/${expDate.substring(5, 7)}/${expDate.substring(2, 4)}` : '--/--'}
-                </span>
-              </div>
+              {showDatesLine && (
+                <div className="w-full text-center">
+                  <span className="text-[4.5pt] leading-none m-0 p-0 whitespace-nowrap text-slate-700">
+                    pkd {mfgDate ? `${mfgDate.substring(8, 10)}/${mfgDate.substring(5, 7)}/${mfgDate.substring(2, 4)}` : '--/--'} Exp {expDate ? `${expDate.substring(8, 10)}/${expDate.substring(5, 7)}/${expDate.substring(2, 4)}` : '--/--'}
+                  </span>
+                </div>
+              )}
 
               {/* Price */}
-              <div className="w-full text-center flex justify-center items-baseline gap-[1.5mm]">
-                <span className="text-[4.5pt] leading-none m-0 p-0 text-slate-700">
-                  MRP: <span className="line-through">₹{mrp !== '' ? Number(mrp).toFixed(2) : '0.00'}</span>
-                </span>
-                <span className="text-[7.5pt] font-extrabold leading-none m-0 p-0 text-black">
-                  ₹{salesPrice !== '' ? Number(salesPrice).toFixed(2) : '0.00'}
-                </span>
-              </div>
+              {showPriceLine && (
+                <div className="w-full text-center flex justify-center items-baseline gap-[1.5mm]">
+                  <span className="text-[4.5pt] leading-none m-0 p-0 text-slate-700">
+                    MRP: <span className="line-through">₹{mrp !== '' ? Number(mrp).toFixed(2) : '0.00'}</span>
+                  </span>
+                  <span className="text-[7.5pt] font-extrabold leading-none m-0 p-0 text-black">
+                    ₹{salesPrice !== '' ? Number(salesPrice).toFixed(2) : '0.00'}
+                  </span>
+                </div>
+              )}
 
-              {/* Barcode Visual Lines */}
-              <div className="w-[92%] h-[6mm] flex justify-center items-stretch overflow-hidden bg-white">
-                {generateCode39Bars(barcodeValue || '100002').map((bar, index) => (
-                  <div
-                    key={index}
-                    style={{
-                      width: `${bar.width * 1.6}px`,
-                      backgroundColor: bar.type === 'bar' ? '#000000' : 'transparent',
-                      flexShrink: 0
-                    }}
-                  />
-                ))}
+              {/* Barcode Visual Lines Vector SVG */}
+              <div className="w-[92%] flex justify-center items-center overflow-hidden bg-white" style={{ height: `${barcodeHeightMm}mm` }}>
+                <div
+                  className="w-full h-full"
+                  dangerouslySetInnerHTML={{ __html: getBarcodeSVGString(barcodeValue || '100002', barcodeType) }}
+                />
               </div>
 
               {/* Barcode Number Code */}
               <div className="w-full text-center">
                 <span className="text-[4.5pt] font-mono font-bold leading-none block">
-                  * {barcodeValue || '100002'} *
+                  {barcodeType === 'Code 39' ? `* ${barcodeValue || '100002'} *` : barcodeValue || '100002'}
                 </span>
               </div>
             </div>

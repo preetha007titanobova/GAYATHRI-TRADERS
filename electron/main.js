@@ -353,8 +353,8 @@ ipcMain.on('app-ready', () => {
     isFrontendReady = true;
 });
 
-ipcMain.on('print-html', (event, htmlContent) => {
-    printerService.printHTML(htmlContent).catch((err) => {
+ipcMain.on('print-html', (event, htmlContent, options) => {
+    printerService.printHTML(htmlContent, options).catch((err) => {
         console.error('[Main] Printer service print failed:', err.message);
     });
 });

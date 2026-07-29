@@ -68,3 +68,40 @@ Thank you for shopping with us! 🙏 Have a great day!`;
     phone
   };
 };
+
+export const sendWhatsAppTextMessage = (rawPhone: string, text: string) => {
+  let phone = rawPhone.replace(/\D/g, '');
+  if (!phone) {
+    return { success: false, error: 'Please enter a valid mobile number for WhatsApp.' };
+  }
+
+  if (phone.length === 10) {
+    phone = `91${phone}`;
+  }
+
+  const encodedText = encodeURIComponent(text);
+  const nativeAppUrl = `whatsapp://send?phone=${phone}&text=${encodedText}`;
+  const webAppUrl = `https://api.whatsapp.com/send?phone=${phone}&text=${encodedText}`;
+
+  // Launch WhatsApp protocol link
+  try {
+    const a = document.createElement('a');
+    a.href = nativeAppUrl;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  } catch (e) {
+    console.error('Native WhatsApp launch error:', e);
+  }
+
+  // Also trigger window.open fallback for browser/Electron compatibility
+  setTimeout(() => {
+    window.open(webAppUrl, '_blank');
+  }, 400);
+
+  return {
+    success: true,
+    url: webAppUrl,
+    phone
+  };
+};
