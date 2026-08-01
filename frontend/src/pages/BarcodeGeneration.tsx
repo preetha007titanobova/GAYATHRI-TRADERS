@@ -3,6 +3,7 @@ import { useOutletContext } from 'react-router-dom';
 import { Printer, Save, RotateCcw, Download, Trash2, Plus, Search, Package, Check, Tag, FileDown } from 'lucide-react';
 import Api from '../Api';
 import { useLicense } from '../context/LicenseContext';
+import { getPrinterStatus, setActivePrinter, printTSPLRaw } from '../services/printService';
 
 interface Product {
   id?: string;
@@ -165,36 +166,77 @@ const BarcodeGeneration = () => {
   const [salesPrice, setSalesPrice] = useState<number | ''>(799);
   const [barcodeType, setBarcodeType] = useState('Code 128');
   const [printCount, setPrintCount] = useState<number | ''>(1);
-  const [labelLayout, setLabelLayout] = useState<'3-UP' | '1-UP' | 'A4'>('3-UP');
+  const [labelLayout, setLabelLayout] = useState<'3-UP' | '3-UP-TALL' | '3-UP-WIDE' | '1-UP' | 'A4'>('3-UP');
   const [useSystemPrintDialog, setUseSystemPrintDialog] = useState(false);
+  const [previewViewMode, setPreviewViewMode] = useState<'row' | 'single'>('row');
 
   // --- Custom Millimeter Dimension & Layout Controls ---
-  const [labelWidthMm, setLabelWidthMm] = useState<number>(33);
-  const [labelHeightMm, setLabelHeightMm] = useState<number>(24);
+  const [labelWidthMm, setLabelWidthMm] = useState<number>(32);
+  const [totalRollWidthMm, setTotalRollWidthMm] = useState<number>(102);
+  const [columnGapMm, setColumnGapMm] = useState<number>(2);
+  const [labelHeightMm, setLabelHeightMm] = useState<number>(25);
   const [colsAcross, setColsAcross] = useState<number>(3);
   const [barcodeHeightMm, setBarcodeHeightMm] = useState<number>(7);
   const [labelRotation, setLabelRotation] = useState<0 | 90 | 180 | 270>(0);
   const [startColumn, setStartColumn] = useState<number>(1);
-  const [marginLeftMm, setMarginLeftMm] = useState<number>(0);
+  const [marginLeftMm, setMarginLeftMm] = useState<number>(1.5);
+  const [forcePortrait, setForcePortrait] = useState<boolean>(false);
   const [showShopHeader, setShowShopHeader] = useState<boolean>(true);
   const [showMetaLine, setShowMetaLine] = useState<boolean>(true);
   const [showDatesLine, setShowDatesLine] = useState<boolean>(true);
   const [showPriceLine, setShowPriceLine] = useState<boolean>(true);
 
-  const handleLayoutPresetChange = (preset: '3-UP' | '1-UP' | 'A4') => {
+  const handleLayoutPresetChange = (preset: '3-UP' | '3-UP-TALL' | '3-UP-WIDE' | '1-UP' | 'A4') => {
     setLabelLayout(preset);
     if (preset === '3-UP') {
-      setLabelWidthMm(33);
-      setLabelHeightMm(24);
+      setLabelWidthMm(32);
+      setTotalRollWidthMm(102);
+      setColumnGapMm(2);
+      setLabelHeightMm(25);
       setColsAcross(3);
+      setMarginLeftMm(1.5);
+      setLabelRotation(0);
+      setForcePortrait(false);
+      if (!printCount || printCount === 1) setPrintCount(3);
+    } else if (preset === '3-UP-TALL') {
+      setLabelWidthMm(32);
+      setTotalRollWidthMm(102);
+      setColumnGapMm(2);
+      setLabelHeightMm(50);
+      setBarcodeHeightMm(10);
+      setColsAcross(3);
+      setMarginLeftMm(1.5);
+      setLabelRotation(0);
+      setForcePortrait(false);
+      if (!printCount || printCount === 1) setPrintCount(3);
+    } else if (preset === '3-UP-WIDE') {
+      setLabelWidthMm(38);
+      setTotalRollWidthMm(120);
+      setColumnGapMm(2);
+      setLabelHeightMm(25);
+      setColsAcross(3);
+      setMarginLeftMm(1.5);
+      setLabelRotation(0);
+      setForcePortrait(false);
+      if (!printCount || printCount === 1) setPrintCount(3);
     } else if (preset === '1-UP') {
       setLabelWidthMm(35);
+      setTotalRollWidthMm(35);
+      setColumnGapMm(0);
       setLabelHeightMm(25);
       setColsAcross(1);
+      setMarginLeftMm(0);
+      setLabelRotation(0);
+      setForcePortrait(false);
     } else if (preset === 'A4') {
       setLabelWidthMm(65);
+      setTotalRollWidthMm(210);
+      setColumnGapMm(5);
       setLabelHeightMm(35);
       setColsAcross(3);
+      setMarginLeftMm(5);
+      setLabelRotation(0);
+      setForcePortrait(true);
     }
   };
 
@@ -233,10 +275,15 @@ const BarcodeGeneration = () => {
 
   const [tableSearch, setTableSearch] = useState('');
 
+  // System Printers Detection & Driver Calibration
+  const [connectedPrinters, setConnectedPrinters] = useState<{ name: string; isDefault: boolean }[]>([]);
+  const [selectedPrinterName, setSelectedPrinterName] = useState<string>('');
+  const [driverRotationFix, setDriverRotationFix] = useState<number>(0);
+
   // Global Context
   const { setToolbarActions, setGlobalNotification } = useOutletContext<{ setToolbarActions?: any, setGlobalNotification?: any }>() || {};
 
-  // Fetch Item Master saved list on mount
+  // Fetch Item Master saved list on mount & Detect System Printers
   useEffect(() => {
     fetch(`${Api}/products/search`)
       .then(res => res.json())
@@ -244,6 +291,40 @@ const BarcodeGeneration = () => {
         if (Array.isArray(data)) setAvailableProducts(data);
       })
       .catch(err => console.error("Error fetching item master:", err));
+
+    getPrinterStatus((status) => {
+      if (status && status.allPrinters) {
+        setConnectedPrinters(status.allPrinters);
+        const tscPrinter = status.allPrinters.find(p => 
+          p.name.toUpperCase().includes('TSC') || 
+          p.name.toUpperCase().includes('TE244') || 
+          p.name.toUpperCase().includes('BARCODE') ||
+          p.name.toUpperCase().includes('LABEL')
+        );
+        if (tscPrinter) {
+          setSelectedPrinterName(tscPrinter.name);
+          setActivePrinter(tscPrinter.name, () => {});
+        } else if (status.activePrinter) {
+          setSelectedPrinterName(status.activePrinter);
+        }
+      }
+    });
+
+    if ((window as any).api) {
+      (window as any).api.receive('print-response', (event: any, res: any) => {
+        if (res.success) {
+          if (setGlobalNotification) {
+            setGlobalNotification({ msg: `✓ Barcode label print job sent successfully!`, type: 'success' });
+            setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3500);
+          }
+        } else {
+          if (setGlobalNotification) {
+            setGlobalNotification({ msg: `❌ Printing error: ${res.error || 'Check printer connection'}`, type: 'error' });
+            setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 5000);
+          }
+        }
+      });
+    }
   }, []);
 
   // Save barcodes list to localStorage
@@ -372,6 +453,149 @@ const BarcodeGeneration = () => {
     }
   };
 
+  // Generate TSPL Native Commands for TSC TE244 Printers
+  const generateTSPLCommandString = (itemsToPrint: SavedBarcodeItem[]): string => {
+    const calcWidth = totalRollWidthMm || 102;
+    const calcHeight = labelHeightMm || 25;
+    let tspl = `SIZE ${calcWidth} mm, ${calcHeight} mm\r\n`;
+    tspl += `GAP ${columnGapMm} mm, 0 mm\r\n`;
+    tspl += `SPEED 3\r\n`;
+    tspl += `DENSITY 12\r\n`;
+    tspl += `DIRECTION 0,0\r\n`;
+    tspl += `REFERENCE 0,0\r\n`;
+    tspl += `OFFSET 0 mm\r\n`;
+    tspl += `SET PEEL OFF\r\n`;
+    tspl += `SET TEAR ON\r\n`;
+    tspl += `CLS\r\n`;
+
+    let rawList: SavedBarcodeItem[] = [];
+    itemsToPrint.forEach(item => {
+      const numLabels = Number(item.printCount) || 1;
+      for (let i = 0; i < numLabels; i++) rawList.push(item);
+    });
+
+    let labelIdx = 0;
+    let currentCol = startColumn - 1;
+    const rot = labelRotation || 0;
+
+    while (labelIdx < rawList.length) {
+      tspl += `CLS\r\n`;
+      for (let col = 0; col < colsAcross; col++) {
+        if (col >= currentCol && labelIdx < rawList.length) {
+          const item = rawList[labelIdx];
+          const mfg = item.mfgDate ? `${item.mfgDate.substring(8, 10)}/${item.mfgDate.substring(5, 7)}/${item.mfgDate.substring(0, 4)}` : '10/05/2025';
+          const saleVal = Number(item.salesPrice || item.mrp || 0).toFixed(2);
+          const xDot = Math.round((marginLeftMm + col * (labelWidthMm + columnGapMm)) * 8); // 203 DPI = 8 dots/mm
+          const labelWidthDots = Math.round(labelWidthMm * 8);
+          const labelHeightDots = Math.round(labelHeightMm * 8);
+
+          const shopText = shopName.substring(0, 20).toUpperCase();
+          const prodText = item.productName.substring(0, 20).toUpperCase();
+          const metaText = `Mfrs:${item.variety || 'Standard'} | Size:${item.size || 'L'}`;
+          const datePriceText = `pkd:${mfg}  MRP Rs.${saleVal}`;
+          const bcVal = item.barcodeType === 'Code 39' ? `* ${item.barcodeValue} *` : item.barcodeValue;
+          const bType = item.barcodeType === 'Code 39' ? '39' : '128';
+          const barH = Math.round(barcodeHeightMm * 8) || 38;
+
+          if (rot === 90) {
+            const xBase = xDot;
+            if (showShopHeader) {
+              tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.85)},15,"3",90,1,1,"${shopText}"\r\n`;
+            }
+            tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.68)},15,"3",90,1,1,"${prodText}"\r\n`;
+            if (showMetaLine) {
+              tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.52)},15,"1",90,1,1,"${metaText}"\r\n`;
+            }
+            if (showDatesLine || showPriceLine) {
+              tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.40)},15,"2",90,1,1,"${datePriceText}"\r\n`;
+            }
+            tspl += `BARCODE ${xBase + Math.round(labelWidthDots * 0.22)},15,"${bType}",${barH},0,90,2,2,"${item.barcodeValue}"\r\n`;
+            tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.08)},15,"1",90,1,1,"${bcVal}"\r\n`;
+
+          } else if (rot === 270) {
+            const xBase = xDot;
+            const yEnd = labelHeightDots - 15;
+            if (showShopHeader) {
+              tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.15)},${yEnd},"3",270,1,1,"${shopText}"\r\n`;
+            }
+            tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.32)},${yEnd},"3",270,1,1,"${prodText}"\r\n`;
+            if (showMetaLine) {
+              tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.48)},${yEnd},"1",270,1,1,"${metaText}"\r\n`;
+            }
+            if (showDatesLine || showPriceLine) {
+              tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.60)},${yEnd},"2",270,1,1,"${datePriceText}"\r\n`;
+            }
+            tspl += `BARCODE ${xBase + Math.round(labelWidthDots * 0.78)},${yEnd},"${bType}",${barH},0,270,2,2,"${item.barcodeValue}"\r\n`;
+            tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.92)},${yEnd},"1",270,1,1,"${bcVal}"\r\n`;
+
+          } else if (rot === 180) {
+            const xEnd = xDot + labelWidthDots - 10;
+            const yEnd = labelHeightDots - 10;
+            if (showShopHeader) {
+              tspl += `TEXT ${xEnd},${yEnd - 10},"3",180,1,1,"${shopText}"\r\n`;
+            }
+            tspl += `TEXT ${xEnd},${yEnd - 30},"3",180,1,1,"${prodText}"\r\n`;
+            if (showMetaLine) {
+              tspl += `TEXT ${xEnd},${yEnd - 50},"1",180,1,1,"${metaText}"\r\n`;
+            }
+            if (showDatesLine || showPriceLine) {
+              tspl += `TEXT ${xEnd},${yEnd - 70},"2",180,1,1,"${datePriceText}"\r\n`;
+            }
+            tspl += `BARCODE ${xEnd},${yEnd - 92},"${bType}",${barH},0,180,2,2,"${item.barcodeValue}"\r\n`;
+            tspl += `TEXT ${xEnd},${yEnd - 135},"1",180,1,1,"${bcVal}"\r\n`;
+
+          } else {
+            if (showShopHeader) {
+              tspl += `TEXT ${xDot + 10},8,"3",0,1,1,"${shopText}"\r\n`;
+            }
+            tspl += `TEXT ${xDot + 10},28,"3",0,1,1,"${prodText}"\r\n`;
+            if (showMetaLine) {
+              tspl += `TEXT ${xDot + 10},50,"1",0,1,1,"${metaText}"\r\n`;
+            }
+            if (showDatesLine || showPriceLine) {
+              tspl += `TEXT ${xDot + 10},70,"2",0,1,1,"${datePriceText}"\r\n`;
+            }
+            tspl += `BARCODE ${xDot + 10},92,"${bType}",${barH},0,0,2,2,"${item.barcodeValue}"\r\n`;
+            tspl += `TEXT ${xDot + 10},135,"1",0,1,1,"${bcVal}"\r\n`;
+          }
+
+          labelIdx++;
+        }
+      }
+      tspl += `PRINT 1,1\r\n`;
+      currentCol = 0;
+    }
+
+    return tspl;
+  };
+
+  const handleDownloadTSPLFile = (itemsToPrint: SavedBarcodeItem[]) => {
+    const tsplStr = generateTSPLCommandString(itemsToPrint);
+    const blob = new Blob([tsplStr], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `TSC_TE244_Barcodes_${Date.now()}.tspl`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    if (setGlobalNotification) {
+      setGlobalNotification({ msg: "✓ Downloaded TSC TE244 native TSPL command file!", type: 'success' });
+      setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
+    }
+  };
+
+  const handleDirectTSPLHardwarePrint = (itemsToPrint: SavedBarcodeItem[]) => {
+    const tsplStr = generateTSPLCommandString(itemsToPrint);
+    printTSPLRaw(tsplStr, { printerName: selectedPrinterName });
+    if (setGlobalNotification) {
+      setGlobalNotification({ msg: `⚡ Direct TSPL command sent to ${selectedPrinterName || 'TSC TE244'}...`, type: 'info' });
+      setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
+    }
+  };
+
   // Print Labels Function (Supports Custom Millimeter Dimensions, Multi-Column Packaging, Rotation & Column Offset)
   const printLabelHTML = (itemsToPrint: SavedBarcodeItem[]) => {
     let rawLabels: { item: SavedBarcodeItem, mfgFormatted: string, expFormatted: string, mrpFormatted: string, saleFormatted: string, barcodeSvg: string }[] = [];
@@ -389,29 +613,26 @@ const BarcodeGeneration = () => {
       }
     });
 
-    const totalWidthMm = colsAcross > 1 ? colsAcross * labelWidthMm : labelWidthMm;
-    const pageSizeCss = `@page { size: ${totalWidthMm}mm ${labelHeightMm}mm; margin: 0; }`;
+    const calculatedRollWidth = totalRollWidthMm || (colsAcross > 1 ? (colsAcross * labelWidthMm + (colsAcross - 1) * columnGapMm + marginLeftMm * 2) : labelWidthMm);
+    const pageSizeCss = `@page { size: ${calculatedRollWidth}mm ${labelHeightMm}mm; margin: 0; }`;
 
     const innerWidth = (labelRotation === 90 || labelRotation === 270) ? labelHeightMm : labelWidthMm;
     const innerHeight = (labelRotation === 90 || labelRotation === 270) ? labelWidthMm : labelHeightMm;
 
     const renderLabelContent = (l: (typeof rawLabels)[0]) => `
       <div class="print-label-outer" style="width: ${labelWidthMm}mm; height: ${labelHeightMm}mm; position: relative; overflow: hidden; display: flex; justify-content: center; align-items: center; box-sizing: border-box;">
-        <div class="print-label-inner" style="width: ${innerWidth}mm; height: ${innerHeight}mm; transform: rotate(${labelRotation}deg); transform-origin: center; display: flex; flex-direction: column; justify-content: space-between; align-items: center; box-sizing: border-box; padding: 0.8mm; background-color: #fff;">
-          ${showShopHeader ? `<div class="header">${shopName}</div>` : ''}
-          <div class="product">${l.item.productName}</div>
-          ${showMetaLine ? `<div class="meta">${l.item.department} | ${l.item.variety} | Size: ${l.item.size}</div>` : ''}
-          ${showDatesLine ? `<div class="dates">pkd ${l.mfgFormatted} Exp ${l.expFormatted}</div>` : ''}
-          ${showPriceLine ? `
-            <div class="price-container">
-              <span class="mrp">MRP: <del>₹${l.mrpFormatted}</del></span>
-              <span class="sale">₹${l.saleFormatted}</span>
-            </div>
-          ` : ''}
-          <div class="barcode-wrapper" style="height: ${barcodeHeightMm}mm; width: 92%; margin: 0.3mm auto 0 auto; display: flex; justify-content: center; align-items: center; background-color: #ffffff;">
+        <div class="print-label-inner" style="width: ${innerWidth}mm; height: ${innerHeight}mm; ${labelRotation !== 0 ? `transform: rotate(${labelRotation}deg); transform-origin: center;` : ''} display: flex; flex-direction: column; justify-content: space-between; align-items: center; box-sizing: border-box; padding: 0.6mm; background-color: #ffffff;">
+          ${showShopHeader ? `<div class="header" style="font-size: 5.5pt; font-weight: 900; text-align: center; text-transform: uppercase; color: #000000 !important; line-height: 1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${shopName}</div>` : ''}
+          <div class="product" style="font-size: 7.5pt; font-weight: 900; text-align: center; text-transform: uppercase; color: #000000 !important; line-height: 1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${l.item.productName}</div>
+          ${showMetaLine ? `<div class="meta" style="font-size: 4.8pt; font-weight: 700; text-align: center; color: #000000 !important; line-height: 1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Mfrs : ${l.item.variety || 'Standard'} | Size : ${l.item.size || 'L'}</div>` : ''}
+          <div class="dates-price" style="display: flex; justify-content: space-between; align-items: baseline; font-size: 5pt; font-weight: 900; width: 100%; padding: 0 0.5mm; color: #000000 !important;">
+            <span>pkd : ${l.mfgFormatted}</span>
+            <span class="mrp" style="font-size: 5.5pt; font-weight: 900;">MRP ₹${l.saleFormatted}</span>
+          </div>
+          <div class="barcode-wrapper" style="height: ${barcodeHeightMm}mm; width: 95%; margin: 0.2mm auto 0 auto; display: flex; justify-content: center; align-items: center; background-color: #ffffff !important;">
              ${l.barcodeSvg}
           </div>
-          <div class="barcode-text">${l.item.barcodeType === 'Code 39' ? '* ' + l.item.barcodeValue + ' *' : l.item.barcodeValue}</div>
+          <div class="barcode-text" style="font-size: 4.8pt; font-family: monospace; font-weight: 900; text-align: center; line-height: 1; color: #000000 !important;">${l.item.barcodeType === 'Code 39' ? '* ' + l.item.barcodeValue + ' *' : l.item.barcodeValue}</div>
         </div>
       </div>
     `;
@@ -423,7 +644,7 @@ const BarcodeGeneration = () => {
       let labelIdx = 0;
 
       while (labelIdx < rawLabels.length) {
-        let rowHtml = `<div class="label-row" style="width: ${totalWidthMm}mm; height: ${labelHeightMm}mm; padding-left: ${marginLeftMm}mm;">`;
+        let rowHtml = `<div class="label-row" style="width: ${calculatedRollWidth}mm; height: ${labelHeightMm}mm; padding-left: ${marginLeftMm}mm; display: flex; flex-direction: row; justify-content: flex-start; align-items: center; gap: ${columnGapMm}mm; box-sizing: border-box; page-break-after: always; break-after: page; overflow: hidden;">`;
         for (let col = 0; col < colsAcross; col++) {
           if (col < currentCol) {
             rowHtml += `<div class="print-label-outer" style="width: ${labelWidthMm}mm; height: ${labelHeightMm}mm; visibility: hidden;"></div>`;
@@ -440,7 +661,7 @@ const BarcodeGeneration = () => {
       }
     } else {
       rawLabels.forEach(l => {
-        bodyContent += renderLabelContent(l);
+        bodyContent += `<div class="single-label-row" style="width: ${calculatedRollWidth}mm; height: ${labelHeightMm}mm; display: flex; justify-content: center; align-items: center; page-break-after: always; break-after: page; overflow: hidden;">${renderLabelContent(l)}</div>`;
       });
     }
 
@@ -451,55 +672,40 @@ const BarcodeGeneration = () => {
           <title>Print Barcode Labels</title>
           <style>
             ${pageSizeCss}
+            * {
+              box-sizing: border-box;
+              color: #000000 !important;
+            }
             body { 
               margin: 0; 
               padding: 0; 
-              background: white; 
+              background: #ffffff !important; 
               font-family: Arial, sans-serif;
-              color: #000;
-              -webkit-print-color-adjust: exact; 
-              print-color-adjust: exact;
+              color: #000000 !important;
+              -webkit-print-color-adjust: exact !important; 
+              print-color-adjust: exact !important;
             }
             .label-row {
               display: flex;
               flex-direction: row;
-              justify-content: space-between;
+              justify-content: flex-start;
               align-items: center;
               box-sizing: border-box;
-              padding: 0.5mm 1mm;
               page-break-after: always;
+              break-after: page;
               overflow: hidden;
+              ${driverRotationFix !== 0 ? `transform: rotate(${driverRotationFix}deg); transform-origin: center;` : ''}
             }
-            .single-label {
-              padding: 0.8mm;
-              box-sizing: border-box;
-              display: flex;
-              flex-direction: column;
-              align-items: center;
-              justify-content: space-between;
-              page-break-after: always;
-              margin: 0 auto;
-              overflow: hidden;
-            }
-            .print-label {
-              padding: 0.8mm 1mm;
-              box-sizing: border-box;
-              display: flex;
-              flex-direction: column;
-              align-items: center;
-              justify-content: space-between;
-              background-color: #fff;
-              overflow: hidden;
-            }
-            .header { font-size: 5pt; font-weight: bold; text-align: center; text-transform: uppercase; color: #1e3a8a; line-height: 1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-            .product { font-size: 6.5pt; font-weight: bold; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1; width: 100%; }
-            .meta { font-size: 4.8pt; font-weight: bold; text-align: center; line-height: 1; color: #333; }
-            .dates { font-size: 4.5pt; line-height: 1; white-space: nowrap; }
-            .price-container { display: flex; justify-content: center; align-items: baseline; gap: 1.5mm; }
-            .mrp { font-size: 4.5pt; }
-            .sale { font-size: 7.5pt; font-weight: bold; }
-            .barcode-wrapper { display: flex; justify-content: center; align-items: center; overflow: hidden; }
-            .barcode-text { font-size: 4.5pt; font-family: monospace; font-weight: bold; margin-top: 0.2mm; }
+            .header { font-size: 5.5pt; font-weight: 900; text-align: center; text-transform: uppercase; color: #000000 !important; line-height: 1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            .product { font-size: 6.5pt; font-weight: 900; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1; width: 100%; color: #000000 !important; }
+            .meta { font-size: 4.8pt; font-weight: 900; text-align: center; line-height: 1; color: #000000 !important; }
+            .dates { font-size: 4.5pt; font-weight: 900; line-height: 1; white-space: nowrap; color: #000000 !important; }
+            .price-container { display: flex; justify-content: center; align-items: baseline; gap: 1.5mm; color: #000000 !important; }
+            .mrp { font-size: 4.5pt; font-weight: 900; color: #000000 !important; }
+            .sale { font-size: 7.5pt; font-weight: 900; color: #000000 !important; }
+            .barcode-wrapper { display: flex; justify-content: center; align-items: center; overflow: hidden; background-color: #ffffff !important; }
+            .barcode-wrapper svg rect { fill: #000000 !important; }
+            .barcode-text { font-size: 4.5pt; font-family: monospace; font-weight: 900; margin-top: 0.2mm; color: #000000 !important; }
           </style>
         </head>
         <body>
@@ -509,7 +715,7 @@ const BarcodeGeneration = () => {
     `;
 
     if ((window as any).api) {
-      (window as any).api.send('print-html', fullHtml, { showDialog: useSystemPrintDialog });
+      (window as any).api.send('print-html', fullHtml, { showDialog: useSystemPrintDialog, landscape: false });
     } else {
       const printWindow = window.open('', '_blank');
       if (!printWindow) {
@@ -957,13 +1163,40 @@ const BarcodeGeneration = () => {
                   value={labelLayout}
                   onChange={e => handleLayoutPresetChange(e.target.value as any)}
                 >
-                  <option value="3-UP">3-UP Roll (3 Labels across - 105mm x 25mm TSC/TVS)</option>
+                  <option value="3-UP">3-UP Roll (3 Labels across - 102mm x 25mm TSC TE244/TVS)</option>
+                  <option value="3-UP-TALL">3-UP Tall Sticker Roll (102mm x 50mm - 90° Rotated Barcode)</option>
+                  <option value="3-UP-WIDE">3-UP Wide Roll (120mm x 25mm)</option>
                   <option value="1-UP">1-UP Single Roll (35mm x 25mm Continuous Roll)</option>
                   <option value="A4">A4 Sticker Sheet (24 Labels per A4 Page)</option>
                 </select>
               </div>
 
-              <div className="col-span-2 md:col-span-1 flex items-center pt-5">
+              {/* TARGET PRINTER SELECTOR */}
+              <div className="col-span-2 md:col-span-1">
+                <label className="font-semibold text-slate-700 block mb-1 flex justify-between">
+                  <span>Target Barcode Printer</span>
+                  <span className="text-[10px] text-emerald-700 font-bold">
+                    {connectedPrinters.length > 0 ? `🟢 ${connectedPrinters.length} Connected` : '⚠️ Select Driver'}
+                  </span>
+                </label>
+                <select
+                  className="w-full border border-emerald-500 bg-emerald-50 py-1.5 px-2.5 rounded font-bold text-slate-900 focus:border-emerald-700 focus:outline-none"
+                  value={selectedPrinterName}
+                  onChange={e => {
+                    setSelectedPrinterName(e.target.value);
+                    setActivePrinter(e.target.value, () => {});
+                  }}
+                >
+                  <option value="">-- Select Barcode Printer (e.g. TSC TE244) --</option>
+                  {connectedPrinters.map(p => (
+                    <option key={p.name} value={p.name}>
+                      {p.name} {p.isDefault ? '(Default)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="col-span-2 flex items-center pt-2">
                 <label className="flex items-center space-x-2 cursor-pointer font-bold text-slate-800 select-none">
                   <input
                     type="checkbox"
@@ -971,31 +1204,31 @@ const BarcodeGeneration = () => {
                     onChange={e => setUseSystemPrintDialog(e.target.checked)}
                     className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
                   />
-                  <span>Show Printer Dialog (Select Driver)</span>
+                  <span>Show Printer Driver Selection Dialog (Force Manual Printer Window)</span>
                 </label>
               </div>
 
               {/* CUSTOM MILLIMETER DIMENSION CONTROLS */}
               <div className="col-span-2 bg-slate-50 border border-slate-300 p-2.5 rounded-md space-y-2">
                 <div className="font-extrabold text-[11px] text-blue-900 uppercase tracking-wide flex items-center justify-between">
-                  <span>📐 Custom Sticker Dimension Settings (Millimeters)</span>
-                  <span className="text-[10px] text-slate-500 font-normal">Fine-tune width, height & barcode size</span>
+                  <span>📐 Custom Sticker Dimension & Calibration (TSC TE244 3-UP)</span>
+                  <span className="text-[10px] text-slate-500 font-normal">Fine-tune width, height, roll width & column gaps</span>
                 </div>
                 
-                <div className="grid grid-cols-6 gap-2">
+                <div className="grid grid-cols-4 md:grid-cols-8 gap-2">
                   <div>
-                    <label className="font-bold text-[10px] text-slate-700 block">Sticker Width (mm)</label>
+                    <label className="font-bold text-[10px] text-slate-700 block">Sticker W (mm)</label>
                     <input
                       type="number"
                       min="15"
                       max="150"
                       className="w-full border border-slate-300 py-1 px-2 rounded font-bold text-blue-900 text-center text-[11px]"
                       value={labelWidthMm}
-                      onChange={e => setLabelWidthMm(Number(e.target.value) || 35)}
+                      onChange={e => setLabelWidthMm(Number(e.target.value) || 32)}
                     />
                   </div>
                   <div>
-                    <label className="font-bold text-[10px] text-slate-700 block">Sticker Height (mm)</label>
+                    <label className="font-bold text-[10px] text-slate-700 block">Sticker H (mm)</label>
                     <input
                       type="number"
                       min="15"
@@ -1006,7 +1239,29 @@ const BarcodeGeneration = () => {
                     />
                   </div>
                   <div>
-                    <label className="font-bold text-[10px] text-slate-700 block">Columns Across</label>
+                    <label className="font-bold text-[10px] text-slate-700 block">Roll W (mm)</label>
+                    <input
+                      type="number"
+                      min="30"
+                      max="220"
+                      className="w-full border border-slate-300 py-1 px-2 rounded font-bold text-blue-900 text-center text-[11px]"
+                      value={totalRollWidthMm}
+                      onChange={e => setTotalRollWidthMm(Number(e.target.value) || 102)}
+                    />
+                  </div>
+                  <div>
+                    <label className="font-bold text-[10px] text-slate-700 block">Col Gap (mm)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="20"
+                      className="w-full border border-slate-300 py-1 px-2 rounded font-bold text-blue-900 text-center text-[11px]"
+                      value={columnGapMm}
+                      onChange={e => setColumnGapMm(Number(e.target.value) || 0)}
+                    />
+                  </div>
+                  <div>
+                    <label className="font-bold text-[10px] text-slate-700 block">Columns</label>
                     <input
                       type="number"
                       min="1"
@@ -1017,7 +1272,7 @@ const BarcodeGeneration = () => {
                     />
                   </div>
                   <div>
-                    <label className="font-bold text-[10px] text-slate-700 block">Start Column</label>
+                    <label className="font-bold text-[10px] text-slate-700 block">Start Col</label>
                     <select
                       className="w-full border border-blue-400 bg-blue-50 py-1 px-1 rounded font-bold text-blue-950 text-[10px]"
                       value={startColumn}
@@ -1029,7 +1284,7 @@ const BarcodeGeneration = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="font-bold text-[10px] text-slate-700 block">Left Margin (mm)</label>
+                    <label className="font-bold text-[10px] text-slate-700 block">Left Margin</label>
                     <input
                       type="number"
                       min="-10"
@@ -1052,10 +1307,27 @@ const BarcodeGeneration = () => {
                       <option value={180}>180° Inverted</option>
                     </select>
                   </div>
+                  <div>
+                    <label className="font-bold text-[10px] text-purple-900 block" title="Fixes vertical rotation if Windows driver forces 90° rotation">Driver 90° Fix</label>
+                    <select
+                      className="w-full border border-purple-500 bg-purple-50 py-1 px-1 rounded font-bold text-purple-950 text-[10px]"
+                      value={driverRotationFix}
+                      onChange={e => setDriverRotationFix(Number(e.target.value))}
+                    >
+                      <option value={0}>Off (0°)</option>
+                      <option value={-90}>-90° (Fix Vertical)</option>
+                      <option value={90}>+90° Clockwise</option>
+                      <option value={180}>180° Invert</option>
+                    </select>
+                  </div>
                 </div>
 
-                {/* ELEMENT VISIBILITY TOGGLES */}
-                <div className="grid grid-cols-4 gap-2 pt-1 border-t border-slate-200 text-[10px] font-bold text-slate-700">
+                {/* ELEMENT VISIBILITY & PORTRAIT CONTROL TOGGLES */}
+                <div className="grid grid-cols-5 gap-2 pt-1 border-t border-slate-200 text-[10px] font-bold text-slate-700">
+                  <label className="flex items-center gap-1 cursor-pointer text-indigo-900 font-extrabold" title="Forces portrait print mode to stop Chromium vertical 90° autorotation">
+                    <input type="checkbox" checked={forcePortrait} onChange={e => setForcePortrait(e.target.checked)} />
+                    <span>Lock Portrait (TSC Roll)</span>
+                  </label>
                   <label className="flex items-center gap-1 cursor-pointer">
                     <input type="checkbox" checked={showShopHeader} onChange={e => setShowShopHeader(e.target.checked)} />
                     <span>Store Name</span>
@@ -1089,11 +1361,103 @@ const BarcodeGeneration = () => {
               </button>
               <button
                 type="button"
+                title="Print 1 full row of 3 labels side-by-side across all 3 sticker columns"
+                onClick={() => {
+                  if (!productName || !barcodeValue) {
+                    if (setGlobalNotification) {
+                      setGlobalNotification({ msg: "Please fill in Product Name and Barcode Number before printing.", type: 'error' });
+                      setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
+                    }
+                    return;
+                  }
+                  const item: SavedBarcodeItem = {
+                    id: Date.now().toString(),
+                    productName,
+                    barcodeValue,
+                    department: department || 'General',
+                    variety: variety || 'Standard',
+                    size: size || 'L',
+                    batchNo,
+                    mrp,
+                    salesPrice,
+                    mfgDate,
+                    expDate,
+                    barcodeType,
+                    printCount: 3,
+                    createdAt: new Date().toLocaleString()
+                  };
+                  setColsAcross(3);
+                  setStartColumn(1);
+                  handleDirectTSPLHardwarePrint([item]);
+                }}
+                className="flex-1 flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-500 text-white font-extrabold py-2 px-3 rounded shadow transition-all active:scale-95 text-xs animate-pulse"
+              >
+                <Tag size={16} />
+                ⚡ PRINT 3 COLUMNS IN 1 ROW
+              </button>
+              <button
+                type="button"
                 onClick={handlePrintCurrentForm}
                 className="flex-1 flex items-center justify-center gap-2 bg-blue-700 hover:bg-blue-800 text-white font-extrabold py-2 px-3 rounded shadow transition-all active:scale-95 text-xs"
               >
                 <Printer size={16} />
-                Generate & Print
+                Generate & Print (HTML)
+              </button>
+              <button
+                type="button"
+                title="Send raw TSPL command directly to thermal barcode printer spooler without dialogs"
+                onClick={() => {
+                  if (!productName || !barcodeValue) return;
+                  const item: SavedBarcodeItem = {
+                    id: Date.now().toString(),
+                    productName,
+                    barcodeValue,
+                    department: department || 'General',
+                    variety: variety || 'Standard',
+                    size: size || 'L',
+                    batchNo,
+                    mrp,
+                    salesPrice,
+                    mfgDate,
+                    expDate,
+                    barcodeType,
+                    printCount: printCount || 1,
+                    createdAt: new Date().toLocaleString()
+                  };
+                  handleDirectTSPLHardwarePrint([item]);
+                }}
+                className="flex-1 flex items-center justify-center gap-2 bg-purple-700 hover:bg-purple-800 text-white font-extrabold py-2 px-3 rounded shadow transition-all active:scale-95 text-xs"
+              >
+                <Printer size={16} />
+                TSPL Direct Print
+              </button>
+              <button
+                type="button"
+                title="Download TSC TE244 Native TSPL Command File (.tspl)"
+                onClick={() => {
+                  if (!productName || !barcodeValue) return;
+                  const item: SavedBarcodeItem = {
+                    id: Date.now().toString(),
+                    productName,
+                    barcodeValue,
+                    department: department || 'General',
+                    variety: variety || 'Standard',
+                    size: size || 'L',
+                    batchNo,
+                    mrp,
+                    salesPrice,
+                    mfgDate,
+                    expDate,
+                    barcodeType,
+                    printCount: printCount || 1,
+                    createdAt: new Date().toLocaleString()
+                  };
+                  handleDownloadTSPLFile([item]);
+                }}
+                className="flex items-center justify-center gap-1.5 bg-indigo-700 hover:bg-indigo-800 text-white font-bold py-2 px-3 rounded transition-all active:scale-95 text-xs"
+              >
+                <FileDown size={15} />
+                Export TSPL
               </button>
               <button
                 type="button"
@@ -1110,95 +1474,170 @@ const BarcodeGeneration = () => {
 
         {/* Right Panel: Live Thermal Barcode Label Preview */}
         <div className="lg:col-span-5 bg-slate-800 border border-slate-700 rounded-md shadow-md p-4 text-white flex flex-col items-center justify-center relative min-h-[480px]">
-          <div className="absolute top-2.5 left-3 text-slate-400 text-[10px] font-bold uppercase tracking-widest flex items-center gap-1">
-            <Tag size={12} className="text-yellow-400" />
-            2. Live Thermal Label Preview ({labelWidthMm}mm x {labelHeightMm}mm - {colsAcross}-UP - {labelRotation}°)
+          <div className="absolute top-2.5 left-3 right-3 flex items-center justify-between text-slate-400 text-[10px] font-bold uppercase tracking-widest">
+            <div className="flex items-center gap-1">
+              <Tag size={12} className="text-yellow-400" />
+              <span>2. Live Thermal Label Preview ({colsAcross}-UP Row)</span>
+            </div>
+            <div className="flex items-center gap-1 bg-slate-900 p-0.5 rounded border border-slate-700">
+              <button
+                type="button"
+                onClick={() => setPreviewViewMode('row')}
+                className={`px-2 py-0.5 rounded text-[10px] font-bold transition-colors ${previewViewMode === 'row' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}
+              >
+                3-Col Row View
+              </button>
+              <button
+                type="button"
+                onClick={() => setPreviewViewMode('single')}
+                className={`px-2 py-0.5 rounded text-[10px] font-bold transition-colors ${previewViewMode === 'single' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}
+              >
+                Single Sticker Zoom
+              </button>
+            </div>
           </div>
 
-          <div className="flex justify-center items-center w-full my-8">
-            <div
-              className="bg-white shadow-2xl relative overflow-hidden border border-slate-300 transition-all duration-300"
-              style={{
-                width: `${labelWidthMm}mm`,
-                height: `${labelHeightMm}mm`,
-                boxSizing: 'border-box',
-                padding: '1mm',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                fontFamily: 'Arial, sans-serif',
-                color: '#000',
-                transform: `scale(3.2) rotate(${labelRotation}deg)`,
-                transformOrigin: 'center'
-              }}
-            >
-              {/* Store Name */}
-              {showShopHeader && (
-                <div className="w-full text-center border-b border-black/20 pb-[0.2mm]">
-                  <h1 className="text-[5.5pt] font-extrabold uppercase leading-none m-0 p-0 whitespace-nowrap tracking-tight">
-                    {shopName}
-                  </h1>
-                </div>
-              )}
-
-              {/* Product Name */}
-              <div className="w-full text-center">
-                <h2 className="text-[6.5pt] font-extrabold uppercase leading-none truncate m-0 p-0 w-full text-black">
-                  {productName || 'PRODUCT NAME'}
-                </h2>
+          <div className="flex justify-center items-center w-full my-8 overflow-x-auto p-2">
+            {previewViewMode === 'row' && colsAcross > 1 ? (
+              <div
+                className="bg-slate-300 border-2 border-dashed border-slate-400 rounded-sm shadow-2xl transition-all flex flex-row items-center justify-start"
+                style={{
+                  width: `${totalRollWidthMm || 102}mm`,
+                  height: `${labelHeightMm}mm`,
+                  gap: `${columnGapMm}mm`,
+                  paddingLeft: `${marginLeftMm}mm`,
+                  boxSizing: 'border-box',
+                  transform: 'scale(2.2)',
+                  transformOrigin: 'center'
+                }}
+              >
+                {Array.from({ length: colsAcross }).map((_, colIdx) => (
+                  <div
+                    key={colIdx}
+                    className="bg-white shadow relative overflow-hidden border border-slate-300 transition-all duration-300 flex flex-col justify-between items-center"
+                    style={{
+                      width: `${labelWidthMm}mm`,
+                      height: `${labelHeightMm}mm`,
+                      boxSizing: 'border-box',
+                      padding: '0.6mm',
+                      fontFamily: 'Arial, sans-serif',
+                      color: '#000',
+                      transform: `rotate(${labelRotation}deg)`,
+                      transformOrigin: 'center'
+                    }}
+                  >
+                    {showShopHeader && (
+                      <div className="w-full text-center border-b border-black/20 pb-[0.2mm]">
+                        <h1 className="text-[5.5pt] font-extrabold uppercase leading-none m-0 p-0 whitespace-nowrap tracking-tight text-black">
+                          {shopName}
+                        </h1>
+                      </div>
+                    )}
+                    <div className="w-full text-center">
+                      <h2 className="text-[7.5pt] font-extrabold uppercase leading-none truncate m-0 p-0 w-full text-black">
+                        {productName || 'POLO SHIRT XL'}
+                      </h2>
+                    </div>
+                    {showMetaLine && (
+                      <div className="w-full text-center">
+                        <span className="text-[4.8pt] font-bold leading-none m-0 p-0 text-slate-900 block truncate">
+                          Mfrs : {variety || 'Standard'} | Size : <strong className="text-black font-extrabold">{size || 'L'}</strong>
+                        </span>
+                      </div>
+                    )}
+                    {(showDatesLine || showPriceLine) && (
+                      <div className="w-full flex justify-between items-center px-0.5">
+                        {showDatesLine && (
+                          <span className="text-[4.8pt] font-extrabold leading-none m-0 p-0 text-black">
+                            pkd : {mfgDate ? `${mfgDate.substring(8, 10)}/${mfgDate.substring(5, 7)}/${mfgDate.substring(0, 4)}` : '10/05/2025'}
+                          </span>
+                        )}
+                        {showPriceLine && (
+                          <span className="text-[5.5pt] font-extrabold leading-none m-0 p-0 text-black ml-auto">
+                            MRP ₹{salesPrice !== '' ? Number(salesPrice).toFixed(2) : '450.00'}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    <div className="w-[95%] flex justify-center items-center overflow-hidden bg-white" style={{ height: `${barcodeHeightMm}mm` }}>
+                      <div
+                        className="w-full h-full"
+                        dangerouslySetInnerHTML={{ __html: getBarcodeSVGString(barcodeValue || '8901234567890', barcodeType) }}
+                      />
+                    </div>
+                    <div className="w-full text-center">
+                      <span className="text-[4.8pt] font-mono font-bold leading-none block text-black">
+                        {barcodeType === 'Code 39' ? `* ${barcodeValue || '8901234567890'} *` : barcodeValue || '8901234567890'}
+                      </span>
+                    </div>
+                  </div>
+                ))}
               </div>
-
-              {/* Category / Variety / Size Badge */}
-              {showMetaLine && (
+            ) : (
+              <div
+                className="bg-white shadow-2xl relative overflow-hidden border border-slate-300 transition-all duration-300 flex flex-col justify-between items-center"
+                style={{
+                  width: `${labelWidthMm}mm`,
+                  height: `${labelHeightMm}mm`,
+                  boxSizing: 'border-box',
+                  padding: '1mm',
+                  fontFamily: 'Arial, sans-serif',
+                  color: '#000',
+                  transform: `scale(3.2) rotate(${labelRotation}deg)`,
+                  transformOrigin: 'center'
+                }}
+              >
+                {showShopHeader && (
+                  <div className="w-full text-center border-b border-black/20 pb-[0.2mm]">
+                    <h1 className="text-[5.5pt] font-extrabold uppercase leading-none m-0 p-0 whitespace-nowrap tracking-tight text-black">
+                      {shopName}
+                    </h1>
+                  </div>
+                )}
                 <div className="w-full text-center">
-                  <span className="text-[4.8pt] font-bold leading-none m-0 p-0 text-slate-800 block truncate">
-                    {department || 'General'} | {variety || 'Standard'} | Size: <strong className="text-black font-extrabold">{size || 'L'}</strong>
-                  </span>
+                  <h2 className="text-[7.5pt] font-extrabold uppercase leading-none truncate m-0 p-0 w-full text-black">
+                    {productName || 'POLO SHIRT XL'}
+                  </h2>
                 </div>
-              )}
-
-              {/* Dates & Batch */}
-              {showDatesLine && (
+                {showMetaLine && (
+                  <div className="w-full text-center">
+                    <span className="text-[4.8pt] font-bold leading-none m-0 p-0 text-slate-900 block truncate">
+                      Mfrs : {variety || 'Standard'} | Size : <strong className="text-black font-extrabold">{size || 'L'}</strong>
+                    </span>
+                  </div>
+                )}
+                {(showDatesLine || showPriceLine) && (
+                  <div className="w-full flex justify-between items-center px-1">
+                    {showDatesLine && (
+                      <span className="text-[4.8pt] font-extrabold leading-none m-0 p-0 text-black">
+                        pkd : {mfgDate ? `${mfgDate.substring(8, 10)}/${mfgDate.substring(5, 7)}/${mfgDate.substring(0, 4)}` : '10/05/2025'}
+                      </span>
+                    )}
+                    {showPriceLine && (
+                      <span className="text-[5.5pt] font-extrabold leading-none m-0 p-0 text-black ml-auto">
+                        MRP ₹{salesPrice !== '' ? Number(salesPrice).toFixed(2) : '450.00'}
+                      </span>
+                    )}
+                  </div>
+                )}
+                <div className="w-[95%] flex justify-center items-center overflow-hidden bg-white" style={{ height: `${barcodeHeightMm}mm` }}>
+                  <div
+                    className="w-full h-full"
+                    dangerouslySetInnerHTML={{ __html: getBarcodeSVGString(barcodeValue || '8901234567890', barcodeType) }}
+                  />
+                </div>
                 <div className="w-full text-center">
-                  <span className="text-[4.5pt] leading-none m-0 p-0 whitespace-nowrap text-slate-700">
-                    pkd {mfgDate ? `${mfgDate.substring(8, 10)}/${mfgDate.substring(5, 7)}/${mfgDate.substring(2, 4)}` : '--/--'} Exp {expDate ? `${expDate.substring(8, 10)}/${expDate.substring(5, 7)}/${expDate.substring(2, 4)}` : '--/--'}
+                  <span className="text-[4.8pt] font-mono font-bold leading-none block text-black">
+                    {barcodeType === 'Code 39' ? `* ${barcodeValue || '8901234567890'} *` : barcodeValue || '8901234567890'}
                   </span>
                 </div>
-              )}
-
-              {/* Price */}
-              {showPriceLine && (
-                <div className="w-full text-center flex justify-center items-baseline gap-[1.5mm]">
-                  <span className="text-[4.5pt] leading-none m-0 p-0 text-slate-700">
-                    MRP: <span className="line-through">₹{mrp !== '' ? Number(mrp).toFixed(2) : '0.00'}</span>
-                  </span>
-                  <span className="text-[7.5pt] font-extrabold leading-none m-0 p-0 text-black">
-                    ₹{salesPrice !== '' ? Number(salesPrice).toFixed(2) : '0.00'}
-                  </span>
-                </div>
-              )}
-
-              {/* Barcode Visual Lines Vector SVG */}
-              <div className="w-[92%] flex justify-center items-center overflow-hidden bg-white" style={{ height: `${barcodeHeightMm}mm` }}>
-                <div
-                  className="w-full h-full"
-                  dangerouslySetInnerHTML={{ __html: getBarcodeSVGString(barcodeValue || '100002', barcodeType) }}
-                />
               </div>
-
-              {/* Barcode Number Code */}
-              <div className="w-full text-center">
-                <span className="text-[4.5pt] font-mono font-bold leading-none block">
-                  {barcodeType === 'Code 39' ? `* ${barcodeValue || '100002'} *` : barcodeValue || '100002'}
-                </span>
-              </div>
-            </div>
+            )}
           </div>
 
           <div className="text-xs text-slate-300 font-semibold bg-slate-900/80 px-3 py-1.5 rounded-full border border-slate-700 flex items-center gap-2 mt-4">
             <Check size={14} className="text-emerald-400" />
-            <span>Ready to generate & print {printCount || 1} label(s) for <strong>{productName || 'Item'}</strong></span>
+            <span>Ready to generate & print {printCount || 1} label(s) for <strong>{productName || 'Item'}</strong> in 3-column horizontal row</span>
           </div>
 
         </div>
@@ -1280,11 +1719,21 @@ const BarcodeGeneration = () => {
                         {/* PRINT ICON BUTTON */}
                         <button
                           type="button"
-                          title="Print Barcode Label"
+                          title="Print Barcode Label (HTML)"
                           onClick={() => printLabelHTML([item])}
                           className="bg-blue-600 hover:bg-blue-700 text-white p-1.5 rounded shadow transition-all active:scale-95"
                         >
                           <Printer size={14} />
+                        </button>
+
+                        {/* DIRECT TSPL HARDWARE PRINT BUTTON */}
+                        <button
+                          type="button"
+                          title="Direct TSPL Hardware Print to TSC Printer"
+                          onClick={() => handleDirectTSPLHardwarePrint([item])}
+                          className="bg-purple-600 hover:bg-purple-700 text-white p-1.5 rounded shadow transition-all active:scale-95"
+                        >
+                          <Tag size={14} />
                         </button>
 
                         {/* DOWNLOAD ICON BUTTON */}

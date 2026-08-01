@@ -97,6 +97,7 @@ function printHTML(htmlContent, options = {}) {
                 const printOptions = {
                     silent: options.silent !== undefined ? options.silent : (options.showDialog ? false : !!activePrinter),
                     printBackground: true,
+                    landscape: options.landscape !== undefined ? options.landscape : false,
                     margins: { marginType: 'none' }
                 };
 
@@ -147,8 +148,22 @@ function printHTML(htmlContent, options = {}) {
     });
 }
 
+function printTSPLRaw(tsplString, options = {}) {
+    return new Promise((resolve, reject) => {
+        const ThermalPrinterService = require('./ThermalPrinterService');
+        const thermalService = new ThermalPrinterService();
+        const printerName = options.printerName || (activePrinter ? activePrinter.name : 'TSC TE244');
+        const buffer = Buffer.from(tsplString, 'utf8');
+
+        thermalService.sendToLocalPrinterSpooler(buffer, printerName)
+            .then(() => resolve({ message: `Sent raw TSPL bytes to ${printerName}` }))
+            .catch((err) => reject(new Error(`Failed to send raw TSPL to ${printerName}: ${err ? err.message : err}`)));
+    });
+}
+
 module.exports = {
     init,
     printHTML,
+    printTSPLRaw,
     refreshPrinterStatus
 };

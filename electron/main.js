@@ -354,8 +354,20 @@ ipcMain.on('app-ready', () => {
 });
 
 ipcMain.on('print-html', (event, htmlContent, options) => {
-    printerService.printHTML(htmlContent, options).catch((err) => {
+    printerService.printHTML(htmlContent, options).then(() => {
+        event.reply('print-response', { success: true });
+    }).catch((err) => {
         console.error('[Main] Printer service print failed:', err.message);
+        event.reply('print-response', { success: false, error: err.message });
+    });
+});
+
+ipcMain.on('print-tspl-raw', (event, tsplContent, options) => {
+    printerService.printTSPLRaw(tsplContent, options).then((res) => {
+        event.reply('print-response', { success: true, ...res });
+    }).catch((err) => {
+        console.error('[Main] Printer service raw TSPL print failed:', err.message);
+        event.reply('print-response', { success: false, error: err.message });
     });
 });
 

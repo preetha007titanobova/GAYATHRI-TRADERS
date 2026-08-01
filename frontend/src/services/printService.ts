@@ -56,10 +56,18 @@ export const setActivePrinter = (name: string, callback: (result: { success: boo
   }
 };
 
-export const printHTML = (htmlContent: string) => {
+export const printHTML = (htmlContent: string, options?: { showDialog?: boolean; landscape?: boolean }) => {
   if ((window as any).api) {
-    (window as any).api.send('print-html', htmlContent);
+    (window as any).api.send('print-html', htmlContent, options);
   } else {
-    console.log('Dev Mode Print HTML payload:', htmlContent);
+    console.log('Dev Mode Print HTML payload:', htmlContent, options);
+  }
+};
+
+export const printTSPLRaw = (tsplString: string, options?: { printerName?: string }) => {
+  if ((window as any).api) {
+    (window as any).api.send('print-tspl-raw', tsplString, options);
+  } else {
+    console.log('Dev Mode Print TSPL payload:', tsplString, options);
   }
 };

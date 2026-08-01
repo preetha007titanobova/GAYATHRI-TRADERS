@@ -1,13 +1,13 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('api', {
-    send: (channel, data) => {
+    send: (channel, ...args) => {
         const validChannels = [
             'get-machine-id', 'get-license-status', 'save-license', 'app-close-confirmed', 'app-ready', 
-            'print-html', 'print-receipt', 'print-escpos', 'get-printer-status', 'detect-printers', 'set-active-printer'
+            'print-html', 'print-receipt', 'print-escpos', 'print-tspl-raw', 'get-printer-status', 'detect-printers', 'set-active-printer'
         ];
         if (validChannels.includes(channel)) {
-            ipcRenderer.send(channel, data);
+            ipcRenderer.send(channel, ...args);
         }
     },
     receive: (channel, func) => {
