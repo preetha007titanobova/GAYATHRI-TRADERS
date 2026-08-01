@@ -27,11 +27,11 @@ const ItemMaster = () => {
   const [itemName, setItemName] = useState('');
   const [barcode, setBarcode] = useState('');
   const [uom, setUom] = useState('PCS');
-  const [purchaseRate, setPurchaseRate] = useState(0);
-  const [salesRate, setSalesRate] = useState(0);
-  const [mrp, setMrp] = useState(0);
-  const [taxPercent, setTaxPercent] = useState(18);
-  const [openingStock, setOpeningStock] = useState(0);
+  const [purchaseRate, setPurchaseRate] = useState<number | string>('');
+  const [salesRate, setSalesRate] = useState<number | string>('');
+  const [mrp, setMrp] = useState<number | string>('');
+  const [taxPercent, setTaxPercent] = useState<number | string>(18);
+  const [openingStock, setOpeningStock] = useState<number | string>('');
   const [department, setDepartment] = useState('Womens');
   const [variety, setVariety] = useState('');
   const [size, setSize] = useState('');
@@ -356,7 +356,7 @@ const ItemMaster = () => {
               <div className="flex flex-col">
                 <label className="text-xs font-medium text-slate-600 mb-1">Tax (%)</label>
                 <div className="relative">
-                  <input type="number" className="pr-6 pl-3 py-1 w-full bg-white border border-slate-300 rounded text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow" value={taxPercent} onChange={e => setTaxPercent(Number(e.target.value))} />
+                  <input type="number" className="pr-6 pl-3 py-1 w-full bg-white border border-slate-300 rounded text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow" value={taxPercent} onChange={e => setTaxPercent(e.target.value === '' ? '' : Number(e.target.value))} />
                   <span className="absolute right-2 top-1.5 text-slate-400 text-xs">%</span>
                 </div>
               </div>
@@ -394,7 +394,7 @@ const ItemMaster = () => {
                 <label className="text-xs font-medium text-slate-600 mb-1">Purchase Rate</label>
                 <div className="relative">
                   <span className="absolute left-2.5 top-1 text-slate-400 text-xs">₹</span>
-                  <input type="number" className="pl-6 pr-3 py-1 w-full bg-white border border-slate-300 rounded text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow" value={purchaseRate} onChange={e => setPurchaseRate(Number(e.target.value))} />
+                  <input type="number" className="pl-6 pr-3 py-1 w-full bg-white border border-slate-300 rounded text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow" value={purchaseRate} onChange={e => setPurchaseRate(e.target.value === '' ? '' : Number(e.target.value))} placeholder="0" />
                 </div>
               </div>
 
@@ -402,7 +402,7 @@ const ItemMaster = () => {
                 <label className="text-xs font-medium text-slate-600 mb-1">Sales Rate</label>
                 <div className="relative">
                   <span className="absolute left-2.5 top-1 text-slate-400 text-xs">₹</span>
-                  <input type="number" className="pl-6 pr-3 py-1 w-full bg-white border border-slate-300 rounded text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow" value={salesRate} onChange={e => setSalesRate(Number(e.target.value))} />
+                  <input type="number" className="pl-6 pr-3 py-1 w-full bg-white border border-slate-300 rounded text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow" value={salesRate} onChange={e => setSalesRate(e.target.value === '' ? '' : Number(e.target.value))} placeholder="0" />
                 </div>
               </div>
 
@@ -410,13 +410,13 @@ const ItemMaster = () => {
                 <label className="text-xs font-medium text-slate-600 mb-1">M.R.P</label>
                 <div className="relative">
                   <span className="absolute left-2.5 top-1 text-slate-400 text-xs">₹</span>
-                  <input type="number" className="pl-6 pr-3 py-1 w-full bg-white border border-slate-300 rounded text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow" value={mrp} onChange={e => setMrp(Number(e.target.value))} />
+                  <input type="number" className="pl-6 pr-3 py-1 w-full bg-white border border-slate-300 rounded text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow" value={mrp} onChange={e => setMrp(e.target.value === '' ? '' : Number(e.target.value))} placeholder="0" />
                 </div>
               </div>
 
               <div className="flex flex-col">
                 <label className="text-xs font-medium text-slate-600 mb-1">Opening Stock</label>
-                <input type="number" className="px-3 py-1 bg-white border border-slate-300 rounded text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow" value={openingStock} onChange={e => setOpeningStock(Number(e.target.value))} />
+                <input type="number" className="px-3 py-1 bg-white border border-slate-300 rounded text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow" value={openingStock} onChange={e => setOpeningStock(e.target.value === '' ? '' : Number(e.target.value))} placeholder="0" />
               </div>
             </div>
           </div>

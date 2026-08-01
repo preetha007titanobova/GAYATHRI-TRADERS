@@ -1224,7 +1224,7 @@ const BarcodeGeneration = () => {
                       max="150"
                       className="w-full border border-slate-300 py-1 px-2 rounded font-bold text-blue-900 text-center text-[11px]"
                       value={labelWidthMm}
-                      onChange={e => setLabelWidthMm(Number(e.target.value) || 32)}
+                      onChange={e => setLabelWidthMm(e.target.value === '' ? ('' as any) : Number(e.target.value))}
                     />
                   </div>
                   <div>
@@ -1235,7 +1235,7 @@ const BarcodeGeneration = () => {
                       max="150"
                       className="w-full border border-slate-300 py-1 px-2 rounded font-bold text-blue-900 text-center text-[11px]"
                       value={labelHeightMm}
-                      onChange={e => setLabelHeightMm(Number(e.target.value) || 25)}
+                      onChange={e => setLabelHeightMm(e.target.value === '' ? ('' as any) : Number(e.target.value))}
                     />
                   </div>
                   <div>
@@ -1246,7 +1246,7 @@ const BarcodeGeneration = () => {
                       max="220"
                       className="w-full border border-slate-300 py-1 px-2 rounded font-bold text-blue-900 text-center text-[11px]"
                       value={totalRollWidthMm}
-                      onChange={e => setTotalRollWidthMm(Number(e.target.value) || 102)}
+                      onChange={e => setTotalRollWidthMm(e.target.value === '' ? ('' as any) : Number(e.target.value))}
                     />
                   </div>
                   <div>
@@ -1257,7 +1257,7 @@ const BarcodeGeneration = () => {
                       max="20"
                       className="w-full border border-slate-300 py-1 px-2 rounded font-bold text-blue-900 text-center text-[11px]"
                       value={columnGapMm}
-                      onChange={e => setColumnGapMm(Number(e.target.value) || 0)}
+                      onChange={e => setColumnGapMm(e.target.value === '' ? ('' as any) : Number(e.target.value))}
                     />
                   </div>
                   <div>
@@ -1268,7 +1268,7 @@ const BarcodeGeneration = () => {
                       max="6"
                       className="w-full border border-slate-300 py-1 px-2 rounded font-bold text-blue-900 text-center text-[11px]"
                       value={colsAcross}
-                      onChange={e => setColsAcross(Number(e.target.value) || 1)}
+                      onChange={e => setColsAcross(e.target.value === '' ? ('' as any) : Number(e.target.value))}
                     />
                   </div>
                   <div>
@@ -1291,7 +1291,7 @@ const BarcodeGeneration = () => {
                       max="30"
                       className="w-full border border-slate-300 py-1 px-2 rounded font-bold text-blue-900 text-center text-[11px]"
                       value={marginLeftMm}
-                      onChange={e => setMarginLeftMm(Number(e.target.value) || 0)}
+                      onChange={e => setMarginLeftMm(e.target.value === '' ? ('' as any) : Number(e.target.value))}
                     />
                   </div>
                   <div>
