@@ -172,26 +172,26 @@ const BarcodeGeneration = () => {
   const [previewViewMode, setPreviewViewMode] = useState<'row' | 'single'>('row');
 
   // --- Custom Millimeter Dimension & Layout Controls ---
-  const [labelWidthMm, setLabelWidthMm] = useState<number>(32);
-  const [totalRollWidthMm, setTotalRollWidthMm] = useState<number>(102);
+  const [labelWidthMm, setLabelWidthMm] = useState<number>(30);
+  const [totalRollWidthMm, setTotalRollWidthMm] = useState<number>(100);
   const [columnGapMm, setColumnGapMm] = useState<number>(2);
   const [labelHeightMm, setLabelHeightMm] = useState<number>(25);
   const [colsAcross, setColsAcross] = useState<number>(3);
-  const [barcodeHeightMm, setBarcodeHeightMm] = useState<number>(7);
+  const [barcodeHeightMm, setBarcodeHeightMm] = useState<number>(6);
   const [labelRotation, setLabelRotation] = useState<0 | 90 | 180 | 270>(0);
   const [startColumn, setStartColumn] = useState<number>(1);
   const [marginLeftMm, setMarginLeftMm] = useState<number>(1.5);
   const [forcePortrait, setForcePortrait] = useState<boolean>(false);
   const [showShopHeader, setShowShopHeader] = useState<boolean>(true);
   const [showMetaLine, setShowMetaLine] = useState<boolean>(true);
-  const [showDatesLine, setShowDatesLine] = useState<boolean>(true);
+  const [showDatesLine, setShowDatesLine] = useState<boolean>(false);
   const [showPriceLine, setShowPriceLine] = useState<boolean>(true);
 
   const handleLayoutPresetChange = (preset: '3-UP' | '3-UP-TALL' | '3-UP-WIDE' | '1-UP' | 'A4') => {
     setLabelLayout(preset);
     if (preset === '3-UP') {
-      setLabelWidthMm(32);
-      setTotalRollWidthMm(102);
+      setLabelWidthMm(30);
+      setTotalRollWidthMm(100);
       setColumnGapMm(2);
       setLabelHeightMm(25);
       setColsAcross(3);
@@ -456,13 +456,13 @@ const BarcodeGeneration = () => {
 
   // Generate TSPL Native Commands for TSC TE244 Printers
   const generateTSPLCommandString = (itemsToPrint: SavedBarcodeItem[]): string => {
-    const calcWidth = totalRollWidthMm || 102;
+    const calcWidth = totalRollWidthMm || 100;
     const calcHeight = labelHeightMm || 25;
     let tspl = `SIZE ${calcWidth} mm, ${calcHeight} mm\r\n`;
     tspl += `GAP ${columnGapMm} mm, 0 mm\r\n`;
     tspl += `SPEED 3\r\n`;
     tspl += `DENSITY 12\r\n`;
-    tspl += `DIRECTION 0,0\r\n`;
+    tspl += `DIRECTION 1,0\r\n`;
     tspl += `REFERENCE 0,0\r\n`;
     tspl += `OFFSET 0 mm\r\n`;
     tspl += `SET PEEL OFF\r\n`;
@@ -490,14 +490,14 @@ const BarcodeGeneration = () => {
           const labelWidthDots = Math.round(labelWidthMm * 8);
           const labelHeightDots = Math.round(labelHeightMm * 8);
 
-          const shopText = shopName.substring(0, 20).toUpperCase();
-          const prodText = item.productName.substring(0, 20).toUpperCase();
-          const metaText = `Mfrs : ${item.variety || 'Standard'} | Size : ${item.size || 'L'}`;
-          const pkdText = `pkd : ${mfg}`;
+          const shopText = (shopName || '').substring(0, 18).toUpperCase();
+          const prodText = (item.productName || '').substring(0, 18).toUpperCase();
+          const metaText = `Mfrs:${(item.variety || 'Std').substring(0, 7)} | Size:${(item.size || 'L').substring(0, 4)}`;
+          const pkdText = `pkd:${mfg}`;
           const mrpText = `MRP Rs.${saleVal}`;
           const bcVal = item.barcodeType === 'Code 39' ? `* ${item.barcodeValue} *` : item.barcodeValue;
           const bType = item.barcodeType === 'Code 39' ? '39' : '128';
-          const barH = Math.round(barcodeHeightMm * 8) || 38;
+          const barH = Math.round(barcodeHeightMm * 8) || 44;
 
           const getXCenter = (textStr: string, charWidthDots: number) => {
             const textWidth = (textStr || '').length * charWidthDots;
@@ -509,7 +509,7 @@ const BarcodeGeneration = () => {
             if (showShopHeader) {
               tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.85)},15,"2",90,1,1,"${shopText}"\r\n`;
             }
-            tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.68)},15,"3",90,1,1,"${prodText}"\r\n`;
+            tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.68)},15,"2",90,1,1,"${prodText}"\r\n`;
             if (showMetaLine) {
               tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.52)},15,"1",90,1,1,"${metaText}"\r\n`;
             }
@@ -525,7 +525,7 @@ const BarcodeGeneration = () => {
             if (showShopHeader) {
               tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.15)},${yEnd},"2",270,1,1,"${shopText}"\r\n`;
             }
-            tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.32)},${yEnd},"3",270,1,1,"${prodText}"\r\n`;
+            tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.32)},${yEnd},"2",270,1,1,"${prodText}"\r\n`;
             if (showMetaLine) {
               tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.48)},${yEnd},"1",270,1,1,"${metaText}"\r\n`;
             }
@@ -541,7 +541,7 @@ const BarcodeGeneration = () => {
             if (showShopHeader) {
               tspl += `TEXT ${xEnd},${yEnd - 10},"2",180,1,1,"${shopText}"\r\n`;
             }
-            tspl += `TEXT ${xEnd},${yEnd - 30},"3",180,1,1,"${prodText}"\r\n`;
+            tspl += `TEXT ${xEnd},${yEnd - 30},"2",180,1,1,"${prodText}"\r\n`;
             if (showMetaLine) {
               tspl += `TEXT ${xEnd},${yEnd - 50},"1",180,1,1,"${metaText}"\r\n`;
             }
@@ -552,40 +552,41 @@ const BarcodeGeneration = () => {
             tspl += `TEXT ${xEnd},${yEnd - 135},"1",180,1,1,"${bcVal}"\r\n`;
 
           } else {
-            // 0° Normal orientation - Exact Image 1 Alignment
+            // 0° Normal orientation - Exact Image 1 Full Height & Compact Width Alignment
             if (showShopHeader) {
               const shopX = getXCenter(shopText, 12);
-              tspl += `TEXT ${shopX},16,"2",0,1,1,"${shopText}"\r\n`;
+              tspl += `TEXT ${shopX},12,"2",0,1,1,"${shopText}"\r\n`;
             }
 
-            const useFont3 = prodText.length <= 13;
-            const charW = useFont3 ? 16 : 12;
-            const fontCode = useFont3 ? "3" : "2";
-            const prodX = getXCenter(prodText, charW);
-            tspl += `TEXT ${prodX},40,"${fontCode}",0,1,1,"${prodText}"\r\n`;
+            const prodX = getXCenter(prodText, 12);
+            tspl += `TEXT ${prodX},36,"2",0,1,1,"${prodText}"\r\n`;
 
             if (showMetaLine) {
               const metaX = getXCenter(metaText, 8);
-              tspl += `TEXT ${metaX},68,"1",0,1,1,"${metaText}"\r\n`;
+              tspl += `TEXT ${metaX},64,"1",0,1,1,"${metaText}"\r\n`;
             }
 
             if (showDatesLine || showPriceLine) {
-              const leftX = xDot + 6;
-              const rightX = xDot + labelWidthDots - (mrpText.length * 8) - 6;
-              if (showDatesLine) {
-                tspl += `TEXT ${leftX},86,"1",0,1,1,"${pkdText}"\r\n`;
-              }
-              if (showPriceLine) {
-                tspl += `TEXT ${Math.max(leftX + (pkdText.length * 8) + 4, rightX)},86,"1",0,1,1,"${mrpText}"\r\n`;
+              if (showDatesLine && showPriceLine) {
+                const leftX = xDot + 4;
+                const rightX = xDot + labelWidthDots - (mrpText.length * 8) - 4;
+                tspl += `TEXT ${leftX},88,"1",0,1,1,"${pkdText}"\r\n`;
+                tspl += `TEXT ${Math.max(leftX + (pkdText.length * 8) + 2, rightX)},88,"1",0,1,1,"${mrpText}"\r\n`;
+              } else if (showPriceLine) {
+                const mrpX = getXCenter(mrpText, 12);
+                tspl += `TEXT ${mrpX},88,"2",0,1,1,"${mrpText}"\r\n`;
+              } else if (showDatesLine) {
+                const pkdX = getXCenter(pkdText, 8);
+                tspl += `TEXT ${pkdX},88,"1",0,1,1,"${pkdText}"\r\n`;
               }
             }
 
-            const bcWidthDots = bType === '39' ? (item.barcodeValue.length + 2) * 13 : 165;
+            const bcWidthDots = bType === '39' ? (item.barcodeValue.length + 2) * 13 : 160;
             const barcX = xDot + Math.max(2, Math.round((labelWidthDots - bcWidthDots) / 2));
-            tspl += `BARCODE ${barcX},104,"${bType}",${barH},0,0,1,2,"${item.barcodeValue}"\r\n`;
+            tspl += `BARCODE ${barcX},112,"${bType}",${barH},0,0,1,2,"${item.barcodeValue}"\r\n`;
 
             const bcTextX = getXCenter(bcVal, 8);
-            tspl += `TEXT ${bcTextX},154,"1",0,1,1,"${bcVal}"\r\n`;
+            tspl += `TEXT ${bcTextX},166,"1",0,1,1,"${bcVal}"\r\n`;
           }
 
           labelIdx++;
@@ -658,18 +659,20 @@ const BarcodeGeneration = () => {
 
     const renderLabelContent = (l: (typeof rawLabels)[0]) => `
       <div class="print-label-outer" style="width: ${labelWidthMm}mm; height: ${labelHeightMm}mm; position: relative; overflow: hidden; display: flex; justify-content: center; align-items: center; box-sizing: border-box; padding: 0;">
-        <div class="print-label-inner" style="width: ${innerWidth}mm; height: ${innerHeight}mm; ${labelRotation !== 0 ? `transform: rotate(${labelRotation}deg); transform-origin: center;` : ''} display: flex; flex-direction: column; justify-content: space-between; align-items: center; box-sizing: border-box; padding: 0.8mm 1mm; background-color: #ffffff;">
-          ${showShopHeader ? `<div class="header" style="font-size: 6.5pt; font-weight: 800; text-align: center; text-transform: uppercase; color: #000000 !important; line-height: 1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0.2px;">${shopName}</div>` : ''}
-          <div class="product" style="font-size: 9.5pt; font-weight: 900; text-align: center; text-transform: uppercase; color: #000000 !important; line-height: 1.05; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${l.item.productName}</div>
-          ${showMetaLine ? `<div class="meta" style="font-size: 5.5pt; font-weight: 700; text-align: center; color: #000000 !important; line-height: 1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Mfrs : ${l.item.variety || 'Standard'} | Size : ${l.item.size || 'L'}</div>` : ''}
-          <div class="dates-price" style="display: flex; justify-content: space-between; align-items: baseline; font-size: 5.5pt; font-weight: 900; width: 100%; padding: 0; color: #000000 !important;">
-            <span>pkd : ${l.mfgFormatted}</span>
-            <span class="mrp" style="font-size: 6.2pt; font-weight: 900;">MRP ₹${l.saleFormatted}</span>
-          </div>
-          <div class="barcode-wrapper" style="height: ${barcodeHeightMm}mm; width: 75%; margin: 0.2mm auto 0 auto; display: flex; justify-content: center; align-items: center; background-color: #ffffff !important;">
+        <div class="print-label-inner" style="width: ${innerWidth}mm; height: ${innerHeight}mm; ${labelRotation !== 0 ? `transform: rotate(${labelRotation}deg); transform-origin: center;` : ''} display: flex; flex-direction: column; justify-content: space-between; align-items: center; box-sizing: border-box; padding: 1mm 1.2mm; background-color: #ffffff;">
+          ${showShopHeader ? `<div class="header" style="font-size: 6pt; font-weight: 800; text-align: center; text-transform: uppercase; color: #000000 !important; line-height: 1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0.1px;">${shopName}</div>` : ''}
+          <div class="product" style="font-size: 8.5pt; font-weight: 900; text-align: center; text-transform: uppercase; color: #000000 !important; line-height: 1.05; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${l.item.productName}</div>
+          ${showMetaLine ? `<div class="meta" style="font-size: 5pt; font-weight: 700; text-align: center; color: #000000 !important; line-height: 1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Mfrs : ${l.item.variety || 'Standard'} | Size : ${l.item.size || 'L'}</div>` : ''}
+          ${(showDatesLine || showPriceLine) ? `
+            <div class="dates-price" style="display: flex; justify-content: ${showDatesLine ? 'space-between' : 'center'}; align-items: baseline; font-size: 5pt; font-weight: 900; width: 100%; padding: 0; color: #000000 !important;">
+              ${showDatesLine ? `<span>pkd : ${l.mfgFormatted}</span>` : ''}
+              ${showPriceLine ? `<span class="mrp" style="font-size: 6.5pt; font-weight: 900;">MRP ₹${l.saleFormatted}</span>` : ''}
+            </div>
+          ` : ''}
+          <div class="barcode-wrapper" style="height: ${barcodeHeightMm || 6}mm; width: 70%; margin: 0.1mm auto 0 auto; display: flex; justify-content: center; align-items: center; background-color: #ffffff !important;">
              ${l.barcodeSvg}
           </div>
-          <div class="barcode-text" style="font-size: 5.5pt; font-family: monospace; font-weight: 900; text-align: center; line-height: 1; color: #000000 !important; letter-spacing: 0.5px;">${l.item.barcodeType === 'Code 39' ? '* ' + l.item.barcodeValue + ' *' : l.item.barcodeValue}</div>
+          <div class="barcode-text" style="font-size: 5pt; font-family: monospace; font-weight: 900; text-align: center; line-height: 1; color: #000000 !important; letter-spacing: 0.3px;">${l.item.barcodeType === 'Code 39' ? '* ' + l.item.barcodeValue + ' *' : l.item.barcodeValue}</div>
         </div>
       </div>
     `;
@@ -1581,20 +1584,20 @@ const BarcodeGeneration = () => {
                       </div>
                     )}
                     {(showDatesLine || showPriceLine) && (
-                      <div className="w-full flex justify-between items-baseline px-0.5">
+                      <div className={`w-full flex ${showDatesLine ? 'justify-between' : 'justify-center'} items-baseline px-0.5`}>
                         {showDatesLine && (
                           <span className="text-[5.5pt] font-extrabold leading-none m-0 p-0 text-black">
                             pkd : {mfgDate ? `${mfgDate.substring(8, 10)}/${mfgDate.substring(5, 7)}/${mfgDate.substring(0, 4)}` : '10/05/2025'}
                           </span>
                         )}
                         {showPriceLine && (
-                          <span className="text-[6.2pt] font-black leading-none m-0 p-0 text-black ml-auto">
+                          <span className="text-[6.5pt] font-black leading-none m-0 p-0 text-black">
                             MRP ₹{salesPrice !== '' ? Number(salesPrice).toFixed(2) : '450.00'}
                           </span>
                         )}
                       </div>
                     )}
-                    <div className="w-[75%] flex justify-center items-center overflow-hidden bg-white" style={{ height: `${barcodeHeightMm}mm` }}>
+                    <div className="w-[70%] flex justify-center items-center overflow-hidden bg-white" style={{ height: `${barcodeHeightMm}mm` }}>
                       <div
                         className="w-full h-full"
                         dangerouslySetInnerHTML={{ __html: getBarcodeSVGString(barcodeValue || '8901234567890', barcodeType) }}
@@ -1642,14 +1645,14 @@ const BarcodeGeneration = () => {
                   </div>
                 )}
                 {(showDatesLine || showPriceLine) && (
-                  <div className="w-full flex justify-between items-baseline px-0.5">
+                  <div className={`w-full flex ${showDatesLine ? 'justify-between' : 'justify-center'} items-baseline px-0.5`}>
                     {showDatesLine && (
                       <span className="text-[5.5pt] font-extrabold leading-none m-0 p-0 text-black">
                         pkd : {mfgDate ? `${mfgDate.substring(8, 10)}/${mfgDate.substring(5, 7)}/${mfgDate.substring(0, 4)}` : '10/05/2025'}
                       </span>
                     )}
                     {showPriceLine && (
-                      <span className="text-[6.2pt] font-black leading-none m-0 p-0 text-black ml-auto">
+                      <span className="text-[6.5pt] font-black leading-none m-0 p-0 text-black">
                         MRP ₹{salesPrice !== '' ? Number(salesPrice).toFixed(2) : '450.00'}
                       </span>
                     )}
