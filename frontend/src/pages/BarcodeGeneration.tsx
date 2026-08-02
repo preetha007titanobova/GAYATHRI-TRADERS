@@ -175,6 +175,9 @@ const BarcodeGeneration = () => {
   const [labelWidthMm, setLabelWidthMm] = useState<number>(30);
   const [totalRollWidthMm, setTotalRollWidthMm] = useState<number>(100);
   const [columnGapMm, setColumnGapMm] = useState<number>(2);
+  const [rowGapMm, setRowGapMm] = useState<number>(2);
+  const [marginTopMm, setMarginTopMm] = useState<number>(1);
+  const [barcodeOffsetMm, setBarcodeOffsetMm] = useState<number>(2);
   const [labelHeightMm, setLabelHeightMm] = useState<number>(25);
   const [colsAcross, setColsAcross] = useState<number>(3);
   const [barcodeHeightMm, setBarcodeHeightMm] = useState<number>(6);
@@ -193,7 +196,10 @@ const BarcodeGeneration = () => {
       setLabelWidthMm(30);
       setTotalRollWidthMm(100);
       setColumnGapMm(2);
+      setRowGapMm(2);
+      setMarginTopMm(1);
       setLabelHeightMm(25);
+      setBarcodeHeightMm(6);
       setColsAcross(3);
       setMarginLeftMm(1.5);
       setLabelRotation(0);
@@ -203,6 +209,8 @@ const BarcodeGeneration = () => {
       setLabelWidthMm(32);
       setTotalRollWidthMm(102);
       setColumnGapMm(2);
+      setRowGapMm(2);
+      setMarginTopMm(1);
       setLabelHeightMm(50);
       setBarcodeHeightMm(10);
       setColsAcross(3);
@@ -214,7 +222,10 @@ const BarcodeGeneration = () => {
       setLabelWidthMm(38);
       setTotalRollWidthMm(120);
       setColumnGapMm(2);
+      setRowGapMm(2);
+      setMarginTopMm(1);
       setLabelHeightMm(25);
+      setBarcodeHeightMm(6);
       setColsAcross(3);
       setMarginLeftMm(1.5);
       setLabelRotation(0);
@@ -224,7 +235,10 @@ const BarcodeGeneration = () => {
       setLabelWidthMm(35);
       setTotalRollWidthMm(35);
       setColumnGapMm(0);
+      setRowGapMm(2);
+      setMarginTopMm(1);
       setLabelHeightMm(25);
+      setBarcodeHeightMm(6);
       setColsAcross(1);
       setMarginLeftMm(0);
       setLabelRotation(0);
@@ -233,7 +247,10 @@ const BarcodeGeneration = () => {
       setLabelWidthMm(65);
       setTotalRollWidthMm(210);
       setColumnGapMm(5);
+      setRowGapMm(5);
+      setMarginTopMm(3);
       setLabelHeightMm(35);
+      setBarcodeHeightMm(8);
       setColsAcross(3);
       setMarginLeftMm(5);
       setLabelRotation(0);
@@ -397,6 +414,38 @@ const BarcodeGeneration = () => {
     }
   };
 
+  // Calibrate Thermal Printer Gap Sensor via TSPL
+  const handleCalibratePrinterGapSensor = () => {
+    const calWidth = totalRollWidthMm || 100;
+    const calHeight = labelHeightMm || 25;
+    const calGap = rowGapMm || 2;
+
+    let tspl = `SIZE ${calWidth} mm, ${calHeight} mm\r\n`;
+    tspl += `GAP ${calGap} mm, 0 mm\r\n`;
+    tspl += `SPEED 3\r\n`;
+    tspl += `DENSITY 10\r\n`;
+    tspl += `DIRECTION 1,0\r\n`;
+    tspl += `REFERENCE 0,0\r\n`;
+    tspl += `SET PEEL OFF\r\n`;
+    tspl += `SET TEAR ON\r\n`;
+    tspl += `AUTODETECT ${calWidth},${calHeight}\r\n`;
+    tspl += `GAPDETECT\r\n`;
+    tspl += `HOME\r\n`;
+
+    if ((window as any).api) {
+      printTSPLRaw(tspl, { printerName: selectedPrinterName });
+      if (setGlobalNotification) {
+        setGlobalNotification({ msg: `⚡ Sensor calibration command sent to ${selectedPrinterName || 'printer'}. (If printer doesn't feed, perform Hardware Button Calibration: Turn OFF -> Hold FEED -> Turn ON -> Release when LED flashes GREEN).`, type: 'info' });
+        setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 6000);
+      }
+    } else {
+      if (setGlobalNotification) {
+        setGlobalNotification({ msg: "Gap calibration requires desktop app connection.", type: 'error' });
+        setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
+      }
+    }
+  };
+
   // Save Barcode Entry to Table List & Backend Database
   const handleSaveBarcodeToTable = () => {
     if (!productName.trim() || !barcodeValue.trim()) {
@@ -459,7 +508,7 @@ const BarcodeGeneration = () => {
     const calcWidth = totalRollWidthMm || 100;
     const calcHeight = labelHeightMm || 25;
     let tspl = `SIZE ${calcWidth} mm, ${calcHeight} mm\r\n`;
-    tspl += `GAP ${columnGapMm} mm, 0 mm\r\n`;
+    tspl += `GAP ${rowGapMm || 2} mm, 0 mm\r\n`;
     tspl += `SPEED 3\r\n`;
     tspl += `DENSITY 12\r\n`;
     tspl += `DIRECTION 1,0\r\n`;
@@ -492,12 +541,15 @@ const BarcodeGeneration = () => {
 
           const shopText = (shopName || '').substring(0, 18).toUpperCase();
           const prodText = (item.productName || '').substring(0, 18).toUpperCase();
-          const metaText = `Mfrs:${(item.variety || 'Std').substring(0, 7)} | Size:${(item.size || 'L').substring(0, 4)}`;
+          const isCustomVar = item.variety && !['standard', 'std', 'default', ''].includes(item.variety.trim().toLowerCase());
+          const metaText = isCustomVar
+            ? `${item.variety.substring(0, 8)} | Size:${(item.size || 'L').substring(0, 4)}`
+            : `Size:${(item.size || 'L').substring(0, 6)}`;
           const pkdText = `pkd:${mfg}`;
           const mrpText = `MRP Rs.${saleVal}`;
           const bcVal = item.barcodeType === 'Code 39' ? `* ${item.barcodeValue} *` : item.barcodeValue;
           const bType = item.barcodeType === 'Code 39' ? '39' : '128';
-          const barH = Math.round(barcodeHeightMm * 8) || 44;
+          const barH = Math.round((barcodeHeightMm || 5) * 8);
 
           const getXCenter = (textStr: string, charWidthDots: number) => {
             const textWidth = (textStr || '').length * charWidthDots;
@@ -507,21 +559,21 @@ const BarcodeGeneration = () => {
           if (rot === 90) {
             const xBase = xDot;
             if (showShopHeader) {
-              tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.85)},15,"2",90,1,1,"${shopText}"\r\n`;
+              tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.85)},10,"2",90,1,1,"${shopText}"\r\n`;
             }
-            tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.68)},15,"2",90,1,1,"${prodText}"\r\n`;
+            tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.68)},10,"2",90,1,1,"${prodText}"\r\n`;
             if (showMetaLine) {
-              tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.52)},15,"1",90,1,1,"${metaText}"\r\n`;
+              tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.52)},10,"1",90,1,1,"${metaText}"\r\n`;
             }
             if (showDatesLine || showPriceLine) {
-              tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.40)},15,"1",90,1,1,"${pkdText}  ${mrpText}"\r\n`;
+              tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.40)},10,"1",90,1,1,"${pkdText}  ${mrpText}"\r\n`;
             }
-            tspl += `BARCODE ${xBase + Math.round(labelWidthDots * 0.22)},15,"${bType}",${barH},0,90,1,2,"${item.barcodeValue}"\r\n`;
-            tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.08)},15,"1",90,1,1,"${bcVal}"\r\n`;
+            tspl += `BARCODE ${xBase + Math.round(labelWidthDots * 0.22)},10,"${bType}",${barH},0,90,1,2,"${item.barcodeValue}"\r\n`;
+            tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.08)},10,"1",90,1,1,"${bcVal}"\r\n`;
 
           } else if (rot === 270) {
             const xBase = xDot;
-            const yEnd = labelHeightDots - 15;
+            const yEnd = labelHeightDots - 10;
             if (showShopHeader) {
               tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.15)},${yEnd},"2",270,1,1,"${shopText}"\r\n`;
             }
@@ -541,52 +593,62 @@ const BarcodeGeneration = () => {
             if (showShopHeader) {
               tspl += `TEXT ${xEnd},${yEnd - 10},"2",180,1,1,"${shopText}"\r\n`;
             }
-            tspl += `TEXT ${xEnd},${yEnd - 30},"2",180,1,1,"${prodText}"\r\n`;
+            tspl += `TEXT ${xEnd},${yEnd - 28},"2",180,1,1,"${prodText}"\r\n`;
             if (showMetaLine) {
-              tspl += `TEXT ${xEnd},${yEnd - 50},"1",180,1,1,"${metaText}"\r\n`;
+              tspl += `TEXT ${xEnd},${yEnd - 46},"1",180,1,1,"${metaText}"\r\n`;
             }
             if (showDatesLine || showPriceLine) {
-              tspl += `TEXT ${xEnd},${yEnd - 70},"1",180,1,1,"${pkdText}  ${mrpText}"\r\n`;
+              tspl += `TEXT ${xEnd},${yEnd - 64},"1",180,1,1,"${pkdText}  ${mrpText}"\r\n`;
             }
-            tspl += `BARCODE ${xEnd},${yEnd - 92},"${bType}",${barH},0,180,1,2,"${item.barcodeValue}"\r\n`;
-            tspl += `TEXT ${xEnd},${yEnd - 135},"1",180,1,1,"${bcVal}"\r\n`;
+            tspl += `BARCODE ${xEnd},${yEnd - 82},"${bType}",${barH},0,180,1,2,"${item.barcodeValue}"\r\n`;
+            tspl += `TEXT ${xEnd},${yEnd - 120},"1",180,1,1,"${bcVal}"\r\n`;
 
           } else {
-            // 0° Normal orientation - Exact Image 1 Full Height & Compact Width Alignment
+            // 0° Normal orientation - Balanced vertical spacing with customizable barcode offset
+            const topMarginDots = Math.round((marginTopMm !== undefined ? marginTopMm : 1) * 8);
+            const offsetDots = Math.round((barcodeOffsetMm || 0) * 8);
+            const scaleY = labelHeightDots / 200; // 25mm = 200 dots standard
+            const shopY = topMarginDots + Math.round(6 * scaleY);
+            const prodY = topMarginDots + Math.round(26 * scaleY);
+            const metaY = topMarginDots + Math.round(48 * scaleY);
+            const priceY = topMarginDots + Math.round(68 * scaleY);
+            const barY = topMarginDots + Math.round((96 + offsetDots) * scaleY);
+            const barTextY = barY + barH + Math.round(4 * scaleY);
+
             if (showShopHeader) {
               const shopX = getXCenter(shopText, 12);
-              tspl += `TEXT ${shopX},12,"2",0,1,1,"${shopText}"\r\n`;
+              tspl += `TEXT ${shopX},${shopY},"2",0,1,1,"${shopText}"\r\n`;
             }
 
             const prodX = getXCenter(prodText, 12);
-            tspl += `TEXT ${prodX},36,"2",0,1,1,"${prodText}"\r\n`;
+            tspl += `TEXT ${prodX},${prodY},"2",0,1,1,"${prodText}"\r\n`;
 
             if (showMetaLine) {
               const metaX = getXCenter(metaText, 8);
-              tspl += `TEXT ${metaX},64,"1",0,1,1,"${metaText}"\r\n`;
+              tspl += `TEXT ${metaX},${metaY},"1",0,1,1,"${metaText}"\r\n`;
             }
 
             if (showDatesLine || showPriceLine) {
               if (showDatesLine && showPriceLine) {
                 const leftX = xDot + 4;
                 const rightX = xDot + labelWidthDots - (mrpText.length * 8) - 4;
-                tspl += `TEXT ${leftX},88,"1",0,1,1,"${pkdText}"\r\n`;
-                tspl += `TEXT ${Math.max(leftX + (pkdText.length * 8) + 2, rightX)},88,"1",0,1,1,"${mrpText}"\r\n`;
+                tspl += `TEXT ${leftX},${priceY},"1",0,1,1,"${pkdText}"\r\n`;
+                tspl += `TEXT ${Math.max(leftX + (pkdText.length * 8) + 2, rightX)},${priceY},"1",0,1,1,"${mrpText}"\r\n`;
               } else if (showPriceLine) {
                 const mrpX = getXCenter(mrpText, 12);
-                tspl += `TEXT ${mrpX},88,"2",0,1,1,"${mrpText}"\r\n`;
+                tspl += `TEXT ${mrpX},${priceY},"2",0,1,1,"${mrpText}"\r\n`;
               } else if (showDatesLine) {
                 const pkdX = getXCenter(pkdText, 8);
-                tspl += `TEXT ${pkdX},88,"1",0,1,1,"${pkdText}"\r\n`;
+                tspl += `TEXT ${pkdX},${priceY},"1",0,1,1,"${pkdText}"\r\n`;
               }
             }
 
             const bcWidthDots = bType === '39' ? (item.barcodeValue.length + 2) * 13 : 160;
             const barcX = xDot + Math.max(2, Math.round((labelWidthDots - bcWidthDots) / 2));
-            tspl += `BARCODE ${barcX},112,"${bType}",${barH},0,0,1,2,"${item.barcodeValue}"\r\n`;
+            tspl += `BARCODE ${barcX},${barY},"${bType}",${barH},0,0,1,2,"${item.barcodeValue}"\r\n`;
 
             const bcTextX = getXCenter(bcVal, 8);
-            tspl += `TEXT ${bcTextX},166,"1",0,1,1,"${bcVal}"\r\n`;
+            tspl += `TEXT ${bcTextX},${barTextY},"1",0,1,1,"${bcVal}"\r\n`;
           }
 
           labelIdx++;
@@ -659,10 +721,10 @@ const BarcodeGeneration = () => {
 
     const renderLabelContent = (l: (typeof rawLabels)[0]) => `
       <div class="print-label-outer" style="width: ${labelWidthMm}mm; height: ${labelHeightMm}mm; position: relative; overflow: hidden; display: flex; justify-content: center; align-items: center; box-sizing: border-box; padding: 0;">
-        <div class="print-label-inner" style="width: ${innerWidth}mm; height: ${innerHeight}mm; ${labelRotation !== 0 ? `transform: rotate(${labelRotation}deg); transform-origin: center;` : ''} display: flex; flex-direction: column; justify-content: space-between; align-items: center; box-sizing: border-box; padding: 1mm 1.2mm; background-color: #ffffff;">
+        <div class="print-label-inner" style="width: ${innerWidth}mm; height: ${innerHeight}mm; ${labelRotation !== 0 ? `transform: rotate(${labelRotation}deg); transform-origin: center;` : ''} display: flex; flex-direction: column; justify-content: space-between; align-items: center; box-sizing: border-box; padding: ${marginTopMm !== undefined ? marginTopMm : 1}mm 1.2mm 0.5mm 1.2mm; background-color: #ffffff;">
           ${showShopHeader ? `<div class="header" style="font-size: 6pt; font-weight: 800; text-align: center; text-transform: uppercase; color: #000000 !important; line-height: 1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0.1px;">${shopName}</div>` : ''}
           <div class="product" style="font-size: 8.5pt; font-weight: 900; text-align: center; text-transform: uppercase; color: #000000 !important; line-height: 1.05; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${l.item.productName}</div>
-          ${showMetaLine ? `<div class="meta" style="font-size: 5pt; font-weight: 700; text-align: center; color: #000000 !important; line-height: 1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Mfrs : ${l.item.variety || 'Standard'} | Size : ${l.item.size || 'L'}</div>` : ''}
+          ${showMetaLine ? `<div class="meta" style="font-size: 5.5pt; font-weight: 800; text-align: center; color: #000000 !important; line-height: 1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${l.item.variety && !['standard', 'std', 'default', ''].includes(l.item.variety.trim().toLowerCase()) ? l.item.variety + ' | ' : ''}Size : ${l.item.size || 'L'}</div>` : ''}
           ${(showDatesLine || showPriceLine) ? `
             <div class="dates-price" style="display: flex; justify-content: ${showDatesLine ? 'space-between' : 'center'}; align-items: baseline; font-size: 5pt; font-weight: 900; width: 100%; padding: 0; color: #000000 !important;">
               ${showDatesLine ? `<span>pkd : ${l.mfgFormatted}</span>` : ''}
@@ -684,7 +746,7 @@ const BarcodeGeneration = () => {
       let labelIdx = 0;
 
       while (labelIdx < rawLabels.length) {
-        let rowHtml = `<div class="label-row" style="width: ${calculatedRollWidth}mm; height: ${labelHeightMm}mm; padding-left: ${marginLeftMm}mm; display: flex; flex-direction: row; justify-content: flex-start; align-items: center; gap: ${columnGapMm}mm; box-sizing: border-box; page-break-after: always; break-after: page; overflow: hidden;">`;
+        let rowHtml = `<div class="label-row" style="width: ${calculatedRollWidth}mm; height: ${labelHeightMm}mm; padding-left: ${marginLeftMm}mm; margin-bottom: ${rowGapMm || 0}mm; display: flex; flex-direction: row; justify-content: flex-start; align-items: center; gap: ${columnGapMm}mm; box-sizing: border-box; page-break-after: always; break-after: page; overflow: hidden;">`;
         for (let col = 0; col < colsAcross; col++) {
           if (col < currentCol) {
             rowHtml += `<div class="print-label-outer" style="width: ${labelWidthMm}mm; height: ${labelHeightMm}mm; visibility: hidden;"></div>`;
@@ -1250,10 +1312,10 @@ const BarcodeGeneration = () => {
               <div className="col-span-2 bg-slate-50 border border-slate-300 p-2.5 rounded-md space-y-2">
                 <div className="font-extrabold text-[11px] text-blue-900 uppercase tracking-wide flex items-center justify-between">
                   <span>📐 Custom Sticker Dimension & Calibration (TSC TE244 3-UP)</span>
-                  <span className="text-[10px] text-slate-500 font-normal">Fine-tune width, height, roll width & column gaps</span>
+                  <span className="text-[10px] text-slate-500 font-normal">Fine-tune width, height, row gap, margins & line heights</span>
                 </div>
                 
-                <div className="grid grid-cols-4 md:grid-cols-8 gap-2">
+                <div className="grid grid-cols-4 md:grid-cols-10 gap-2">
                   <div>
                     <label className="font-bold text-[10px] text-slate-700 block">Sticker W (mm)</label>
                     <input
@@ -1269,7 +1331,7 @@ const BarcodeGeneration = () => {
                     <label className="font-bold text-[10px] text-slate-700 block">Sticker H (mm)</label>
                     <input
                       type="number"
-                      min="15"
+                      min="10"
                       max="150"
                       className="w-full border border-slate-300 py-1 px-2 rounded font-bold text-blue-900 text-center text-[11px]"
                       value={labelHeightMm}
@@ -1296,6 +1358,50 @@ const BarcodeGeneration = () => {
                       className="w-full border border-slate-300 py-1 px-2 rounded font-bold text-blue-900 text-center text-[11px]"
                       value={columnGapMm}
                       onChange={e => setColumnGapMm(e.target.value === '' ? ('' as any) : Number(e.target.value))}
+                    />
+                  </div>
+                  <div>
+                    <label className="font-bold text-[10px] text-emerald-800 block" title="Vertical gap between sticker rows on the physical roll">Row Gap (mm)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="20"
+                      className="w-full border border-emerald-400 bg-emerald-50 py-1 px-2 rounded font-bold text-emerald-950 text-center text-[11px]"
+                      value={rowGapMm}
+                      onChange={e => setRowGapMm(e.target.value === '' ? ('' as any) : Number(e.target.value))}
+                    />
+                  </div>
+                  <div>
+                    <label className="font-bold text-[10px] text-blue-800 block" title="Top margin space before text starts">Top Margin (mm)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="20"
+                      className="w-full border border-blue-300 py-1 px-2 rounded font-bold text-blue-900 text-center text-[11px]"
+                      value={marginTopMm}
+                      onChange={e => setMarginTopMm(e.target.value === '' ? ('' as any) : Number(e.target.value))}
+                    />
+                  </div>
+                  <div>
+                    <label className="font-bold text-[10px] text-slate-700 block" title="Height of the barcode lines">Barcode H (mm)</label>
+                    <input
+                      type="number"
+                      min="3"
+                      max="30"
+                      className="w-full border border-slate-300 py-1 px-2 rounded font-bold text-blue-900 text-center text-[11px]"
+                      value={barcodeHeightMm}
+                      onChange={e => setBarcodeHeightMm(e.target.value === '' ? ('' as any) : Number(e.target.value))}
+                    />
+                  </div>
+                  <div>
+                    <label className="font-bold text-[10px] text-indigo-800 block" title="Shift barcode lines and barcode text down or up (in mm)">Barcode Shift Y (mm)</label>
+                    <input
+                      type="number"
+                      min="-10"
+                      max="20"
+                      className="w-full border border-indigo-400 bg-indigo-50 py-1 px-2 rounded font-bold text-indigo-950 text-center text-[11px]"
+                      value={barcodeOffsetMm}
+                      onChange={e => setBarcodeOffsetMm(e.target.value === '' ? ('' as any) : Number(e.target.value))}
                     />
                   </div>
                   <div>
@@ -1388,14 +1494,23 @@ const BarcodeGeneration = () => {
             </div>
 
             {/* ACTION BUTTONS */}
-            <div className="flex gap-2 pt-3 border-t border-slate-200 mt-2">
+            <div className="flex gap-2 pt-3 border-t border-slate-200 mt-2 flex-wrap">
               <button
                 type="button"
                 onClick={handleSaveBarcodeToTable}
-                className="flex-1 flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-2 px-3 rounded shadow transition-all active:scale-95 text-xs"
+                className="flex-1 flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-2 px-3 rounded shadow transition-all active:scale-95 text-xs min-w-[140px]"
               >
                 <Save size={16} />
                 Save Barcode to Table
+              </button>
+              <button
+                type="button"
+                title="Re-sync the printer's gap sensor to the actual physical label pitch on the roll"
+                onClick={handleCalibratePrinterGapSensor}
+                className="flex items-center justify-center gap-1.5 bg-teal-700 hover:bg-teal-800 text-white font-bold py-2 px-3 rounded shadow transition-all active:scale-95 text-xs"
+              >
+                <Tag size={15} />
+                🎯 Calibrate Gap Sensor
               </button>
               <button
                 type="button"
@@ -1579,7 +1694,7 @@ const BarcodeGeneration = () => {
                     {showMetaLine && (
                       <div className="w-full text-center">
                         <span className="text-[5.5pt] font-bold leading-none m-0 p-0 text-slate-900 block truncate">
-                          Mfrs : {variety || 'Standard'} | Size : <strong className="text-black font-extrabold">{size || 'L'}</strong>
+                          {variety && !['standard', 'std', 'default', ''].includes(variety.trim().toLowerCase()) ? `${variety} | ` : ''}Size : <strong className="text-black font-extrabold">{size || 'L'}</strong>
                         </span>
                       </div>
                     )}
@@ -1640,7 +1755,7 @@ const BarcodeGeneration = () => {
                 {showMetaLine && (
                   <div className="w-full text-center">
                     <span className="text-[5.5pt] font-bold leading-none m-0 p-0 text-slate-900 block truncate">
-                      Mfrs : {variety || 'Standard'} | Size : <strong className="text-black font-extrabold">{size || 'L'}</strong>
+                      {variety && !['standard', 'std', 'default', ''].includes(variety.trim().toLowerCase()) ? `${variety} | ` : ''}Size : <strong className="text-black font-extrabold">{size || 'L'}</strong>
                     </span>
                   </div>
                 )}

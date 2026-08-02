@@ -225,6 +225,11 @@ function startLocalBackend() {
 function createWindow() {
     const licenseStatus = verifyLicenseOffline();
 
+    const { session } = require('electron');
+    if (session.defaultSession) {
+        session.defaultSession.clearCache().catch(() => {});
+    }
+
     mainWindow = new BrowserWindow({
         width: 1280,
         height: 800,
