@@ -194,14 +194,19 @@ const PurRegister = () => {
   }, []);
 
   // --- ACTIONS ---
-  const handleFetchReport = () => {
+  useEffect(() => {
     let filtered = allData.filter(record => {
-      const recDate = new Date(record.date);
-      const from = new Date(filters.fromDate);
-      const to = new Date(filters.toDate);
-      if (recDate < from || recDate > to) return false;
+      const recDateStr = record.date ? record.date.split('T')[0] : '';
+      if (recDateStr) {
+        if (recDateStr < filters.fromDate || recDateStr > filters.toDate) return false;
+      } else {
+        const recDate = new Date(record.date);
+        const from = new Date(filters.fromDate);
+        const to = new Date(filters.toDate);
+        if (recDate < from || recDate > to) return false;
+      }
 
-      if (filters.supplier !== 'All' && record.supplierName !== filters.supplier) return false;
+      if (filters.supplier !== 'All' && (record.supplierName || '').trim().toLowerCase() !== filters.supplier.trim().toLowerCase()) return false;
       
       if (filters.purchaseType === 'Cash' && record.paymentMode !== 'Cash') return false;
       if (filters.purchaseType === 'Credit' && record.paymentMode !== 'Credit') return false;
@@ -209,8 +214,16 @@ const PurRegister = () => {
       if (filters.purchaseType === 'Central' && record.type !== 'Central') return false;
 
       if (filters.query) {
-        const q = filters.query.toLowerCase();
-        if (!record.voucherNo.toLowerCase().includes(q) && !(record.supplierInvoiceNo || '').toLowerCase().includes(q)) {
+        const q = filters.query.toLowerCase().trim();
+        const vchMatch = (record.voucherNo || '').toLowerCase().includes(q);
+        const invMatch = (record.supplierInvoiceNo || '').toLowerCase().includes(q);
+        const supplierMatch = (record.supplierName || '').toLowerCase().includes(q);
+        const itemMatch = record.items && record.items.some(item => 
+          (item.itemName || '').toLowerCase().includes(q) ||
+          (item.itemCode || '').toLowerCase().includes(q) ||
+          (item.itemDesc || '').toLowerCase().includes(q)
+        );
+        if (!vchMatch && !invMatch && !supplierMatch && !itemMatch) {
           return false;
         }
       }
@@ -218,7 +231,11 @@ const PurRegister = () => {
       return true;
     });
     setDisplayedData(filtered);
-    setGlobalNotification({ msg: `Fetched ${filtered.length} records successfully.`, type: 'success' });
+  }, [filters, allData]);
+
+  const handleFetchReport = () => {
+    setGlobalNotification({ msg: `Report updated. Displaying ${displayedData.length} records.`, type: 'success' });
+    setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
   };
 
   const setQuickDate = (type: 'Today' | 'ThisMonth' | 'ThisFY') => {

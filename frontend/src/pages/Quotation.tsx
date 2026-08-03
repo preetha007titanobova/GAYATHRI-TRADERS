@@ -260,7 +260,7 @@ const Quotation = () => {
       };
 
       // Navigate downstream to Sales Bill (POSCheckout) mapping the payload
-      setTimeout(() => navigate('/pos', { state: { quotationPayload } }), 800);
+      setTimeout(() => navigate('/sales-bill', { state: { quotationPayload } }), 800);
     }, 1000);
   };
 
@@ -399,32 +399,50 @@ const Quotation = () => {
         </select>
       </div>
 
+      {/* Action Buttons Bar (Moved Upward) */}
+      <div className="flex space-x-2 bg-slate-50 p-1.5 border border-gray-300 rounded shadow-sm w-fit mb-1 mx-1">
+        <button
+          onClick={handleAddItem}
+          className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 px-3 rounded text-xs shadow transition-colors flex items-center space-x-1"
+        >
+          <Plus className="w-3.5 h-3.5" /> <span>Add Row</span>
+        </button>
+        <button
+          onClick={handleConvert}
+          disabled={isConverting || status === 'CONVERTED'}
+          className="bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white font-extrabold py-1.5 px-3 rounded text-xs shadow transition-all flex items-center space-x-1.5"
+        >
+          {isConverting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCcw className="w-3.5 h-3.5" />}
+          <span>{status === 'CONVERTED' ? 'Converted to Tax Bill' : 'Convert to Tax Bill'}</span>
+        </button>
+      </div>
+
       {/* 3. Data Entry Grid */}
-      <div className="flex-1 min-h-[200px] bg-white border border-gray-400 overflow-auto mx-1">
-        <table className="w-full text-left border-collapse">
-          <thead>
+      <div className="flex-1 min-h-[160px] max-h-[240px] bg-white border border-gray-400 overflow-auto mx-1 shadow-sm">
+        <table className="w-full text-left border-collapse text-xs whitespace-nowrap min-w-max">
+          <thead className="bg-[#2b579a] text-white sticky top-0 z-10">
             <tr>
-              <th className="legacy-grid-header w-10">S.No</th>
-              <th className="legacy-grid-header w-44">Item Code</th>
-              <th className="legacy-grid-header">Item Description</th>
-              <th className="legacy-grid-header w-16 text-center">Qty</th>
-              <th className="legacy-grid-header w-24 text-right">Unit Price</th>
-              <th className="legacy-grid-header w-16 text-center">Disc %</th>
-              <th className="legacy-grid-header w-24 text-right">Taxable</th>
-              <th className="legacy-grid-header w-20 text-center">Tax %</th>
-              <th className="legacy-grid-header w-28 text-right">Subtotal</th>
-              <th className="legacy-grid-header w-10 text-center">Del</th>
+              <th className="border-r border-gray-400 p-2 w-10 text-center font-semibold">S.No</th>
+              <th className="border-r border-gray-400 p-2 w-44 font-semibold">Item Code</th>
+              <th className="border-r border-gray-400 p-2 font-semibold">Item Description</th>
+              <th className="border-r border-gray-400 p-2 w-16 text-center font-semibold">Qty</th>
+              <th className="border-r border-gray-400 p-2 w-24 text-right font-semibold">Unit Price</th>
+              <th className="border-r border-gray-400 p-2 w-16 text-center font-semibold">Disc %</th>
+              <th className="border-r border-gray-400 p-2 w-24 text-right font-semibold">Taxable</th>
+              <th className="border-r border-gray-400 p-2 w-20 text-center font-semibold">Tax %</th>
+              <th className="border-r border-gray-400 p-2 w-28 text-right font-semibold">Subtotal</th>
+              <th className="p-2 w-10 text-center font-semibold">Del</th>
             </tr>
           </thead>
           <tbody>
             {processedItems.map((item, index) => (
-              <tr key={item.id} className="hover:bg-blue-50">
-                <td className="legacy-grid-cell text-center font-semibold text-gray-700">{index + 1}</td>
-                <td className="legacy-grid-cell p-0 relative">
+              <tr key={item.id} className="hover:bg-yellow-50 border-b border-gray-300 focus-within:bg-blue-50 transition-colors">
+                <td className="border-r border-gray-300 p-2 text-center font-semibold text-gray-500 bg-gray-50">{index + 1}</td>
+                <td className="border-r border-gray-300 p-0 relative">
                   <div className="flex items-center relative w-full h-full">
                     <input
                       type="text"
-                      className="w-full h-full p-1 pl-2 pr-12 border-none outline-none focus:bg-yellow-100 font-mono text-blue-900 font-bold uppercase"
+                      className="w-full h-full p-2 border-none outline-none focus:bg-yellow-100 font-mono text-blue-900 font-bold uppercase text-xs"
                       value={item.itemCode}
                       onChange={(e) => handleItemChange(item.id, 'itemCode', e.target.value)}
                       onKeyDown={(e) => {
@@ -463,46 +481,46 @@ const Quotation = () => {
                     </button>
                   </div>
                 </td>
-                <td className="legacy-grid-cell p-0">
+                <td className="border-r border-gray-300 p-0">
                   <input
                     type="text"
-                    className="w-full h-full p-1 pl-2 border-none outline-none focus:bg-yellow-100 font-semibold text-gray-800"
+                    className="w-full h-full p-2 border-none outline-none focus:bg-yellow-100 font-semibold text-gray-800 text-xs"
                     value={item.itemDescription}
                     onChange={(e) => handleItemChange(item.id, 'itemDescription', e.target.value)}
                     placeholder="Custom description..."
                   />
                 </td>
-                <td className="legacy-grid-cell p-0">
+                <td className="border-r border-gray-300 p-0">
                   <input
                     type="number"
-                    className="w-full h-full p-1 text-center border-none outline-none focus:bg-yellow-100 font-bold"
+                    className="w-full h-full p-2 text-center border-none outline-none focus:bg-yellow-100 font-bold text-xs"
                     value={item.quantity}
                     onChange={(e) => handleItemChange(item.id, 'quantity', e.target.value)}
                     min="1"
                   />
                 </td>
-                <td className="legacy-grid-cell p-0">
+                <td className="border-r border-gray-300 p-0">
                   <input
                     type="number"
-                    className="w-full h-full p-1 text-right border-none outline-none focus:bg-yellow-100 font-mono font-bold"
+                    className="w-full h-full p-2 text-right border-none outline-none focus:bg-yellow-100 font-mono font-bold text-xs"
                     value={item.unitPrice}
                     onChange={(e) => handleItemChange(item.id, 'unitPrice', e.target.value)}
                   />
                 </td>
-                <td className="legacy-grid-cell p-0">
+                <td className="border-r border-gray-300 p-0">
                   <input
                     type="number"
-                    className="w-full h-full p-1 text-center border-none outline-none focus:bg-yellow-100 font-bold"
+                    className="w-full h-full p-2 text-center border-none outline-none focus:bg-yellow-100 font-bold text-xs"
                     value={item.discountPercent}
                     onChange={(e) => handleItemChange(item.id, 'discountPercent', e.target.value)}
                   />
                 </td>
-                <td className="legacy-grid-cell text-right bg-gray-50 font-mono text-gray-600">
+                <td className="border-r border-gray-300 p-2 text-right bg-gray-50 font-mono text-gray-600">
                   ₹{item.taxableValue.toFixed(2)}
                 </td>
-                <td className="legacy-grid-cell p-0">
+                <td className="border-r border-gray-300 p-0">
                   <select
-                    className="w-full h-full p-1 text-center border-none outline-none focus:bg-yellow-100 font-bold bg-transparent"
+                    className="w-full h-full p-2 text-center border-none outline-none focus:bg-yellow-100 font-bold bg-transparent text-xs"
                     value={item.taxRate}
                     onChange={(e) => handleItemChange(item.id, 'taxRate', e.target.value)}
                   >
@@ -513,10 +531,10 @@ const Quotation = () => {
                     <option value="28">28%</option>
                   </select>
                 </td>
-                <td className="legacy-grid-cell text-right bg-gray-50 font-bold font-mono text-gray-900">
+                <td className="border-r border-gray-300 p-2 text-right bg-gray-50 font-bold font-mono text-gray-900">
                   ₹{item.subtotal.toFixed(2)}
                 </td>
-                <td className="legacy-grid-cell text-center p-0">
+                <td className="text-center p-0 bg-gray-50">
                   <button
                     onClick={() => handleRemoveItem(item.id)}
                     className="text-red-500 hover:text-red-700 font-bold p-1 rounded hover:bg-red-50 transition-all text-xs"
@@ -533,41 +551,8 @@ const Quotation = () => {
 
       {/* 4. Totals & Terms Panel */}
       <div className="grid grid-cols-3 gap-2 shrink-0">
-        {/* Left Actions */}
-        <div className="col-span-2 flex flex-col justify-end space-y-2 pb-1">
-          <div className="flex flex-wrap gap-2 items-center">
-            <button
-              onClick={handleAddItem}
-              className="legacy-button py-1.5 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded text-xs transition-colors flex items-center space-x-1"
-            >
-              <Plus className="w-3.5 h-3.5" /> <span>Add Row</span>
-            </button>
-            <button
-              onClick={handleConvert}
-              disabled={isConverting || status === 'CONVERTED'}
-              className="legacy-button py-1.5 px-4 bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white font-extrabold rounded text-xs transition-all flex items-center space-x-1.5"
-            >
-              {isConverting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCcw className="w-3.5 h-3.5" />}
-              <span>{status === 'CONVERTED' ? 'Converted to Tax Bill' : 'Convert to Tax Bill'}</span>
-            </button>
-            <button
-              onClick={handleEmail}
-              disabled={isEmailing}
-              className="legacy-button py-1.5 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 text-white font-extrabold rounded text-xs transition-all flex items-center space-x-1.5 cursor-pointer"
-            >
-              {isEmailing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
-              <span>Email Quote</span>
-            </button>
-            <button
-              onClick={handlePrintQuote}
-              type="button"
-              className="legacy-button py-1.5 px-4 bg-[#2b579a] hover:bg-[#1a386b] text-white font-extrabold rounded text-xs transition-all flex items-center space-x-1.5 cursor-pointer"
-            >
-              <FileSignature className="w-3.5 h-3.5" />
-              <span>Print Quote</span>
-            </button>
-          </div>
-        </div>
+        {/* Left Actions Spacer */}
+        <div className="col-span-2 flex flex-col justify-end pb-1"></div>
 
         {/* Right Summary Calculations */}
         <div className="legacy-panel p-2 grid grid-cols-4 gap-x-2 gap-y-0.5 items-center text-xs font-semibold">
