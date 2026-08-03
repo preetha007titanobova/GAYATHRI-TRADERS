@@ -172,7 +172,7 @@ const SalesStatus = () => {
           <table className="w-full text-left text-sm border-collapse whitespace-nowrap">
             <thead className="bg-[#1e3f70] text-white sticky top-0 z-10 shadow-sm">
               <tr>
-                <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-12 text-center">#</th>
+                <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-12 text-center">S.No</th>
                 <th className="border-r border-[#142d54] p-2 text-xs font-semibold">Invoice No</th>
                 <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-24 text-center">Date</th>
                 <th className="border-r border-[#142d54] p-2 text-xs font-semibold">Customer Name</th>
@@ -329,7 +329,7 @@ const SalesStatus = () => {
                           <table className="w-full text-left text-xs border-collapse rounded border border-gray-200">
                             <thead className="bg-red-50 text-red-900">
                               <tr className="border-b border-gray-200">
-                                <th className="p-1.5 border-r border-gray-200 w-8 text-center">#</th>
+                                <th className="p-1.5 border-r border-gray-200 w-8 text-center">S.No</th>
                                 <th className="p-1.5 border-r border-gray-200 w-24">Item Code</th>
                                 <th className="p-1.5 border-r border-gray-200">Name</th>
                                 <th className="p-1.5 border-r border-gray-200 w-20 text-center">Return Qty</th>
@@ -365,7 +365,7 @@ const SalesStatus = () => {
                             <table className="w-full text-left text-xs border-collapse rounded border border-gray-200">
                               <thead className="bg-green-50 text-green-900">
                                 <tr className="border-b border-gray-200">
-                                  <th className="p-1.5 border-r border-gray-200 w-8 text-center">#</th>
+                                  <th className="p-1.5 border-r border-gray-200 w-8 text-center">S.No</th>
                                   <th className="p-1.5 border-r border-gray-200 w-24">Item Code</th>
                                   <th className="p-1.5 border-r border-gray-200">Name</th>
                                   <th className="p-1.5 border-r border-gray-200 w-20 text-center">Qty</th>

@@ -172,7 +172,7 @@ export const SalesItemTable: React.FC<SalesItemTableProps> = ({
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-slate-100/70 border-b border-slate-200/80 text-[11px] font-semibold text-slate-500 uppercase tracking-wider sticky top-0 backdrop-blur-md z-10">
-              <th className="py-3 px-4 w-12 text-center">#</th>
+              <th className="py-3 px-4 w-12 text-center">S.No</th>
               <th className="py-3 px-4 w-36">Barcode</th>
               <th className="py-3 px-4">Item Name</th>
               <th className="py-3 px-4 w-28">Size</th>

@@ -182,7 +182,7 @@ const printOrder = (order: any) => {
         <table class="items-table">
           <thead>
             <tr>
-              <th style="width: 5%;" class="text-center">#</th>
+              <th style="width: 5%;" class="text-center">S.No</th>
               <th style="width: 15%;">Item Code</th>
               <th>Description</th>
               <th style="width: 10%;">Color</th>
@@ -935,7 +935,7 @@ const SalesOrder = () => {
               <table className="w-full text-left border-collapse min-w-[1200px]">
                 <thead>
                   <tr className="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-wider font-bold border-b border-slate-200">
-                    <th className="p-2 w-10 text-center">#</th>
+                    <th className="p-2 w-10 text-center">S.No</th>
                     <th className="p-2 w-44">Item Code</th>
                     <th className="p-2">Item Description</th>
                     <th className="p-2 w-28">Color</th>

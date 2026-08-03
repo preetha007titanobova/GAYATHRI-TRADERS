@@ -25,17 +25,18 @@ interface GridRow {
 const POSCheckout = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const billToEdit = location.state?.billToEdit;
   const incomingPayload = location.state?.quotationPayload;
   const orderToConvert = location.state?.orderToConvert;
 
-  const [editingBillId, setEditingBillId] = useState<string | null>(null);
+  const [editingBillId, setEditingBillId] = useState<string | null>(billToEdit?._id || billToEdit?.id || null);
   const [fromSalesOrderId, setFromSalesOrderId] = useState<string | null>(null);
 
   // --- State for Document Input Panel ---
-  const [invoiceNo, setInvoiceNo] = useState('Loading...'); // Fetched from backend
-  const [invDate, setInvDate] = useState(new Date().toISOString().split('T')[0]);
+  const [invoiceNo, setInvoiceNo] = useState(billToEdit?.invoiceNo || 'Loading...'); // Fetched from backend
+  const [invDate, setInvDate] = useState(billToEdit?.invDate ? billToEdit.invDate.split('T')[0] : new Date().toISOString().split('T')[0]);
   const [payDays, setPayDays] = useState(0);
-  const [buyerName, setBuyerName] = useState(incomingPayload?.buyerName || orderToConvert?.buyerName || '');
+  const [buyerName, setBuyerName] = useState(billToEdit?.buyerName || incomingPayload?.buyerName || orderToConvert?.buyerName || '');
   const [salesman, setSalesman] = useState('');
   const [paymentMode, setPaymentMode] = useState('Cash');
   const [rapidBarcode, setRapidBarcode] = useState('');
@@ -131,7 +132,7 @@ const POSCheckout = () => {
 
   // --- State for Data Entry Grid ---
   const initialGridData = useMemo(() => {
-    const payload = incomingPayload || orderToConvert;
+    const payload = billToEdit || incomingPayload || orderToConvert;
     if (payload?.items?.length > 0) {
       return payload.items.map((item: any, idx: number) => {
         const qty = Number(item.qty) || Number(item.quantityOrdered) || 0;
@@ -143,17 +144,18 @@ const POSCheckout = () => {
           id: idx + 1,
           itemName: item.itemName || item.itemDescription || '',
           itemDesc: item.itemDesc || item.itemCode || '',
+          size: item.size || '',
           qty,
           uom: item.uom || 'PCS',
           rate,
           discPercent,
           discAmt: discAmt,
-          amount: baseAmount - discAmt
+          amount: item.amount || (baseAmount - discAmt)
         };
       });
     }
     return [{ id: 1, itemName: '', itemDesc: '', qty: 0, uom: '', rate: 0, discPercent: 0, discAmt: 0, amount: 0 }];
-  }, [incomingPayload, orderToConvert]);
+  }, [billToEdit, incomingPayload, orderToConvert]);
 
   const [gridData, setGridData] = useState<GridRow[]>(initialGridData);
 
@@ -162,6 +164,21 @@ const POSCheckout = () => {
       setGridData(initialGridData);
     }
   }, [initialGridData]);
+
+  useEffect(() => {
+    if (billToEdit) {
+      setEditingBillId(billToEdit._id || billToEdit.id);
+      if (billToEdit.invoiceNo) setInvoiceNo(billToEdit.invoiceNo);
+      if (billToEdit.invDate) setInvDate(billToEdit.invDate.split('T')[0]);
+      if (billToEdit.buyerName) setBuyerName(billToEdit.buyerName);
+      if (billToEdit.mobileNo) setMobileNo(billToEdit.mobileNo);
+      if (billToEdit.address) setAddress(billToEdit.address);
+      if (billToEdit.paymentMode) setPaymentMode(billToEdit.paymentMode);
+      if (billToEdit.favourDiscount) setFavourDiscount(billToEdit.favourDiscount);
+      if (billToEdit.remarks) setRemarks(billToEdit.remarks);
+      if (billToEdit.shippingAddress) setShippingAddress(billToEdit.shippingAddress);
+    }
+  }, [billToEdit]);
 
   // --- Multi-Bill / Hold Billing System State ---
   interface BillTab {

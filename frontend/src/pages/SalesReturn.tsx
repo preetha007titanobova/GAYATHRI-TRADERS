@@ -707,7 +707,7 @@ const SalesReturn = () => {
           <thead className="sticky top-0 bg-[#e8ecef] shadow-sm z-10">
             <tr>
               <th className="legacy-grid-header w-12 text-center">SELECT</th>
-              <th className="legacy-grid-header w-10 text-center">#</th>
+              <th className="legacy-grid-header w-10 text-center">S.No</th>
               <th className="legacy-grid-header w-24">ITEM CODE</th>
               <th className="legacy-grid-header w-32">BARCODE</th>
               <th className="legacy-grid-header">DESCRIPTION</th>
@@ -826,7 +826,7 @@ const SalesReturn = () => {
             <table className="w-full text-left border-collapse text-xs">
               <thead className="bg-[#f0f4f8] sticky top-0 z-10">
                 <tr>
-                  <th className="p-2 border border-gray-300 w-10 text-center">#</th>
+                  <th className="p-2 border border-gray-300 w-10 text-center">S.No</th>
                   <th className="p-2 border border-gray-300 w-24">Item Code</th>
                   <th className="p-2 border border-gray-300">Name</th>
                   <th className="p-2 border border-gray-300 w-24 text-center">Qty</th>
