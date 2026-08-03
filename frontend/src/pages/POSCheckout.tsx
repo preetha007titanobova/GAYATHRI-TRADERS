@@ -819,6 +819,10 @@ const POSCheckout = () => {
     }
   };
 
+  // --- Debounce Locks for Print and Save ---
+  const isSavingRef = useRef(false);
+  const isPrintingRef = useRef(false);
+
   // --- API Integrations ---
 
   const handleInstantCheckout = async () => {
@@ -831,36 +835,7 @@ const POSCheckout = () => {
       return;
     }
 
-    // 1. Trigger Thermal Receipt Print
-    const formattedItems = validItems.map(item => ({
-      itemCode: item.itemDesc || item.itemName,
-      itemDesc: item.itemName,
-      qty: item.qty,
-      rate: item.rate,
-      totalAmt: item.amount
-    }));
-
-    printReceipt({
-      gridData: formattedItems,
-      invoiceNo: invoiceNo,
-      date: invDate,
-      customerName: buyerName,
-      paymentMode: paymentMode,
-      totalQty: totalQty,
-      subTotal: totalAmount,
-      cgst: cgst,
-      sgst: sgst,
-      totalAmount: netAmount,
-      storeName: shopName,
-      storePhone: localStorage.getItem('close_day_whatsapp') || undefined
-    });
-
-    // 2. Send WhatsApp Bill if mobile exists
-    if (mobileNo) {
-      handleSendWhatsApp();
-    }
-
-    // 3. Save Invoice in Database
+    // Save invoice to DB and trigger single print on backend success
     executeSave(validItems);
   };
 
@@ -892,6 +867,8 @@ const POSCheckout = () => {
   };
 
   const executeSave = async (validItems: any[]) => {
+    if (isSavingRef.current) return;
+    isSavingRef.current = true;
     setConfirmModalState({ isOpen: false, action: null });
 
     // Stock Check: Ensure no item quantity exceeds available physical stock
@@ -904,6 +881,7 @@ const POSCheckout = () => {
       if (match) {
         const avail = typeof match.stock === 'number' ? match.stock : 0;
         if (avail <= 0) {
+          isSavingRef.current = false;
           if (setGlobalNotification) {
             setGlobalNotification({
               msg: `Cannot save bill! "${item.itemName}" is out of stock (Available: 0). Stock cannot go negative.`,
@@ -914,6 +892,7 @@ const POSCheckout = () => {
           return;
         }
         if (item.qty > avail) {
+          isSavingRef.current = false;
           if (setGlobalNotification) {
             setGlobalNotification({
               msg: `Cannot save bill! "${item.itemName}" requested quantity (${item.qty}) exceeds available stock (${avail}). Stock cannot go negative.`,
@@ -961,7 +940,7 @@ const POSCheckout = () => {
       if (data.success) {
         if (setGlobalNotification) setGlobalNotification({ msg: `Sales Bill ${invoiceNo} saved successfully!`, type: 'success' });
 
-        // 1. Auto-Print receipt to printer
+        // 1. Auto-Print receipt once to printer
         try {
           handlePrintAction('Sales Bill');
         } catch (printErr) {
@@ -1002,6 +981,10 @@ const POSCheckout = () => {
         setGlobalNotification({ msg: "Network error while saving.", type: 'error' });
         setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
       }
+    } finally {
+      setTimeout(() => {
+        isSavingRef.current = false;
+      }, 1500);
     }
   };
 
@@ -1031,6 +1014,10 @@ const POSCheckout = () => {
   };
 
   const handlePrintAction = (docType: string) => {
+    if (isPrintingRef.current) return;
+    isPrintingRef.current = true;
+    setTimeout(() => { isPrintingRef.current = false; }, 2000);
+
     if (setGlobalNotification) setGlobalNotification({ msg: `Preparing ${docType} for printing...`, type: 'success' });
 
     // Format items for the print utility
