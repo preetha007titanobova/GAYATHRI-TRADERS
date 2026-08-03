@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, User, Phone, MapPin, Shield, CheckCircle2, Lock, Package, AlertTriangle, Calendar, Printer, DollarSign } from 'lucide-react';
+import Api from '../../Api';
 
 interface OwnerDetailsModalProps {
   isOpen: boolean;
@@ -62,20 +63,45 @@ interface DailyStockStatusModalProps {
 }
 
 export const DailyStockStatusModal: React.FC<DailyStockStatusModalProps> = ({ isOpen, onClose }) => {
-  if (!isOpen) return null;
+  const [stockList, setStockList] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const mockStockList = [
-    { code: 'ACC-001', name: 'Wireless Mouse (Logitech)', current: 45, status: 'In Stock' },
-    { code: 'ACC-002', name: 'USB-C Hub (Anker)', current: 5, status: 'Low Stock' },
-    { code: 'ACC-003', name: 'Mechanical Keyboard (Keychron)', current: 0, status: 'Out of Stock' },
-    { code: 'ACC-004', name: 'Laptop Sleeve 14"', current: 22, status: 'In Stock' },
-  ];
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const fetchStockStatus = async () => {
+      setLoading(true);
+      try {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const res = await fetch(`${Api}/products/daily-status?date=${todayStr}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            setStockList(data.map((item: any) => ({
+              code: item.itemCode || item.barcode || 'N/A',
+              name: item.name || 'Unnamed Product',
+              current: item.closingStock ?? item.stock ?? 0,
+              status: item.status || (item.closingStock <= 0 ? 'Out of Stock' : item.closingStock < 10 ? 'Low Stock' : 'In Stock')
+            })));
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch daily stock status", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStockStatus();
+  }, [isOpen]);
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div onClick={onClose} className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm animate-fade-in" />
       
-      <div className="relative w-full max-w-lg apple-glass-card rounded-2xl p-6 shadow-2xl z-10 space-y-4 border border-white/80">
+      <div className="relative w-full max-w-lg apple-glass-card rounded-2xl p-6 shadow-2xl z-10 space-y-4 border border-white/80 animate-scale-up">
         <div className="flex items-center justify-between pb-3 border-b border-slate-200/80">
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
@@ -90,21 +116,30 @@ export const DailyStockStatusModal: React.FC<DailyStockStatusModalProps> = ({ is
         </div>
 
         <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
-          {mockStockList.map((item, idx) => (
-            <div key={idx} className="p-2.5 rounded-xl bg-slate-50/80 border border-slate-200/60 flex items-center justify-between text-xs">
-              <div>
-                <span className="font-semibold text-slate-800 block">{item.name}</span>
-                <span className="text-[10px] text-slate-400 font-mono">{item.code}</span>
-              </div>
-              <div className="text-right">
-                <span className="font-mono font-bold text-slate-900 block">{item.current} PCS</span>
-                <span className={`text-[10px] font-semibold ${
-                  item.status === 'In Stock' ? 'text-emerald-600' :
-                  item.status === 'Low Stock' ? 'text-amber-600' : 'text-rose-600'
-                }`}>{item.status}</span>
-              </div>
+          {loading ? (
+            <div className="text-center py-6 text-slate-400 text-xs flex items-center justify-center gap-2">
+              <svg className="animate-spin h-4 w-4 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+              <span>Loading stock status...</span>
             </div>
-          ))}
+          ) : stockList.length > 0 ? (
+            stockList.map((item, idx) => (
+              <div key={idx} className="p-2.5 rounded-xl bg-slate-50/80 border border-slate-200/60 flex items-center justify-between text-xs">
+                <div>
+                  <span className="font-semibold text-slate-800 block">{item.name}</span>
+                  <span className="text-[10px] text-slate-400 font-mono">{item.code}</span>
+                </div>
+                <div className="text-right">
+                  <span className="font-mono font-bold text-slate-900 block">{item.current} PCS</span>
+                  <span className={`text-[10px] font-semibold ${
+                    item.status === 'In Stock' ? 'text-emerald-600' :
+                    item.status === 'Low Stock' ? 'text-amber-600' : 'text-rose-600'
+                  }`}>{item.status}</span>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="text-center py-6 text-slate-400 text-xs">No products found.</div>
+          )}
         </div>
 
         <button onClick={onClose} className="apple-button-secondary w-full text-xs">Done</button>

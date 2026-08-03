@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import type { ToolbarActions } from '../components/Layout';
-import { Search, Calendar, Filter, FileText, Eye, Edit, Trash2 } from 'lucide-react';
+import { Search, Calendar, Filter, FileText, Eye, Edit, Trash2, MessageCircle } from 'lucide-react';
 import Modal from '../components/Modal';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Api from '../Api';
+import { sendWhatsAppBill } from '../utils/whatsappHelper';
 import { applyRupeeFont } from '../utils/pdfFontLoader';
 
 // --- DATA STRUCTURES ---
@@ -56,6 +57,7 @@ const ShopSalesRegister = () => {
   const [allData, setAllData] = useState<ShopSalesRecord[]>([]);
   const [displayedData, setDisplayedData] = useState<ShopSalesRecord[]>([]);
   const [shopsList, setShopsList] = useState<string[]>(['All']);
+  const [shopsData, setShopsData] = useState<any[]>([]);
   
   // Filter Draft State
   const [filters, setFilters] = useState({
@@ -117,6 +119,7 @@ const ShopSalesRegister = () => {
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) {
+          setShopsData(data);
           setShopsList(['All', ...data.map((v: any) => v.accountName)]);
         }
       })
@@ -272,6 +275,64 @@ const ShopSalesRegister = () => {
     }
   };
 
+  const shareBillWhatsApp = (record: ShopSalesRecord) => {
+    const foundShop = shopsData.find(s => s.accountName === record.shopName);
+    let targetPhone = foundShop?.mobileNo || '';
+
+    if (!targetPhone && record.shopGstin && record.shopGstin.replace(/\D/g, '').length >= 10) {
+      targetPhone = record.shopGstin;
+    }
+
+    if (!targetPhone) {
+      const inputPhone = window.prompt(`Please enter the WhatsApp mobile number for ${record.shopName}:`);
+      if (inputPhone === null) return;
+      targetPhone = inputPhone.trim();
+    }
+
+    if (!targetPhone) {
+      setGlobalNotification({ msg: 'A valid WhatsApp phone number is required.', type: 'error' });
+      setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
+      return;
+    }
+
+    const cartItems = (record.items || []).map((it: any) => ({
+      itemName: it.itemName || (it as any).itemDesc || 'Item',
+      qty: it.qty || 1,
+      rate: it.rate || 0,
+      amount: it.total || 0,
+      size: it.size || '',
+      uom: 'PCS'
+    }));
+
+    const totalQty = cartItems.reduce((acc, curr) => acc + curr.qty, 0);
+
+    try {
+      const result = sendWhatsAppBill({
+        invoiceNo: record.voucherNo,
+        invDate: record.date ? record.date.split('T')[0].split('-').reverse().join('-') : '',
+        buyerName: record.shopName,
+        mobileNo: targetPhone,
+        paymentMode: record.paymentMode || 'Cash',
+        items: cartItems,
+        totalQty: totalQty,
+        totalAmount: record.taxableAmt,
+        cgst: record.cgst,
+        sgst: record.sgst,
+        netAmount: record.netPayable
+      });
+
+      if (result && !result.success) {
+        setGlobalNotification({ msg: result.error || 'Failed to share on WhatsApp.', type: 'error' });
+      } else {
+        setGlobalNotification({ msg: `WhatsApp share triggered for ${record.shopName} [${targetPhone}]!`, type: 'success' });
+      }
+    } catch (err: any) {
+      console.error(err);
+      setGlobalNotification({ msg: 'Error launching WhatsApp: ' + err.message, type: 'error' });
+    }
+    setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
+  };
+
   // Bind Print functionality to global toolbar
   useEffect(() => {
     setToolbarActions({
@@ -385,12 +446,13 @@ const ShopSalesRegister = () => {
                 <th className="border-r border-[#1e3f70] p-2 w-24 text-xs font-semibold text-right">Round Off</th>
                 <th className="border-r border-[#1e3f70] p-2 w-32 text-xs font-semibold text-right bg-blue-700">Net Receivable</th>
                 <th className="p-2 w-24 text-center text-xs font-semibold">Status</th>
+                <th className="p-2 w-16 text-center text-xs font-semibold">Actions</th>
               </tr>
             </thead>
             <tbody>
               {displayedData.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="p-16 text-center text-gray-500 bg-gray-50">
+                  <td colSpan={12} className="p-16 text-center text-gray-500 bg-gray-50">
                     <div className="flex flex-col items-center justify-center">
                        <FileText className="w-12 h-12 text-gray-300 mb-3" />
                        <p className="text-xl font-medium text-gray-400">No wholesale sales records found</p>
@@ -428,6 +490,15 @@ const ShopSalesRegister = () => {
                         {row.status}
                       </span>
                     </td>
+                    <td className="p-2 text-center" onClick={e => e.stopPropagation()}>
+                      <button
+                        onClick={() => shareBillWhatsApp(row)}
+                        className="inline-flex items-center justify-center p-1 bg-green-50 hover:bg-green-100 border border-green-200 text-green-600 rounded transition-colors"
+                        title="Share on WhatsApp"
+                      >
+                        <MessageCircle size={14} />
+                      </button>
+                    </td>
                   </tr>
                 ))
               )}
@@ -448,6 +519,7 @@ const ShopSalesRegister = () => {
                  <td className="p-2 w-24 text-gray-400 font-mono">-</td>
                  <td className="p-2 w-32 font-black text-lg text-white font-mono bg-blue-800">₹ {totals.net.toFixed(2)}</td>
                  <td className="p-2 w-24"></td>
+                 <td className="p-2 w-16"></td>
                </tr>
              </tbody>
           </table>
@@ -527,6 +599,13 @@ const ShopSalesRegister = () => {
                  >
                    <Edit size={12} />
                    <span>Edit Bill</span>
+                 </button>
+                 <button 
+                   onClick={() => shareBillWhatsApp(selectedRecord)} 
+                   className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded font-semibold transition-colors text-xs flex items-center space-x-1"
+                 >
+                   <MessageCircle size={12} />
+                   <span>WhatsApp Share</span>
                  </button>
                </div>
                <button onClick={() => setSelectedRecord(null)} className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded font-semibold transition-colors text-xs">

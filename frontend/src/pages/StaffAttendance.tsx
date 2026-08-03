@@ -549,55 +549,25 @@ const StaffAttendance = () => {
                             <span className="text-[10px] text-gray-500 block font-normal">({targetShiftHours} hrs)</span>
                           </td>
 
-                          {/* Manual Status Buttons */}
+                          {/* Manual Status Selector Dropdown */}
                           <td className="p-2.5 text-center">
-                            <div className="inline-flex flex-wrap gap-1 justify-center">
-                              <button
-                                type="button"
-                                onClick={() => handleStatusChange(item.staffId, 'Present')}
-                                className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-all ${
-                                  item.status === 'Present' ? 'bg-emerald-600 text-white border-emerald-700 shadow' : 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
-                                }`}
-                              >
-                                Present 🟢
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleStatusChange(item.staffId, 'Half Day')}
-                                className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-all ${
-                                  item.status === 'Half Day' ? 'bg-amber-600 text-white border-amber-700 shadow' : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
-                                }`}
-                              >
-                                Half Day 🟡
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleStatusChange(item.staffId, 'Absent')}
-                                className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-all ${
-                                  item.status === 'Absent' ? 'bg-rose-600 text-white border-rose-700 shadow' : 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100'
-                                }`}
-                              >
-                                Absent 🔴
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleStatusChange(item.staffId, 'Paid Leave')}
-                                className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-all ${
-                                  item.status === 'Paid Leave' ? 'bg-sky-600 text-white border-sky-700 shadow' : 'bg-sky-50 text-sky-800 border-sky-300 hover:bg-sky-100'
-                                }`}
-                              >
-                                Paid Leave 🔵
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleStatusChange(item.staffId, 'Leave')}
-                                className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-all ${
-                                  item.status === 'Leave' ? 'bg-purple-600 text-white border-purple-700 shadow' : 'bg-purple-50 text-purple-800 border-purple-300 hover:bg-purple-100'
-                                }`}
-                              >
-                                Leave 🟣
-                              </button>
-                            </div>
+                            <select
+                              value={item.status}
+                              onChange={e => handleStatusChange(item.staffId, e.target.value as any)}
+                              className={`border px-2 py-1 rounded font-bold text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white border-gray-300 ${
+                                item.status === 'Present' ? 'text-emerald-700' :
+                                item.status === 'Half Day' ? 'text-amber-700' :
+                                item.status === 'Absent' ? 'text-rose-700' :
+                                item.status === 'Paid Leave' ? 'text-sky-700' :
+                                'text-purple-700'
+                              }`}
+                            >
+                              <option value="Present" className="text-emerald-700 font-bold">Present 🟢</option>
+                              <option value="Half Day" className="text-amber-700 font-bold">Half Day 🟡</option>
+                              <option value="Absent" className="text-rose-700 font-bold">Absent 🔴</option>
+                              <option value="Paid Leave" className="text-sky-700 font-bold">Paid Leave 🔵</option>
+                              <option value="Leave" className="text-purple-700 font-bold">Leave 🟣</option>
+                            </select>
                           </td>
 
                           {/* Check-In Input */}

@@ -508,7 +508,6 @@ const StaffMaster = () => {
                   type="tel"
                   value={mobileNo}
                   onChange={e => setMobileNo(e.target.value)}
-                  placeholder="e.g. 9876543210"
                   className="w-full border border-gray-300 rounded px-2 py-1 bg-white focus:ring-1 focus:ring-blue-500 font-medium"
                 />
               </div>

@@ -44,7 +44,7 @@ export async function setupDatabase() {
   try {
     await prisma.$runCommandRaw({
       createIndexes: "Ledger",
-      indexes: [{ key: { ledgerCode: 1 }, name: "ledgerCode_1", unique: true }]
+      indexes: [{ key: { ledgerCode: 1 }, name: "Ledger_ledgerCode_key", unique: true }]
     });
     console.log("Ledger indexes ready");
   } catch (e: any) {

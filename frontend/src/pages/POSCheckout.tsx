@@ -530,6 +530,28 @@ const POSCheckout = () => {
         setMobileNo(orderToConvert.mobileNo || '');
         setAddress(orderToConvert.address || '');
         setRemarks(orderToConvert.remarks || '');
+      } else if (incomingPayload) {
+        setBuyerName(incomingPayload.buyerName || '');
+        if (incomingPayload.items && incomingPayload.items.length > 0) {
+          const mappedItems = incomingPayload.items.map((item: any, idx: number) => {
+            const baseAmount = (item.qty || 0) * (item.rate || 0);
+            const discAmt = (baseAmount * (item.discPercent || 0)) / 100;
+            return {
+              id: idx + 1,
+              itemName: item.itemName || '',
+              itemDesc: item.itemDesc || '',
+              size: item.size || '',
+              qty: item.qty || 0,
+              uom: item.uom || 'PCS',
+              rate: item.rate || 0,
+              discPercent: item.discPercent || 0,
+              discAmt: discAmt,
+              amount: item.amount || (baseAmount - discAmt)
+            };
+          });
+          setGridData(mappedItems);
+          setTabs(prev => prev.map(t => t.id === 'tab-1' ? { ...t, buyerName: incomingPayload.buyerName || '', gridData: mappedItems } : t));
+        }
       }
     }
   }, [location.state]);

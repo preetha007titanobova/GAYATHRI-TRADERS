@@ -134,7 +134,19 @@ const ShopSalesBill = () => {
     }
   };
 
-  // fetchProducts removed to prevent preloading all master products
+  const fetchProducts = async (query = '') => {
+    try {
+      const res = await fetch(`${Api}/products/search?q=${encodeURIComponent(query)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setDbProducts(data);
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching products:", err);
+    }
+  };
 
   // Load saved bills from DB
   const fetchSavedBills = async () => {
@@ -166,7 +178,22 @@ const ShopSalesBill = () => {
     fetchShops();
     fetchSavedBills();
     fetchNextVoucher();
+    fetchProducts();
   }, []);
+
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      fetchProducts(itemSearchQuery);
+    }, 300);
+    return () => clearTimeout(delayDebounceFn);
+  }, [itemSearchQuery]);
+
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      fetchProducts(modalSearchQuery);
+    }, 300);
+    return () => clearTimeout(delayDebounceFn);
+  }, [modalSearchQuery]);
 
   // Quick navigation: load bill if passed from register state
   useEffect(() => {
