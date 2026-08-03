@@ -6,6 +6,7 @@ import Modal from '../components/Modal';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Api from '../Api';
+import { applyRupeeFont } from '../utils/pdfFontLoader';
 
 // --- INDIAN TIME FORMATTING HELPERS ---
 const formatIndianDateTime = (dateInput?: string | Date) => {
@@ -236,8 +237,9 @@ const PurRegister = () => {
     }
   };
 
-  const downloadPDF = () => {
+  const downloadPDF = async () => {
     const doc = new jsPDF();
+    const fontName = await applyRupeeFont(doc);
     doc.setFontSize(16);
     doc.setTextColor(43, 87, 154);
     doc.text('Purchase Register Report', 14, 15);
@@ -264,8 +266,8 @@ const PurRegister = () => {
       head: [headers],
       body: rows,
       theme: 'grid',
-      headStyles: { fillColor: [43, 87, 154] },
-      styles: { fontSize: 8 },
+      headStyles: { fillColor: [43, 87, 154], font: fontName },
+      styles: { fontSize: 8, font: fontName },
     });
 
     doc.save(`Purchase_Register_${new Date().toISOString().split('T')[0]}.pdf`);
@@ -280,6 +282,7 @@ const PurRegister = () => {
     setGlobalNotification({ msg: 'Generating PDF and preparing WhatsApp share...', type: 'info' });
     try {
       const doc = new jsPDF();
+      const fontName = await applyRupeeFont(doc);
       doc.setFontSize(16);
       doc.setTextColor(43, 87, 154);
       doc.text('Purchase Register Report', 14, 15);
@@ -306,8 +309,8 @@ const PurRegister = () => {
         head: [headers],
         body: rows,
         theme: 'grid',
-        headStyles: { fillColor: [43, 87, 154] },
-        styles: { fontSize: 8 },
+        headStyles: { fillColor: [43, 87, 154], font: fontName },
+        styles: { fontSize: 8, font: fontName },
       });
 
       const pdfBase64 = doc.output('datauristring');
@@ -343,8 +346,9 @@ const PurRegister = () => {
   };
 
 
-  const downloadSingleBillPDF = (record: PurchaseRecord) => {
+  const downloadSingleBillPDF = async (record: PurchaseRecord) => {
     const doc = new jsPDF();
+    const fontName = await applyRupeeFont(doc);
     doc.setFontSize(16);
     doc.setTextColor(43, 87, 154);
     doc.text(`Purchase Voucher: ${record.voucherNo}`, 14, 15);
@@ -376,8 +380,8 @@ const PurRegister = () => {
       head: [headers],
       body: rows,
       theme: 'grid',
-      headStyles: { fillColor: [43, 87, 154] },
-      styles: { fontSize: 7.5 },
+      headStyles: { fillColor: [43, 87, 154], font: fontName },
+      styles: { fontSize: 7.5, font: fontName },
     });
 
     const finalY = (doc as any).lastAutoTable.finalY + 8;

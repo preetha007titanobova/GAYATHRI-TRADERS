@@ -1,5 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { applyRupeeFont } from './pdfFontLoader';
 
 export interface BillItem {
   id?: number | string;
@@ -38,12 +39,14 @@ export interface BillData {
   storeAddress?: string;
 }
 
-export const downloadPdfBill = (data: BillData) => {
+export const downloadPdfBill = async (data: BillData) => {
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
     format: 'a4'
   });
+
+  const fontName = await applyRupeeFont(doc);
 
   const storeName = data.storeName || localStorage.getItem('registered_shop_name') || localStorage.getItem('shop_name') || '';
   const storePhone = data.storePhone || (localStorage.getItem('registered_shop_mobile') ? `Mobile: ${localStorage.getItem('registered_shop_mobile')}` : '');
@@ -54,16 +57,16 @@ export const downloadPdfBill = (data: BillData) => {
   doc.rect(0, 0, 210, 28, 'F');
 
   doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold');
+  doc.setFont(fontName, 'bold');
   doc.setFontSize(18);
   doc.text(storeName, 14, 12);
 
-  doc.setFont('helvetica', 'normal');
+  doc.setFont(fontName, 'normal');
   doc.setFontSize(9);
   doc.text(storeAddress, 14, 18);
   doc.text(storePhone, 14, 23);
 
-  doc.setFont('helvetica', 'bold');
+  doc.setFont(fontName, 'bold');
   doc.setFontSize(14);
   doc.text('TAX INVOICE', 196, 16, { align: 'right' });
 
@@ -78,17 +81,17 @@ export const downloadPdfBill = (data: BillData) => {
   doc.setFontSize(9);
 
   // Left Column - Customer Details
-  doc.setFont('helvetica', 'bold');
+  doc.setFont(fontName, 'bold');
   doc.text('BILL TO:', 18, startY + 6);
-  doc.setFont('helvetica', 'normal');
+  doc.setFont(fontName, 'normal');
   doc.text(data.buyerName || 'CASH CUSTOMER', 18, startY + 12);
   if (data.mobileNo) doc.text(`Phone: ${data.mobileNo}`, 18, startY + 17);
   if (data.gstNo) doc.text(`GSTIN: ${data.gstNo}`, 18, startY + 22);
 
   // Right Column - Bill Details
-  doc.setFont('helvetica', 'bold');
+  doc.setFont(fontName, 'bold');
   doc.text('INVOICE DETAILS:', 110, startY + 6);
-  doc.setFont('helvetica', 'normal');
+  doc.setFont(fontName, 'normal');
   doc.text(`Invoice No: ${data.invoiceNo}`, 110, startY + 12);
   doc.text(`Date: ${data.invDate}`, 110, startY + 17);
   doc.text(`Payment Mode: ${data.paymentMode || 'Cash'}`, 110, startY + 22);
@@ -111,14 +114,15 @@ export const downloadPdfBill = (data: BillData) => {
 
   autoTable(doc, {
     startY: startY,
-    head: [['#', 'Barcode/Code', 'Item Description', 'Size', 'Qty', 'Rate (Rs.)', 'Disc', 'Amount (Rs.)']],
+    head: [['#', 'Barcode/Code', 'Item Description', 'Size', 'Qty', 'Rate (₹)', 'Disc', 'Amount (₹)']],
     body: tableBody,
     theme: 'grid',
     headStyles: {
       fillColor: [30, 58, 138],
       textColor: [255, 255, 255],
       fontStyle: 'bold',
-      fontSize: 9
+      fontSize: 9,
+      font: fontName
     },
     columnStyles: {
       0: { halign: 'center', cellWidth: 10 },
@@ -132,7 +136,8 @@ export const downloadPdfBill = (data: BillData) => {
     },
     styles: {
       fontSize: 8.5,
-      cellPadding: 2.5
+      cellPadding: 2.5,
+      font: fontName
     },
     margin: { left: 14, right: 14 }
   });
@@ -148,7 +153,7 @@ export const downloadPdfBill = (data: BillData) => {
   doc.roundedRect(summaryX, finalY, summaryWidth, 42, 2, 2, 'FD');
 
   doc.setFontSize(8.5);
-  doc.setFont('helvetica', 'normal');
+  doc.setFont(fontName, 'normal');
   doc.setTextColor(51, 65, 85);
 
   let currentY = finalY + 6;
@@ -157,30 +162,30 @@ export const downloadPdfBill = (data: BillData) => {
 
   currentY += 5;
   doc.text('SubTotal:', summaryX + 4, currentY);
-  doc.text(`Rs. ${data.totalAmount.toFixed(2)}`, summaryX + summaryWidth - 4, currentY, { align: 'right' });
+  doc.text(`₹${data.totalAmount.toFixed(2)}`, summaryX + summaryWidth - 4, currentY, { align: 'right' });
 
   if (data.favourDiscount && data.favourDiscount > 0) {
     currentY += 5;
     doc.text('Discount:', summaryX + 4, currentY);
-    doc.text(`-Rs. ${data.favourDiscount.toFixed(2)}`, summaryX + summaryWidth - 4, currentY, { align: 'right' });
+    doc.text(`-₹${data.favourDiscount.toFixed(2)}`, summaryX + summaryWidth - 4, currentY, { align: 'right' });
   }
 
   if (data.cgst && data.cgst > 0) {
     currentY += 5;
     doc.text(`CGST (${data.cgstPercent || 0}%):`, summaryX + 4, currentY);
-    doc.text(`+Rs. ${data.cgst.toFixed(2)}`, summaryX + summaryWidth - 4, currentY, { align: 'right' });
+    doc.text(`+₹${data.cgst.toFixed(2)}`, summaryX + summaryWidth - 4, currentY, { align: 'right' });
   }
 
   if (data.sgst && data.sgst > 0) {
     currentY += 5;
     doc.text(`SGST (${data.sgstPercent || 0}%):`, summaryX + 4, currentY);
-    doc.text(`+Rs. ${data.sgst.toFixed(2)}`, summaryX + summaryWidth - 4, currentY, { align: 'right' });
+    doc.text(`+₹${data.sgst.toFixed(2)}`, summaryX + summaryWidth - 4, currentY, { align: 'right' });
   }
 
   if (data.roundOff) {
     currentY += 5;
     doc.text('Round Off:', summaryX + 4, currentY);
-    doc.text(`${data.roundOff >= 0 ? '+' : ''}Rs. ${data.roundOff.toFixed(2)}`, summaryX + summaryWidth - 4, currentY, { align: 'right' });
+    doc.text(`${data.roundOff >= 0 ? '+' : ''}₹${data.roundOff.toFixed(2)}`, summaryX + summaryWidth - 4, currentY, { align: 'right' });
   }
 
   // Grand Total Line
@@ -188,10 +193,10 @@ export const downloadPdfBill = (data: BillData) => {
   doc.setFillColor(30, 58, 138);
   doc.rect(summaryX, currentY - 4, summaryWidth, 9, 'F');
   doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold');
+  doc.setFont(fontName, 'bold');
   doc.setFontSize(10);
   doc.text('GRAND TOTAL:', summaryX + 4, currentY + 2);
-  doc.text(`Rs. ${data.netAmount.toFixed(2)}`, summaryX + summaryWidth - 4, currentY + 2, { align: 'right' });
+  doc.text(`₹${data.netAmount.toFixed(2)}`, summaryX + summaryWidth - 4, currentY + 2, { align: 'right' });
 
   // --- Terms & Footer ---
   const footerY = Math.max(finalY + 50, 270);

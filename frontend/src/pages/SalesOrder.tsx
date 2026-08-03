@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useOutletContext, useLocation, useNavigate } from 'react-router-dom';
-import { Plus, Trash2, Calendar, FileText, Printer, ArrowLeft, RefreshCw, ClipboardList, Search } from 'lucide-react';
+import { Plus, Trash2, Calendar, FileText, ArrowLeft, RefreshCw, ClipboardList, Search, MessageCircle, Save } from 'lucide-react';
 import Api from '../Api';
 
 interface SalesOrderItemLine {
@@ -299,7 +299,7 @@ const SalesOrder = () => {
   const [deliveryDate, setDeliveryDate] = useState('');
   const [salesman, setSalesman] = useState('');
   const [isInterstate, setIsInterstate] = useState(false);
-  const [advancePaid, setAdvancePaid] = useState<number | string>(0);
+  const [advancePaid, setAdvancePaid] = useState<number | string>('');
   const [paymentMode, setPaymentMode] = useState('Cash');
   const [remarks, setRemarks] = useState('');
   const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(true);
@@ -408,7 +408,7 @@ const SalesOrder = () => {
       setAddress(orderToEdit.address || '');
       setDeliveryDate(orderToEdit.expectedDeliveryDate ? new Date(orderToEdit.expectedDeliveryDate).toISOString().split('T')[0] : '');
       setIsInterstate(orderToEdit.cgst === 0 && orderToEdit.igst > 0);
-      setAdvancePaid(orderToEdit.advancePaid || 0);
+      setAdvancePaid(orderToEdit.advancePaid ? orderToEdit.advancePaid : '');
       setPaymentMode(orderToEdit.paymentMode || 'Cash');
       setRemarks(orderToEdit.remarks || '');
       setSalesman(orderToEdit.salesman || '');
@@ -589,6 +589,17 @@ const SalesOrder = () => {
       return;
     }
 
+    if (!customer || !customer.trim()) {
+      if (setGlobalNotification) setGlobalNotification({msg: "Customer Name is a mandatory field.", type: 'error'});
+      return;
+    }
+
+    const cleanPhone = (mobileNo || '').replace(/\D/g, '');
+    if (!cleanPhone || cleanPhone.length < 10) {
+      if (setGlobalNotification) setGlobalNotification({msg: "Customer Phone Number is a mandatory field (minimum 10 digits).", type: 'error'});
+      return;
+    }
+
     const validItems = lineItems.filter(item => Number(item.quantityOrdered) > 0 && item.itemCode);
     if (validItems.length === 0) {
       if (setGlobalNotification) setGlobalNotification({msg: "Cannot save: Please add at least one valid item.", type: 'error'});
@@ -603,8 +614,8 @@ const SalesOrder = () => {
       const payload = {
         orderNo,
         orderDate,
-        customer,
-        mobileNo,
+        customer: customer.trim(),
+        mobileNo: cleanPhone,
         address,
         deliveryDate,
         status,
@@ -669,21 +680,43 @@ const SalesOrder = () => {
     navigate('/sales-bill', { state: { orderToConvert: orderPayload } });
   };
 
-  const triggerPrint = () => {
-    const printPayload = {
-      orderNo,
-      orderDate,
-      customer,
-      mobileNo,
-      address,
-      deliveryDate,
-      status,
-      summary,
-      advancePaid,
-      balanceAmount: Math.max(0, summary.grandTotal - Number(advancePaid)),
-      items: lineItems
-    };
-    printOrder(printPayload);
+  const handleShareWhatsApp = () => {
+    if (!customer || !customer.trim()) {
+      if (setGlobalNotification) setGlobalNotification({ msg: "Please enter Customer Name before sharing on WhatsApp.", type: 'error' });
+      return;
+    }
+
+    const cleanMobile = (mobileNo || '').replace(/\D/g, '');
+    if (!cleanMobile || cleanMobile.length < 10) {
+      if (setGlobalNotification) setGlobalNotification({ msg: "Please enter a valid 10-digit Customer Phone Number before sharing on WhatsApp.", type: 'error' });
+      return;
+    }
+
+    const validItems = lineItems.filter(item => item.itemDescription || item.itemCode);
+    if (!validItems || validItems.length === 0) {
+      if (setGlobalNotification) setGlobalNotification({ msg: "No order items to share on WhatsApp.", type: "error" });
+      return;
+    }
+
+    const text = `*SALES ORDER SUMMARY*
+Order No: ${orderNo}
+Order Date: ${new Date(orderDate).toLocaleDateString('en-IN')}
+Customer Name: ${customer.trim()}
+Mobile: ${cleanMobile}
+${deliveryDate ? `Expected Delivery: ${new Date(deliveryDate).toLocaleDateString('en-IN')}\n` : ''}
+*Order Items:*
+${validItems.map((item, i) => `${i + 1}. ${item.itemDescription || item.itemCode} | Qty: ${item.quantityOrdered} | Size: ${item.size || '-'} | Rate: ₹${Number(item.unitPrice).toFixed(2)}`).join('\n')}
+
+Subtotal: ₹${summary.subtotal.toFixed(2)}
+Grand Total: ₹${summary.grandTotal.toFixed(2)}
+Advance Paid: ₹${Number(advancePaid).toFixed(2)}
+*Balance Due: ₹${Math.max(0, summary.grandTotal - Number(advancePaid)).toFixed(2)}*
+
+Thank you!`;
+
+    const encodedText = encodeURIComponent(text);
+    const whatsappUrl = `https://wa.me/91${cleanMobile}?text=${encodedText}`;
+    window.open(whatsappUrl, '_blank');
   };
 
   // --- Hotkeys ---
@@ -692,9 +725,6 @@ const SalesOrder = () => {
       if (e.ctrlKey && e.key.toLowerCase() === 's') {
         e.preventDefault();
         handleSave();
-      } else if (e.ctrlKey && e.key.toLowerCase() === 'p') {
-        e.preventDefault();
-        triggerPrint();
       } else if (e.ctrlKey && e.key.toLowerCase() === 'b') {
         e.preventDefault();
         handleConvertToBill();
@@ -736,32 +766,22 @@ const SalesOrder = () => {
           </button>
 
           <button 
-            onClick={triggerPrint} 
-            className="flex items-center space-x-1 px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-sm font-semibold rounded-md shadow-sm transition-all"
-            title="Print Order (CTRL+P)"
+            onClick={handleShareWhatsApp} 
+            className="flex items-center space-x-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-md shadow-sm transition-all"
+            title="Share Order via WhatsApp"
           >
-            <Printer className="w-4 h-4" />
-            <span>Print (Ctrl+P)</span>
+            <MessageCircle className="w-4 h-4" />
+            <span>WhatsApp Share</span>
           </button>
 
           {!isReadOnly && editingOrderId && (
             <button 
               onClick={handleConvertToBill}
-              className="flex items-center space-x-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-md shadow-sm transition-all"
+              className="flex items-center space-x-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-md shadow-sm transition-all"
               title="Convert to Bill (CTRL+B)"
             >
               <FileText className="w-4 h-4" />
               <span>Convert to Bill (Ctrl+B)</span>
-            </button>
-          )}
-
-          {!isReadOnly && (
-            <button 
-              onClick={handleSave} 
-              className="flex items-center space-x-1 px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-md shadow-sm shadow-blue-500/10 transition-all"
-              title="Save Order (CTRL+S)"
-            >
-              <span>Save (Ctrl+S)</span>
             </button>
           )}
         </div>
@@ -810,7 +830,16 @@ const SalesOrder = () => {
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Customer / Client Ledger</label>
                 <select 
                   value={availableCustomers.some(c => c.accountName === customer) ? customer : ""} 
-                  onChange={e => setCustomer(e.target.value)}
+                  onChange={e => {
+                    const val = e.target.value;
+                    setCustomer(val);
+                    const found = availableCustomers.find(c => c.accountName === val);
+                    if (found) {
+                      const phone = found.mobileNo || found.mobile || found.phone || '';
+                      if (phone) setMobileNo(phone);
+                      if (found.address) setAddress(found.address);
+                    }
+                  }}
                   disabled={isReadOnly}
                   className="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm bg-white outline-none focus:border-blue-500"
                 >
@@ -822,12 +851,15 @@ const SalesOrder = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Customer Name</label>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
+                  Customer Name <span className="text-red-500 font-extrabold">*</span>
+                </label>
                 <input 
                   type="text" 
                   value={customer} 
                   onChange={e => setCustomer(e.target.value)}
                   disabled={isReadOnly}
+                  placeholder="Enter Customer Name"
                   className="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm outline-none focus:border-blue-500"
                 />
               </div>
@@ -848,12 +880,15 @@ const SalesOrder = () => {
               )}
 
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Customer Phone</label>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
+                  Customer Phone <span className="text-red-500 font-extrabold">*</span>
+                </label>
                 <input 
                   type="text" 
                   value={mobileNo} 
                   onChange={e => setMobileNo(e.target.value)}
                   disabled={isReadOnly}
+                  placeholder="10-digit mobile number"
                   className="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm outline-none focus:border-blue-500"
                 />
               </div>
@@ -1128,12 +1163,13 @@ const SalesOrder = () => {
                   <label className="block font-semibold text-slate-500 mb-1">Advance Paid</label>
                   <input 
                     type="number" 
-                    value={advancePaid} 
-                    onChange={e => setAdvancePaid(Number(e.target.value) || 0)}
+                    value={advancePaid === 0 ? '' : advancePaid} 
+                    onChange={e => setAdvancePaid(e.target.value)}
                     disabled={isReadOnly}
                     min="0"
                     max={summary.grandTotal}
-                    className="w-full border border-slate-300 rounded-md px-2 py-1 font-mono text-sm outline-none focus:border-blue-500"
+                    placeholder="0.00"
+                    className="w-full border border-slate-300 rounded-md px-2 py-1 font-mono text-sm outline-none focus:border-blue-500 bg-white"
                   />
                 </div>
                 <div>
@@ -1204,6 +1240,19 @@ const SalesOrder = () => {
                   ₹{summary.grandTotal.toFixed(2)}
                 </span>
               </div>
+
+              {!isReadOnly && (
+                <div className="pt-3 border-t border-slate-200">
+                  <button 
+                    onClick={handleSave} 
+                    className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-[#2b579a] hover:bg-[#1f3f6f] text-white text-sm font-extrabold rounded-md shadow-md shadow-blue-500/20 transition-all focus:outline-none"
+                    title="Save Sales Order (CTRL+S)"
+                  >
+                    <Save className="w-4.5 h-4.5" />
+                    <span>Save Sales Order (Ctrl+S)</span>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>

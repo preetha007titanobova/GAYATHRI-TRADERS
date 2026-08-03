@@ -7,6 +7,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { printReceipt } from '../utils/printReceipt';
 import { sendWhatsAppBill, sendWhatsAppTextMessage } from '../utils/whatsappHelper';
+import { applyRupeeFont } from '../utils/pdfFontLoader';
 
 const printOrder = (order: any, mode: 'print' | 'whatsapp' = 'print') => {
   const cartItems = (order.items || []).map((it: any) => ({
@@ -372,22 +373,6 @@ const SalesRegister = () => {
         else if (activeTab === 'orders') navigate('/sales-order');
         else if (activeTab === 'returns') navigate('/sales-return');
       },
-      onEdit: () => {
-        if (!selectedRowId) {
-          setGlobalNotification({ msg: 'Please select a record to edit.', type: 'error' });
-          return;
-        }
-        const selectedRecord = records.find(r => r._id === selectedRowId);
-        if (selectedRecord) {
-          if (activeTab === 'bills') {
-            navigate('/sales-bill', { state: { invoiceToEdit: selectedRecord } });
-          } else if (activeTab === 'orders') {
-            navigate('/sales-order', { state: { orderToEdit: selectedRecord } });
-          } else if (activeTab === 'returns') {
-            navigate('/sales-return', { state: { returnToEdit: selectedRecord } });
-          }
-        }
-      },
       onDelete: async () => {
         if (!selectedRowId) {
           setGlobalNotification({ msg: 'Please select a record to delete.', type: 'error' });
@@ -438,8 +423,9 @@ const SalesRegister = () => {
     return () => setToolbarActions({});
   }, [setToolbarActions, navigate, selectedRowId, records, activeTab, setGlobalNotification]);
 
-  const downloadPDF = () => {
+  const downloadPDF = async () => {
     const doc = new jsPDF();
+    const fontName = await applyRupeeFont(doc);
     const title = activeTab === 'bills' ? 'Sales Bills Register' : activeTab === 'orders' ? 'Sales Orders Register' : 'Sales Returns Register';
 
     // Header styling
@@ -494,8 +480,8 @@ const SalesRegister = () => {
       head: [headers],
       body: rows,
       theme: 'grid',
-      headStyles: { fillColor: [43, 87, 154] },
-      styles: { fontSize: 8 },
+      headStyles: { fillColor: [43, 87, 154], font: fontName },
+      styles: { fontSize: 8, font: fontName },
     });
 
     doc.save(`${title.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`);
@@ -515,6 +501,7 @@ const SalesRegister = () => {
     setGlobalNotification({ msg: 'Generating PDF and preparing WhatsApp share...', type: 'info' });
     try {
       const doc = new jsPDF();
+      const fontName = await applyRupeeFont(doc);
       const title = activeTab === 'bills' ? 'Sales Bills Register' : activeTab === 'orders' ? 'Sales Orders Register' : 'Sales Returns Register';
       const storeName = localStorage.getItem('registered_shop_name') || localStorage.getItem('shop_name') || 'Ithu Namma Kada';
 
@@ -583,8 +570,8 @@ const SalesRegister = () => {
         head: [headers],
         body: rows,
         theme: 'grid',
-        headStyles: { fillColor: [43, 87, 154] },
-        styles: { fontSize: 8 },
+        headStyles: { fillColor: [43, 87, 154], font: fontName },
+        styles: { fontSize: 8, font: fontName },
       });
 
       let pdfUrl = '';
@@ -703,6 +690,21 @@ const SalesRegister = () => {
         </div>
 
         <div className="flex items-center space-x-2">
+          <button
+            onClick={() => {
+              setIsMultiSelectMode(!isMultiSelectMode);
+              setSelectedIds([]);
+            }}
+            className={`px-3 py-1.5 rounded text-xs font-bold shadow-sm transition-all flex items-center space-x-1.5 border cursor-pointer ${
+              isMultiSelectMode 
+                ? 'bg-amber-500 hover:bg-amber-600 text-white border-amber-600' 
+                : 'bg-[#2b579a] hover:bg-[#1f3f6f] text-white border-blue-900'
+            }`}
+          >
+            <CheckSquare size={14} />
+            <span>{isMultiSelectMode ? 'Cancel Selection' : 'Select Multiple'}</span>
+          </button>
+
           {selectedIds.length > 0 && (
             <button
               onClick={() => {
@@ -761,14 +763,16 @@ const SalesRegister = () => {
             <thead className="bg-[#e0e0e0] text-gray-800 sticky top-0 z-10 shadow-sm">
               {activeTab === 'bills' && (
                 <tr>
-                  <th className="border-r border-b border-gray-400 p-2 font-bold w-10 text-center">
-                    <input
-                      type="checkbox"
-                      checked={isAllSelected}
-                      onChange={handleSelectAll}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                    />
-                  </th>
+                  {isMultiSelectMode && (
+                    <th className="border-r border-b border-gray-400 p-2 font-bold w-10 text-center">
+                      <input
+                        type="checkbox"
+                        checked={isAllSelected}
+                        onChange={handleSelectAll}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                    </th>
+                  )}
                   <th className="border-r border-b border-gray-400 p-2 font-bold w-12 text-center">S.No</th>
                   <th className="border-r border-b border-gray-400 p-2 font-bold">Invoice No</th>
                   <th className="border-r border-b border-gray-400 p-2 font-bold font-semibold">Date</th>
@@ -783,18 +787,20 @@ const SalesRegister = () => {
               )}
               {activeTab === 'orders' && (
                 <tr>
-                  <th className="border-r border-b border-gray-400 p-2 font-bold w-10 text-center">
-                    <input
-                      type="checkbox"
-                      checked={isAllSelected}
-                      onChange={handleSelectAll}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                    />
-                  </th>
+                  {isMultiSelectMode && (
+                    <th className="border-r border-b border-gray-400 p-2 font-bold w-10 text-center">
+                      <input
+                        type="checkbox"
+                        checked={isAllSelected}
+                        onChange={handleSelectAll}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                    </th>
+                  )}
                   <th className="border-r border-b border-gray-400 p-2 font-bold w-12 text-center">S.No</th>
                   <th className="border-r border-b border-gray-400 p-2 font-bold">Order No</th>
                   <th className="border-r border-b border-gray-400 p-2 font-bold">Date</th>
-                  <th className="border-r border-b border-gray-400 p-2 font-bold">Customer</th>
+                  <th className="border-r border-b border-gray-400 p-2 font-bold">Customer Name</th>
                   <th className="border-r border-b border-gray-400 p-2 font-bold text-center">Items</th>
                   <th className="border-r border-b border-gray-400 p-2 font-bold text-center">Qty</th>
                   <th className="border-r border-b border-gray-400 p-2 font-bold text-right">Total</th>
@@ -806,14 +812,16 @@ const SalesRegister = () => {
               )}
               {activeTab === 'returns' && (
                 <tr>
-                  <th className="border-r border-b border-gray-400 p-2 font-bold w-10 text-center">
-                    <input
-                      type="checkbox"
-                      checked={isAllSelected}
-                      onChange={handleSelectAll}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                    />
-                  </th>
+                  {isMultiSelectMode && (
+                    <th className="border-r border-b border-gray-400 p-2 font-bold w-10 text-center">
+                      <input
+                        type="checkbox"
+                        checked={isAllSelected}
+                        onChange={handleSelectAll}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                    </th>
+                  )}
                   <th className="border-r border-b border-gray-400 p-2 font-bold w-12 text-center">S.No</th>
                   <th className="border-r border-b border-gray-400 p-2 font-bold">Return No</th>
                   <th className="border-r border-b border-gray-400 p-2 font-bold">Date</th>
@@ -830,11 +838,11 @@ const SalesRegister = () => {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={isMultiSelectMode ? 12 : 11} className="p-4 text-center text-gray-500 font-semibold">Loading data...</td>
+                  <td colSpan={activeTab === 'orders' ? (isMultiSelectMode ? 12 : 11) : (isMultiSelectMode ? 11 : 10)} className="p-4 text-center text-gray-500 font-semibold">Loading data...</td>
                 </tr>
               ) : filteredRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={isMultiSelectMode ? 12 : 11} className="p-4 text-center text-gray-500 font-semibold">No records found for the selected date range.</td>
+                  <td colSpan={activeTab === 'orders' ? (isMultiSelectMode ? 12 : 11) : (isMultiSelectMode ? 11 : 10)} className="p-4 text-center text-gray-500 font-semibold">No records found for the selected date range.</td>
                 </tr>
               ) : (
                 filteredRecords.map((rec, index) => {
@@ -845,7 +853,7 @@ const SalesRegister = () => {
                     return (
                       <tr
                         key={rec._id}
-                        onClick={() => setSelectedRowId(rec._id)}
+                        onClick={() => setSelectedRowId(isSelected ? null : rec._id)}
                         className={`border-b border-gray-200 cursor-pointer transition-colors ${isSelected ? 'bg-[#cce5ff] text-[#004085] font-medium border-l-4 border-l-blue-600' : 'hover:bg-blue-50'
                           }`}
                       >
@@ -909,16 +917,6 @@ const SalesRegister = () => {
                             title="View"
                           >
                             <Eye size={14} />
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              navigate('/sales-bill', { state: { billToEdit: rec } });
-                            }}
-                            className="inline-flex items-center justify-center p-1 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-600 rounded transition-colors"
-                            title="Edit Sales Bill"
-                          >
-                            <Edit size={14} />
                           </button>
                           <button
                             onClick={(e) => {
@@ -988,7 +986,7 @@ const SalesRegister = () => {
                     return (
                       <tr
                         key={rec._id}
-                        onClick={() => setSelectedRowId(rec._id)}
+                        onClick={() => setSelectedRowId(isSelected ? null : rec._id)}
                         className={`border-b border-gray-200 cursor-pointer transition-colors ${isSelected ? 'bg-[#cce5ff] text-[#004085] font-medium border-l-4 border-l-blue-600' : 'hover:bg-blue-50'
                           }`}
                       >
@@ -1096,7 +1094,7 @@ const SalesRegister = () => {
                     return (
                       <tr
                         key={rec._id}
-                        onClick={() => setSelectedRowId(rec._id)}
+                        onClick={() => setSelectedRowId(isSelected ? null : rec._id)}
                         className={`border-b border-gray-200 cursor-pointer transition-colors ${isSelected ? 'bg-[#cce5ff] text-[#004085] font-medium border-l-4 border-l-blue-600' : 'hover:bg-blue-50'
                           }`}
                       >
@@ -1140,8 +1138,8 @@ const SalesRegister = () => {
                         </td>
                         <td className="border-r border-gray-300 p-1.5 text-center">
                           <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${isExchange
-                              ? 'bg-purple-100 text-purple-800 border-purple-300'
-                              : 'bg-yellow-100 text-yellow-800 border-yellow-300'
+                            ? 'bg-purple-100 text-purple-800 border-purple-300'
+                            : 'bg-yellow-100 text-yellow-800 border-yellow-300'
                             }`}>
                             {isExchange ? 'EXCHANGE' : 'RETURN'}
                           </span>
@@ -1200,7 +1198,19 @@ const SalesRegister = () => {
           <div className="w-[30%] bg-slate-50 border border-gray-400 rounded flex flex-col p-3 shadow-md space-y-4 overflow-y-auto">
             {selectedRowId && (
               <div className="border-b border-slate-300 pb-2">
-                <h3 className="font-bold text-[#2b579a] text-xs uppercase tracking-wider">Transaction Summary</h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-[#2b579a] text-xs uppercase tracking-wider">Transaction Summary</h3>
+                  <button
+                    onClick={() => {
+                      setSelectedRowId(null);
+                      setSelectedCustomerDetails(null);
+                    }}
+                    className="p-1 text-slate-400 hover:text-red-600 hover:bg-slate-200 rounded transition-colors"
+                    title="Close Transaction Summary"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
                 {(() => {
                   const rec = records.find(r => r._id === selectedRowId);
                   if (!rec) return null;
@@ -1664,21 +1674,10 @@ const SalesRegister = () => {
             </div>
 
             {/* Modal Footer */}
-            <div className="bg-slate-100 px-6 py-4 flex justify-between items-center border-t border-slate-200">
-              <button
-                onClick={() => {
-                  if (detailModalData) {
-                    setSelectedRowId(detailModalData._id);
-                  }
-                  setDetailModalOpen(false);
-                }}
-                className="bg-[#2b579a] hover:bg-[#1f3f6f] text-white text-xs font-bold px-4 py-2 rounded shadow transition-all focus:outline-none"
-              >
-                Select & Close
-              </button>
+            <div className="bg-slate-100 px-6 py-4 flex justify-end items-center border-t border-slate-200">
               <button
                 onClick={() => setDetailModalOpen(false)}
-                className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-bold px-4 py-2 rounded shadow transition-all focus:outline-none"
+                className="bg-slate-600 hover:bg-slate-700 text-white text-xs font-bold px-5 py-2 rounded shadow transition-all focus:outline-none"
               >
                 Close
               </button>
