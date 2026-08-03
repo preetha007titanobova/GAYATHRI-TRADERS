@@ -1015,7 +1015,7 @@ const BarcodeGeneration = () => {
           </div>
         </div>
 
-        <div className="flex items-center space-x-2">
+        {/* <div className="flex items-center space-x-2">
           <button
             onClick={handleSaveBarcodeToTable}
             className="flex items-center space-x-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-3 py-2 rounded shadow transition-all active:scale-95"
@@ -1030,7 +1030,7 @@ const BarcodeGeneration = () => {
             <Printer size={15} />
             <span>PRINT LABELS</span>
           </button>
-        </div>
+        </div> */}
       </div>
 
       {/* 2. Main Workstation: Form (Left) & Live Label Preview (Right) */}
@@ -1309,183 +1309,195 @@ const BarcodeGeneration = () => {
               </div>
 
               {/* CUSTOM MILLIMETER DIMENSION CONTROLS */}
-              <div className="col-span-2 bg-slate-50 border border-slate-300 p-2.5 rounded-md space-y-2">
-                <div className="font-extrabold text-[11px] text-blue-900 uppercase tracking-wide flex items-center justify-between">
-                  <span>📐 Custom Sticker Dimension & Calibration (TSC TE244 3-UP)</span>
-                  <span className="text-[10px] text-slate-500 font-normal">Fine-tune width, height, row gap, margins & line heights</span>
+              <div className="col-span-2 bg-slate-50 border border-slate-300 p-3 rounded-md space-y-3">
+                <div className="font-extrabold text-[11px] text-blue-900 uppercase tracking-wide flex items-center justify-between border-b border-slate-200 pb-1.5">
+                  <span>📐 Custom Sticker Dimension & Calibration</span>
+                  <span className="text-[10px] text-slate-500 font-normal">Fine-tune sticker dimensions, gaps, margins & orientation</span>
                 </div>
-                
-                <div className="grid grid-cols-4 md:grid-cols-10 gap-2">
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
                   <div>
-                    <label className="font-bold text-[10px] text-slate-700 block">Sticker W (mm)</label>
+                    <label className="font-bold text-[11px] text-slate-700 block mb-1 truncate" title="Sticker Width in millimeters">Sticker W (mm)</label>
                     <input
                       type="number"
                       min="15"
                       max="150"
-                      className="w-full border border-slate-300 py-1 px-2 rounded font-bold text-blue-900 text-center text-[11px]"
+                      className="w-full border border-slate-300 py-1.5 px-2.5 rounded font-bold text-blue-950 text-xs bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
                       value={labelWidthMm}
                       onChange={e => setLabelWidthMm(e.target.value === '' ? ('' as any) : Number(e.target.value))}
                     />
                   </div>
+
                   <div>
-                    <label className="font-bold text-[10px] text-slate-700 block">Sticker H (mm)</label>
+                    <label className="font-bold text-[11px] text-slate-700 block mb-1 truncate" title="Sticker Height in millimeters">Sticker H (mm)</label>
                     <input
                       type="number"
                       min="10"
                       max="150"
-                      className="w-full border border-slate-300 py-1 px-2 rounded font-bold text-blue-900 text-center text-[11px]"
+                      className="w-full border border-slate-300 py-1.5 px-2.5 rounded font-bold text-blue-950 text-xs bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
                       value={labelHeightMm}
                       onChange={e => setLabelHeightMm(e.target.value === '' ? ('' as any) : Number(e.target.value))}
                     />
                   </div>
+
                   <div>
-                    <label className="font-bold text-[10px] text-slate-700 block">Roll W (mm)</label>
+                    <label className="font-bold text-[11px] text-slate-700 block mb-1 truncate" title="Total Roll Width in millimeters">Roll W (mm)</label>
                     <input
                       type="number"
                       min="30"
                       max="220"
-                      className="w-full border border-slate-300 py-1 px-2 rounded font-bold text-blue-900 text-center text-[11px]"
+                      className="w-full border border-slate-300 py-1.5 px-2.5 rounded font-bold text-blue-950 text-xs bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
                       value={totalRollWidthMm}
                       onChange={e => setTotalRollWidthMm(e.target.value === '' ? ('' as any) : Number(e.target.value))}
                     />
                   </div>
+
                   <div>
-                    <label className="font-bold text-[10px] text-slate-700 block">Col Gap (mm)</label>
+                    <label className="font-bold text-[11px] text-slate-700 block mb-1 truncate" title="Column Gap in millimeters">Col Gap (mm)</label>
                     <input
                       type="number"
                       min="0"
                       max="20"
-                      className="w-full border border-slate-300 py-1 px-2 rounded font-bold text-blue-900 text-center text-[11px]"
+                      className="w-full border border-slate-300 py-1.5 px-2.5 rounded font-bold text-blue-950 text-xs bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
                       value={columnGapMm}
                       onChange={e => setColumnGapMm(e.target.value === '' ? ('' as any) : Number(e.target.value))}
                     />
                   </div>
+
                   <div>
-                    <label className="font-bold text-[10px] text-emerald-800 block" title="Vertical gap between sticker rows on the physical roll">Row Gap (mm)</label>
+                    <label className="font-bold text-[11px] text-emerald-800 block mb-1 truncate" title="Vertical Gap Between Sticker Rows">Row Gap (mm)</label>
                     <input
                       type="number"
                       min="0"
                       max="20"
-                      className="w-full border border-emerald-400 bg-emerald-50 py-1 px-2 rounded font-bold text-emerald-950 text-center text-[11px]"
+                      className="w-full border border-emerald-400 bg-emerald-50 py-1.5 px-2.5 rounded font-bold text-emerald-950 text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                       value={rowGapMm}
                       onChange={e => setRowGapMm(e.target.value === '' ? ('' as any) : Number(e.target.value))}
                     />
                   </div>
+
                   <div>
-                    <label className="font-bold text-[10px] text-blue-800 block" title="Top margin space before text starts">Top Margin (mm)</label>
+                    <label className="font-bold text-[11px] text-slate-700 block mb-1 truncate" title="Top Margin in millimeters">Top Margin (mm)</label>
                     <input
                       type="number"
                       min="0"
                       max="20"
-                      className="w-full border border-blue-300 py-1 px-2 rounded font-bold text-blue-900 text-center text-[11px]"
+                      className="w-full border border-slate-300 py-1.5 px-2.5 rounded font-bold text-blue-950 text-xs bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
                       value={marginTopMm}
                       onChange={e => setMarginTopMm(e.target.value === '' ? ('' as any) : Number(e.target.value))}
                     />
                   </div>
+
                   <div>
-                    <label className="font-bold text-[10px] text-slate-700 block" title="Height of the barcode lines">Barcode H (mm)</label>
-                    <input
-                      type="number"
-                      min="3"
-                      max="30"
-                      className="w-full border border-slate-300 py-1 px-2 rounded font-bold text-blue-900 text-center text-[11px]"
-                      value={barcodeHeightMm}
-                      onChange={e => setBarcodeHeightMm(e.target.value === '' ? ('' as any) : Number(e.target.value))}
-                    />
-                  </div>
-                  <div>
-                    <label className="font-bold text-[10px] text-indigo-800 block" title="Shift barcode lines and barcode text down or up (in mm)">Barcode Shift Y (mm)</label>
-                    <input
-                      type="number"
-                      min="-10"
-                      max="20"
-                      className="w-full border border-indigo-400 bg-indigo-50 py-1 px-2 rounded font-bold text-indigo-950 text-center text-[11px]"
-                      value={barcodeOffsetMm}
-                      onChange={e => setBarcodeOffsetMm(e.target.value === '' ? ('' as any) : Number(e.target.value))}
-                    />
-                  </div>
-                  <div>
-                    <label className="font-bold text-[10px] text-slate-700 block">Columns</label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="6"
-                      className="w-full border border-slate-300 py-1 px-2 rounded font-bold text-blue-900 text-center text-[11px]"
-                      value={colsAcross}
-                      onChange={e => setColsAcross(e.target.value === '' ? ('' as any) : Number(e.target.value))}
-                    />
-                  </div>
-                  <div>
-                    <label className="font-bold text-[10px] text-slate-700 block">Start Col</label>
-                    <select
-                      className="w-full border border-blue-400 bg-blue-50 py-1 px-1 rounded font-bold text-blue-950 text-[10px]"
-                      value={startColumn}
-                      onChange={e => setStartColumn(Number(e.target.value))}
-                    >
-                      <option value={1}>Col 1 (Left)</option>
-                      <option value={2}>Col 2 (Middle)</option>
-                      <option value={3}>Col 3 (Right)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="font-bold text-[10px] text-slate-700 block">Left Margin</label>
+                    <label className="font-bold text-[11px] text-slate-700 block mb-1 truncate" title="Left Margin in millimeters">Left Margin (mm)</label>
                     <input
                       type="number"
                       min="-10"
                       max="30"
-                      className="w-full border border-slate-300 py-1 px-2 rounded font-bold text-blue-900 text-center text-[11px]"
+                      className="w-full border border-slate-300 py-1.5 px-2.5 rounded font-bold text-blue-950 text-xs bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
                       value={marginLeftMm}
                       onChange={e => setMarginLeftMm(e.target.value === '' ? ('' as any) : Number(e.target.value))}
                     />
                   </div>
+
                   <div>
-                    <label className="font-bold text-[10px] text-slate-700 block">Orientation</label>
+                    <label className="font-bold text-[11px] text-slate-700 block mb-1 truncate" title="Barcode Lines Height in millimeters">Barcode H (mm)</label>
+                    <input
+                      type="number"
+                      min="3"
+                      max="30"
+                      className="w-full border border-slate-300 py-1.5 px-2.5 rounded font-bold text-blue-950 text-xs bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      value={barcodeHeightMm}
+                      onChange={e => setBarcodeHeightMm(e.target.value === '' ? ('' as any) : Number(e.target.value))}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-[11px] text-indigo-900 block mb-1 truncate" title="Barcode Shift Y Offset in millimeters">Barcode Shift Y</label>
+                    <input
+                      type="number"
+                      min="-10"
+                      max="20"
+                      className="w-full border border-indigo-300 bg-indigo-50 py-1.5 px-2.5 rounded font-bold text-indigo-950 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                      value={barcodeOffsetMm}
+                      onChange={e => setBarcodeOffsetMm(e.target.value === '' ? ('' as any) : Number(e.target.value))}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-[11px] text-slate-700 block mb-1 truncate">Columns</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="6"
+                      className="w-full border border-slate-300 py-1.5 px-2.5 rounded font-bold text-blue-950 text-xs bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      value={colsAcross}
+                      onChange={e => setColsAcross(e.target.value === '' ? ('' as any) : Number(e.target.value))}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-[11px] text-slate-700 block mb-1 truncate">Start Column</label>
                     <select
-                      className="w-full border border-emerald-500 bg-emerald-50 py-1 px-1 rounded font-bold text-emerald-950 text-[10px]"
+                      className="w-full border border-slate-300 py-1.5 px-2 rounded font-bold text-slate-800 text-xs bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      value={startColumn}
+                      onChange={e => setStartColumn(Number(e.target.value))}
+                    >
+                      <option value={1}>Col 1 (Left)</option>
+                      <option value={2}>Col 2 (Mid)</option>
+                      <option value={3}>Col 3 (Right)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-[11px] text-slate-700 block mb-1 truncate">Orientation</label>
+                    <select
+                      className="w-full border border-slate-300 py-1.5 px-2 rounded font-bold text-slate-800 text-xs bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
                       value={labelRotation}
                       onChange={e => setLabelRotation(Number(e.target.value) as any)}
                     >
                       <option value={0}>0° Normal</option>
                       <option value={90}>90° Right</option>
                       <option value={270}>270° Left</option>
-                      <option value={180}>180° Inverted</option>
+                      <option value={180}>180° Invert</option>
                     </select>
                   </div>
+
                   <div>
-                    <label className="font-bold text-[10px] text-purple-900 block" title="Fixes vertical rotation if Windows driver forces 90° rotation">Driver 90° Fix</label>
+                    <label className="font-bold text-[11px] text-purple-900 block mb-1 truncate">Driver 90° Fix</label>
                     <select
-                      className="w-full border border-purple-500 bg-purple-50 py-1 px-1 rounded font-bold text-purple-950 text-[10px]"
+                      className="w-full border border-purple-300 bg-purple-50 py-1.5 px-2 rounded font-bold text-purple-950 text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none"
                       value={driverRotationFix}
                       onChange={e => setDriverRotationFix(Number(e.target.value))}
                     >
                       <option value={0}>Off (0°)</option>
-                      <option value={-90}>-90° (Fix Vertical)</option>
-                      <option value={90}>+90° Clockwise</option>
-                      <option value={180}>180° Invert</option>
+                      <option value={-90}>-90° (Fix)</option>
+                      <option value={90}>+90°</option>
+                      <option value={180}>180°</option>
                     </select>
                   </div>
                 </div>
 
-                {/* ELEMENT VISIBILITY & PORTRAIT CONTROL TOGGLES */}
-                <div className="grid grid-cols-5 gap-2 pt-1 border-t border-slate-200 text-[10px] font-bold text-slate-700">
-                  <label className="flex items-center gap-1 cursor-pointer text-indigo-900 font-extrabold" title="Forces portrait print mode to stop Chromium vertical 90° autorotation">
-                    <input type="checkbox" checked={forcePortrait} onChange={e => setForcePortrait(e.target.checked)} />
+                {/* ELEMENT VISIBILITY TOGGLES */}
+                <div className="flex flex-wrap items-center gap-4 pt-2.5 border-t border-slate-200 text-xs font-bold text-slate-700">
+                  <label className="flex items-center gap-1.5 cursor-pointer text-indigo-900 font-bold" title="Forces portrait print mode">
+                    <input type="checkbox" checked={forcePortrait} onChange={e => setForcePortrait(e.target.checked)} className="w-3.5 h-3.5 rounded text-indigo-600 focus:ring-indigo-500" />
                     <span>Lock Portrait (TSC Roll)</span>
                   </label>
-                  <label className="flex items-center gap-1 cursor-pointer">
-                    <input type="checkbox" checked={showShopHeader} onChange={e => setShowShopHeader(e.target.checked)} />
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input type="checkbox" checked={showShopHeader} onChange={e => setShowShopHeader(e.target.checked)} className="w-3.5 h-3.5 rounded text-blue-600 focus:ring-blue-500" />
                     <span>Store Name</span>
                   </label>
-                  <label className="flex items-center gap-1 cursor-pointer">
-                    <input type="checkbox" checked={showMetaLine} onChange={e => setShowMetaLine(e.target.checked)} />
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input type="checkbox" checked={showMetaLine} onChange={e => setShowMetaLine(e.target.checked)} className="w-3.5 h-3.5 rounded text-blue-600 focus:ring-blue-500" />
                     <span>Category/Variety</span>
                   </label>
-                  <label className="flex items-center gap-1 cursor-pointer">
-                    <input type="checkbox" checked={showDatesLine} onChange={e => setShowDatesLine(e.target.checked)} />
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input type="checkbox" checked={showDatesLine} onChange={e => setShowDatesLine(e.target.checked)} className="w-3.5 h-3.5 rounded text-blue-600 focus:ring-blue-500" />
                     <span>Dates/Batch</span>
                   </label>
-                  <label className="flex items-center gap-1 cursor-pointer">
-                    <input type="checkbox" checked={showPriceLine} onChange={e => setShowPriceLine(e.target.checked)} />
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input type="checkbox" checked={showPriceLine} onChange={e => setShowPriceLine(e.target.checked)} className="w-3.5 h-3.5 rounded text-blue-600 focus:ring-blue-500" />
                     <span>MRP / Sale Price</span>
                   </label>
                 </div>
@@ -1494,68 +1506,35 @@ const BarcodeGeneration = () => {
             </div>
 
             {/* ACTION BUTTONS */}
-            <div className="flex gap-2 pt-3 border-t border-slate-200 mt-2 flex-wrap">
+            <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-slate-200 mt-2">
               <button
                 type="button"
                 onClick={handleSaveBarcodeToTable}
-                className="flex-1 flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-2 px-3 rounded shadow transition-all active:scale-95 text-xs min-w-[140px]"
+                className="h-9 px-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-md shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer"
               >
-                <Save size={16} />
-                Save Barcode to Table
+                <Save size={14} />
+                <span>Save to Table</span>
               </button>
+
               <button
                 type="button"
                 title="Re-sync the printer's gap sensor to the actual physical label pitch on the roll"
                 onClick={handleCalibratePrinterGapSensor}
-                className="flex items-center justify-center gap-1.5 bg-teal-700 hover:bg-teal-800 text-white font-bold py-2 px-3 rounded shadow transition-all active:scale-95 text-xs"
+                className="h-9 px-3.5 bg-teal-700 hover:bg-teal-800 text-white font-bold text-xs rounded-md shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer"
               >
-                <Tag size={15} />
-                🎯 Calibrate Gap Sensor
+                <Tag size={14} />
+                <span>Calibrate Sensor</span>
               </button>
-              <button
-                type="button"
-                title="Print 1 full row of 3 labels side-by-side across all 3 sticker columns"
-                onClick={() => {
-                  if (!productName || !barcodeValue) {
-                    if (setGlobalNotification) {
-                      setGlobalNotification({ msg: "Please fill in Product Name and Barcode Number before printing.", type: 'error' });
-                      setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
-                    }
-                    return;
-                  }
-                  const item: SavedBarcodeItem = {
-                    id: Date.now().toString(),
-                    productName,
-                    barcodeValue,
-                    department: department || 'General',
-                    variety: variety || 'Standard',
-                    size: size || 'L',
-                    batchNo,
-                    mrp,
-                    salesPrice,
-                    mfgDate,
-                    expDate,
-                    barcodeType,
-                    printCount: 3,
-                    createdAt: new Date().toLocaleString()
-                  };
-                  setColsAcross(3);
-                  setStartColumn(1);
-                  handleDirectTSPLHardwarePrint([item]);
-                }}
-                className="flex-1 flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-500 text-white font-extrabold py-2 px-3 rounded shadow transition-all active:scale-95 text-xs animate-pulse"
-              >
-                <Tag size={16} />
-                ⚡ PRINT 3 COLUMNS IN 1 ROW
-              </button>
+
               <button
                 type="button"
                 onClick={handlePrintCurrentForm}
-                className="flex-1 flex items-center justify-center gap-2 bg-blue-700 hover:bg-blue-800 text-white font-extrabold py-2 px-3 rounded shadow transition-all active:scale-95 text-xs"
+                className="h-9 px-3.5 bg-blue-700 hover:bg-blue-800 text-white font-bold text-xs rounded-md shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer"
               >
-                <Printer size={16} />
-                Generate & Print (HTML)
+                <Printer size={14} />
+                <span>Print (HTML)</span>
               </button>
+
               <button
                 type="button"
                 title="Send raw TSPL command directly to thermal barcode printer spooler without dialogs"
@@ -1579,46 +1558,19 @@ const BarcodeGeneration = () => {
                   };
                   handleDirectTSPLHardwarePrint([item]);
                 }}
-                className="flex-1 flex items-center justify-center gap-2 bg-purple-700 hover:bg-purple-800 text-white font-extrabold py-2 px-3 rounded shadow transition-all active:scale-95 text-xs"
+                className="h-9 px-3.5 bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs rounded-md shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer"
               >
-                <Printer size={16} />
-                TSPL Direct Print
+                <Printer size={14} />
+                <span>TSPL Direct Print</span>
               </button>
-              <button
-                type="button"
-                title="Download TSC TE244 Native TSPL Command File (.tspl)"
-                onClick={() => {
-                  if (!productName || !barcodeValue) return;
-                  const item: SavedBarcodeItem = {
-                    id: Date.now().toString(),
-                    productName,
-                    barcodeValue,
-                    department: department || 'General',
-                    variety: variety || 'Standard',
-                    size: size || 'L',
-                    batchNo,
-                    mrp,
-                    salesPrice,
-                    mfgDate,
-                    expDate,
-                    barcodeType,
-                    printCount: printCount || 1,
-                    createdAt: new Date().toLocaleString()
-                  };
-                  handleDownloadTSPLFile([item]);
-                }}
-                className="flex items-center justify-center gap-1.5 bg-indigo-700 hover:bg-indigo-800 text-white font-bold py-2 px-3 rounded transition-all active:scale-95 text-xs"
-              >
-                <FileDown size={15} />
-                Export TSPL
-              </button>
+
               <button
                 type="button"
                 onClick={handleClear}
-                className="flex items-center justify-center gap-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold py-2 px-3 rounded transition-all text-xs"
+                className="h-9 px-3.5 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-xs rounded-md shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer"
               >
-                <RotateCcw size={15} />
-                Clear
+                <RotateCcw size={14} />
+                <span>Clear</span>
               </button>
             </div>
 

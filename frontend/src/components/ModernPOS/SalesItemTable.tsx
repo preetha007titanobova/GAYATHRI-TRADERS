@@ -146,7 +146,6 @@ export const SalesItemTable: React.FC<SalesItemTableProps> = ({
               value={rapidScanInput}
               onChange={(e) => setRapidScanInput(e.target.value)}
               onKeyDown={handleRapidScan}
-              placeholder="Scan Barcode / Fast Search & press Enter..."
               className="apple-input w-full pl-10 pr-4 text-xs font-mono bg-white/90"
             />
           </div>
@@ -205,7 +204,6 @@ export const SalesItemTable: React.FC<SalesItemTableProps> = ({
                       type="text"
                       value={row.barcode}
                       onChange={(e) => handleCellChange(row.id, 'barcode', e.target.value)}
-                      placeholder="Barcode"
                       className="w-full bg-slate-50/60 focus:bg-white border border-transparent focus:border-blue-400 rounded-lg px-2.5 py-1 text-xs font-mono text-slate-700 focus:outline-none transition-all"
                     />
                   </td>
@@ -220,7 +218,6 @@ export const SalesItemTable: React.FC<SalesItemTableProps> = ({
                         handleCellChange(row.id, 'itemName', e.target.value);
                         setActiveSearchRowId(row.id);
                       }}
-                      placeholder="Type item name..."
                       className="w-full bg-transparent focus:bg-white border border-transparent focus:border-blue-400 rounded-lg px-2.5 py-1 text-xs font-medium text-slate-900 focus:outline-none transition-all"
                     />
 
@@ -250,7 +247,6 @@ export const SalesItemTable: React.FC<SalesItemTableProps> = ({
                       type="text"
                       value={row.size}
                       onChange={(e) => handleCellChange(row.id, 'size', e.target.value)}
-                      placeholder="Size/Unit"
                       className="w-full bg-slate-50/60 focus:bg-white border border-transparent focus:border-blue-400 rounded-lg px-2.5 py-1 text-xs text-slate-700 focus:outline-none transition-all"
                     />
                   </td>

@@ -925,8 +925,7 @@ const ShopSalesBill = () => {
                     value={scanInput}
                     onChange={e => setScanInput(e.target.value)}
                     onKeyDown={handleBarcodeScan}
-                    placeholder="Scan USB barcode or type code & press Enter..."
-                    className="flex-1 border border-indigo-400 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 p-1.5 rounded text-xs font-mono font-bold bg-white focus:outline-none placeholder:font-sans placeholder:font-normal shadow-sm"
+                    className="flex-1 border border-indigo-400 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 p-1.5 rounded text-xs font-mono font-bold bg-white focus:outline-none shadow-sm"
                   />
                 </div>
                 <div className="text-[10px] text-indigo-700 font-semibold italic bg-indigo-50 px-2.5 py-1 rounded border border-indigo-200">
@@ -983,7 +982,6 @@ const ShopSalesBill = () => {
                             onChange={e => updateItem(item.id, 'vendorItemCode', e.target.value)} 
                             onKeyDown={e => handleKeyDown(e, idx, 'vendorItemCode')}
                             className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none font-mono" 
-                            placeholder="Vendor Code" 
                           />
                         </td>
                         <td className="border-r border-gray-300 p-0">
@@ -993,7 +991,6 @@ const ShopSalesBill = () => {
                             onChange={e => updateItem(item.id, 'size', e.target.value)} 
                             onKeyDown={e => handleKeyDown(e, idx, 'size')}
                             className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-center" 
-                            placeholder="M, L..."
                           />
                         </td>
                         <td className="border-r border-gray-300 p-0">
@@ -1003,7 +1000,6 @@ const ShopSalesBill = () => {
                             onChange={e => updateItem(item.id, 'variety', e.target.value)} 
                             onKeyDown={e => handleKeyDown(e, idx, 'variety')}
                             className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none" 
-                            placeholder="Kurti, Jeans..."
                           />
                         </td>
                         <td className="border-r border-gray-300 p-0">
@@ -1025,7 +1021,6 @@ const ShopSalesBill = () => {
                             onChange={e => updateItem(item.id, 'itemDesc', e.target.value)} 
                             onKeyDown={e => handleKeyDown(e, idx, 'itemDesc')}
                             className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none" 
-                            placeholder="Dress description..."
                           />
                         </td>
                         <td className="border-r border-gray-300 p-0">
@@ -1035,7 +1030,6 @@ const ShopSalesBill = () => {
                             onChange={e => updateItem(item.id, 'factory', e.target.value)} 
                             onKeyDown={e => handleKeyDown(e, idx, 'factory')}
                             className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none" 
-                            placeholder="Factory Name"
                           />
                         </td>
                         <td className="border-r border-gray-300 p-0 w-16">
@@ -1045,7 +1039,6 @@ const ShopSalesBill = () => {
                             onChange={e => updateItem(item.id, 'qty', Number(e.target.value))} 
                             onKeyDown={e => handleKeyDown(e, idx, 'qty')}
                             className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-right font-semibold font-mono" 
-                            placeholder="0"
                           />
                         </td>
                         <td className="border-r border-gray-300 p-0 w-20">
@@ -1055,7 +1048,6 @@ const ShopSalesBill = () => {
                             onChange={e => updateItem(item.id, 'unitPrice', Number(e.target.value))} 
                             onKeyDown={e => handleKeyDown(e, idx, 'unitPrice')}
                             className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-right font-mono" 
-                            placeholder="0.00"
                           />
                         </td>
                         <td className="border-r border-gray-300 p-0 w-20">
@@ -1065,7 +1057,6 @@ const ShopSalesBill = () => {
                             onChange={e => updateItem(item.id, 'salesRate', Number(e.target.value))} 
                             onKeyDown={e => handleKeyDown(e, idx, 'salesRate')}
                             className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-right font-mono" 
-                            placeholder="0.00"
                           />
                         </td>
                         <td className="border-r border-gray-300 p-0 w-20">
@@ -1075,7 +1066,6 @@ const ShopSalesBill = () => {
                             onChange={e => updateItem(item.id, 'mrp', Number(e.target.value))} 
                             onKeyDown={e => handleKeyDown(e, idx, 'mrp')}
                             className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-right font-mono" 
-                            placeholder="0.00"
                           />
                         </td>
                         <td className="border-r border-gray-300 p-0 w-12">
@@ -1085,7 +1075,6 @@ const ShopSalesBill = () => {
                             onChange={e => updateItem(item.id, 'discPercent', Number(e.target.value))} 
                             onKeyDown={e => handleKeyDown(e, idx, 'discPercent')}
                             className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-right font-mono" 
-                            placeholder="0"
                           />
                         </td>
                         <td className="border-r border-gray-300 p-0 w-12">
@@ -1095,7 +1084,6 @@ const ShopSalesBill = () => {
                             onChange={e => updateItem(item.id, 'taxPercent', Number(e.target.value))} 
                             onKeyDown={e => handleKeyDown(e, idx, 'taxPercent')}
                             className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-right font-mono" 
-                            placeholder="18"
                           />
                         </td>
                         <td className="border-r border-gray-300 p-1 text-right font-semibold font-mono bg-gray-50 text-slate-800 w-20">
@@ -1193,7 +1181,6 @@ const ShopSalesBill = () => {
                 <Search size={14} className="absolute left-2.5 top-2 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Search saved shop bills..."
                   value={billSearchQuery}
                   onChange={e => setBillSearchQuery(e.target.value)}
                   className="w-full bg-slate-100 border border-gray-300 pl-8 pr-3 py-1 text-xs rounded focus:bg-white focus:outline-none"
@@ -1204,7 +1191,6 @@ const ShopSalesBill = () => {
                 <Search size={14} className="absolute left-2.5 top-2 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Search products in catalog..."
                   value={itemSearchQuery}
                   onChange={e => setItemSearchQuery(e.target.value)}
                   className="w-full bg-slate-100 border border-gray-300 pl-8 pr-3 py-1 text-xs rounded focus:bg-white focus:outline-none"
@@ -1329,7 +1315,6 @@ const ShopSalesBill = () => {
                 required 
                 value={newShopName} 
                 onChange={e => setNewShopName(e.target.value)} 
-                placeholder="e.g. Sri Balaji Textiles Branch-2"
                 className="w-full border border-gray-300 rounded p-2 text-sm bg-white text-black focus:outline-none focus:ring-1 focus:ring-blue-500" 
               />
             </div>
@@ -1339,7 +1324,6 @@ const ShopSalesBill = () => {
                 type="text" 
                 value={newShopGstin} 
                 onChange={e => setNewShopGstin(e.target.value)} 
-                placeholder="33AAAAA0000A1Z0"
                 className="w-full border border-gray-300 rounded p-2 text-sm bg-white text-black focus:outline-none focus:ring-1 focus:ring-blue-500" 
               />
             </div>
@@ -1349,7 +1333,6 @@ const ShopSalesBill = () => {
                 type="text" 
                 value={newShopMobile} 
                 onChange={e => setNewShopMobile(e.target.value)} 
-                placeholder="Mobile number"
                 className="w-full border border-gray-300 rounded p-2 text-sm bg-white text-black focus:outline-none focus:ring-1 focus:ring-blue-500" 
               />
             </div>
@@ -1373,7 +1356,6 @@ const ShopSalesBill = () => {
                 type="text" 
                 value={newShopCity} 
                 onChange={e => setNewShopCity(e.target.value)} 
-                placeholder="City Name"
                 className="w-full border border-gray-300 rounded p-2 text-sm bg-white text-black focus:outline-none focus:ring-1 focus:ring-blue-500" 
               />
             </div>
@@ -1382,7 +1364,6 @@ const ShopSalesBill = () => {
               <textarea 
                 value={newShopAddress} 
                 onChange={e => setNewShopAddress(e.target.value)} 
-                placeholder="Street address details"
                 className="w-full border border-gray-300 rounded p-2 text-sm bg-white text-black focus:outline-none focus:ring-1 focus:ring-blue-500 h-16 resize-none" 
               />
             </div>
@@ -1430,7 +1411,6 @@ const ShopSalesBill = () => {
                 <input
                   ref={searchInputRef}
                   type="text"
-                  placeholder="Search by dress name, code, variety, size..."
                   className="w-full pl-9 pr-3 py-1.5 border border-gray-300 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-sm text-gray-800 shadow-inner font-semibold"
                   value={modalSearchQuery}
                   onChange={e => {

@@ -167,7 +167,6 @@ export const CloseDayModal: React.FC<CloseDayModalProps> = ({
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="e.g. Cash handed over to owner, UPI reconciled..."
               className="apple-input w-full h-20 text-xs resize-none"
             />
           </div>

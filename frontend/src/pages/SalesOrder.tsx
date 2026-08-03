@@ -829,7 +829,6 @@ const SalesOrder = () => {
                   onChange={e => setCustomer(e.target.value)}
                   disabled={isReadOnly}
                   className="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm outline-none focus:border-blue-500"
-                  placeholder="Enter Customer Name"
                 />
               </div>
 
@@ -856,7 +855,6 @@ const SalesOrder = () => {
                   onChange={e => setMobileNo(e.target.value)}
                   disabled={isReadOnly}
                   className="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm outline-none focus:border-blue-500"
-                  placeholder="Phone No"
                 />
               </div>
 
@@ -867,7 +865,6 @@ const SalesOrder = () => {
                   onChange={e => setAddress(e.target.value)}
                   disabled={isReadOnly}
                   className="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm outline-none focus:border-blue-500"
-                  placeholder="Address"
                   rows={2}
                 />
               </div>

@@ -90,7 +90,6 @@ export const FinancialSummaryPanel: React.FC<FinancialSummaryPanelProps> = ({
             step="1"
             value={favourDiscount || ''}
             onChange={(e) => setFavourDiscount(Number(e.target.value) || 0)}
-            placeholder="0"
             className="w-28 apple-input text-right font-mono font-semibold text-blue-600 py-1"
           />
         </div>
@@ -193,7 +192,6 @@ export const FinancialSummaryPanel: React.FC<FinancialSummaryPanelProps> = ({
             step="1"
             value={amountTendered || ''}
             onChange={(e) => setAmountTendered(Number(e.target.value) || 0)}
-            placeholder="₹ 0"
             className="w-32 apple-input text-right font-mono font-bold text-slate-900 py-1.5"
           />
         </div>

@@ -76,7 +76,6 @@ export const CustomerDetailsPanel: React.FC<CustomerDetailsPanelProps> = ({
               type="text"
               value={buyerName}
               onChange={(e) => setBuyerName(e.target.value)}
-              placeholder={isSelectiveCustomer ? "Select or enter customer name..." : "Counter Customer"}
               className="apple-input w-full pr-8"
             />
             {availableCustomers.length > 0 && (
@@ -95,7 +94,6 @@ export const CustomerDetailsPanel: React.FC<CustomerDetailsPanelProps> = ({
             type="text"
             value={mobileNo}
             onChange={(e) => setMobileNo(e.target.value)}
-            placeholder="10-digit mobile number"
             className="apple-input w-full"
           />
         </div>
@@ -110,7 +108,6 @@ export const CustomerDetailsPanel: React.FC<CustomerDetailsPanelProps> = ({
             type="text"
             value={shippingAddress}
             onChange={(e) => setShippingAddress(e.target.value)}
-            placeholder="Delivery address / landmark"
             className="apple-input w-full"
           />
         </div>
@@ -125,7 +122,6 @@ export const CustomerDetailsPanel: React.FC<CustomerDetailsPanelProps> = ({
             type="text"
             value={remarks}
             onChange={(e) => setRemarks(e.target.value)}
-            placeholder="Special instructions or bill note"
             className="apple-input w-full"
           />
         </div>
