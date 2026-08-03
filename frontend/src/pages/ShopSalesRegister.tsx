@@ -7,6 +7,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Api from '../Api';
 import { sendWhatsAppBill } from '../utils/whatsappHelper';
+import { applyRupeeFont } from '../utils/pdfFontLoader';
 
 // --- DATA STRUCTURES ---
 interface LineItem {
@@ -168,8 +169,9 @@ const ShopSalesRegister = () => {
     }
   };
 
-  const downloadPDF = () => {
+  const downloadPDF = async () => {
     const doc = new jsPDF();
+    const fontName = await applyRupeeFont(doc);
     doc.setFontSize(16);
     doc.setTextColor(43, 87, 154);
     doc.text('Wholesale Sales Register Report', 14, 15);
@@ -195,8 +197,8 @@ const ShopSalesRegister = () => {
       head: [headers],
       body: rows,
       theme: 'grid',
-      headStyles: { fillColor: [43, 87, 154] },
-      styles: { fontSize: 8 },
+      headStyles: { fillColor: [43, 87, 154], font: fontName },
+      styles: { fontSize: 8, font: fontName },
     });
 
     doc.save(`Shop_Sales_Register_${new Date().toISOString().split('T')[0]}.pdf`);
@@ -211,6 +213,7 @@ const ShopSalesRegister = () => {
     setGlobalNotification({ msg: 'Generating PDF and preparing WhatsApp share...', type: 'info' });
     try {
       const doc = new jsPDF();
+      const fontName = await applyRupeeFont(doc);
       doc.setFontSize(16);
       doc.setTextColor(43, 87, 154);
       doc.text('Wholesale Sales Register Report', 14, 15);
@@ -236,8 +239,8 @@ const ShopSalesRegister = () => {
         head: [headers],
         body: rows,
         theme: 'grid',
-        headStyles: { fillColor: [43, 87, 154] },
-        styles: { fontSize: 8 },
+        headStyles: { fillColor: [43, 87, 154], font: fontName },
+        styles: { fontSize: 8, font: fontName },
       });
 
       const pdfBase64 = doc.output('datauristring');
