@@ -1650,7 +1650,7 @@ const BarcodeGeneration = () => {
             </div>
           </div>
 
-          <div className="flex justify-center items-center w-full my-8 overflow-x-auto p-2">
+          <div className="flex justify-center items-center w-full py-14 px-2 my-2 overflow-x-auto overflow-y-visible">
             {previewViewMode === 'row' && colsAcross > 1 ? (
               <div
                 className="bg-slate-300 border-2 border-dashed border-slate-400 rounded-sm shadow-2xl transition-all flex flex-row items-center justify-start"
@@ -1660,19 +1660,19 @@ const BarcodeGeneration = () => {
                   gap: `${columnGapMm}mm`,
                   paddingLeft: `${marginLeftMm}mm`,
                   boxSizing: 'border-box',
-                  transform: 'scale(2.2)',
+                  transform: 'scale(1.85)',
                   transformOrigin: 'center'
                 }}
               >
                 {Array.from({ length: colsAcross }).map((_, colIdx) => (
                   <div
                     key={colIdx}
-                    className="bg-white shadow relative overflow-hidden border border-slate-300 transition-all duration-300 flex flex-col justify-between items-center"
+                    className="bg-white shadow relative border border-slate-300 transition-all duration-300 flex flex-col justify-between items-center"
                     style={{
                       width: `${labelWidthMm}mm`,
                       height: `${labelHeightMm}mm`,
                       boxSizing: 'border-box',
-                      padding: '0.8mm 1mm',
+                      padding: '0.5mm 0.8mm',
                       fontFamily: 'Arial, sans-serif',
                       color: '#000',
                       transform: `rotate(${labelRotation}deg)`,
@@ -1687,7 +1687,7 @@ const BarcodeGeneration = () => {
                       </div>
                     )}
                     <div className="w-full text-center">
-                      <h2 className="text-[9.5pt] font-black uppercase leading-none truncate m-0 p-0 w-full text-black">
+                      <h2 className="text-[9pt] font-black uppercase leading-tight truncate m-0 p-0 w-full text-black">
                         {productName || 'POLO SHIRT XL'}
                       </h2>
                     </div>
@@ -1712,7 +1712,7 @@ const BarcodeGeneration = () => {
                         )}
                       </div>
                     )}
-                    <div className="w-[70%] flex justify-center items-center overflow-hidden bg-white" style={{ height: `${barcodeHeightMm}mm` }}>
+                    <div className="w-[75%] flex justify-center items-center bg-white" style={{ height: `${barcodeHeightMm}mm` }}>
                       <div
                         className="w-full h-full"
                         dangerouslySetInnerHTML={{ __html: getBarcodeSVGString(barcodeValue || '8901234567890', barcodeType) }}
@@ -1728,59 +1728,59 @@ const BarcodeGeneration = () => {
               </div>
             ) : (
               <div
-                className="bg-white shadow-2xl relative overflow-hidden border border-slate-300 transition-all duration-300 flex flex-col justify-between items-center"
+                className="bg-white shadow-2xl relative border border-slate-300 transition-all duration-300 flex flex-col justify-between items-center my-4"
                 style={{
-                  width: `${labelWidthMm}mm`,
-                  height: `${labelHeightMm}mm`,
+                  width: `${(labelWidthMm || 30) * 1.8}mm`,
+                  height: `${(labelHeightMm || 25) * 1.8}mm`,
                   boxSizing: 'border-box',
-                  padding: '0.8mm 1mm',
+                  padding: '2mm 3mm',
                   fontFamily: 'Arial, sans-serif',
                   color: '#000',
-                  transform: `scale(3.2) rotate(${labelRotation}deg)`,
+                  transform: `rotate(${labelRotation}deg)`,
                   transformOrigin: 'center'
                 }}
               >
                 {showShopHeader && (
                   <div className="w-full text-center">
-                    <h1 className="text-[6.5pt] font-extrabold uppercase leading-none m-0 p-0 whitespace-nowrap tracking-tight text-black">
+                    <h1 className="text-[11pt] font-extrabold uppercase leading-tight m-0 p-0 whitespace-nowrap tracking-tight text-black">
                       {shopName}
                     </h1>
                   </div>
                 )}
                 <div className="w-full text-center">
-                  <h2 className="text-[9.5pt] font-black uppercase leading-none truncate m-0 p-0 w-full text-black">
+                  <h2 className="text-[14pt] font-black uppercase leading-tight truncate m-0 p-0 w-full text-black">
                     {productName || 'POLO SHIRT XL'}
                   </h2>
                 </div>
                 {showMetaLine && (
                   <div className="w-full text-center">
-                    <span className="text-[5.5pt] font-bold leading-none m-0 p-0 text-slate-900 block truncate">
+                    <span className="text-[9.5pt] font-bold leading-tight m-0 p-0 text-slate-900 block truncate">
                       {variety && !['standard', 'std', 'default', ''].includes(variety.trim().toLowerCase()) ? `${variety} | ` : ''}Size : <strong className="text-black font-extrabold">{size || 'L'}</strong>
                     </span>
                   </div>
                 )}
                 {(showDatesLine || showPriceLine) && (
-                  <div className={`w-full flex ${showDatesLine ? 'justify-between' : 'justify-center'} items-baseline px-0.5`}>
+                  <div className={`w-full flex ${showDatesLine ? 'justify-between' : 'justify-center'} items-baseline px-1`}>
                     {showDatesLine && (
-                      <span className="text-[5.5pt] font-extrabold leading-none m-0 p-0 text-black">
+                      <span className="text-[9.5pt] font-extrabold leading-tight m-0 p-0 text-black">
                         pkd : {mfgDate ? `${mfgDate.substring(8, 10)}/${mfgDate.substring(5, 7)}/${mfgDate.substring(0, 4)}` : '10/05/2025'}
                       </span>
                     )}
                     {showPriceLine && (
-                      <span className="text-[6.5pt] font-black leading-none m-0 p-0 text-black">
+                      <span className="text-[11pt] font-black leading-tight m-0 p-0 text-black">
                         MRP ₹{salesPrice !== '' ? Number(salesPrice).toFixed(2) : '450.00'}
                       </span>
                     )}
                   </div>
                 )}
-                <div className="w-[75%] flex justify-center items-center overflow-hidden bg-white" style={{ height: `${barcodeHeightMm}mm` }}>
+                <div className="w-[75%] flex justify-center items-center bg-white my-0.5" style={{ height: `${(barcodeHeightMm || 6) * 1.8}mm` }}>
                   <div
                     className="w-full h-full"
                     dangerouslySetInnerHTML={{ __html: getBarcodeSVGString(barcodeValue || '8901234567890', barcodeType) }}
                   />
                 </div>
                 <div className="w-full text-center">
-                  <span className="text-[5.5pt] font-mono font-extrabold leading-none block text-black tracking-wider">
+                  <span className="text-[9.5pt] font-mono font-extrabold leading-tight block text-black tracking-wider">
                     {barcodeType === 'Code 39' ? `* ${barcodeValue || '8901234567890'} *` : barcodeValue || '8901234567890'}
                   </span>
                 </div>

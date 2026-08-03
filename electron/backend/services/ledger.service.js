@@ -58,8 +58,9 @@ const createLedger = (data) => __awaiter(void 0, void 0, void 0, function* () {
 exports.createLedger = createLedger;
 const updateLedger = (id, data) => __awaiter(void 0, void 0, void 0, function* () {
     const db = yield (0, db_1.getDb)();
+    const { _id, id: itemId } = data, cleanData = __rest(data, ["_id", "id"]);
     const result = yield db.collection('Ledger').updateOne({ _id: new mongodb_1.ObjectId(id) }, {
-        $set: Object.assign(Object.assign({}, data), { openingBalance: Number(data.openingBalance) || 0, creditLimit: Number(data.creditLimit) || 0, defaultCreditPeriod: Number(data.defaultCreditPeriod) || 0, updatedAt: new Date() })
+        $set: Object.assign(Object.assign({}, cleanData), { openingBalance: Number(cleanData.openingBalance) || 0, creditLimit: Number(cleanData.creditLimit) || 0, defaultCreditPeriod: Number(cleanData.defaultCreditPeriod) || 0, updatedAt: new Date() })
     });
     return result.matchedCount > 0;
 });

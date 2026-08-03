@@ -10,7 +10,44 @@ const ACCOUNT_GROUPS = [
 ];
 
 const REGISTRATION_TYPES = ['Regular', 'Composition', 'Unregistered', 'Consumer'];
-const STATES = ['Maharashtra', 'Delhi', 'Karnataka', 'Tamil Nadu', 'Gujarat', 'Abstract State'];
+const STATES = [
+  'Andaman and Nicobar Islands',
+  'Andhra Pradesh',
+  'Arunachal Pradesh',
+  'Assam',
+  'Bihar',
+  'Chandigarh',
+  'Chhattisgarh',
+  'Dadra and Nagar Haveli and Daman and Diu',
+  'Delhi',
+  'Goa',
+  'Gujarat',
+  'Haryana',
+  'Himachal Pradesh',
+  'Jammu and Kashmir',
+  'Jharkhand',
+  'Karnataka',
+  'Kerala',
+  'Ladakh',
+  'Lakshadweep',
+  'Madhya Pradesh',
+  'Maharashtra',
+  'Manipur',
+  'Meghalaya',
+  'Mizoram',
+  'Nagaland',
+  'Odisha',
+  'Puducherry',
+  'Punjab',
+  'Rajasthan',
+  'Sikkim',
+  'Tamil Nadu',
+  'Telangana',
+  'Tripura',
+  'Uttar Pradesh',
+  'Uttarakhand',
+  'West Bengal'
+];
 
 const LedgerMaster = () => {
   const navigate = useNavigate();
@@ -32,8 +69,26 @@ const LedgerMaster = () => {
 
   const [address, setAddress] = useState('');
   const [city, setCity] = useState('');
-  const [state, setState] = useState('Abstract State');
+  const [state, setState] = useState('Tamil Nadu');
   const [pincode, setPincode] = useState('');
+
+  const [stateDropdownOpen, setStateDropdownOpen] = useState(false);
+  const stateRef = useRef<HTMLDivElement>(null);
+
+  const filteredStates = useMemo(() => {
+    if (!state) return STATES;
+    return STATES.filter(s => s.toLowerCase().includes(state.toLowerCase()));
+  }, [state]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (stateRef.current && !stateRef.current.contains(e.target as Node)) {
+        setStateDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const [loading, setLoading] = useState(false);
   const [ledgers, setLedgers] = useState<any[]>([]);
@@ -59,6 +114,7 @@ const LedgerMaster = () => {
   
   // Layout view modes: 'split' | 'form-only' | 'table-only'
   const [viewMode, setViewMode] = useState<'split' | 'form-only' | 'table-only'>('split');
+  const [activeActionMenuId, setActiveActionMenuId] = useState<string | null>(null);
 
   // Ledger Transactions Statement Modal States
   const [ledgerModalOpen, setLedgerModalOpen] = useState(false);
@@ -285,7 +341,7 @@ const LedgerMaster = () => {
     setPanNo('');
     setAddress('');
     setCity('');
-    setState('Abstract State');
+    setState('Tamil Nadu');
     setPincode('');
     setIsRegular(false);
     fetchNextCode();
@@ -306,7 +362,7 @@ const LedgerMaster = () => {
     setPanNo(ledger.panNo || '');
     setAddress(ledger.address || '');
     setCity(ledger.city || '');
-    setState(ledger.state || 'Abstract State');
+    setState(ledger.state || 'Tamil Nadu');
     setPincode(ledger.pincode || '');
     setIsRegular(!!ledger.isRegular);
   };
@@ -423,6 +479,145 @@ const LedgerMaster = () => {
     }
   };
 
+  const handleQuickCloseBalance = async (ledgerObj: any) => {
+    const targetId = ledgerObj._id || ledgerObj.id;
+    if (!targetId) return;
+
+    if (!window.confirm(`Set opening balance for "${ledgerObj.accountName}" to ₹0 (No Balance)?`)) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const { _id, id, ...cleanLedger } = ledgerObj;
+      const payload = {
+        ...cleanLedger,
+        openingBalance: 0
+      };
+      const res = await fetch(`${Api}/ledgers/${targetId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.success) {
+        if (setGlobalNotification) {
+          setGlobalNotification({ msg: `Opening balance for "${ledgerObj.accountName}" set to No Balance (₹0).`, type: 'success' });
+          setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
+        }
+        loadLedgers();
+        loadSummaryCounts();
+        if (selectedId === targetId) {
+          setOpeningBal(0);
+        }
+      } else {
+        if (setGlobalNotification) {
+          setGlobalNotification({ msg: 'Error updating balance: ' + (data.error || 'Unknown error'), type: 'error' });
+          setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to update ledger opening balance:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleQuickEditBalance = async (ledgerObj: any) => {
+    const targetId = ledgerObj._id || ledgerObj.id;
+    if (!targetId) return;
+
+    handleRowClick(ledgerObj);
+
+    const inputVal = window.prompt(
+      `Enter new Opening Balance amount (₹) for "${ledgerObj.accountName}":`,
+      String(ledgerObj.openingBalance || 0)
+    );
+
+    if (inputVal === null) return;
+
+    const newBal = parseFloat(inputVal);
+    if (isNaN(newBal) || newBal < 0) {
+      if (setGlobalNotification) {
+        setGlobalNotification({ msg: 'Please enter a valid non-negative number for balance.', type: 'error' });
+        setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
+      }
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const { _id, id, ...cleanLedger } = ledgerObj;
+      const payload = {
+        ...cleanLedger,
+        openingBalance: newBal
+      };
+      const res = await fetch(`${Api}/ledgers/${targetId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.success) {
+        if (setGlobalNotification) {
+          setGlobalNotification({ msg: `Opening balance for "${ledgerObj.accountName}" updated to ₹${newBal.toLocaleString()}.`, type: 'success' });
+          setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
+        }
+        loadLedgers();
+        loadSummaryCounts();
+        setOpeningBal(newBal);
+      } else {
+        if (setGlobalNotification) {
+          setGlobalNotification({ msg: 'Error updating balance: ' + (data.error || 'Unknown error'), type: 'error' });
+          setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to edit ledger opening balance:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDirectDeleteLedger = async (ledgerObj: any) => {
+    const targetId = ledgerObj._id || ledgerObj.id;
+    if (!targetId) return;
+
+    if (!window.confirm(`Are you sure you want to delete ledger "${ledgerObj.accountName}"?`)) return;
+
+    setLoading(true);
+    try {
+      const res = await fetch(`${Api}/ledgers/${targetId}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      if (data.success) {
+        if (setGlobalNotification) {
+          setGlobalNotification({ msg: `Ledger "${ledgerObj.accountName}" deleted successfully!`, type: 'success' });
+          setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
+        }
+        if (selectedId === targetId) {
+          handleClear();
+        }
+        loadLedgers();
+        loadSummaryCounts();
+      } else {
+        if (setGlobalNotification) {
+          setGlobalNotification({ msg: 'Error deleting: ' + data.error, type: 'error' });
+          setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      if (setGlobalNotification) {
+        setGlobalNotification({ msg: 'Network error while deleting.', type: 'error' });
+        setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // --- Global Toolbar Wiring ---
   const actionHandlers = useRef({
     onAdd: handleClear,
@@ -502,10 +697,7 @@ const LedgerMaster = () => {
                   <label className="text-gray-700 text-xs mb-1">Ledger Name <span className="text-red-500">*</span></label>
                   <input type="text" className="legacy-input w-full" value={accountName} onChange={e => setAccountName(e.target.value)} autoFocus />
                 </div>
-                <div className="flex flex-col">
-                  <label className="text-gray-700 text-xs mb-1">Alias / Short</label>
-                  <input type="text" className="legacy-input w-full" value={alias} onChange={e => setAlias(e.target.value)} />
-                </div>
+               
                 <div className="flex flex-col col-span-3">
                   <label className="text-gray-700 text-xs mb-1">Under Group</label>
                   <select className="legacy-input w-full font-bold text-blue-900 bg-blue-50" value={group} onChange={e => setGroup(e.target.value)}>
@@ -534,7 +726,19 @@ const LedgerMaster = () => {
               <legend className="text-blue-800 font-bold px-1 text-xs uppercase tracking-wider">Financial Parameters</legend>
               <div className="grid grid-cols-3 gap-3">
                 <div className="flex flex-col">
-                  <label className="text-gray-700 text-xs mb-1">Opening Bal</label>
+                  <label className="text-gray-700 text-xs mb-1 flex justify-between items-center">
+                    <span>Opening Bal</span>
+                    {Number(openingBal) > 0 && (
+                      <button 
+                        type="button"
+                        onClick={() => setOpeningBal(0)}
+                        className="text-[10px] text-red-600 hover:text-red-800 hover:underline font-bold cursor-pointer"
+                        title="Close / Set opening balance to ₹0"
+                      >
+                        ✕ Set ₹0
+                      </button>
+                    )}
+                  </label>
                   <div className="flex">
                     <input type="number" className="legacy-input w-full text-right font-mono" value={openingBal} onChange={e => setOpeningBal(e.target.value)} />
                     <select className="legacy-input w-14 ml-1" value={drCr} onChange={e => setDrCr(e.target.value)}>
@@ -597,11 +801,49 @@ const LedgerMaster = () => {
                   <input type="text" className="legacy-input w-full" value={city} onChange={e => setCity(e.target.value)} placeholder="City" />
                 </div>
 
-                <div className="flex flex-col">
+                <div className="flex flex-col relative" ref={stateRef}>
                   <label className="text-gray-700 text-xs mb-1">State</label>
-                  <select className="legacy-input w-full" value={state} onChange={e => setState(e.target.value)}>
-                    {STATES.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      className="legacy-input w-full pr-7"
+                      value={state}
+                      onFocus={() => setStateDropdownOpen(true)}
+                      onChange={e => {
+                        setState(e.target.value);
+                        setStateDropdownOpen(true);
+                      }}
+                      placeholder="Type or select State..."
+                    />
+                    <button
+                      type="button"
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 text-[10px] px-1 cursor-pointer"
+                      onClick={() => setStateDropdownOpen(prev => !prev)}
+                    >
+                      ▼
+                    </button>
+                  </div>
+
+                  {stateDropdownOpen && (
+                    <div className="absolute top-full left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-white border border-gray-300 rounded-md shadow-2xl z-[9999] py-1 text-xs">
+                      {filteredStates.length > 0 ? (
+                        filteredStates.map(s => (
+                          <div
+                            key={s}
+                            className={`px-3 py-1.5 hover:bg-blue-600 hover:text-white cursor-pointer transition-colors ${state === s ? 'bg-blue-50 text-blue-900 font-bold' : 'text-gray-700'}`}
+                            onClick={() => {
+                              setState(s);
+                              setStateDropdownOpen(false);
+                            }}
+                          >
+                            {s}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="px-3 py-2 text-gray-400 italic">No matching states (custom state enabled)</div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex flex-col">
@@ -697,15 +939,19 @@ const LedgerMaster = () => {
                   <th className="border-b border-gray-300 p-2 font-bold text-gray-700 uppercase">Ledger Name</th>
                   <th className="border-b border-gray-300 p-2 font-bold text-gray-700 uppercase">Under Group</th>
                   <th className="border-b border-gray-300 p-2 font-bold text-gray-700 uppercase text-right">Balance (₹)</th>
-                  <th className="border-b border-gray-300 p-2 font-bold text-gray-700 uppercase text-center">Status</th>
+                  <th className="border-b border-gray-300 p-2 font-bold text-gray-700 uppercase text-center">Action</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredLedgers.map((l, i) => {
                   const isSelected = selectedId === (l._id || l.id);
+                  const rowId = l._id || l.id || String(i);
+                  const isMenuOpen = activeActionMenuId === rowId;
+                  const isNoBal = Number(l.openingBalance || 0) === 0;
+
                   return (
                     <tr
-                      key={l._id || i}
+                      key={rowId}
                       className={`border-b border-gray-200 hover:bg-[#d1e8e2] cursor-pointer transition-colors ${isSelected ? 'bg-[#cce5ff] text-[#004085] font-medium' : ''}`}
                       onClick={() => handleRowClick(l)}
                     >
@@ -731,10 +977,74 @@ const LedgerMaster = () => {
                       </td>
                       <td className="p-2 text-gray-700">{l.accountGroup}</td>
                       <td className="p-2 text-right font-mono font-bold">
-                        {l.openingBalance?.toLocaleString()} <span className="text-[10px] text-gray-500">{l.drCr}</span>
+                        {isNoBal ? (
+                          <span className="bg-slate-100 text-slate-600 text-[9px] font-bold px-1.5 py-0.5 rounded border border-slate-300 uppercase">
+                            No Balance
+                          </span>
+                        ) : (
+                          <>
+                            {l.openingBalance?.toLocaleString()} <span className="text-[10px] text-gray-500">{l.drCr}</span>
+                          </>
+                        )}
                       </td>
-                      <td className="p-2 text-center">
-                        <span className="bg-green-100 text-green-800 text-[9px] font-bold px-1.5 py-0.5 rounded border border-green-300 uppercase">Active</span>
+                      <td className="p-2 text-center relative" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          onClick={() => setActiveActionMenuId(isMenuOpen ? null : rowId)}
+                          className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold text-[10px] px-2.5 py-1 rounded shadow-xs transition-all inline-flex items-center space-x-1 cursor-pointer"
+                        >
+                          <span>Action</span>
+                          <span className="text-[8px]">▼</span>
+                        </button>
+
+                        {isMenuOpen && (
+                          <div className="absolute right-2 top-8 w-36 bg-white border border-gray-300 rounded-lg shadow-xl z-50 py-1 text-left">
+                            <button
+                              type="button"
+                              className="w-full text-left px-3 py-1.5 hover:bg-blue-50 text-blue-900 font-bold text-xs flex items-center space-x-2 cursor-pointer"
+                              onClick={() => {
+                                setActiveActionMenuId(null);
+                                handleRowClick(l);
+                                setViewMode('split');
+                              }}
+                            >
+                              <span>✏️ Edit Ledger</span>
+                            </button>
+                            <button
+                              type="button"
+                              className="w-full text-left px-3 py-1.5 hover:bg-emerald-50 text-emerald-800 font-bold text-xs flex items-center space-x-2 cursor-pointer"
+                              onClick={() => {
+                                setActiveActionMenuId(null);
+                                handleQuickEditBalance(l);
+                              }}
+                            >
+                              <span>💵 Edit Balance</span>
+                            </button>
+                            {!isNoBal && (
+                              <button
+                                type="button"
+                                className="w-full text-left px-3 py-1.5 hover:bg-amber-50 text-amber-900 font-bold text-xs flex items-center space-x-2 cursor-pointer"
+                                onClick={() => {
+                                  setActiveActionMenuId(null);
+                                  handleQuickCloseBalance(l);
+                                }}
+                              >
+                                <span>✕ Close Balance</span>
+                              </button>
+                            )}
+                            <div className="border-t border-gray-200 my-1"></div>
+                            <button
+                              type="button"
+                              className="w-full text-left px-3 py-1.5 hover:bg-red-50 text-red-700 font-bold text-xs flex items-center space-x-2 cursor-pointer"
+                              onClick={() => {
+                                setActiveActionMenuId(null);
+                                handleDirectDeleteLedger(l);
+                              }}
+                            >
+                              <span>🗑️ Delete</span>
+                            </button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   );
@@ -807,7 +1117,37 @@ const LedgerMaster = () => {
                             {new Date(row.date).toLocaleDateString('en-GB')}
                           </td>
                           <td className="p-3 border-r border-slate-200 font-semibold text-xs text-slate-700">
-                            {row.particulars}
+                            <div className="flex items-center justify-between">
+                              <span>{row.particulars}</span>
+                              {row.isOpening && selectedLedgerCustomer && (
+                                <div className="flex items-center space-x-1 ml-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      handleQuickEditBalance(selectedLedgerCustomer);
+                                      setLedgerModalOpen(false);
+                                    }}
+                                    className="bg-blue-50 hover:bg-blue-100 border border-blue-300 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded shadow-xs not-italic cursor-pointer"
+                                    title="Edit Opening Balance"
+                                  >
+                                    Edit Bal
+                                  </button>
+                                  {(row.dr > 0 || row.cr > 0) && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        handleQuickCloseBalance(selectedLedgerCustomer);
+                                        setLedgerModalOpen(false);
+                                      }}
+                                      className="bg-amber-100 hover:bg-amber-200 border border-amber-300 text-amber-900 text-[10px] font-bold px-2 py-0.5 rounded shadow-xs not-italic cursor-pointer"
+                                      title="Mark Opening Balance as No Balance (₹0)"
+                                    >
+                                      ✕ Close Bal (Set ₹0)
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+                            </div>
                           </td>
                           <td className="p-3 border-r border-slate-200 font-mono text-xs text-slate-500">
                             {row.vchNo}

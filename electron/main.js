@@ -263,14 +263,29 @@ function createWindow() {
     const route = licenseStatus.valid ? '' : '#/activation';
 
     let devServerFailed = false;
+    let viteRetryCount = 0;
+    const MAX_VITE_RETRIES = 10;
+
+    const isDev = !app.isPackaged;
+    const devServerUrl = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173';
 
     // Smart fallback loader: Connect to local Express server on port 5000
     mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
         if (errorCode === -102 || errorCode === -105) { // ERR_CONNECTION_REFUSED / ERR_NAME_NOT_RESOLVED
             if (validatedURL.includes('5173') && !devServerFailed) {
-                devServerFailed = true;
-                console.log('Vite dev server (5173) not active. Switching to local backend server (http://localhost:5000)...');
-                mainWindow.loadURL(`http://localhost:5000/${route}`);
+                if (viteRetryCount < MAX_VITE_RETRIES) {
+                    viteRetryCount++;
+                    console.log(`Waiting for Vite dev server (5173)... retry ${viteRetryCount}/${MAX_VITE_RETRIES}`);
+                    setTimeout(() => {
+                        if (mainWindow && !mainWindow.isDestroyed() && !devServerFailed) {
+                            mainWindow.loadURL(`${devServerUrl}/${route}`).catch(() => {});
+                        }
+                    }, 1000);
+                } else {
+                    devServerFailed = true;
+                    console.log('Vite dev server (5173) not active after retries. Switching to local backend server (http://localhost:5000)...');
+                    mainWindow.loadURL(`http://localhost:5000/${route}`);
+                }
             } else if (validatedURL.includes('5000')) {
                 console.log('Backend server (5000) starting up. Retrying in 1 second...');
                 setTimeout(() => {
@@ -282,14 +297,9 @@ function createWindow() {
         }
     });
 
-    const isDev = !app.isPackaged;
-    const devServerUrl = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173';
-
     if (isDev) {
         console.log(`Attempting to connect to Vite dev server at ${devServerUrl}/${route}`);
-        mainWindow.loadURL(`${devServerUrl}/${route}`).catch(() => {
-            mainWindow.loadURL(`http://localhost:5000/${route}`);
-        });
+        mainWindow.loadURL(`${devServerUrl}/${route}`).catch(() => {});
     } else {
         mainWindow.loadURL(`http://localhost:5000/${route}`);
     }
