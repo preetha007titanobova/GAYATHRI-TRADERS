@@ -1,6 +1,39 @@
 import type { BillData } from './downloadPdfBill';
 
+export const checkWhatsAppLicenseAllowed = (): { allowed: boolean; message: string } => {
+  const isValid = localStorage.getItem('license_valid');
+  const daysStr = localStorage.getItem('license_days_remaining');
+
+  if (isValid === 'false') {
+    return {
+      allowed: false,
+      message: '⚠️ License Key Inactive or Expired! WhatsApp feature is blocked across all modules. Please renew your software license to resume WhatsApp sharing.'
+    };
+  }
+
+  if (daysStr !== null) {
+    const days = parseInt(daysStr, 10);
+    if (!isNaN(days) && days <= 0) {
+      return {
+        allowed: false,
+        message: '⚠️ Subscription License Expired! WhatsApp sharing is disabled in all modules. Please renew your plan to unlock WhatsApp messaging.'
+      };
+    }
+  }
+
+  return { allowed: true, message: '' };
+};
+
 export const sendWhatsAppBill = (data: BillData, overridePhone?: string, useNativeApp: boolean = true) => {
+  const licenseStatus = checkWhatsAppLicenseAllowed();
+  if (!licenseStatus.allowed) {
+    alert(licenseStatus.message);
+    return {
+      success: false,
+      error: licenseStatus.message
+    };
+  }
+
   const rawPhone = overridePhone || data.mobileNo || '';
   let phone = rawPhone.replace(/\D/g, ''); // strip non-digits
 
@@ -70,6 +103,15 @@ Thank you for shopping with us! 🙏 Have a great day!`;
 };
 
 export const sendWhatsAppTextMessage = (rawPhone: string, text: string) => {
+  const licenseStatus = checkWhatsAppLicenseAllowed();
+  if (!licenseStatus.allowed) {
+    alert(licenseStatus.message);
+    return {
+      success: false,
+      error: licenseStatus.message
+    };
+  }
+
   let phone = rawPhone.replace(/\D/g, '');
   if (!phone) {
     return { success: false, error: 'Please enter a valid mobile number for WhatsApp.' };

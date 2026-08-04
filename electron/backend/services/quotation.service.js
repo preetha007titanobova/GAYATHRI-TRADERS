@@ -16,7 +16,6 @@ exports.deleteQuotation = exports.getQuotationById = exports.getQuotations = exp
 const nodemailer_1 = __importDefault(require("nodemailer"));
 const mongodb_1 = require("mongodb");
 const db_1 = require("../config/db");
-
 const sendQuotationEmail = (data) => __awaiter(void 0, void 0, void 0, function* () {
     const { quoteNo, quoteDate, customer, totalAmount, items } = data;
     const transporter = nodemailer_1.default.createTransport({
@@ -72,7 +71,6 @@ const sendQuotationEmail = (data) => __awaiter(void 0, void 0, void 0, function*
     return true;
 });
 exports.sendQuotationEmail = sendQuotationEmail;
-
 const getNextSequence = () => __awaiter(void 0, void 0, void 0, function* () {
     const db = yield (0, db_1.getDb)();
     const lastQuote = yield db.collection('Quotation').find().sort({ createdAt: -1 }).limit(1).toArray();
@@ -81,7 +79,8 @@ const getNextSequence = () => __awaiter(void 0, void 0, void 0, function* () {
         const parts = lastQuote[0].quoteNo.split('-');
         const numPart = parts[parts.length - 1];
         const parsed = parseInt(numPart, 10);
-        if (!isNaN(parsed)) nextNum = parsed + 1;
+        if (!isNaN(parsed))
+            nextNum = parsed + 1;
     }
     const today = new Date();
     const month = today.getMonth() + 1;
@@ -90,34 +89,14 @@ const getNextSequence = () => __awaiter(void 0, void 0, void 0, function* () {
     return `QT-${fy}-${nextNum.toString().padStart(3, '0')}`;
 });
 exports.getNextSequence = getNextSequence;
-
 const createQuotation = (data) => __awaiter(void 0, void 0, void 0, function* () {
     const db = yield (0, db_1.getDb)();
-    const newQuote = Object.assign(Object.assign({}, data), {
-        quoteNo: data.quoteNo || (yield getNextSequence()),
-        quoteDate: data.quoteDate ? new Date(data.quoteDate) : new Date(),
-        validityDate: data.validityDate ? new Date(data.validityDate) : null,
-        customer: data.customer || 'CASH CUSTOMER',
-        mobileNo: data.mobileNo || '',
-        paymentTerms: data.paymentTerms || '',
-        isInterstate: !!data.isInterstate,
-        status: data.status || 'SAVED',
-        totalQty: Number(data.totalQty) || 0,
-        totalTaxable: Number(data.totalTaxable) || 0,
-        totalCgst: Number(data.totalCgst) || 0,
-        totalSgst: Number(data.totalSgst) || 0,
-        totalIgst: Number(data.totalIgst) || 0,
-        roundedGrandTotal: Number(data.roundedGrandTotal) || 0,
-        items: Array.isArray(data.items) ? data.items : [],
-        createdAt: new Date(),
-        updatedAt: new Date()
-    });
+    const newQuote = Object.assign(Object.assign({}, data), { quoteNo: data.quoteNo || (yield (0, exports.getNextSequence)()), quoteDate: data.quoteDate ? new Date(data.quoteDate) : new Date(), validityDate: data.validityDate ? new Date(data.validityDate) : null, customer: data.customer || 'CASH CUSTOMER', mobileNo: data.mobileNo || '', paymentTerms: data.paymentTerms || '', isInterstate: !!data.isInterstate, status: data.status || 'SAVED', totalQty: Number(data.totalQty) || 0, totalTaxable: Number(data.totalTaxable) || 0, totalCgst: Number(data.totalCgst) || 0, totalSgst: Number(data.totalSgst) || 0, totalIgst: Number(data.totalIgst) || 0, roundedGrandTotal: Number(data.roundedGrandTotal) || 0, items: Array.isArray(data.items) ? data.items : [], createdAt: new Date(), updatedAt: new Date() });
     const result = yield db.collection('Quotation').insertOne(newQuote);
     return Object.assign(Object.assign({}, newQuote), { _id: result.insertedId });
 });
 exports.createQuotation = createQuotation;
-
-const getQuotations = (filters = {}) => __awaiter(void 0, void 0, void 0, function* () {
+const getQuotations = (...args_1) => __awaiter(void 0, [...args_1], void 0, function* (filters = {}) {
     const db = yield (0, db_1.getDb)();
     const query = {};
     if (filters.startDate || filters.endDate) {
@@ -143,20 +122,22 @@ const getQuotations = (filters = {}) => __awaiter(void 0, void 0, void 0, functi
     return quotes;
 });
 exports.getQuotations = getQuotations;
-
 const getQuotationById = (id) => __awaiter(void 0, void 0, void 0, function* () {
     const db = yield (0, db_1.getDb)();
-    let objId;
-    try { objId = new mongodb_1.ObjectId(id); } catch (e) { objId = id; }
-    return yield db.collection('Quotation').findOne({ $or: [{ _id: objId }, { quoteNo: id }] });
+    const orConditions = [{ quoteNo: id }];
+    if (mongodb_1.ObjectId.isValid(id)) {
+        orConditions.push({ _id: new mongodb_1.ObjectId(id) });
+    }
+    return yield db.collection('Quotation').findOne({ $or: orConditions });
 });
 exports.getQuotationById = getQuotationById;
-
 const deleteQuotation = (id) => __awaiter(void 0, void 0, void 0, function* () {
     const db = yield (0, db_1.getDb)();
-    let objId;
-    try { objId = new mongodb_1.ObjectId(id); } catch (e) { objId = id; }
-    const res = yield db.collection('Quotation').deleteOne({ _id: objId });
+    const orConditions = [{ quoteNo: id }];
+    if (mongodb_1.ObjectId.isValid(id)) {
+        orConditions.push({ _id: new mongodb_1.ObjectId(id) });
+    }
+    const res = yield db.collection('Quotation').deleteOne({ $or: orConditions });
     return res.deletedCount > 0;
 });
 exports.deleteQuotation = deleteQuotation;

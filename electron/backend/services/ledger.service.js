@@ -8,6 +8,17 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+var __rest = (this && this.__rest) || function (s, e) {
+    var t = {};
+    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
+        t[p] = s[p];
+    if (s != null && typeof Object.getOwnPropertySymbols === "function")
+        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
+            if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
+                t[p[i]] = s[p[i]];
+        }
+    return t;
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getLedgerStatement = exports.deleteLedger = exports.updateLedger = exports.createLedger = exports.searchLedgers = exports.getNextLedgerCode = void 0;
 const mongodb_1 = require("mongodb");
@@ -58,7 +69,7 @@ const createLedger = (data) => __awaiter(void 0, void 0, void 0, function* () {
 exports.createLedger = createLedger;
 const updateLedger = (id, data) => __awaiter(void 0, void 0, void 0, function* () {
     const db = yield (0, db_1.getDb)();
-    const { _id, id: itemId } = data, cleanData = __rest(data, ["_id", "id"]);
+    const _a = data, { _id, id: itemId } = _a, cleanData = __rest(_a, ["_id", "id"]);
     const result = yield db.collection('Ledger').updateOne({ _id: new mongodb_1.ObjectId(id) }, {
         $set: Object.assign(Object.assign({}, cleanData), { openingBalance: Number(cleanData.openingBalance) || 0, creditLimit: Number(cleanData.creditLimit) || 0, defaultCreditPeriod: Number(cleanData.defaultCreditPeriod) || 0, updatedAt: new Date() })
     });

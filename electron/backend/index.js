@@ -9,6 +9,7 @@ const cors_1 = __importDefault(require("cors"));
 const helmet_1 = __importDefault(require("helmet"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const path_1 = __importDefault(require("path"));
+const fs_1 = __importDefault(require("fs"));
 const db_1 = require("./config/db");
 const routes_1 = __importDefault(require("./routes"));
 dotenv_1.default.config();
@@ -22,14 +23,28 @@ app.use(express_1.default.json());
 // Mount API routes under /api/v1
 app.use('/api/v1', routes_1.default);
 // Serve frontend static assets from the compiled production build
-const distPath = process.env.FRONTEND_DIST_PATH || path_1.default.join(__dirname, '..', '..', 'frontend', 'dist');
+const possibleDistPaths = [
+    process.env.FRONTEND_DIST_PATH,
+    path_1.default.join(__dirname, '..', 'frontend', 'dist'),
+    path_1.default.join(__dirname, '..', '..', 'frontend', 'dist'),
+    path_1.default.join(__dirname, 'frontend', 'dist'),
+    path_1.default.join(process.cwd(), 'frontend', 'dist'),
+    path_1.default.join(process.cwd(), 'resources', 'app', 'frontend', 'dist'),
+    path_1.default.join(process.cwd(), 'resources', 'frontend', 'dist')
+].filter((p) => !!p && fs_1.default.existsSync(p));
+const distPath = possibleDistPaths[0] || path_1.default.join(__dirname, '..', 'frontend', 'dist');
+console.log('Serving frontend dist from:', distPath);
 app.use(express_1.default.static(distPath));
 // For all non-API paths, return the index.html template (enables React Router paths like /activation)
 app.get(/.*/, (req, res, next) => {
     if (req.path.startsWith('/api')) {
         return next();
     }
-    res.sendFile(path_1.default.join(distPath, 'index.html'));
+    const indexPath = path_1.default.join(distPath, 'index.html');
+    if (fs_1.default.existsSync(indexPath)) {
+        return res.sendFile(indexPath);
+    }
+    res.status(404).send('Frontend static files not found. Expected index.html at: ' + indexPath);
 });
 // Set up collections & indexes
 (0, db_1.setupDatabase)();

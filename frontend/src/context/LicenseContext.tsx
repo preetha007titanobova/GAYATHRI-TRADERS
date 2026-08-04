@@ -23,6 +23,7 @@ interface LicenseContextType {
   expiresAt: string | null;
   planType: string;
   machineId: string;
+  isWhatsAppAllowed: boolean;
 }
 
 const LicenseContext = createContext<LicenseContextType | null>(null);
@@ -47,6 +48,10 @@ export const LicenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
       } else {
         // Fallback for browser testing if not inside Electron
         setLoading(false);
+        setIsActivated(true);
+        setDaysRemaining(9999);
+        localStorage.setItem('license_valid', 'true');
+        localStorage.setItem('license_days_remaining', '9999');
         setMachineId('DEV-MODE-BROWSER-ID-9821');
       }
     };
@@ -66,9 +71,19 @@ export const LicenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
             const diffTime = new Date(arg.data.expiresAt).getTime() - Date.now();
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
             setDaysRemaining(diffDays);
+
+            if (diffDays > 0) {
+              localStorage.setItem('license_valid', 'true');
+              localStorage.setItem('license_days_remaining', diffDays.toString());
+            } else {
+              localStorage.setItem('license_valid', 'false');
+              localStorage.setItem('license_days_remaining', '0');
+            }
           } else {
             setExpiresAt(null);
             setDaysRemaining(9999); // No expiry (e.g. lifetime)
+            localStorage.setItem('license_valid', 'true');
+            localStorage.setItem('license_days_remaining', '9999');
           }
         } else {
           setIsActivated(false);
@@ -78,6 +93,8 @@ export const LicenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
           setLicenseKey('');
           setPlanType('');
           setExpiresAt(null);
+          localStorage.setItem('license_valid', 'false');
+          localStorage.setItem('license_days_remaining', '0');
         }
         setLoading(false);
       });
@@ -95,6 +112,8 @@ export const LicenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return !!features[feature];
   };
 
+  const isWhatsAppAllowed = isActivated && daysRemaining > 0;
+
   return (
     <LicenseContext.Provider value={{ 
       isActivated, 
@@ -106,7 +125,8 @@ export const LicenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
       licenseKey,
       expiresAt,
       planType,
-      machineId
+      machineId,
+      isWhatsAppAllowed
     }}>
       {children}
     </LicenseContext.Provider>
