@@ -187,7 +187,15 @@ export const updateProduct = async (id: string, data: any): Promise<boolean> => 
 
 export const deleteProduct = async (id: string): Promise<boolean> => {
   const db = await getDb();
-  const result = await db.collection('Product').deleteOne({ _id: new ObjectId(id as string) });
+  let objId: any;
+  try {
+    objId = new ObjectId(id);
+  } catch (e) {
+    objId = id;
+  }
+  const result = await db.collection('Product').deleteOne({
+    $or: [{ _id: objId }, { _id: id as any }, { itemCode: id }]
+  });
   return result.deletedCount > 0;
 };
 

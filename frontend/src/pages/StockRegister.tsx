@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import type { ToolbarActions } from '../components/Layout';
-import { Calendar, Package, FileText, Search, ArrowLeft, Eye } from 'lucide-react';
+import { Calendar, Package, FileText, Search, ArrowLeft, Eye, Trash2, CheckSquare, Square, AlertTriangle } from 'lucide-react';
 import Api from '../Api';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -71,6 +71,17 @@ const StockRegister = () => {
   const [selectedRowForDmg, setSelectedRowForDmg] = useState<StockMove | null>(null);
   const [tempDmgQty, setTempDmgQty] = useState(0);
   const [tempDmgReason, setTempDmgReason] = useState('');
+
+  // Bulk & Single Delete States
+  const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [itemToDelete, setItemToDelete] = useState<Product | null>(null);
+  const [singleDeleteModalOpen, setSingleDeleteModalOpen] = useState(false);
+  const [deletingSingle, setDeletingSingle] = useState(false);
+
+  const [bulkDeleteModalOpen, setBulkDeleteModalOpen] = useState(false);
+  const [bulkConfirmText, setBulkConfirmText] = useState('');
+  const [deletingBulk, setDeletingBulk] = useState(false);
 
   const activeItem = useMemo(() => {
     return reportData.find(i => (i.id || i._id) === selectedItem);
@@ -169,7 +180,6 @@ const StockRegister = () => {
 
   useEffect(() => {
     syncLocalStorage();
-    // Add event listener for updates across tabs
     window.addEventListener('storage', syncLocalStorage);
     return () => window.removeEventListener('storage', syncLocalStorage);
   }, []);
@@ -191,7 +201,6 @@ const StockRegister = () => {
     const itemCode = product.itemCode;
     const name = product.name;
 
-    // Get local purchase bills
     const localPurchaseMovements: StockMove[] = [];
     if (localPurchaseBills.length > 0) {
       localPurchaseBills.forEach((bill: any) => {
@@ -217,7 +226,6 @@ const StockRegister = () => {
 
     const dbMovements = product.movements || [];
     
-    // Get local shop sales bills
     const localShopSalesMovements: StockMove[] = [];
     if (localShopSalesBills.length > 0) {
       localShopSalesBills.forEach((bill: any) => {
@@ -244,7 +252,6 @@ const StockRegister = () => {
     const combinedMovements = [...dbMovements, ...localPurchaseMovements, ...localShopSalesMovements];
     combinedMovements.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-    // Filter movements by date safely
     const priorMoves = combinedMovements.filter(m => {
       const mDateStr = getMoveDateStr(m.date);
       return mDateStr && mDateStr < fromDate;
@@ -255,7 +262,6 @@ const StockRegister = () => {
       return mDateStr && mDateStr >= fromDate && mDateStr <= toDate;
     });
 
-    // Opening stock calculation
     let currentBal = product.openingBalance || 0;
     priorMoves.forEach(m => {
       const dmg = damages[m.id]?.qty || 0;
@@ -265,7 +271,6 @@ const StockRegister = () => {
     });
     const openingStock = currentBal;
 
-    // Period calculations
     let inward = 0;
     let outward = 0;
     let damagesQty = 0;
@@ -298,7 +303,6 @@ const StockRegister = () => {
     };
   };
 
-  // Compile calculations for all products matching search criteria
   const processedProducts = useMemo(() => {
     return reportData.map(product => {
       const ledger = getProductLedgerData(product);
@@ -309,7 +313,6 @@ const StockRegister = () => {
     });
   }, [reportData, localPurchaseBills, localShopSalesBills, damages, fromDate, toDate]);
 
-  // All unique departments from products
   const allDepartments = useMemo(() => {
     const depts = new Set<string>();
     reportData.forEach(p => { if (p.department) depts.add(p.department); });
@@ -318,7 +321,6 @@ const StockRegister = () => {
 
   const filteredProducts = useMemo(() => {
     return processedProducts.filter(p => {
-      // Text search
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
         const textMatch =
@@ -330,9 +332,7 @@ const StockRegister = () => {
           p.size?.toLowerCase().includes(q);
         if (!textMatch) return false;
       }
-      // Department filter
       if (filterDept && p.department !== filterDept) return false;
-      // Stock status filter
       if (filterStatus) {
         const stock = p.dbStock ?? p.stock ?? 0;
         if (filterStatus === 'in-stock' && stock <= 0) return false;
@@ -343,7 +343,6 @@ const StockRegister = () => {
     });
   }, [processedProducts, searchQuery, filterDept, filterStatus]);
 
-  // Compute column totals for the summary view footer
   const summaryTotals = useMemo(() => {
     return filteredProducts.reduce((acc, p) => {
       acc.opening += p.openingStock || 0;
@@ -356,11 +355,75 @@ const StockRegister = () => {
     }, { opening: 0, inward: 0, outward: 0, damages: 0, closing: 0, totalStock: 0 });
   }, [filteredProducts]);
 
-  // Selected product's detailed ledger
   const activeLedger = useMemo(() => {
     if (!activeItem) return { openingStock: 0, inward: 0, outward: 0, damages: 0, closingStock: 0, rows: [] };
     return getProductLedgerData(activeItem);
   }, [activeItem, localPurchaseBills, damages, fromDate, toDate]);
+
+  // Multi-select & Bulk Delete Helpers
+  const handleToggleSelectAll = () => {
+    if (selectedIds.length === filteredProducts.length) {
+      setSelectedIds([]);
+    } else {
+      const allIds = filteredProducts.map(p => (p.id || p._id || '')).filter(Boolean);
+      setSelectedIds(allIds);
+    }
+  };
+
+  const handleToggleSelectRow = (id: string, e: React.MouseEvent | React.ChangeEvent) => {
+    e.stopPropagation();
+    if (selectedIds.includes(id)) {
+      setSelectedIds(prev => prev.filter(i => i !== id));
+    } else {
+      setSelectedIds(prev => [...prev, id]);
+    }
+  };
+
+  const handleConfirmSingleDelete = async () => {
+    if (!itemToDelete) return;
+    const id = itemToDelete.id || itemToDelete._id;
+    if (!id) return;
+
+    setDeletingSingle(true);
+    try {
+      const res = await fetch(`${Api}/products/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setGlobalNotification({ msg: `Product [${itemToDelete.itemCode}] ${itemToDelete.name} deleted successfully!`, type: 'success' });
+        fetchReportData();
+      } else {
+        const data = await res.json();
+        setGlobalNotification({ msg: `Failed to delete product: ${data.error || 'Unknown error'}`, type: 'error' });
+      }
+    } catch (err: any) {
+      console.error(err);
+      setGlobalNotification({ msg: 'Network error deleting product.', type: 'error' });
+    } finally {
+      setDeletingSingle(false);
+      setSingleDeleteModalOpen(false);
+      setItemToDelete(null);
+    }
+  };
+
+  const handleConfirmBulkDelete = async () => {
+    if (bulkConfirmText.trim().toUpperCase() !== 'CONFIRM DELETE') return;
+    setDeletingBulk(true);
+    try {
+      const deletePromises = selectedIds.map(id => 
+        fetch(`${Api}/products/${id}`, { method: 'DELETE' })
+      );
+      await Promise.all(deletePromises);
+      setGlobalNotification({ msg: `Successfully deleted ${selectedIds.length} products from Stock Register.`, type: 'success' });
+      setSelectedIds([]);
+      fetchReportData();
+    } catch (err) {
+      console.error(err);
+      setGlobalNotification({ msg: 'Error performing bulk deletion.', type: 'error' });
+    } finally {
+      setDeletingBulk(false);
+      setBulkDeleteModalOpen(false);
+      setBulkConfirmText('');
+    }
+  };
 
   // PDF Generation & WhatsApp Share Logic
   const downloadSummaryPDF = () => {
@@ -732,7 +795,7 @@ const StockRegister = () => {
             </button>
           </div>
 
-          {/* Common Filter Search Input (Visible in both views) */}
+          {/* Common Filter Search Input */}
           <div className="flex items-center space-x-2 bg-gray-50 border border-gray-300 px-3 py-1.5 rounded-md shadow-sm">
             <Search size={16} className="text-gray-400 flex-shrink-0" />
             <input
@@ -790,6 +853,36 @@ const StockRegister = () => {
             </button>
           )}
 
+          {/* Multi-Select & Bulk Delete Controls */}
+          {viewMode === 'summary' && (
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => {
+                  setIsMultiSelectMode(!isMultiSelectMode);
+                  if (isMultiSelectMode) setSelectedIds([]);
+                }}
+                className={`px-3 py-1.5 text-xs font-bold rounded-md border transition-all flex items-center gap-1.5 ${
+                  isMultiSelectMode
+                    ? 'bg-amber-100 text-amber-900 border-amber-400 shadow-sm'
+                    : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border-gray-300'
+                }`}
+              >
+                {isMultiSelectMode ? <CheckSquare size={14} /> : <Square size={14} />}
+                <span>{isMultiSelectMode ? 'Cancel Selection' : 'Select Multiple'}</span>
+              </button>
+
+              {selectedIds.length > 0 && (
+                <button
+                  onClick={() => setBulkDeleteModalOpen(true)}
+                  className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 text-xs font-bold rounded-md shadow border border-red-700 transition-colors flex items-center gap-1.5 animate-pulse"
+                >
+                  <Trash2 size={14} />
+                  <span>Bulk Delete ({selectedIds.length})</span>
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Product Dropdown for Ledger view */}
           {viewMode === 'ledger' && (
             <div className="flex items-center space-x-2 bg-gray-50 border border-gray-300 p-1.5 rounded-md shadow-sm">
@@ -802,7 +895,7 @@ const StockRegister = () => {
                  className="bg-transparent text-sm font-bold text-gray-800 focus:outline-none w-64 pr-2 cursor-pointer"
                >
                  {reportData.filter(i => {
-                   if ((i.id || i._id) === selectedItem) return true; // Always include selected item
+                   if ((i.id || i._id) === selectedItem) return true;
                    if (!searchQuery) return true;
                    const q = searchQuery.toLowerCase();
                    return (
@@ -880,12 +973,28 @@ const StockRegister = () => {
                <div className="font-bold text-gray-700 text-sm uppercase tracking-wider">
                  All Products Stock Register Summary
                </div>
+               {isMultiSelectMode && (
+                 <div className="text-xs font-bold text-[#2b579a] bg-blue-50 border border-blue-200 px-3 py-1 rounded">
+                   {selectedIds.length} of {filteredProducts.length} items selected
+                 </div>
+               )}
             </div>
 
             <div className="flex-1 overflow-auto">
               <table className="w-full text-left text-sm border-collapse min-w-max">
                 <thead className="bg-[#1e3f70] text-white sticky top-0 z-10 shadow-sm">
                   <tr>
+                    {isMultiSelectMode && (
+                      <th className="border-r border-[#142d54] p-2 text-center w-10">
+                        <input 
+                          type="checkbox" 
+                          checked={filteredProducts.length > 0 && selectedIds.length === filteredProducts.length} 
+                          onChange={handleToggleSelectAll}
+                          className="w-4 h-4 rounded cursor-pointer accent-red-600"
+                          title="Select / Unselect All"
+                        />
+                      </th>
+                    )}
                     <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-24">Our Item Code</th>
                     <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-24">Vendor Code</th>
                     <th className="border-r border-[#142d54] p-2 text-xs font-semibold">Item Name</th>
@@ -898,19 +1007,19 @@ const StockRegister = () => {
                     <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-28 text-right text-orange-300">Damages</th>
                     <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-28 text-right bg-[#142d54]/25">Closing Stock</th>
                     <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-28 text-right bg-yellow-400/20 text-yellow-200">Total Stock</th>
-                    <th className="p-2 text-xs font-semibold w-24 text-center">Actions</th>
+                    <th className="p-2 text-xs font-semibold w-28 text-center">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loadingReport ? (
                     <tr>
-                      <td colSpan={12} className="p-12 text-center text-gray-500 font-bold">
+                      <td colSpan={isMultiSelectMode ? 14 : 13} className="p-12 text-center text-gray-500 font-bold">
                         Loading products register data...
                       </td>
                     </tr>
                   ) : filteredProducts.length === 0 ? (
                     <tr>
-                      <td colSpan={12} className="p-12 text-center text-gray-400">
+                      <td colSpan={isMultiSelectMode ? 14 : 13} className="p-12 text-center text-gray-400">
                         <div className="flex flex-col items-center">
                           <Package size={32} className="mb-2 opacity-50" />
                           <p className="italic text-sm">No items found matching search criteria.</p>
@@ -918,61 +1027,91 @@ const StockRegister = () => {
                       </td>
                     </tr>
                   ) : (
-                    filteredProducts.map((p, idx) => (
-                      <tr 
-                        key={p.id || p._id || idx} 
-                        onClick={() => {
-                          setSelectedItem(p.id || p._id || '');
-                          setViewMode('ledger');
-                        }}
-                        className={`border-b border-gray-200 transition-colors cursor-pointer ${
-                          idx % 2 === 0 ? 'bg-white hover:bg-blue-50/40' : 'bg-[#fcfdfd] hover:bg-blue-50/40'
-                        }`}
-                      >
-                        <td className="border-r border-gray-200 p-2 font-mono text-xs font-bold text-gray-600">{p.itemCode}</td>
-                        <td className="border-r border-gray-200 p-2 font-mono text-xs font-semibold text-slate-700">{p.vendorItemCode || '-'}</td>
-                        <td className="border-r border-gray-200 p-2 text-gray-800 font-semibold">{p.name}</td>
-                        <td className="border-r border-gray-200 p-2 text-xs text-gray-600 font-medium">{p.department || '-'}</td>
-                        <td className="border-r border-gray-200 p-2 text-xs text-gray-600 font-medium">{p.variety || '-'}</td>
-                        <td className="border-r border-gray-200 p-2 text-xs text-center text-gray-600 font-medium">{p.size || '-'}</td>
-                        
-                        <td className="border-r border-gray-200 p-2 text-right font-mono text-gray-700 bg-gray-50/30">{p.openingStock}</td>
-                        <td className="border-r border-gray-200 p-2 text-right font-mono text-green-600 bg-green-50/20 font-bold">
-                          {p.inward > 0 ? `+${p.inward}` : ''}
-                        </td>
-                        <td className="border-r border-gray-200 p-2 text-right font-mono text-red-600 bg-red-50/20 font-bold">
-                          {p.outward > 0 ? `-${p.outward}` : ''}
-                        </td>
-                        <td className="border-r border-gray-200 p-2 text-right font-mono text-orange-600 bg-orange-50/15">
-                          {p.damages > 0 ? p.damages : ''}
-                        </td>
-                        <td className="border-r border-gray-200 p-2 text-right font-mono text-blue-700 bg-blue-50/20 font-black">
-                          <div>{p.closingStock}</div>
-                          {Number(p.pendingOrderQty) > 0 && (
-                            <div className="text-[10px] text-amber-600 font-bold whitespace-nowrap leading-none mt-1">
-                              ({p.pendingOrderQty} {p.uom || 'PCS'} in sales order)
-                            </div>
+                    filteredProducts.map((p, idx) => {
+                      const recId = p.id || p._id || '';
+                      const isSelected = selectedIds.includes(recId);
+                      return (
+                        <tr 
+                          key={recId || idx} 
+                          onClick={() => {
+                            setSelectedItem(recId);
+                            setViewMode('ledger');
+                          }}
+                          className={`border-b border-gray-200 transition-colors cursor-pointer ${
+                            isSelected
+                              ? 'bg-red-50 hover:bg-red-100/60 font-medium'
+                              : idx % 2 === 0 ? 'bg-white hover:bg-blue-50/40' : 'bg-[#fcfdfd] hover:bg-blue-50/40'
+                          }`}
+                        >
+                          {isMultiSelectMode && (
+                            <td className="border-r border-gray-200 p-2 text-center" onClick={e => e.stopPropagation()}>
+                              <input 
+                                type="checkbox" 
+                                checked={isSelected} 
+                                onChange={e => handleToggleSelectRow(recId, e)}
+                                className="w-4 h-4 rounded cursor-pointer accent-red-600"
+                              />
+                            </td>
                           )}
-                        </td>
-                        <td className="border-r border-gray-200 p-2 text-right font-mono font-black text-yellow-700 bg-yellow-50/30">
-                          {p.dbStock ?? p.stock ?? 0}
-                        </td>
-                        
-                        <td className="p-2 text-center">
-                          <button
-                            onClick={() => {
-                              setSelectedItem(p.id || p._id || '');
-                              setViewMode('ledger');
-                            }}
-                            className="bg-blue-100 hover:bg-blue-200 text-blue-800 px-2 py-1 rounded text-xs font-bold inline-flex items-center space-x-1 transition-colors"
-                            title="View Detailed Ledger"
-                          >
-                            <Eye size={12} />
-                            <span>Ledger</span>
-                          </button>
-                        </td>
-                      </tr>
-                    ))
+                          <td className="border-r border-gray-200 p-2 font-mono text-xs font-bold text-gray-600">{p.itemCode}</td>
+                          <td className="border-r border-gray-200 p-2 font-mono text-xs font-semibold text-slate-700">{p.vendorItemCode || '-'}</td>
+                          <td className="border-r border-gray-200 p-2 text-gray-800 font-semibold">{p.name}</td>
+                          <td className="border-r border-gray-200 p-2 text-xs text-gray-600 font-medium">{p.department || '-'}</td>
+                          <td className="border-r border-gray-200 p-2 text-xs text-gray-600 font-medium">{p.variety || '-'}</td>
+                          <td className="border-r border-gray-200 p-2 text-xs text-center text-gray-600 font-medium">{p.size || '-'}</td>
+                          
+                          <td className="border-r border-gray-200 p-2 text-right font-mono text-gray-700 bg-gray-50/30">{p.openingStock}</td>
+                          <td className="border-r border-gray-200 p-2 text-right font-mono text-green-600 bg-green-50/20 font-bold">
+                            {p.inward > 0 ? `+${p.inward}` : ''}
+                          </td>
+                          <td className="border-r border-gray-200 p-2 text-right font-mono text-red-600 bg-red-50/20 font-bold">
+                            {p.outward > 0 ? `-${p.outward}` : ''}
+                          </td>
+                          <td className="border-r border-gray-200 p-2 text-right font-mono text-orange-600 bg-orange-50/15">
+                            {p.damages > 0 ? p.damages : ''}
+                          </td>
+                          <td className="border-r border-gray-200 p-2 text-right font-mono text-blue-700 bg-blue-50/20 font-black">
+                            <div>{p.closingStock}</div>
+                            {Number(p.pendingOrderQty) > 0 && (
+                              <div className="text-[10px] text-amber-600 font-bold whitespace-nowrap leading-none mt-1">
+                                ({p.pendingOrderQty} {p.uom || 'PCS'} in sales order)
+                              </div>
+                            )}
+                          </td>
+                          <td className="border-r border-gray-200 p-2 text-right font-mono font-black text-yellow-700 bg-yellow-50/30">
+                            {p.dbStock ?? p.stock ?? 0}
+                          </td>
+                          
+                          <td className="p-2 text-center" onClick={e => e.stopPropagation()}>
+                            <div className="flex items-center justify-center space-x-1">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedItem(recId);
+                                  setViewMode('ledger');
+                                }}
+                                className="bg-blue-100 hover:bg-blue-200 text-blue-800 px-2 py-1 rounded text-xs font-bold inline-flex items-center space-x-1 transition-colors"
+                                title="View Detailed Ledger"
+                              >
+                                <Eye size={12} />
+                                <span>Ledger</span>
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setItemToDelete(p);
+                                  setSingleDeleteModalOpen(true);
+                                }}
+                                className="bg-red-100 hover:bg-red-200 text-red-700 p-1.5 rounded transition-colors"
+                                title="Delete Product"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -1154,6 +1293,102 @@ const StockRegister = () => {
               className="bg-blue-600 border border-blue-700 text-white px-4 py-2 rounded text-sm hover:bg-blue-700 transition-colors shadow font-bold"
             >
               Save Changes
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* SINGLE PRODUCT DELETE CONFIRMATION MODAL */}
+      <Modal
+        isOpen={singleDeleteModalOpen}
+        onClose={() => { setSingleDeleteModalOpen(false); setItemToDelete(null); }}
+        title="Confirm Delete Product"
+      >
+        <div className="p-2 space-y-4">
+          <div className="flex items-center gap-3 bg-red-50 border border-red-200 p-3 rounded-lg text-red-800">
+            <AlertTriangle size={24} className="text-red-600 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-bold">Are you sure you want to delete this product?</p>
+              <p className="text-xs text-red-700 mt-0.5">This action will remove the product and its master record from the database.</p>
+            </div>
+          </div>
+
+          {itemToDelete && (
+            <div className="bg-gray-50 border border-gray-300 p-3 rounded text-sm space-y-1">
+              <p><span className="font-bold text-gray-700">Item Code:</span> <span className="font-mono font-bold text-blue-800">{itemToDelete.itemCode}</span></p>
+              <p><span className="font-bold text-gray-700">Product Name:</span> <span className="font-bold text-gray-900">{itemToDelete.name}</span></p>
+              <p><span className="font-bold text-gray-700">Category / Variety:</span> {itemToDelete.department || '-'} / {itemToDelete.variety || '-'}</p>
+              <p><span className="font-bold text-gray-700">Current Stock:</span> <span className="font-mono font-bold text-emerald-700">{itemToDelete.dbStock ?? itemToDelete.stock ?? 0} {itemToDelete.uom || 'PCS'}</span></p>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              onClick={() => { setSingleDeleteModalOpen(false); setItemToDelete(null); }}
+              className="px-4 py-2 text-xs font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleConfirmSingleDelete}
+              disabled={deletingSingle}
+              className="px-4 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 border border-red-700 rounded transition-colors shadow flex items-center gap-1.5"
+            >
+              <Trash2 size={14} />
+              <span>{deletingSingle ? 'Deleting...' : 'Confirm Delete'}</span>
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* BULK DELETE CONFIRMATION MODAL */}
+      <Modal
+        isOpen={bulkDeleteModalOpen}
+        onClose={() => { setBulkDeleteModalOpen(false); setBulkConfirmText(''); }}
+        title={`Bulk Delete Products (${selectedIds.length} Selected)`}
+      >
+        <div className="p-2 space-y-4">
+          <div className="flex items-center gap-3 bg-red-50 border border-red-200 p-3 rounded-lg text-red-800">
+            <AlertTriangle size={28} className="text-red-600 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-bold">⚠️ CRITICAL WARNING</p>
+              <p className="text-xs text-red-700 mt-0.5">
+                You are about to permanently delete <span className="font-black text-red-900 underline">{selectedIds.length} selected products</span> from the Stock Register database. This action cannot be undone!
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-amber-50 border border-amber-200 p-3 rounded-md">
+            <label className="block text-xs font-bold text-amber-900 mb-1">
+              Type <span className="font-mono bg-amber-200 px-1 py-0.5 rounded text-red-700">CONFIRM DELETE</span> below to proceed:
+            </label>
+            <input
+              type="text"
+              placeholder="Type CONFIRM DELETE"
+              value={bulkConfirmText}
+              onChange={e => setBulkConfirmText(e.target.value)}
+              className="w-full text-sm font-mono font-bold p-2 border border-gray-400 rounded focus:border-red-500 focus:outline-none uppercase"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              onClick={() => { setBulkDeleteModalOpen(false); setBulkConfirmText(''); }}
+              className="px-4 py-2 text-xs font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleConfirmBulkDelete}
+              disabled={bulkConfirmText.trim().toUpperCase() !== 'CONFIRM DELETE' || deletingBulk}
+              className={`px-4 py-2 text-xs font-bold text-white rounded border transition-colors flex items-center gap-1.5 shadow ${
+                bulkConfirmText.trim().toUpperCase() === 'CONFIRM DELETE' && !deletingBulk
+                  ? 'bg-red-600 hover:bg-red-700 border-red-700 cursor-pointer'
+                  : 'bg-red-300 border-red-300 cursor-not-allowed opacity-60'
+              }`}
+            >
+              <Trash2 size={14} />
+              <span>{deletingBulk ? 'Deleting Selected...' : 'Confirm Bulk Delete'}</span>
             </button>
           </div>
         </div>

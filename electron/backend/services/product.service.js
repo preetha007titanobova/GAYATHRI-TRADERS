@@ -184,7 +184,16 @@ const updateProduct = (id, data) => __awaiter(void 0, void 0, void 0, function* 
 exports.updateProduct = updateProduct;
 const deleteProduct = (id) => __awaiter(void 0, void 0, void 0, function* () {
     const db = yield (0, db_1.getDb)();
-    const result = yield db.collection('Product').deleteOne({ _id: new mongodb_1.ObjectId(id) });
+    let objId;
+    try {
+        objId = new mongodb_1.ObjectId(id);
+    }
+    catch (e) {
+        objId = id;
+    }
+    const result = yield db.collection('Product').deleteOne({
+        $or: [{ _id: objId }, { _id: id }, { itemCode: id }]
+    });
     return result.deletedCount > 0;
 });
 exports.deleteProduct = deleteProduct;
