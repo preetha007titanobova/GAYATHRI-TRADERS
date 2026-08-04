@@ -2,10 +2,11 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import Api from '../Api';
 import { printReceipt } from '../utils/printReceipt';
+import { sendWhatsAppTextMessage } from '../utils/whatsappHelper';
 import { useLicense } from '../context/LicenseContext';
 import {
   Mail, RefreshCcw, Plus, Trash2, Calendar,
-  FileSignature, Loader2, Search
+  FileSignature, Loader2, Search, Save, MessageCircle, Printer, ListFilter
 } from 'lucide-react';
 
 interface LineItem {
@@ -29,20 +30,22 @@ const Quotation = () => {
   const validityTarget = new Date(today.getTime() + (30 * 24 * 60 * 60 * 1000));
   const validityString = validityTarget.toISOString().split('T')[0];
 
-  // --- State Lifecycles (Clean Fresh Entry) ---
+  // --- State Lifecycles ---
   const [quoteNo, setQuoteNo] = useState('QT-LOADING');
   const [quoteDate, setQuoteDate] = useState(todayString);
   const [validityDate, setValidityDate] = useState(validityString);
   const [customer, setCustomer] = useState('');
+  const [mobileNo, setMobileNo] = useState('');
   const [paymentTerms, setPaymentTerms] = useState('');
-  const [status, setStatus] = useState<'DRAFT' | 'SENT' | 'ACCEPTED' | 'CONVERTED'>('DRAFT');
-  const [isInterstate, setIsInterstate] = useState(false); // Regional Accounting Logic
+  const [status, setStatus] = useState<'SAVED' | 'SENT' | 'ACCEPTED' | 'CONVERTED'>('SAVED');
+  const [isInterstate, setIsInterstate] = useState(false);
 
   // Action States
+  const [isSaving, setIsSaving] = useState(false);
   const [isConverting, setIsConverting] = useState(false);
   const [isEmailing, setIsEmailing] = useState(false);
 
-  // Initialize line items with exactly one clean blank array object line
+  // Initialize line items with one clean blank row
   const generateId = () => Math.random().toString(36).substring(2, 15);
   const [lineItems, setLineItems] = useState<LineItem[]>([{
     id: generateId(),
@@ -56,14 +59,14 @@ const Quotation = () => {
 
   const [availableProducts, setAvailableProducts] = useState<any[]>([]);
 
-  // Dress Selection Modal state
+  // Product Selection Modal state
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [modalSearchQuery, setModalSearchQuery] = useState('');
   const [activeRowId, setActiveRowId] = useState<string | null>(null);
   const [highlightedProductIndex, setHighlightedProductIndex] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Filter products for the modal search list
+  // Filter products for modal
   const modalFilteredProducts = useMemo(() => {
     const q = modalSearchQuery.toLowerCase().trim();
     if (!q) return availableProducts;
@@ -76,7 +79,6 @@ const Quotation = () => {
     );
   }, [availableProducts, modalSearchQuery]);
 
-  // Handle select product from modal
   const selectProductFromModal = (prod: any) => {
     if (!activeRowId) return;
     handleItemChange(activeRowId, 'itemCode', prod.itemCode || '');
@@ -84,7 +86,6 @@ const Quotation = () => {
     setModalSearchQuery('');
   };
 
-  // Handle keyboard events in modal search
   const handleModalKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
@@ -102,7 +103,6 @@ const Quotation = () => {
     }
   };
 
-  // Focus modal input on open
   useEffect(() => {
     if (isProductModalOpen) {
       setTimeout(() => {
@@ -111,17 +111,19 @@ const Quotation = () => {
     }
   }, [isProductModalOpen]);
 
-  // --- Fetch Initial Setup Parameters ---
-  useEffect(() => {
-    // Fetch Next Quotation Sequence
+  // Fetch sequence & available products
+  const fetchNextSequence = () => {
     fetch(`${Api}/quotations/next-sequence`)
       .then(res => res.json())
       .then(data => {
         if (data.quoteNo) setQuoteNo(data.quoteNo);
       })
       .catch(err => console.error("Sequence generator failed", err));
+  };
 
-    // Fetch Products (Item Master mock/DB hook)
+  useEffect(() => {
+    fetchNextSequence();
+
     fetch(`${Api}/products/search?q=`)
       .then(res => res.json())
       .then(data => {
@@ -130,7 +132,7 @@ const Quotation = () => {
       .catch(err => console.error("Failed to fetch products", err));
   }, []);
 
-  // --- Precision Regional Accounting Logic & Math Matrix ---
+  // Accounting calculations
   let totalTaxable = 0;
   let totalCgst = 0;
   let totalSgst = 0;
@@ -174,14 +176,13 @@ const Quotation = () => {
   const roundingOffset = roundedGrandTotal - rawGrandTotal;
   const totalQty = lineItems.reduce((acc, item) => acc + (Number(item.quantity) || 0), 0);
 
-  // --- Handlers ---
+  // Handlers
   const handleItemChange = (id: string, field: keyof LineItem, value: any) => {
     setLineItems(prev => prev.map(item => {
       if (item.id !== id) return item;
 
       const updated = { ...item, [field]: value };
 
-      // Auto-populate description and price if a valid itemCode is matched
       if (field === 'itemCode' && value) {
         const product = availableProducts.find(p => p.itemCode === value || p.barcode === value || p.name === value);
         if (product) {
@@ -209,7 +210,6 @@ const Quotation = () => {
     setLineItems(prev => prev.filter(item => item.id !== id));
   };
 
-  // --- Unified Dynamic Data Validation Matrix ---
   const validateStructuralIntegrity = () => {
     if (lineItems.length === 0) {
       if (setGlobalNotification) setGlobalNotification({ msg: "Cannot save: Transaction array contains no lines.", type: "error" });
@@ -230,14 +230,129 @@ const Quotation = () => {
     return validItems;
   };
 
-  // --- Pipeline & Inter-Module Hand-Off ---
+  // Save Quotation Handler
+  const handleSaveQuotation = async () => {
+    const validItems = validateStructuralIntegrity();
+    if (!validItems) return;
+
+    setIsSaving(true);
+    const quotationPayload = {
+      quoteNo,
+      quoteDate,
+      validityDate,
+      customer: customer || 'CASH CUSTOMER',
+      mobileNo,
+      paymentTerms,
+      isInterstate,
+      status: 'SAVED',
+      totalQty,
+      totalTaxable,
+      totalCgst,
+      totalSgst,
+      totalIgst,
+      roundedGrandTotal,
+      items: validItems
+    };
+
+    try {
+      const response = await fetch(`${Api}/quotations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(quotationPayload)
+      });
+
+      const data = await response.json();
+      if (response.ok && data.success) {
+        setStatus('SAVED');
+        if (setGlobalNotification) {
+          setGlobalNotification({ msg: `Quotation ${quoteNo} Saved to Database Successfully!`, type: "success" });
+        }
+        fetchNextSequence();
+      } else {
+        if (setGlobalNotification) {
+          setGlobalNotification({ msg: `Save Failed: ${data.error || 'Unknown Error'}`, type: "error" });
+        }
+      }
+    } catch (err: any) {
+      console.error(err);
+      if (setGlobalNotification) setGlobalNotification({ msg: `Network Error: ${err.message}`, type: "error" });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Direct WhatsApp Share Handler (Saves to database & shares)
+  const handleWhatsAppShare = async () => {
+    const validItems = validateStructuralIntegrity();
+    if (!validItems) return;
+
+    let targetMobile = mobileNo.replace(/\D/g, '');
+    if (!targetMobile) {
+      if (setGlobalNotification) setGlobalNotification({ msg: "Please enter customer mobile number to share via WhatsApp.", type: "error" });
+      return;
+    }
+
+    if (targetMobile.length === 10) targetMobile = `91${targetMobile}`;
+
+    // Auto-save quotation to database table
+    const quotationPayload = {
+      quoteNo,
+      quoteDate,
+      validityDate,
+      customer: customer || 'CASH CUSTOMER',
+      mobileNo,
+      paymentTerms,
+      isInterstate,
+      status: 'SENT',
+      totalQty,
+      totalTaxable,
+      totalCgst,
+      totalSgst,
+      totalIgst,
+      roundedGrandTotal,
+      items: validItems
+    };
+
+    try {
+      const response = await fetch(`${Api}/quotations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(quotationPayload)
+      });
+
+      if (response.ok) {
+        setStatus('SENT');
+        fetchNextSequence();
+      }
+    } catch (err) {
+      console.error("Auto-save on WhatsApp share error:", err);
+    }
+
+    const itemsText = validItems.map((it, idx) =>
+      `${idx + 1}. ${it.itemDescription || it.itemCode} x ${it.quantity} @ ₹${it.unitPrice} = ₹${((Number(it.quantity) * Number(it.unitPrice)) * (1 - (Number(it.discountPercent) || 0) / 100)).toFixed(2)}`
+    ).join('\n');
+
+    const message = `*🧾 ESTIMATE QUOTATION - ${shopName || 'STORE'}*\n` +
+      `----------------------------------------\n` +
+      `📌 *Quote No:* ${quoteNo}\n` +
+      `📅 *Date:* ${quoteDate}\n` +
+      `👤 *Customer:* ${customer || 'Valued Customer'}\n` +
+      `----------------------------------------\n` +
+      `*ITEMS:*\n${itemsText}\n` +
+      `----------------------------------------\n` +
+      `💰 *GRAND TOTAL:* ₹${roundedGrandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}\n` +
+      `----------------------------------------\n` +
+      `Thank you for choosing us!`;
+
+    sendWhatsAppTextMessage(targetMobile, message);
+    if (setGlobalNotification) setGlobalNotification({ msg: `Quotation ${quoteNo} Saved to Register & Shared via WhatsApp!`, type: "success" });
+  };
+
   const handleConvert = () => {
     const validItems = validateStructuralIntegrity();
-    if (!validItems) return; // Validation failed, halt pipeline
+    if (!validItems) return;
 
     setIsConverting(true);
-
-    // Simulate pipeline hand-off and push array rows cleanly into POSCheckout state
     setTimeout(() => {
       setIsConverting(false);
       setStatus('CONVERTED');
@@ -259,43 +374,8 @@ const Quotation = () => {
         isInterstate
       };
 
-      // Navigate downstream to Sales Bill (POSCheckout) mapping the payload
-      setTimeout(() => navigate('/sales-bill', { state: { quotationPayload } }), 800);
-    }, 1000);
-  };
-
-  const handleEmail = async () => {
-    const validItems = validateStructuralIntegrity();
-    if (!validItems) return; // Halt exhaustive merge
-
-    setIsEmailing(true);
-
-    try {
-      const response = await fetch(`${Api}/quotations/send-email`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          quoteNo,
-          quoteDate,
-          customer: customer || 'Valued Customer',
-          totalAmount: roundedGrandTotal,
-          items: validItems
-        })
-      });
-
-      const data = await response.json();
-      if (data.success) {
-        if (status === 'DRAFT') setStatus('SENT');
-        if (setGlobalNotification) setGlobalNotification({ msg: "Quotation Email Sent Successfully!", type: "success" });
-      } else {
-        if (setGlobalNotification) setGlobalNotification({ msg: `Email Failed: ${data.details || 'Unknown Error'}`, type: "error" });
-      }
-    } catch (error: any) {
-      console.error(error);
-      if (setGlobalNotification) setGlobalNotification({ msg: `Network Error: ${error.message}`, type: "error" });
-    } finally {
-      setIsEmailing(false);
-    }
+      setTimeout(() => navigate('/sales-bill', { state: { quotationPayload } }), 600);
+    }, 800);
   };
 
   const handlePrintQuote = () => {
@@ -345,20 +425,29 @@ const Quotation = () => {
       <div className="bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-900 border border-blue-700 p-2.5 rounded-md shadow-md text-white flex flex-col md:flex-row items-center justify-between gap-3 shrink-0">
         <div className="flex items-center space-x-2">
           <div className="bg-blue-600 p-1.5 rounded text-white shadow-sm">
-            <Search size={18} />
+            <FileSignature size={18} />
           </div>
           <div>
             <h2 className="font-extrabold text-base tracking-wide text-blue-50">DYNAMIC ESTIMATE & QUOTATION ENGINE</h2>
-            <p className="text-[11px] text-blue-200">Generate estimates and convert them into sales tax bills seamlessly</p>
+            <p className="text-[11px] text-blue-200">Generate estimates, share on WhatsApp, and save to database table</p>
           </div>
         </div>
 
-        <div className={`px-4 py-1 rounded-full text-xs font-black tracking-wide uppercase ${status === 'DRAFT' ? 'bg-slate-700 text-slate-200' :
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={() => navigate('/quotation-register')}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1 px-3 rounded text-xs shadow flex items-center space-x-1"
+          >
+            <ListFilter size={14} />
+            <span>Quotation Register (History)</span>
+          </button>
+          <div className={`px-3 py-1 rounded-full text-xs font-black tracking-wide uppercase ${
+            status === 'CONVERTED' ? 'bg-purple-600 text-white' :
             status === 'SENT' ? 'bg-blue-600 text-white' :
-              status === 'ACCEPTED' ? 'bg-green-600 text-white animate-pulse' :
-                'bg-purple-600 text-white'
+            'bg-emerald-600 text-white'
           }`}>
-          {status}
+            {status}
+          </div>
         </div>
       </div>
 
@@ -371,7 +460,18 @@ const Quotation = () => {
             className="legacy-input w-full font-bold text-blue-900 bg-blue-50 py-0.5 px-2 focus:bg-yellow-50 outline-none border border-gray-300 rounded-sm"
             value={customer}
             onChange={e => setCustomer(e.target.value)}
-            placeholder="Search or Select Customer..."
+            placeholder="Customer Name..."
+          />
+        </div>
+
+        <label className="legacy-label text-right">Mobile No</label>
+        <div className="col-span-2 relative flex items-center">
+          <input
+            type="text"
+            className="legacy-input w-full font-bold text-gray-800 bg-white py-0.5 px-2 focus:bg-yellow-50 outline-none border border-gray-300 rounded-sm font-mono"
+            value={mobileNo}
+            onChange={e => setMobileNo(e.target.value)}
+            placeholder="10-digit Mobile..."
           />
         </div>
 
@@ -399,18 +499,44 @@ const Quotation = () => {
         </select>
       </div>
 
-      {/* Action Buttons Bar (Moved Upward) */}
+      {/* Action Buttons Bar */}
       <div className="flex space-x-2 bg-slate-50 p-1.5 border border-gray-300 rounded shadow-sm w-fit mb-1 mx-1">
         <button
           onClick={handleAddItem}
-          className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 px-3 rounded text-xs shadow transition-colors flex items-center space-x-1"
+          className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 px-3 rounded text-xs shadow transition-colors flex items-center space-x-1 cursor-pointer"
         >
           <Plus className="w-3.5 h-3.5" /> <span>Add Row</span>
         </button>
+
+        <button
+          onClick={handleSaveQuotation}
+          disabled={isSaving}
+          className="bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-300 text-white font-bold py-1.5 px-3 rounded text-xs shadow transition-all flex items-center space-x-1.5 cursor-pointer"
+        >
+          {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+          <span>Save Quotation</span>
+        </button>
+
+        <button
+          onClick={handleWhatsAppShare}
+          className="bg-green-600 hover:bg-green-700 text-white font-bold py-1.5 px-3 rounded text-xs shadow transition-all flex items-center space-x-1.5 cursor-pointer"
+        >
+          <MessageCircle className="w-3.5 h-3.5" />
+          <span>Share WhatsApp</span>
+        </button>
+
+        <button
+          onClick={handlePrintQuote}
+          className="bg-slate-700 hover:bg-slate-800 text-white font-bold py-1.5 px-3 rounded text-xs shadow transition-all flex items-center space-x-1.5 cursor-pointer"
+        >
+          <Printer className="w-3.5 h-3.5" />
+          <span>Print Receipt</span>
+        </button>
+
         <button
           onClick={handleConvert}
           disabled={isConverting || status === 'CONVERTED'}
-          className="bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white font-extrabold py-1.5 px-3 rounded text-xs shadow transition-all flex items-center space-x-1.5"
+          className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white font-extrabold py-1.5 px-3 rounded text-xs shadow transition-all flex items-center space-x-1.5 cursor-pointer"
         >
           {isConverting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCcw className="w-3.5 h-3.5" />}
           <span>{status === 'CONVERTED' ? 'Converted to Tax Bill' : 'Convert to Tax Bill'}</span>
@@ -474,7 +600,7 @@ const Quotation = () => {
                         setIsProductModalOpen(true);
                       }}
                       type="button"
-                      className="absolute right-1 px-1.5 py-0.5 text-[8px] font-bold bg-emerald-100 hover:bg-emerald-200 active:bg-emerald-300 text-emerald-700 rounded transition-colors shadow-sm"
+                      className="absolute right-1 px-1.5 py-0.5 text-[8px] font-bold bg-emerald-100 hover:bg-emerald-200 text-emerald-700 rounded transition-colors shadow-sm"
                       title="Search dress table"
                     >
                       Find
@@ -519,17 +645,13 @@ const Quotation = () => {
                   ₹{item.taxableValue.toFixed(2)}
                 </td>
                 <td className="border-r border-gray-300 p-0">
-                  <select
-                    className="w-full h-full p-2 text-center border-none outline-none focus:bg-yellow-100 font-bold bg-transparent text-xs"
+                  <input
+                    type="number"
+                    className="w-full h-full p-2 text-center border-none outline-none focus:bg-yellow-100 font-bold text-xs text-amber-900 font-mono"
                     value={item.taxRate}
                     onChange={(e) => handleItemChange(item.id, 'taxRate', e.target.value)}
-                  >
-                    <option value="0">0%</option>
-                    <option value="5">5%</option>
-                    <option value="12">12%</option>
-                    <option value="18">18%</option>
-                    <option value="28">28%</option>
-                  </select>
+                    placeholder="Tax %"
+                  />
                 </td>
                 <td className="border-r border-gray-300 p-2 text-right bg-gray-50 font-bold font-mono text-gray-900">
                   ₹{item.subtotal.toFixed(2)}
@@ -549,12 +671,10 @@ const Quotation = () => {
         </table>
       </div>
 
-      {/* 4. Totals & Terms Panel */}
+      {/* 4. Totals Panel */}
       <div className="grid grid-cols-3 gap-2 shrink-0">
-        {/* Left Actions Spacer */}
         <div className="col-span-2 flex flex-col justify-end pb-1"></div>
 
-        {/* Right Summary Calculations */}
         <div className="legacy-panel p-2 grid grid-cols-4 gap-x-2 gap-y-0.5 items-center text-xs font-semibold">
           <label className="legacy-label col-span-2 text-right">Total Qty</label>
           <input type="text" className="legacy-input col-span-2 text-right font-bold py-0.5" value={totalQty} disabled />
@@ -587,23 +707,21 @@ const Quotation = () => {
 
       {/* Dress Selection Modal */}
       {isProductModalOpen && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center backdrop-blur-sm" style={{ backgroundColor: 'rgba(0, 0, 0, 0.45)', backdropFilter: 'blur(3px)' }} onClick={() => setIsProductModalOpen(false)}>
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center backdrop-blur-xs" style={{ backgroundColor: 'rgba(0, 0, 0, 0.45)' }} onClick={() => setIsProductModalOpen(false)}>
           <div
             className="bg-white shadow-2xl flex flex-col border border-gray-300 rounded-lg overflow-hidden w-full max-w-4xl h-[500px]"
             onClick={e => e.stopPropagation()}
           >
-            {/* Modal Header */}
             <div className="bg-[#2b579a] text-white px-4 py-3 flex justify-between items-center shadow-md">
               <div className="flex items-center space-x-2">
                 <Search size={18} />
-                <span className="font-bold tracking-wide text-sm">Dress/Product Table Lookup</span>
+                <span className="font-bold tracking-wide text-sm">Product Lookup</span>
               </div>
               <button onClick={() => setIsProductModalOpen(false)} className="text-white hover:text-red-300 font-bold focus:outline-none text-lg">
                 ✕
               </button>
             </div>
 
-            {/* Search Input and Help */}
             <div className="p-3 bg-slate-100 border-b border-gray-300 flex items-center justify-between">
               <div className="relative flex-1 max-w-lg">
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
@@ -620,24 +738,17 @@ const Quotation = () => {
                   onKeyDown={handleModalKeyDown}
                 />
               </div>
-              <div className="text-[11px] text-slate-600 bg-white border border-slate-200 rounded px-2.5 py-1.5 shadow-sm space-x-3 flex font-medium">
-                <span><kbd className="bg-slate-100 border border-slate-300 rounded px-1 text-[9px] font-bold">↑</kbd> <kbd className="bg-slate-100 border border-slate-300 rounded px-1 text-[9px] font-bold">↓</kbd> Navigate</span>
-                <span><kbd className="bg-slate-100 border border-slate-300 rounded px-1 text-[9px] font-bold">Enter</kbd> Select</span>
-                <span><kbd className="bg-slate-100 border border-slate-300 rounded px-1 text-[9px] font-bold">Esc</kbd> Close</span>
-              </div>
             </div>
 
-            {/* List Table Headers */}
             <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-slate-200 border-b border-slate-300 text-xs font-bold text-slate-700 uppercase tracking-wider">
               <div className="col-span-2">Item Code</div>
-              <div className="col-span-4">Dress Name</div>
+              <div className="col-span-4">Item Name</div>
               <div className="col-span-2">Variety</div>
               <div className="col-span-1 text-center">Size</div>
               <div className="col-span-1 text-center">Stock</div>
               <div className="col-span-2 text-right">Price (₹)</div>
             </div>
 
-            {/* List Body */}
             <div className="overflow-y-auto flex-1 bg-white">
               {modalFilteredProducts.map((p, idx) => (
                 <div
@@ -669,7 +780,7 @@ const Quotation = () => {
               ))}
               {modalFilteredProducts.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-16 text-gray-400 italic">
-                  No matching dresses found in master catalog.
+                  No matching products found in catalog.
                 </div>
               )}
             </div>

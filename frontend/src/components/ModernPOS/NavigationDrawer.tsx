@@ -34,6 +34,7 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
       items: [
         { label: 'Sales Register', path: '/sales-register', icon: FileText, desc: 'All sales invoice history' },
         { label: 'Quotation / Estimate', path: '/quotation', icon: Receipt, desc: 'Create price estimates' },
+        { label: 'Quotation Register', path: '/quotation-register', icon: FileText, desc: 'History and filters for saved estimates' },
         { label: 'Sales Order', path: '/sales-order', icon: ShoppingBag, desc: 'Manage incoming customer orders' },
         { label: 'Sales Return', path: '/sales-return', icon: FileText, desc: 'Process credit notes & returns' },
       ]

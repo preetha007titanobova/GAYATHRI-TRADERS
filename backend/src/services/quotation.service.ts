@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import { ObjectId } from 'mongodb';
 import { getDb } from '../config/db';
 
 export const sendQuotationEmail = async (data: any): Promise<boolean> => {
@@ -12,7 +13,7 @@ export const sendQuotationEmail = async (data: any): Promise<boolean> => {
     },
   });
 
-  const itemsHtml = items.map((item: any) => 
+  const itemsHtml = (items || []).map((item: any) => 
     `<tr>
       <td style="border: 1px solid #ddd; padding: 8px;">${item.itemCode || ''}</td>
       <td style="border: 1px solid #ddd; padding: 8px;">${item.itemDescription || ''}</td>
@@ -69,14 +70,90 @@ export const getNextSequence = async (): Promise<string> => {
   let nextNum = 1;
   if (lastQuote && lastQuote.length > 0 && lastQuote[0].quoteNo && lastQuote[0].quoteNo.startsWith('QT-')) {
     const parts = lastQuote[0].quoteNo.split('-');
-    nextNum = parseInt(parts[2] || '0') + 1;
+    const numPart = parts[parts.length - 1];
+    const parsed = parseInt(numPart, 10);
+    if (!isNaN(parsed)) nextNum = parsed + 1;
   }
   
-  // FY format logic (e.g. 2026-2027)
   const today = new Date();
-  const month = today.getMonth() + 1; // 1-12
+  const month = today.getMonth() + 1;
   const currentYear = today.getFullYear();
   const fy = month >= 4 ? `${currentYear}-${(currentYear + 1).toString().slice(-2)}` : `${currentYear - 1}-${currentYear.toString().slice(-2)}`;
 
   return `QT-${fy}-${nextNum.toString().padStart(3, '0')}`;
+};
+
+export const createQuotation = async (data: any): Promise<any> => {
+  const db = await getDb();
+  const newQuote = {
+    ...data,
+    quoteNo: data.quoteNo || await getNextSequence(),
+    quoteDate: data.quoteDate ? new Date(data.quoteDate) : new Date(),
+    validityDate: data.validityDate ? new Date(data.validityDate) : null,
+    customer: data.customer || 'CASH CUSTOMER',
+    mobileNo: data.mobileNo || '',
+    paymentTerms: data.paymentTerms || '',
+    isInterstate: !!data.isInterstate,
+    status: data.status || 'SAVED',
+    totalQty: Number(data.totalQty) || 0,
+    totalTaxable: Number(data.totalTaxable) || 0,
+    totalCgst: Number(data.totalCgst) || 0,
+    totalSgst: Number(data.totalSgst) || 0,
+    totalIgst: Number(data.totalIgst) || 0,
+    roundedGrandTotal: Number(data.roundedGrandTotal) || 0,
+    items: Array.isArray(data.items) ? data.items : [],
+    createdAt: new Date(),
+    updatedAt: new Date()
+  };
+
+  const result = await db.collection('Quotation').insertOne(newQuote);
+  return { ...newQuote, _id: result.insertedId };
+};
+
+export const getQuotations = async (filters: any = {}): Promise<any[]> => {
+  const db = await getDb();
+  const query: any = {};
+
+  if (filters.startDate || filters.endDate) {
+    query.quoteDate = {};
+    if (filters.startDate) {
+      query.quoteDate.$gte = new Date(filters.startDate);
+    }
+    if (filters.endDate) {
+      const end = new Date(filters.endDate);
+      end.setHours(23, 59, 59, 999);
+      query.quoteDate.$lte = end;
+    }
+  }
+
+  if (filters.q) {
+    const regex = new RegExp(filters.q, 'i');
+    query.$or = [
+      { quoteNo: regex },
+      { customer: regex },
+      { mobileNo: regex }
+    ];
+  }
+
+  const quotes = await db.collection('Quotation').find(query).sort({ quoteDate: -1, createdAt: -1 }).toArray();
+  return quotes;
+};
+
+export const getQuotationById = async (id: string): Promise<any> => {
+  const db = await getDb();
+  const orConditions: any[] = [{ quoteNo: id }];
+  if (ObjectId.isValid(id)) {
+    orConditions.push({ _id: new ObjectId(id) });
+  }
+  return await db.collection('Quotation').findOne({ $or: orConditions });
+};
+
+export const deleteQuotation = async (id: string): Promise<boolean> => {
+  const db = await getDb();
+  const orConditions: any[] = [{ quoteNo: id }];
+  if (ObjectId.isValid(id)) {
+    orConditions.push({ _id: new ObjectId(id) });
+  }
+  const res = await db.collection('Quotation').deleteOne({ $or: orConditions });
+  return res.deletedCount > 0;
 };

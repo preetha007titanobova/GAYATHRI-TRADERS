@@ -393,6 +393,7 @@ const Layout = () => {
       '/barcode-generation': 'Barcode Generation',
       '/backup': 'Backup',
       '/quotation': 'Quotation',
+      '/quotation-register': 'Quotation Register',
       '/sales-order': 'Sales Order',
       '/sales-bill': 'Sales Bill',
       '/sales-return': 'Sales Return',
@@ -544,6 +545,7 @@ const Layout = () => {
                <Link to="/sales-order" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Sales Order</Link>
                <div className="border-t border-gray-300 my-1"></div>
                <Link to="/quotation" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Quotation</Link>
+               <Link to="/quotation-register" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Quotation Register</Link>
                <Link to="/shop-sales-bill" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Wholesale Sales Bill</Link>
                <Link to="/shop-sales-register" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Wholesale Sales Register</Link>
             </div>
@@ -703,6 +705,7 @@ const Layout = () => {
                 { name: 'Sales Status', path: '/sales-status' },
                 { name: 'Sales Order', path: '/sales-order' },
                 { name: 'Quotation', path: '/quotation' },
+                { name: 'Quotation Register', path: '/quotation-register' },
                 { name: 'Wholesale Sales Bill', path: '/shop-sales-bill' },
                 { name: 'Wholesale Sales Register', path: '/shop-sales-register' },
                 { name: 'Purchase Bill', path: '/purchase-bill' },

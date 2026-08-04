@@ -8,6 +8,7 @@ import LedgerMaster from './pages/LedgerMaster';
 import ItemMaster from './pages/ItemMaster';
 import Backup from './pages/Backup';
 import Quotation from './pages/Quotation';
+import QuotationRegister from './pages/QuotationRegister';
 import SalesOrder from './pages/SalesOrder';
 import SalesReturn from './pages/SalesReturn';
 import BarcodeGeneration from './pages/BarcodeGeneration';
@@ -67,6 +68,7 @@ function App() {
           
           {/* Sales */}
           <Route path="quotation" element={<Quotation />} />
+          <Route path="quotation-register" element={<QuotationRegister />} />
           <Route path="sales-order" element={<SalesOrder />} />
           <Route path="sales-bill" element={<POSCheckout />} />
           <Route path="sales-return" element={<SalesReturn />} />
