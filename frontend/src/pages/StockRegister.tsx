@@ -1299,100 +1299,99 @@ const StockRegister = () => {
       </Modal>
 
       {/* SINGLE PRODUCT DELETE CONFIRMATION MODAL */}
-      <Modal
-        isOpen={singleDeleteModalOpen}
-        onClose={() => { setSingleDeleteModalOpen(false); setItemToDelete(null); }}
-        title="Confirm Delete Product"
-      >
-        <div className="p-2 space-y-4">
-          <div className="flex items-center gap-3 bg-red-50 border border-red-200 p-3 rounded-lg text-red-800">
-            <AlertTriangle size={24} className="text-red-600 flex-shrink-0" />
-            <div>
-              <p className="text-sm font-bold">Are you sure you want to delete this product?</p>
-              <p className="text-xs text-red-700 mt-0.5">This action will remove the product and its master record from the database.</p>
+      {singleDeleteModalOpen && itemToDelete && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => { setSingleDeleteModalOpen(false); setItemToDelete(null); }}>
+          <div className="bg-white rounded-lg shadow-2xl max-w-md w-full overflow-hidden border border-gray-300" onClick={e => e.stopPropagation()}>
+            <div className="bg-red-600 text-white px-4 py-3 font-bold text-sm flex justify-between items-center shadow">
+              <span>Confirm Deletion</span>
+              <button onClick={() => { setSingleDeleteModalOpen(false); setItemToDelete(null); }} className="text-white hover:text-red-200 text-lg font-bold leading-none cursor-pointer">✕</button>
             </div>
-          </div>
-
-          {itemToDelete && (
-            <div className="bg-gray-50 border border-gray-300 p-3 rounded text-sm space-y-1">
-              <p><span className="font-bold text-gray-700">Item Code:</span> <span className="font-mono font-bold text-blue-800">{itemToDelete.itemCode}</span></p>
-              <p><span className="font-bold text-gray-700">Product Name:</span> <span className="font-bold text-gray-900">{itemToDelete.name}</span></p>
-              <p><span className="font-bold text-gray-700">Category / Variety:</span> {itemToDelete.department || '-'} / {itemToDelete.variety || '-'}</p>
-              <p><span className="font-bold text-gray-700">Current Stock:</span> <span className="font-mono font-bold text-emerald-700">{itemToDelete.dbStock ?? itemToDelete.stock ?? 0} {itemToDelete.uom || 'PCS'}</span></p>
+            <div className="p-4 text-sm text-slate-700 space-y-3">
+              <p className="font-semibold text-slate-800">Are you sure you want to delete this product?</p>
+              <div className="bg-slate-50 border border-slate-200 rounded p-3 text-xs text-slate-700 space-y-1.5 font-sans">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Item Code:</span>
+                  <span className="font-mono font-bold text-slate-900">{itemToDelete.itemCode}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Product Name:</span>
+                  <span className="font-semibold text-slate-800">{itemToDelete.name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Category / Variety:</span>
+                  <span className="font-medium text-slate-700">{itemToDelete.department || '-'} / {itemToDelete.variety || '-'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Current Stock:</span>
+                  <span className="font-mono font-bold text-emerald-700">{itemToDelete.dbStock ?? itemToDelete.stock ?? 0} {itemToDelete.uom || 'PCS'}</span>
+                </div>
+              </div>
+              <p className="text-xs text-red-600 font-bold">⚠️ Warning: This action cannot be undone.</p>
             </div>
-          )}
-
-          <div className="flex justify-end gap-2 pt-2">
-            <button
-              onClick={() => { setSingleDeleteModalOpen(false); setItemToDelete(null); }}
-              className="px-4 py-2 text-xs font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleConfirmSingleDelete}
-              disabled={deletingSingle}
-              className="px-4 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 border border-red-700 rounded transition-colors shadow flex items-center gap-1.5"
-            >
-              <Trash2 size={14} />
-              <span>{deletingSingle ? 'Deleting...' : 'Confirm Delete'}</span>
-            </button>
+            <div className="bg-slate-50 px-4 py-3 border-t border-slate-200 flex justify-end space-x-2">
+              <button
+                onClick={() => { setSingleDeleteModalOpen(false); setItemToDelete(null); }}
+                className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 rounded text-xs font-bold transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={deletingSingle}
+                onClick={handleConfirmSingleDelete}
+                className="px-4 py-1.5 bg-red-600 hover:bg-red-700 disabled:bg-red-300 text-white rounded text-xs font-bold shadow transition-colors cursor-pointer"
+              >
+                {deletingSingle ? 'Deleting...' : 'Confirm Delete'}
+              </button>
+            </div>
           </div>
         </div>
-      </Modal>
+      )}
 
       {/* BULK DELETE CONFIRMATION MODAL */}
-      <Modal
-        isOpen={bulkDeleteModalOpen}
-        onClose={() => { setBulkDeleteModalOpen(false); setBulkConfirmText(''); }}
-        title={`Bulk Delete Products (${selectedIds.length} Selected)`}
-      >
-        <div className="p-2 space-y-4">
-          <div className="flex items-center gap-3 bg-red-50 border border-red-200 p-3 rounded-lg text-red-800">
-            <AlertTriangle size={28} className="text-red-600 flex-shrink-0" />
-            <div>
-              <p className="text-sm font-bold">⚠️ CRITICAL WARNING</p>
-              <p className="text-xs text-red-700 mt-0.5">
-                You are about to permanently delete <span className="font-black text-red-900 underline">{selectedIds.length} selected products</span> from the Stock Register database. This action cannot be undone!
-              </p>
+      {bulkDeleteModalOpen && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => { setBulkDeleteModalOpen(false); setBulkConfirmText(''); }}>
+          <div className="bg-white rounded-lg shadow-2xl max-w-md w-full overflow-hidden border border-gray-300" onClick={e => e.stopPropagation()}>
+            <div className="bg-red-700 text-white px-4 py-3 font-bold text-sm flex justify-between items-center shadow">
+              <span>Bulk Delete Confirmation ({selectedIds.length} Selected)</span>
+              <button onClick={() => { setBulkDeleteModalOpen(false); setBulkConfirmText(''); }} className="text-white hover:text-red-200 text-lg font-bold leading-none cursor-pointer">✕</button>
+            </div>
+            <div className="p-4 text-sm text-slate-700 space-y-3">
+              <div className="bg-red-50 border border-red-200 rounded p-3 text-red-800 text-xs font-medium space-y-1">
+                <div className="font-bold flex items-center gap-1 text-sm">⚠️ High Risk Action</div>
+                <div>You are about to permanently delete <strong>{selectedIds.length}</strong> selected products from the database.</div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-slate-700">
+                  Type <span className="font-mono text-red-600 font-extrabold select-all">CONFIRM DELETE</span> below to unlock deletion:
+                </label>
+                <input
+                  type="text"
+                  autoFocus
+                  value={bulkConfirmText}
+                  onChange={(e) => setBulkConfirmText(e.target.value)}
+                  placeholder="Type CONFIRM DELETE"
+                  className="w-full border border-red-300 rounded px-3 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-500 uppercase tracking-wider bg-red-50/20"
+                />
+              </div>
+            </div>
+            <div className="bg-slate-50 px-4 py-3 border-t border-slate-200 flex justify-end space-x-2">
+              <button
+                onClick={() => { setBulkDeleteModalOpen(false); setBulkConfirmText(''); }}
+                className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 rounded text-xs font-bold transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={bulkConfirmText.trim().toUpperCase() !== 'CONFIRM DELETE' || deletingBulk}
+                onClick={handleConfirmBulkDelete}
+                className="px-4 py-1.5 bg-red-600 hover:bg-red-700 disabled:bg-gray-300 disabled:text-gray-500 disabled:border-gray-300 disabled:cursor-not-allowed text-white rounded text-xs font-bold shadow transition-colors cursor-pointer"
+              >
+                {deletingBulk ? 'Deleting...' : `Confirm Bulk Delete (${selectedIds.length})`}
+              </button>
             </div>
           </div>
-
-          <div className="bg-amber-50 border border-amber-200 p-3 rounded-md">
-            <label className="block text-xs font-bold text-amber-900 mb-1">
-              Type <span className="font-mono bg-amber-200 px-1 py-0.5 rounded text-red-700">CONFIRM DELETE</span> below to proceed:
-            </label>
-            <input
-              type="text"
-              placeholder="Type CONFIRM DELETE"
-              value={bulkConfirmText}
-              onChange={e => setBulkConfirmText(e.target.value)}
-              className="w-full text-sm font-mono font-bold p-2 border border-gray-400 rounded focus:border-red-500 focus:outline-none uppercase"
-            />
-          </div>
-
-          <div className="flex justify-end gap-2 pt-2">
-            <button
-              onClick={() => { setBulkDeleteModalOpen(false); setBulkConfirmText(''); }}
-              className="px-4 py-2 text-xs font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleConfirmBulkDelete}
-              disabled={bulkConfirmText.trim().toUpperCase() !== 'CONFIRM DELETE' || deletingBulk}
-              className={`px-4 py-2 text-xs font-bold text-white rounded border transition-colors flex items-center gap-1.5 shadow ${
-                bulkConfirmText.trim().toUpperCase() === 'CONFIRM DELETE' && !deletingBulk
-                  ? 'bg-red-600 hover:bg-red-700 border-red-700 cursor-pointer'
-                  : 'bg-red-300 border-red-300 cursor-not-allowed opacity-60'
-              }`}
-            >
-              <Trash2 size={14} />
-              <span>{deletingBulk ? 'Deleting Selected...' : 'Confirm Bulk Delete'}</span>
-            </button>
-          </div>
         </div>
-      </Modal>
+      )}
 
     </div>
   );
