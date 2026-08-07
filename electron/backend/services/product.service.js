@@ -24,6 +24,7 @@ exports.getStockRegisterReport = exports.getDailyStockStatus = exports.deletePro
 const mongodb_1 = require("mongodb");
 const db_1 = require("../config/db");
 const getProductByBarcode = (barcode) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
     try {
         const db = yield (0, db_1.getDb)();
         let product = yield db.collection('Product').findOne({
@@ -42,7 +43,24 @@ const getProductByBarcode = (barcode) => __awaiter(void 0, void 0, void 0, funct
             }
         }
         if (product) {
-            product.stock = Math.max(0, Number(product.stock) || 0);
+            const pItems = yield db.collection('PurchaseItem').find({
+                $or: [{ itemCode: product.itemCode }, { barcode: barcode }]
+            }).toArray();
+            if (pItems && pItems.length > 0) {
+                const totalInward = pItems.reduce((sum, i) => sum + ((Number(i.qty) || 0) + (Number(i.freeQty) || 0)), 0);
+                let totalOutward = 0;
+                try {
+                    const sItems = yield db_1.prisma.salesItem.findMany({
+                        where: { OR: [{ productId: product.id || ((_a = product._id) === null || _a === void 0 ? void 0 : _a.toString()) }, { itemCode: product.itemCode }] }
+                    });
+                    totalOutward = sItems.reduce((sum, i) => sum + (Number(i.qty) || 0), 0);
+                }
+                catch (se) { }
+                product.stock = Math.max(0, totalInward - totalOutward);
+            }
+            else {
+                product.stock = Math.max(0, Number(product.stock) || 0);
+            }
         }
         return product;
     }
@@ -97,6 +115,31 @@ const searchItems = (q) => __awaiter(void 0, void 0, void 0, function* () {
     catch (e) {
         console.error("Prisma product search error:", e);
     }
+    // Fetch purchase and sales totals to calculate accurate stock based on Purchase Register
+    const inwardMap = new Map();
+    const outwardMap = new Map();
+    try {
+        const db = yield (0, db_1.getDb)();
+        const purchaseItems = yield db.collection('PurchaseItem').find({}).toArray();
+        for (const item of purchaseItems) {
+            const codeKey = (item.itemCode || '').toUpperCase().trim();
+            const qty = (Number(item.qty) || 0) + (Number(item.freeQty) || 0);
+            if (codeKey) {
+                inwardMap.set(codeKey, (inwardMap.get(codeKey) || 0) + qty);
+            }
+        }
+        const salesItems = yield db_1.prisma.salesItem.findMany({});
+        for (const item of salesItems) {
+            const prodKey = (item.productId || '').toUpperCase().trim();
+            const qty = Number(item.qty) || 0;
+            if (prodKey) {
+                outwardMap.set(prodKey, (outwardMap.get(prodKey) || 0) + qty);
+            }
+        }
+    }
+    catch (e) {
+        console.error("Error fetching purchase/sales totals for searchItems stock calculation:", e);
+    }
     // Fetch defective sales returns to get damage reasons
     const returnReasonsMap = new Map();
     try {
@@ -124,19 +167,19 @@ const searchItems = (q) => __awaiter(void 0, void 0, void 0, function* () {
     }
     const map = new Map();
     [...mongoItems, ...prismaItems].forEach((item) => {
-        var _a, _b;
+        var _a, _b, _c;
         const codeKey = (item.itemCode || item.barcode || ((_a = item._id) === null || _a === void 0 ? void 0 : _a.toString()) || item.id || '').toUpperCase().trim();
         if (codeKey) {
             if (!map.has(codeKey)) {
                 const id = ((_b = item._id) === null || _b === void 0 ? void 0 : _b.toString()) || item.id;
-                map.set(codeKey, Object.assign(Object.assign({}, item), { id, _id: id, barcode: item.barcode || '', itemCode: item.itemCode || '', size: item.size || '', price: Number(item.price) || 0, stock: Math.max(0, Number(item.stock) || 0), damageReasons: returnReasonsMap.get(id) || [] }));
-            }
-            else {
-                const existing = map.get(codeKey);
-                const itemStock = Math.max(0, Number(item.stock) || 0);
-                if (itemStock > (existing.stock || 0)) {
-                    existing.stock = itemStock;
+                const totalInward = (_c = inwardMap.get(codeKey)) !== null && _c !== void 0 ? _c : (id ? inwardMap.get(id.toUpperCase()) : undefined);
+                const totalOutward = outwardMap.get(codeKey) || (id ? outwardMap.get(id.toUpperCase()) || 0 : 0);
+                // Compute stock from Purchase Register if purchase items exist
+                let calculatedStock = Math.max(0, Number(item.stock) || 0);
+                if (totalInward !== undefined) {
+                    calculatedStock = Math.max(0, totalInward - totalOutward);
                 }
+                map.set(codeKey, Object.assign(Object.assign({}, item), { id, _id: id, barcode: item.barcode || '', itemCode: item.itemCode || '', size: item.size || '', price: Number(item.price) || 0, stock: calculatedStock, damageReasons: returnReasonsMap.get(id) || [] }));
             }
         }
     });
@@ -546,7 +589,7 @@ const getStockRegisterReport = () => __awaiter(void 0, void 0, void 0, function*
                     vchType: 'Purchase',
                     vchNo: item.purchaseBill.voucherNo,
                     particulars: item.purchaseBill.supplierName,
-                    inward: item.qty,
+                    inward: (Number(item.qty) || 0) + (Number(item.freeQty) || 0),
                     outward: 0
                 });
             }

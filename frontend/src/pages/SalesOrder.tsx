@@ -579,9 +579,33 @@ const SalesOrder = () => {
         }
       }
 
+      if (field === 'quantityOrdered') {
+        const reqQty = Number(value) || 0;
+        const match = availableProducts.find(p =>
+          (p.itemCode && p.itemCode === updated.itemCode) ||
+          (p.barcode && p.barcode === updated.itemCode) ||
+          (p.name && updated.itemDescription && p.name.toLowerCase() === updated.itemDescription.toLowerCase())
+        );
+        if (match) {
+          const avail = typeof match.stock === 'number' ? match.stock : 0;
+          if (reqQty > avail) {
+            if (setGlobalNotification) {
+              setGlobalNotification({
+                msg: `⚠️ Stock Limit Warning: "${match.name}" has only ${avail} PCS in stock. Requested quantity (${reqQty}) exceeds stock.`,
+                type: 'error'
+              });
+              setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
+            }
+          }
+        }
+      }
+
       return updated;
     }));
   };
+
+  // Validation Errors state
+  const [formErrors, setFormErrors] = useState<{ customer?: string; mobileNo?: string; items?: string }>({});
 
   const handleSave = async () => {
     if (isReadOnly) {
@@ -589,22 +613,61 @@ const SalesOrder = () => {
       return;
     }
 
+    const errors: { customer?: string; mobileNo?: string; items?: string } = {};
+
     if (!customer || !customer.trim()) {
-      if (setGlobalNotification) setGlobalNotification({msg: "Customer Name is a mandatory field.", type: 'error'});
-      return;
+      errors.customer = "Customer Name is a mandatory field.";
     }
 
     const cleanPhone = (mobileNo || '').replace(/\D/g, '');
     if (!cleanPhone || cleanPhone.length < 10) {
-      if (setGlobalNotification) setGlobalNotification({msg: "Customer Phone Number is a mandatory field (minimum 10 digits).", type: 'error'});
+      errors.mobileNo = "Customer Phone Number is mandatory (minimum 10 digits).";
+    }
+
+    const validItems = lineItems.filter(item => Number(item.quantityOrdered) > 0 && (item.itemCode || item.itemDescription));
+    if (validItems.length === 0) {
+      errors.items = "Cannot save: Please add at least one valid item with Quantity > 0.";
+    }
+
+    // Strict Stock Check for Sales Order Items
+    for (const item of validItems) {
+      const match = availableProducts.find(p =>
+        (p.itemCode && p.itemCode === item.itemCode) ||
+        (p.barcode && p.barcode === item.itemCode) ||
+        (p.name && item.itemDescription && p.name.toLowerCase() === item.itemDescription.toLowerCase())
+      );
+      if (match) {
+        const avail = typeof match.stock === 'number' ? match.stock : 0;
+        const totalOrderedInOrder = lineItems.reduce((acc, l) => {
+          const isMatch = (l.itemCode && item.itemCode && l.itemCode === item.itemCode) ||
+                          (l.itemDescription && item.itemDescription && l.itemDescription.toLowerCase() === item.itemDescription.toLowerCase());
+          return isMatch ? acc + (Number(l.quantityOrdered) || 0) : acc;
+        }, 0);
+
+        if (avail <= 0) {
+          errors.items = `Cannot save order! "${match.name}" is OUT OF STOCK (0 PCS available).`;
+          break;
+        }
+        if (totalOrderedInOrder > avail) {
+          errors.items = `Cannot save order! "${match.name}" requested quantity (${totalOrderedInOrder}) exceeds available stock (${avail} PCS).`;
+          break;
+        }
+      }
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      if (errors.customer || errors.mobileNo) {
+        setIsLeftPanelOpen(true);
+      }
+      if (setGlobalNotification) {
+        const firstErr = errors.customer || errors.mobileNo || errors.items;
+        setGlobalNotification({ msg: `⚠️ Form Validation Failed: ${firstErr}`, type: 'error' });
+      }
       return;
     }
 
-    const validItems = lineItems.filter(item => Number(item.quantityOrdered) > 0 && item.itemCode);
-    if (validItems.length === 0) {
-      if (setGlobalNotification) setGlobalNotification({msg: "Cannot save: Please add at least one valid item.", type: 'error'});
-      return;
-    }
+    setFormErrors({});
 
     if (setGlobalNotification) {
       setGlobalNotification({msg: "Saving Sales Order...", type: 'info'});
@@ -857,11 +920,21 @@ Thank you!`;
                 <input 
                   type="text" 
                   value={customer} 
-                  onChange={e => setCustomer(e.target.value)}
+                  onChange={e => {
+                    setCustomer(e.target.value);
+                    if (formErrors.customer) setFormErrors(prev => ({ ...prev, customer: undefined }));
+                  }}
                   disabled={isReadOnly}
                   placeholder="Enter Customer Name"
-                  className="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm outline-none focus:border-blue-500"
+                  className={`w-full border rounded-md px-3 py-1.5 text-sm outline-none focus:border-blue-500 ${
+                    formErrors.customer ? 'border-2 border-red-500 bg-red-50 text-red-900 font-semibold' : 'border-slate-300'
+                  }`}
                 />
+                {formErrors.customer && (
+                  <span className="text-[11px] font-bold text-red-600 block mt-0.5 animate-pulse">
+                    ⚠️ {formErrors.customer}
+                  </span>
+                )}
               </div>
 
               {availableCustomers.some(c => c.accountName === customer) && (
@@ -886,11 +959,21 @@ Thank you!`;
                 <input 
                   type="text" 
                   value={mobileNo} 
-                  onChange={e => setMobileNo(e.target.value)}
+                  onChange={e => {
+                    setMobileNo(e.target.value);
+                    if (formErrors.mobileNo) setFormErrors(prev => ({ ...prev, mobileNo: undefined }));
+                  }}
                   disabled={isReadOnly}
                   placeholder="10-digit mobile number"
-                  className="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm outline-none focus:border-blue-500"
+                  className={`w-full border rounded-md px-3 py-1.5 text-sm outline-none focus:border-blue-500 ${
+                    formErrors.mobileNo ? 'border-2 border-red-500 bg-red-50 text-red-900 font-semibold' : 'border-slate-300'
+                  }`}
                 />
+                {formErrors.mobileNo && (
+                  <span className="text-[11px] font-bold text-red-600 block mt-0.5 animate-pulse">
+                    ⚠️ {formErrors.mobileNo}
+                  </span>
+                )}
               </div>
 
               <div>
@@ -1069,15 +1152,44 @@ Thank you!`;
                             className="w-full bg-transparent border border-slate-200 rounded px-2 py-1 focus:border-blue-500 outline-none text-center"
                           />
                         </td>
-                        <td className="p-2">
-                          <input 
-                            type="number" 
-                            value={item.quantityOrdered}
-                            onChange={e => handleItemChange(item.lineId, 'quantityOrdered', e.target.value)}
-                            disabled={isReadOnly}
-                            min="1"
-                            className="w-full bg-transparent border border-slate-200 rounded px-2 py-1 text-center outline-none focus:border-blue-500"
-                          />
+                        <td className="p-2 relative">
+                          {(() => {
+                            const match = availableProducts.find(p =>
+                              (p.itemCode && p.itemCode === item.itemCode) ||
+                              (p.barcode && p.barcode === item.itemCode) ||
+                              (p.name && item.itemDescription && p.name.toLowerCase() === item.itemDescription.toLowerCase())
+                            );
+                            const availStock = match ? (typeof match.stock === 'number' ? match.stock : 0) : null;
+                            const totalOrderedInOrder = lineItems.reduce((acc, l) => {
+                              const isMatch = (l.itemCode && item.itemCode && l.itemCode === item.itemCode) ||
+                                              (l.itemDescription && item.itemDescription && l.itemDescription.toLowerCase() === item.itemDescription.toLowerCase());
+                              return isMatch ? acc + (Number(l.quantityOrdered) || 0) : acc;
+                            }, 0);
+                            const isExceeding = availStock !== null && totalOrderedInOrder > availStock;
+
+                            return (
+                              <div className="relative flex items-center justify-center">
+                                <input 
+                                  type="number" 
+                                  value={item.quantityOrdered}
+                                  onChange={e => handleItemChange(item.lineId, 'quantityOrdered', e.target.value)}
+                                  disabled={isReadOnly}
+                                  min="1"
+                                  className={`w-full bg-transparent border rounded px-2 py-1 text-center outline-none focus:border-blue-500 font-bold ${
+                                    isExceeding ? 'bg-red-100 text-red-900 border-2 border-red-500 font-extrabold ring-1 ring-red-400' : 'border-slate-200'
+                                  }`}
+                                />
+                                {isExceeding && (
+                                  <span 
+                                    className="absolute -top-3 right-0 bg-red-600 text-white text-[9px] font-extrabold px-1 rounded shadow z-10 whitespace-nowrap animate-pulse pointer-events-none"
+                                    title={`Total ordered (${totalOrderedInOrder}) exceeds available stock (${availStock} PCS)`}
+                                  >
+                                    ⚠️ Max: {availStock}
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td className="p-2 text-center font-mono text-slate-500 bg-slate-50/30">
                           {item.quantityFulfilled}
@@ -1330,9 +1442,35 @@ Thank you!`;
                     {p.size || '-'}
                   </div>
                   <div className="col-span-1 text-center">
-                    <span className={`px-1.5 py-0.5 rounded-full text-xs font-bold ${p.stock > 10 ? 'bg-green-100 text-green-800' : p.stock > 0 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}`}>
-                      {p.stock}
-                    </span>
+                    {(() => {
+                      const qtyInCurrentOrder = lineItems.reduce((acc, l) => {
+                        const isMatch = (l.itemCode && p.itemCode && l.itemCode === p.itemCode) ||
+                                        (l.itemDescription && p.name && l.itemDescription.toLowerCase() === p.name.toLowerCase());
+                        return isMatch ? acc + (Number(l.quantityOrdered) || 0) : acc;
+                      }, 0);
+                      const effectiveStock = (typeof p.stock === 'number' ? p.stock : 0) - qtyInCurrentOrder;
+
+                      return (
+                        <div className="flex flex-col items-center">
+                          <span className={`px-1.5 py-0.5 rounded-full text-xs font-bold ${
+                            idx === highlightedProductIndex
+                              ? 'text-black'
+                              : effectiveStock > 10 
+                                ? 'bg-green-100 text-green-800' 
+                                : effectiveStock > 0 
+                                  ? 'bg-yellow-100 text-yellow-800 font-extrabold' 
+                                  : 'bg-red-100 text-red-800 font-extrabold'
+                          }`}>
+                            {effectiveStock > 0 ? effectiveStock : '0 (NO STOCK)'}
+                          </span>
+                          {qtyInCurrentOrder > 0 && (
+                            <span className="text-[9px] text-blue-900 font-extrabold whitespace-nowrap mt-0.5">
+                              ({qtyInCurrentOrder} in order)
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                   <div className="col-span-2 text-right font-mono font-extrabold text-slate-800">
                     {Number(p.price || 0).toFixed(2)}

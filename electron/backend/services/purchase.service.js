@@ -9,7 +9,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deletePurchaseReturn = exports.updatePurchaseReturn = exports.searchPurchaseReturns = exports.createPurchaseReturn = exports.getNextPurchaseReturnVoucher = exports.deletePurchaseBill = exports.updatePurchaseBill = exports.searchPurchaseBills = exports.createPurchaseBill = exports.getNextPurchaseVoucher = void 0;
+exports.getPurchaseBillById = exports.deletePurchaseReturn = exports.updatePurchaseReturn = exports.searchPurchaseReturns = exports.createPurchaseReturn = exports.getNextPurchaseReturnVoucher = exports.deletePurchaseBill = exports.updatePurchaseBill = exports.searchPurchaseBills = exports.createPurchaseBill = exports.getNextPurchaseVoucher = void 0;
 const mongodb_1 = require("mongodb");
 const db_1 = require("../config/db");
 const getNextPurchaseVoucher = () => __awaiter(void 0, void 0, void 0, function* () {
@@ -197,20 +197,41 @@ exports.searchPurchaseBills = searchPurchaseBills;
 const updatePurchaseBill = (id, data) => __awaiter(void 0, void 0, void 0, function* () {
     const db = yield (0, db_1.getDb)();
     const billId = new mongodb_1.ObjectId(id);
-    // 1. Get old items to revert stock
+    // 1. Get old items to revert stock cleanly
     const oldItems = yield db.collection('PurchaseItem').find({ purchaseBillId: billId }).toArray();
     for (const item of oldItems) {
         const qty = Number(item.qty) || 0;
         const freeQty = Number(item.freeQty) || 0;
-        if ((qty + freeQty) > 0 && item.productId) {
-            yield db_1.prisma.product.update({
-                where: { id: item.productId.toString() },
-                data: {
-                    stock: {
-                        decrement: Math.round(qty + freeQty)
+        const totalItemQty = Math.round(qty + freeQty);
+        if (totalItemQty > 0) {
+            let prod = null;
+            if (item.productId) {
+                prod = yield db_1.prisma.product.findUnique({ where: { id: item.productId.toString() } });
+            }
+            if (!prod && item.itemCode) {
+                prod = yield db_1.prisma.product.findFirst({
+                    where: { itemCode: { equals: item.itemCode.trim(), mode: 'insensitive' } }
+                });
+            }
+            if (!prod && (item.itemName || item.itemDesc)) {
+                prod = yield db_1.prisma.product.findFirst({
+                    where: { name: { equals: (item.itemName || item.itemDesc).trim(), mode: 'insensitive' } }
+                });
+            }
+            if (prod) {
+                yield db_1.prisma.product.update({
+                    where: { id: prod.id },
+                    data: {
+                        stock: {
+                            decrement: totalItemQty
+                        }
                     }
-                }
-            });
+                });
+                yield db.collection('Product').updateOne({ _id: new mongodb_1.ObjectId(prod.id) }, { $inc: { stock: -totalItemQty } });
+            }
+            else if (item.itemCode) {
+                yield db.collection('Product').updateOne({ itemCode: item.itemCode }, { $inc: { stock: -totalItemQty } });
+            }
         }
     }
     // 2. Delete old items
@@ -628,3 +649,21 @@ const deletePurchaseReturn = (id) => __awaiter(void 0, void 0, void 0, function*
     return result.deletedCount > 0;
 });
 exports.deletePurchaseReturn = deletePurchaseReturn;
+const getPurchaseBillById = (id) => __awaiter(void 0, void 0, void 0, function* () {
+    const db = yield (0, db_1.getDb)();
+    let bill = null;
+    try {
+        bill = yield db.collection('PurchaseBill').findOne({ _id: new mongodb_1.ObjectId(id) });
+    }
+    catch (e) {
+        bill = yield db.collection('PurchaseBill').findOne({ voucherNo: id });
+    }
+    if (!bill) {
+        bill = yield db.collection('PurchaseBill').findOne({ voucherNo: id });
+    }
+    if (!bill)
+        return null;
+    const items = yield db.collection('PurchaseItem').find({ purchaseBillId: bill._id }).toArray();
+    return Object.assign(Object.assign({}, bill), { id: bill._id.toString(), _id: bill._id.toString(), items: items.map(i => { var _a; return (Object.assign(Object.assign({}, i), { id: (_a = i._id) === null || _a === void 0 ? void 0 : _a.toString() })); }) });
+});
+exports.getPurchaseBillById = getPurchaseBillById;

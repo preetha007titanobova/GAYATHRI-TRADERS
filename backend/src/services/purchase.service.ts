@@ -217,20 +217,47 @@ export const updatePurchaseBill = async (id: string, data: any): Promise<boolean
   const db = await getDb();
   const billId = new ObjectId(id);
 
-  // 1. Get old items to revert stock
+  // 1. Get old items to revert stock cleanly
   const oldItems = await db.collection('PurchaseItem').find({ purchaseBillId: billId }).toArray();
   for (const item of oldItems) {
     const qty = Number(item.qty) || 0;
     const freeQty = Number(item.freeQty) || 0;
-    if ((qty + freeQty) > 0 && item.productId) {
-      await prisma.product.update({
-        where: { id: item.productId.toString() },
-        data: {
-          stock: {
-            decrement: Math.round(qty + freeQty)
+    const totalItemQty = Math.round(qty + freeQty);
+    if (totalItemQty > 0) {
+      let prod = null;
+      if (item.productId) {
+        prod = await prisma.product.findUnique({ where: { id: item.productId.toString() } });
+      }
+      if (!prod && item.itemCode) {
+        prod = await prisma.product.findFirst({
+          where: { itemCode: { equals: item.itemCode.trim(), mode: 'insensitive' } }
+        });
+      }
+      if (!prod && (item.itemName || item.itemDesc)) {
+        prod = await prisma.product.findFirst({
+          where: { name: { equals: (item.itemName || item.itemDesc).trim(), mode: 'insensitive' } }
+        });
+      }
+
+      if (prod) {
+        await prisma.product.update({
+          where: { id: prod.id },
+          data: {
+            stock: {
+              decrement: totalItemQty
+            }
           }
-        }
-      });
+        });
+        await db.collection('Product').updateOne(
+          { _id: new ObjectId(prod.id) },
+          { $inc: { stock: -totalItemQty } }
+        );
+      } else if (item.itemCode) {
+        await db.collection('Product').updateOne(
+          { itemCode: item.itemCode },
+          { $inc: { stock: -totalItemQty } }
+        );
+      }
     }
   }
 
@@ -698,4 +725,26 @@ export const deletePurchaseReturn = async (id: string): Promise<boolean> => {
   await db.collection('PurchaseReturnItem').deleteMany({ purchaseReturnId: returnId });
   const result = await db.collection('PurchaseReturn').deleteOne({ _id: returnId });
   return result.deletedCount > 0;
+};
+
+export const getPurchaseBillById = async (id: string): Promise<any> => {
+  const db = await getDb();
+  let bill = null;
+  try {
+    bill = await db.collection('PurchaseBill').findOne({ _id: new ObjectId(id) });
+  } catch (e) {
+    bill = await db.collection('PurchaseBill').findOne({ voucherNo: id });
+  }
+  if (!bill) {
+    bill = await db.collection('PurchaseBill').findOne({ voucherNo: id });
+  }
+  if (!bill) return null;
+
+  const items = await db.collection('PurchaseItem').find({ purchaseBillId: bill._id }).toArray();
+  return {
+    ...bill,
+    id: bill._id.toString(),
+    _id: bill._id.toString(),
+    items: items.map(i => ({ ...i, id: i._id?.toString() }))
+  };
 };

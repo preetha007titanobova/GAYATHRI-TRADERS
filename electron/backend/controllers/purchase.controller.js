@@ -42,7 +42,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deletePurchaseReturn = exports.updatePurchaseReturn = exports.searchPurchaseReturns = exports.createPurchaseReturn = exports.getNextPurchaseReturnVoucher = exports.deletePurchaseBill = exports.updatePurchaseBill = exports.searchPurchaseBills = exports.createPurchaseBill = exports.getNextPurchaseVoucher = void 0;
+exports.deletePurchaseReturn = exports.updatePurchaseReturn = exports.searchPurchaseReturns = exports.createPurchaseReturn = exports.getNextPurchaseReturnVoucher = exports.deletePurchaseBill = exports.updatePurchaseBill = exports.getPurchaseBillById = exports.searchPurchaseBills = exports.createPurchaseBill = exports.getNextPurchaseVoucher = void 0;
 const purchaseService = __importStar(require("../services/purchase.service"));
 const getNextPurchaseVoucher = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
@@ -78,6 +78,21 @@ const searchPurchaseBills = (req, res) => __awaiter(void 0, void 0, void 0, func
     }
 });
 exports.searchPurchaseBills = searchPurchaseBills;
+const getPurchaseBillById = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { id } = req.params;
+        const bill = yield purchaseService.getPurchaseBillById(id);
+        if (!bill) {
+            return res.status(404).json({ error: 'Purchase bill not found' });
+        }
+        res.json(bill);
+    }
+    catch (error) {
+        console.error("Error fetching purchase bill by ID:", error);
+        res.status(500).json({ error: 'Failed to fetch purchase bill', details: error.message });
+    }
+});
+exports.getPurchaseBillById = getPurchaseBillById;
 const updatePurchaseBill = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { id } = req.params;

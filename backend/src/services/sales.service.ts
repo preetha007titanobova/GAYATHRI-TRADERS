@@ -111,30 +111,32 @@ export const createSalesBill = async (data: any): Promise<any> => {
       }
 
       const qty = Number(item.qty) || 0;
-      if (product) {
-        productId = new ObjectId(product.id);
-        if (qty > 0) {
-          const currentStock = Number(product.stock) || 0;
-          const updatedStock = Math.max(0, currentStock - Math.round(qty));
-          await prisma.product.update({
-            where: { id: product.id },
-            data: { stock: updatedStock }
-          });
-          await db.collection('Product').updateOne(
-            { _id: new ObjectId(product.id) },
-            { $set: { stock: updatedStock } }
-          );
-        }
-      } else {
-        if (qty > 0 && item.itemName) {
-          const p = await db.collection('Product').findOne({ name: item.itemName });
-          if (p) {
-            const currentStock = Number(p.stock) || 0;
+      if (!fromSalesOrderId) {
+        if (product) {
+          productId = new ObjectId(product.id);
+          if (qty > 0) {
+            const currentStock = Number(product.stock) || 0;
             const updatedStock = Math.max(0, currentStock - Math.round(qty));
+            await prisma.product.update({
+              where: { id: product.id },
+              data: { stock: updatedStock }
+            });
             await db.collection('Product').updateOne(
-              { _id: p._id },
+              { _id: new ObjectId(product.id) },
               { $set: { stock: updatedStock } }
             );
+          }
+        } else {
+          if (qty > 0 && item.itemName) {
+            const p = await db.collection('Product').findOne({ name: item.itemName });
+            if (p) {
+              const currentStock = Number(p.stock) || 0;
+              const updatedStock = Math.max(0, currentStock - Math.round(qty));
+              await db.collection('Product').updateOne(
+                { _id: p._id },
+                { $set: { stock: updatedStock } }
+              );
+            }
           }
         }
       }
@@ -1207,16 +1209,49 @@ export const createSalesOrder = async (data: any): Promise<any> => {
     const itemsToInsert = [];
     for (const item of items) {
       let productId = item.productId ? new ObjectId(item.productId as string) : null;
-      if (!productId && item.itemCode) {
-        const prod = await prisma.product.findUnique({
-          where: { itemCode: item.itemCode }
+      let product = null;
+
+      if (productId) {
+        product = await prisma.product.findUnique({ where: { id: productId.toString() } });
+      }
+      if (!product && item.itemCode) {
+        product = await prisma.product.findFirst({
+          where: { OR: [{ itemCode: item.itemCode }, { barcode: item.itemCode }] }
         });
-        if (prod) {
-          productId = new ObjectId(prod.id);
-        }
+      }
+      if (!product && (item.itemDescription || item.itemName)) {
+        product = await prisma.product.findFirst({
+          where: { name: item.itemDescription || item.itemName }
+        });
       }
 
       const qty = Number(item.quantityOrdered) || 0;
+
+      if (product && qty > 0) {
+        productId = new ObjectId(product.id);
+        const currentStock = Number(product.stock) || 0;
+        const updatedStock = Math.max(0, currentStock - Math.round(qty));
+        await prisma.product.update({
+          where: { id: product.id },
+          data: { stock: updatedStock }
+        });
+        await db.collection('Product').updateOne(
+          { _id: new ObjectId(product.id) },
+          { $set: { stock: updatedStock } }
+        );
+      } else if (qty > 0 && (item.itemDescription || item.itemName)) {
+        const itemName = item.itemDescription || item.itemName;
+        const p = await db.collection('Product').findOne({ name: itemName });
+        if (p) {
+          const currentStock = Number(p.stock) || 0;
+          const updatedStock = Math.max(0, currentStock - Math.round(qty));
+          await db.collection('Product').updateOne(
+            { _id: p._id },
+            { $set: { stock: updatedStock } }
+          );
+        }
+      }
+
       itemsToInsert.push({
         salesOrderId: orderResult.insertedId,
         productId,

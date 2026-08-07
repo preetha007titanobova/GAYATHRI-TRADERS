@@ -177,6 +177,9 @@ const Quotation = () => {
   const totalQty = lineItems.reduce((acc, item) => acc + (Number(item.quantity) || 0), 0);
 
   // Handlers
+  // Validation Errors state
+  const [formErrors, setFormErrors] = useState<{ customer?: string; mobileNo?: string; items?: string }>({});
+
   const handleItemChange = (id: string, field: keyof LineItem, value: any) => {
     setLineItems(prev => prev.map(item => {
       if (item.id !== id) return item;
@@ -190,6 +193,28 @@ const Quotation = () => {
           updated.unitPrice = product.price;
         }
       }
+
+      if (field === 'quantity') {
+        const reqQty = Number(value) || 0;
+        const match = availableProducts.find(p =>
+          (p.itemCode && p.itemCode === updated.itemCode) ||
+          (p.barcode && p.barcode === updated.itemCode) ||
+          (p.name && updated.itemDescription && p.name.toLowerCase() === updated.itemDescription.toLowerCase())
+        );
+        if (match) {
+          const avail = typeof match.stock === 'number' ? match.stock : 0;
+          if (reqQty > avail) {
+            if (setGlobalNotification) {
+              setGlobalNotification({
+                msg: `⚠️ Stock Limit Warning: "${match.name}" has only ${avail} PCS in stock. Requested quantity (${reqQty}) exceeds stock.`,
+                type: 'error'
+              });
+              setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
+            }
+          }
+        }
+      }
+
       return updated;
     }));
   };
@@ -211,9 +236,19 @@ const Quotation = () => {
   };
 
   const validateStructuralIntegrity = () => {
+    const errors: { customer?: string; mobileNo?: string; items?: string } = {};
+
+    if (!customer || !customer.trim()) {
+      errors.customer = "Customer Name is a mandatory field.";
+    }
+
+    const cleanMobile = (mobileNo || '').replace(/\D/g, '');
+    if (!cleanMobile || cleanMobile.length < 10) {
+      errors.mobileNo = "Customer Phone Number is mandatory (minimum 10 digits).";
+    }
+
     if (lineItems.length === 0) {
-      if (setGlobalNotification) setGlobalNotification({ msg: "Cannot save: Transaction array contains no lines.", type: "error" });
-      return null;
+      errors.items = "Cannot save: Quotation contains no item lines.";
     }
 
     const validItems = lineItems.filter(item => {
@@ -222,11 +257,46 @@ const Quotation = () => {
       return qty > 0 && price > 0 && (item.itemCode.trim() !== '' || item.itemDescription.trim() !== '');
     });
 
-    if (validItems.length === 0) {
-      if (setGlobalNotification) setGlobalNotification({ msg: "Cannot save: Please add at least one valid item with a price.", type: "error" });
+    if (validItems.length === 0 && !errors.items) {
+      errors.items = "Cannot save: Please add at least one valid item with Quantity > 0 and Unit Price > 0.";
+    }
+
+    // Strict Stock Check for Quotation Line Items
+    for (const item of validItems) {
+      const match = availableProducts.find(p =>
+        (p.itemCode && p.itemCode === item.itemCode) ||
+        (p.barcode && p.barcode === item.itemCode) ||
+        (p.name && item.itemDescription && p.name.toLowerCase() === item.itemDescription.toLowerCase())
+      );
+      if (match) {
+        const avail = typeof match.stock === 'number' ? match.stock : 0;
+        const totalQtyForProduct = lineItems.reduce((acc, l) => {
+          const isMatch = (l.itemCode && item.itemCode && l.itemCode === item.itemCode) ||
+                          (l.itemDescription && item.itemDescription && l.itemDescription.toLowerCase() === item.itemDescription.toLowerCase());
+          return isMatch ? acc + (Number(l.quantity) || 0) : acc;
+        }, 0);
+
+        if (avail <= 0) {
+          errors.items = `Cannot save quotation! "${match.name}" is OUT OF STOCK (0 PCS available).`;
+          break;
+        }
+        if (totalQtyForProduct > avail) {
+          errors.items = `Cannot save quotation! "${match.name}" requested quantity (${totalQtyForProduct}) exceeds available stock (${avail} PCS).`;
+          break;
+        }
+      }
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      if (setGlobalNotification) {
+        const firstErr = errors.customer || errors.mobileNo || errors.items;
+        setGlobalNotification({ msg: `⚠️ Form Validation Failed: ${firstErr}`, type: "error" });
+      }
       return null;
     }
 
+    setFormErrors({});
     return validItems;
   };
 
@@ -454,25 +524,41 @@ const Quotation = () => {
       {/* 2. Main Document Input Panel */}
       <div className="legacy-panel p-2.5 text-xs grid grid-cols-12 gap-x-2 gap-y-1.5 items-center shrink-0">
         <label className="legacy-label text-right">Customer</label>
-        <div className="col-span-3 relative flex items-center">
+        <div className="col-span-3 relative flex flex-col">
           <input
             type="text"
-            className="legacy-input w-full font-bold text-blue-900 bg-blue-50 py-0.5 px-2 focus:bg-yellow-50 outline-none border border-gray-300 rounded-sm"
+            className={`legacy-input w-full font-bold text-blue-900 bg-blue-50 py-0.5 px-2 focus:bg-yellow-50 outline-none border rounded-sm ${
+              formErrors.customer ? 'border-2 border-red-500 bg-red-50 text-red-900' : 'border-gray-300'
+            }`}
             value={customer}
-            onChange={e => setCustomer(e.target.value)}
+            onChange={e => {
+              setCustomer(e.target.value);
+              if (formErrors.customer) setFormErrors(prev => ({ ...prev, customer: undefined }));
+            }}
             placeholder="Customer Name..."
           />
+          {formErrors.customer && (
+            <span className="text-[10px] font-bold text-red-600 animate-pulse">⚠️ {formErrors.customer}</span>
+          )}
         </div>
 
         <label className="legacy-label text-right">Mobile No</label>
-        <div className="col-span-2 relative flex items-center">
+        <div className="col-span-2 relative flex flex-col">
           <input
             type="text"
-            className="legacy-input w-full font-bold text-gray-800 bg-white py-0.5 px-2 focus:bg-yellow-50 outline-none border border-gray-300 rounded-sm font-mono"
+            className={`legacy-input w-full font-bold text-gray-800 bg-white py-0.5 px-2 focus:bg-yellow-50 outline-none border rounded-sm font-mono ${
+              formErrors.mobileNo ? 'border-2 border-red-500 bg-red-50 text-red-900' : 'border-gray-300'
+            }`}
             value={mobileNo}
-            onChange={e => setMobileNo(e.target.value)}
+            onChange={e => {
+              setMobileNo(e.target.value);
+              if (formErrors.mobileNo) setFormErrors(prev => ({ ...prev, mobileNo: undefined }));
+            }}
             placeholder="10-digit Mobile..."
           />
+          {formErrors.mobileNo && (
+            <span className="text-[10px] font-bold text-red-600 animate-pulse">⚠️ {formErrors.mobileNo}</span>
+          )}
         </div>
 
         <label className="legacy-label text-right">Quote No</label>
@@ -525,13 +611,13 @@ const Quotation = () => {
           <span>Share WhatsApp</span>
         </button>
 
-        <button
+        {/* <button
           onClick={handlePrintQuote}
           className="bg-slate-700 hover:bg-slate-800 text-white font-bold py-1.5 px-3 rounded text-xs shadow transition-all flex items-center space-x-1.5 cursor-pointer"
         >
           <Printer className="w-3.5 h-3.5" />
           <span>Print Receipt</span>
-        </button>
+        </button> */}
 
         <button
           onClick={handleConvert}
@@ -616,14 +702,45 @@ const Quotation = () => {
                     placeholder="Custom description..."
                   />
                 </td>
-                <td className="border-r border-gray-300 p-0">
-                  <input
-                    type="number"
-                    className="w-full h-full p-2 text-center border-none outline-none focus:bg-yellow-100 font-bold text-xs"
-                    value={item.quantity}
-                    onChange={(e) => handleItemChange(item.id, 'quantity', e.target.value)}
-                    min="1"
-                  />
+                <td className="border-r border-gray-300 p-0 relative">
+                  {(() => {
+                    const match = availableProducts.find(p =>
+                      (p.itemCode && p.itemCode === item.itemCode) ||
+                      (p.barcode && p.barcode === item.itemCode) ||
+                      (p.name && item.itemDescription && p.name.toLowerCase() === item.itemDescription.toLowerCase())
+                    );
+                    const availStock = match ? (typeof match.stock === 'number' ? match.stock : 0) : null;
+                    const totalQtyInCurrentQuote = lineItems.reduce((acc, l) => {
+                      const isMatch = (l.itemCode && item.itemCode && l.itemCode === item.itemCode) ||
+                                      (l.itemDescription && item.itemDescription && l.itemDescription.toLowerCase() === item.itemDescription.toLowerCase());
+                      return isMatch ? acc + (Number(l.quantity) || 0) : acc;
+                    }, 0);
+                    const isExceeding = availStock !== null && totalQtyInCurrentQuote > availStock;
+
+                    return (
+                      <div className="relative flex items-center justify-center w-full h-full">
+                        <input
+                          type="number"
+                          className={`w-full h-full p-2 text-center outline-none font-bold text-xs ${
+                            isExceeding
+                              ? 'bg-red-100 text-red-900 border-2 border-red-500 font-extrabold ring-1 ring-red-400'
+                              : 'border-none focus:bg-yellow-100'
+                          }`}
+                          value={item.quantity}
+                          onChange={(e) => handleItemChange(item.id, 'quantity', e.target.value)}
+                          min="1"
+                        />
+                        {isExceeding && (
+                          <span
+                            className="absolute -top-3 right-0 bg-red-600 text-white text-[9px] font-extrabold px-1 rounded shadow z-10 whitespace-nowrap animate-pulse pointer-events-none"
+                            title={`Total requested (${totalQtyInCurrentQuote}) exceeds available stock (${availStock} PCS)`}
+                          >
+                            ⚠️ Max: {availStock}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </td>
                 <td className="border-r border-gray-300 p-0">
                   <input

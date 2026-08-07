@@ -20,7 +20,23 @@ export const getProductByBarcode = async (barcode: string): Promise<any> => {
       }
     }
     if (product) {
-      product.stock = Math.max(0, Number(product.stock) || 0);
+      const pItems = await db.collection('PurchaseItem').find({
+        $or: [{ itemCode: product.itemCode }, { barcode: barcode }]
+      }).toArray();
+
+      if (pItems && pItems.length > 0) {
+        const totalInward = pItems.reduce((sum, i) => sum + ((Number(i.qty) || 0) + (Number(i.freeQty) || 0)), 0);
+        let totalOutward = 0;
+        try {
+          const sItems = await prisma.salesItem.findMany({
+            where: { OR: [{ productId: product.id || product._id?.toString() }, { itemCode: product.itemCode }] }
+          });
+          totalOutward = sItems.reduce((sum, i) => sum + (Number(i.qty) || 0), 0);
+        } catch (se) {}
+        product.stock = Math.max(0, totalInward - totalOutward);
+      } else {
+        product.stock = Math.max(0, Number(product.stock) || 0);
+      }
     }
     return product;
   } catch (err) {
@@ -73,6 +89,33 @@ export const searchItems = async (q: string): Promise<any[]> => {
     console.error("Prisma product search error:", e);
   }
 
+  // Fetch purchase and sales totals to calculate accurate stock based on Purchase Register
+  const inwardMap = new Map<string, number>();
+  const outwardMap = new Map<string, number>();
+
+  try {
+    const db = await getDb();
+    const purchaseItems = await db.collection('PurchaseItem').find({}).toArray();
+    for (const item of purchaseItems) {
+      const codeKey = (item.itemCode || '').toUpperCase().trim();
+      const qty = (Number(item.qty) || 0) + (Number(item.freeQty) || 0);
+      if (codeKey) {
+        inwardMap.set(codeKey, (inwardMap.get(codeKey) || 0) + qty);
+      }
+    }
+
+    const salesItems = await prisma.salesItem.findMany({});
+    for (const item of salesItems) {
+      const prodKey = (item.productId || '').toUpperCase().trim();
+      const qty = Number(item.qty) || 0;
+      if (prodKey) {
+        outwardMap.set(prodKey, (outwardMap.get(prodKey) || 0) + qty);
+      }
+    }
+  } catch (e) {
+    console.error("Error fetching purchase/sales totals for searchItems stock calculation:", e);
+  }
+
   // Fetch defective sales returns to get damage reasons
   const returnReasonsMap = new Map<string, string[]>();
   try {
@@ -105,6 +148,16 @@ export const searchItems = async (q: string): Promise<any[]> => {
     if (codeKey) {
       if (!map.has(codeKey)) {
         const id = item._id?.toString() || item.id;
+        
+        const totalInward = inwardMap.get(codeKey) ?? (id ? inwardMap.get(id.toUpperCase()) : undefined);
+        const totalOutward = outwardMap.get(codeKey) || (id ? outwardMap.get(id.toUpperCase()) || 0 : 0);
+        
+        // Compute stock from Purchase Register if purchase items exist
+        let calculatedStock = Math.max(0, Number(item.stock) || 0);
+        if (totalInward !== undefined) {
+          calculatedStock = Math.max(0, totalInward - totalOutward);
+        }
+
         map.set(codeKey, {
           ...item,
           id,
@@ -113,15 +166,9 @@ export const searchItems = async (q: string): Promise<any[]> => {
           itemCode: item.itemCode || '',
           size: item.size || '',
           price: Number(item.price) || 0,
-          stock: Math.max(0, Number(item.stock) || 0),
+          stock: calculatedStock,
           damageReasons: returnReasonsMap.get(id) || []
         });
-      } else {
-        const existing = map.get(codeKey);
-        const itemStock = Math.max(0, Number(item.stock) || 0);
-        if (itemStock > (existing.stock || 0)) {
-          existing.stock = itemStock;
-        }
       }
     }
   });
@@ -557,7 +604,7 @@ export const getStockRegisterReport = async (): Promise<any[]> => {
           vchType: 'Purchase',
           vchNo: item.purchaseBill.voucherNo,
           particulars: item.purchaseBill.supplierName,
-          inward: item.qty,
+          inward: (Number(item.qty) || 0) + (Number(item.freeQty) || 0),
           outward: 0
         });
       }

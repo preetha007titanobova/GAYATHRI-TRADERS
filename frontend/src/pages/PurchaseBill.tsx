@@ -238,7 +238,7 @@ const PurchaseBill = () => {
         mrp: Number(item.mrp) || Number(item.unitPrice) || 0,
         taxPercent: Number(item.taxPercent) || 18,
         factory: item.factory || '',
-        stock: existingStock,
+        stock: method === 'POST' ? 0 : existingStock,
         uom: 'PCS'
       };
 
@@ -266,10 +266,10 @@ const PurchaseBill = () => {
   // Parse state for editing bill passed from register
   useEffect(() => {
     const editBill = location.state?.editBill;
-    if (editBill && vendors.length > 0) {
+    if (editBill) {
       handleEditBill(editBill);
     }
-  }, [location.state, vendors]);
+  }, [location.state]);
 
   useEffect(() => {
     scanInputRef.current?.focus();
@@ -395,8 +395,33 @@ const PurchaseBill = () => {
   const [isVendorModalOpen, setIsVendorModalOpen] = useState(false);
   const [newVendorForm, setNewVendorForm] = useState({ name: '', gstin: '', state: 'Tamil Nadu' });
 
-  // Grid State
-  const [items, setItems] = useState<PurchaseItem[]>([]);
+  const createBlankRow = (): PurchaseItem => ({
+    id: Math.random().toString(36).substring(2, 15),
+    itemCode: '',
+    vendorItemCode: '',
+    itemName: '',
+    size: '',
+    variety: '',
+    category: 'None',
+    itemDesc: '',
+    hsn: '',
+    factory: '',
+    qty: 1,
+    freeQty: 0,
+    unitPrice: 0,
+    salesRate: 0,
+    mrp: 0,
+    discPercent: 0,
+    taxPercent: 18,
+    cgstAmt: 0,
+    sgstAmt: 0,
+    igstAmt: 0,
+    total: 0,
+    isManualItem: false
+  });
+
+  // Grid State - initialized with 1 default blank row
+  const [items, setItems] = useState<PurchaseItem[]>([createBlankRow()]);
   
   // Calculate Totals
   const subTotal = items.reduce((acc, curr) => acc + (curr.qty * curr.unitPrice), 0);
@@ -692,21 +717,20 @@ const PurchaseBill = () => {
   }, [supplyPlace]);
 
   const addRow = () => {
-    setItems([...items, {
-      id: Math.random().toString(),
-      itemCode: '', vendorItemCode: '', itemName: '', size: '', variety: '', category: 'None', itemDesc: '', hsn: '', factory: '', qty: 1, unitPrice: 0, salesRate: 0, mrp: 0, discPercent: 0,
-      taxPercent: 18, cgstAmt: 0, sgstAmt: 0, igstAmt: 0, total: 0, isManualItem: false
-    }]);
+    setItems(prev => [...prev, createBlankRow()]);
   };
 
   const removeRow = (id: string) => {
-    setItems(items.filter(item => item.id !== id));
+    setItems(prev => {
+      const filtered = prev.filter(item => item.id !== id);
+      return filtered.length === 0 ? [createBlankRow()] : filtered;
+    });
   };
 
   const clearForm = () => {
     setEditingId(null);
     fetchNextVoucher();
-    setItems([]);
+    setItems([createBlankRow()]);
     setVendorId('');
     setVendorName('');
     setGstin('');
@@ -759,49 +783,96 @@ const PurchaseBill = () => {
   };
 
   // Handle Edit selection
-  const handleEditBill = (bill: any) => {
-    setEditingId(bill.id || bill._id);
-    setBillNo(bill.voucherNo);
-    setBillDate(bill.date ? bill.date.split('T')[0] : '');
-    setGstin(bill.supplierGstin || '');
-    setSupplyPlace(bill.type === 'Local' ? 'Tamil Nadu' : 'Other');
-    setVendorName(bill.supplierName);
-    
-    const foundVendor = vendors.find(v => v.name === bill.supplierName);
+  const handleEditBill = async (billInput: any) => {
+    if (!billInput) return;
+    let bill = billInput;
+    const bId = billInput.id || billInput._id || billInput.voucherNo;
+
+    if (bId) {
+      try {
+        const res = await fetch(`${Api}/purchase-bills/${encodeURIComponent(bId)}`);
+        if (res.ok) {
+          const fetched = await res.json();
+          if (fetched && (fetched.voucherNo || fetched.id || fetched._id)) {
+            bill = fetched;
+          }
+        }
+      } catch (err) {
+        console.warn("Could not fetch full purchase bill by ID, falling back to local object:", err);
+      }
+    }
+
+    setEditingId(bill.id || bill._id || bill.voucherNo);
+    setBillNo(bill.voucherNo || bill.billNo || '');
+
+    const rawDate = bill.date || bill.billDate || bill.createdAt;
+    setBillDate(rawDate ? String(rawDate).split('T')[0] : new Date().toISOString().split('T')[0]);
+
+    const sName = bill.supplierName || bill.vendorName || bill.buyerName || bill.supplier || bill.vendor || bill.accountName || '';
+    setVendorName(sName);
+
+    const sGstin = bill.supplierGstin || bill.vendorGstin || bill.gstin || bill.gstNo || '';
+    setGstin(sGstin);
+
+    const invNo = bill.supplierInvoiceNo || bill.invoiceNo || bill.billNo || bill.supplierBillNo || '';
+    setSupplierInvoiceNo(invNo && invNo !== 'N/A' ? invNo : '');
+
+    const rawInvDate = bill.supplierInvoiceDate || bill.invoiceDate || rawDate;
+    setSupplierInvoiceDate(rawInvDate ? String(rawInvDate).split('T')[0] : (rawDate ? String(rawDate).split('T')[0] : new Date().toISOString().split('T')[0]));
+
+    const isLocal = bill.type === 'Local' || bill.eType === 'Local' || bill.supplyPlace === 'Tamil Nadu' || bill.placeOfSupply === 'Tamil Nadu';
+    const currentSupplyPlace = isLocal ? 'Tamil Nadu' : 'Other State';
+    setSupplyPlace(currentSupplyPlace);
+
+    const foundVendor = vendors.find(v => v.name?.toLowerCase() === sName.toLowerCase());
     if (foundVendor) {
       setVendorId(foundVendor.id);
+      if (!sGstin && foundVendor.gstin) setGstin(foundVendor.gstin);
+    } else if (bill.vendorId) {
+      setVendorId(bill.vendorId);
     }
 
     if (bill.items && Array.isArray(bill.items)) {
       const mapped = bill.items.map((i: any) => {
         const prod = dbProducts.find(p => p.itemCode?.toLowerCase() === i.itemCode?.toLowerCase());
-        return {
-          id: i.id || Math.random().toString(),
-          itemCode: i.itemCode,
+        const rate = Number(i.rate || i.unitPrice || i.purchaseRate || prod?.purchaseRate || 0);
+        const salesRate = Number(i.sellingPrice || i.salesRate || prod?.price || rate);
+        const mrp = Number(i.mrp || prod?.mrp || salesRate || rate);
+        const qty = Number(i.qty || i.purchasedQty || 1);
+        const freeQty = Number(i.freeQty || 0);
+        const discPercent = Number(i.discPercent || i.discountPercent || 0);
+        const taxPercent = Number(i.taxPercent || i.taxRate || 18);
+
+        const rawItem: PurchaseItem = {
+          id: i.id || i._id || Math.random().toString(),
+          itemCode: i.itemCode || '',
           vendorItemCode: i.vendorItemCode || prod?.vendorItemCode || '',
-          itemName: i.itemName || i.itemDesc || i.itemCode,
-          size: i.size || '',
-          variety: i.variety || '',
-          category: i.category || 'None',
-          itemDesc: i.itemName || i.itemDesc || '',
-          hsn: i.hsn || '',
+          itemName: i.itemName || i.itemDesc || i.itemCode || '',
+          size: i.size || prod?.size || '',
+          variety: i.variety || prod?.variety || '',
+          category: i.category || i.department || prod?.department || 'None',
+          itemDesc: i.itemName || i.itemDesc || i.itemCode || '',
+          hsn: i.hsn || i.barcode || prod?.barcode || '',
           factory: i.factory || prod?.factory || '',
-          qty: i.qty || i.purchasedQty || 0,
-          unitPrice: i.rate || i.unitPrice || 0,
-          salesRate: i.salesRate || prod?.price || i.rate || i.unitPrice || 0,
-          mrp: i.mrp || prod?.mrp || i.rate || i.unitPrice || 0,
-          discPercent: i.discPercent || 0,
-          taxPercent: i.taxPercent || 18,
-          cgstAmt: i.cgst || 0,
-          sgstAmt: i.sgst || 0,
-          igstAmt: i.igst || 0,
-          total: i.total || 0,
+          qty: qty,
+          freeQty: freeQty,
+          unitPrice: rate,
+          salesRate: salesRate,
+          mrp: mrp,
+          discPercent: discPercent,
+          taxPercent: taxPercent,
+          cgstAmt: Number(i.cgst || i.cgstAmt || 0),
+          sgstAmt: Number(i.sgst || i.sgstAmt || 0),
+          igstAmt: Number(i.igst || i.igstAmt || 0),
+          total: Number(i.total || i.lineTotal || 0),
           isManualItem: !prod
         };
+
+        return calculateItemValues(rawItem, currentSupplyPlace);
       });
       setItems(mapped);
     }
-    setGlobalNotification({ msg: `Voucher ${bill.voucherNo} loaded for editing`, type: 'info' });
+    setGlobalNotification({ msg: `Voucher ${bill.voucherNo || ''} loaded for editing`, type: 'info' });
   };
 
   // Handle Delete selection
@@ -1198,8 +1269,18 @@ const PurchaseBill = () => {
                     className="flex-1 border border-indigo-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 p-1.5 rounded-md text-xs font-mono font-bold bg-white focus:outline-none placeholder:font-sans placeholder:font-normal shadow-inner"
                   />
                 </div>
-                <div className="text-[10px] text-indigo-600 font-bold bg-indigo-50 border border-indigo-100 px-3 py-1.5 rounded-full animate-pulse">
-                  System Listening for Scans
+                <div className="flex items-center space-x-2">
+                  <button
+                    type="button"
+                    onClick={addRow}
+                    className="bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-extrabold text-xs px-3 py-1.5 rounded-md shadow flex items-center space-x-1 transition-all cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Add Item Row</span>
+                  </button>
+                  <div className="text-[10px] text-indigo-600 font-bold bg-indigo-50 border border-indigo-100 px-3 py-1.5 rounded-full animate-pulse">
+                    System Listening for Scans
+                  </div>
                 </div>
               </div>
 
@@ -1237,11 +1318,71 @@ const PurchaseBill = () => {
                     {items.map((item, idx) => (
                       <tr key={item.id} className="border-b border-slate-200 hover:bg-slate-50/50 focus-within:bg-indigo-50/50 transition-colors">
                         <td className="border-r border-slate-200 p-2 text-center text-slate-500 font-medium">{idx + 1}</td>
-                        <td className="border-r border-slate-200 p-2 font-mono font-bold text-slate-600">
-                          {item.itemCode}
+                        <td className="border-r border-gray-300 p-0">
+                          <div className="flex items-center relative w-full h-full pr-1 min-w-[150px]">
+                            <input 
+                              type="text" 
+                              value={item.itemCode} 
+                              onChange={e => updateItem(item.id, 'itemCode', e.target.value)} 
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') {
+                                  const val = (e.target as HTMLInputElement).value.trim();
+                                  const found = dbProducts.find(p => p.itemCode?.toLowerCase() === val.toLowerCase() || p.barcode?.toLowerCase() === val.toLowerCase());
+                                  if (!found && val) {
+                                    e.preventDefault();
+                                    setActiveRowId(item.id);
+                                    setModalSearchQuery(val);
+                                    setHighlightedProductIndex(0);
+                                    setIsProductModalOpen(true);
+                                    return;
+                                  }
+                                }
+                                handleKeyDown(e, idx, 'itemCode');
+                              }}
+                              onDoubleClick={() => {
+                                setActiveRowId(item.id);
+                                setModalSearchQuery(item.itemCode || '');
+                                setHighlightedProductIndex(0);
+                                setIsProductModalOpen(true);
+                              }}
+                              onBlur={() => {
+                                const latest = items.find(i => i.id === item.id);
+                                if (latest) saveProductToDb(latest);
+                              }}
+                              className="w-full p-1.5 pl-2 pr-10 bg-transparent focus:bg-white focus:outline-none font-mono font-bold text-indigo-700 text-xs" 
+                              placeholder="Barcode / Code..." 
+                            />
+                            <button
+                              onClick={() => {
+                                setActiveRowId(item.id);
+                                setModalSearchQuery(item.itemCode || '');
+                                setHighlightedProductIndex(0);
+                                setIsProductModalOpen(true);
+                              }}
+                              type="button"
+                              className="absolute right-1 px-1.5 py-0.5 text-[9px] font-bold bg-emerald-100 hover:bg-emerald-200 active:bg-emerald-300 text-emerald-700 rounded transition-colors shadow-sm"
+                              title="Search product table"
+                            >
+                              Find
+                            </button>
+                          </div>
                         </td>
-                        <td className="border-r border-slate-200 p-2 font-semibold text-slate-800">
-                          {item.itemName || item.itemDesc}
+                        <td className="border-r border-gray-300 p-0">
+                          <input 
+                            type="text" 
+                            value={item.itemName || item.itemDesc || ''} 
+                            onChange={e => {
+                              updateItem(item.id, 'itemName', e.target.value);
+                              updateItem(item.id, 'itemDesc', e.target.value);
+                            }} 
+                            onKeyDown={e => handleKeyDown(e, idx, 'itemDesc')}
+                            onBlur={() => {
+                              const latest = items.find(i => i.id === item.id);
+                              if (latest) saveProductToDb(latest);
+                            }}
+                            className="w-full p-1.5 pl-2 bg-transparent focus:bg-white focus:outline-none font-bold text-slate-800 text-xs" 
+                            placeholder="Enter product name..." 
+                          />
                         </td>
                         <td className="border-r border-gray-300 p-0">
                           <input 
@@ -1433,6 +1574,14 @@ const PurchaseBill = () => {
                 className="px-5 py-2.5 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 font-bold rounded-lg shadow-sm focus:ring-4 focus:ring-slate-100 active:scale-95 transition-all duration-200 text-xs"
               >
                 Clear / New
+              </button>
+
+              <button 
+                onClick={addRow}
+                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold rounded-lg shadow-sm focus:ring-4 focus:ring-blue-100 active:scale-95 transition-all duration-200 text-xs flex items-center space-x-1 cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ Add Item Row</span>
               </button>
 
               {editingId && (

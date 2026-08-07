@@ -215,7 +215,7 @@ const StockRegister = () => {
                 vchType: 'Purchase',
                 vchNo: bill.voucherNo,
                 particulars: bill.supplierName || 'Supplier',
-                inward: Number(pItem.qty) || 0,
+                inward: (Number(pItem.qty) || 0) + (Number(pItem.freeQty) || 0),
                 outward: 0
               });
             }
@@ -538,29 +538,27 @@ const StockRegister = () => {
       doc.setTextColor(100);
       doc.text(`Period: ${fromDate} to ${toDate}`, 14, 22);
 
-      const headers = ["Item Code", "Item Name", "Category", "Variety", "Size", "Opening", "Inward", "Outward", "Damages", "Closing"];
+      const headers = ["Item Code", "Item Name", "Category", "Variety", "Size", "Inward", "Outward", "Damages", "Total Stock"];
       const rows = filteredProducts.map(p => [
         p.itemCode || '',
         p.name || '',
         p.department || '',
         p.variety || '',
         p.size || '',
-        p.openingStock.toString(),
         p.inward.toString(),
         p.outward.toString(),
         p.damages.toString(),
-        p.closingStock.toString()
+        (p.dbStock ?? p.stock ?? 0).toString()
       ]);
 
       rows.push([
         'TOTAL',
         `${filteredProducts.length} Items`,
         '', '', '',
-        summaryTotals.opening.toString(),
         summaryTotals.inward.toString(),
         summaryTotals.outward.toString(),
         summaryTotals.damages.toString(),
-        summaryTotals.closing.toString()
+        summaryTotals.totalStock.toString()
       ]);
 
       autoTable(doc, {
@@ -598,7 +596,7 @@ const StockRegister = () => {
                            `*Total Inward:* ${summaryTotals.inward}\n` +
                            `*Total Outward:* ${summaryTotals.outward}\n` +
                            `*Total Damages:* ${summaryTotals.damages}\n` +
-                           `*Total Closing:* ${summaryTotals.closing}\n\n` +
+                           `*Total Stock:* ${summaryTotals.totalStock}\n\n` +
                            `*Download PDF:* ${resData.pdfUrl}\n\n` +
                            `Generated automatically via Ithu Namma Kada Billing System.`;
 
@@ -1006,11 +1004,9 @@ const StockRegister = () => {
                     <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-32">Category</th>
                     <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-32">Variety</th>
                     <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-24 text-center">Size</th>
-                    <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-28 text-right bg-[#142d54]/25">Opening Stock</th>
                     <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-28 text-right text-green-300">Qty In (Inward)</th>
                     <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-28 text-right text-red-300">Qty Out (Outward)</th>
                     <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-28 text-right text-orange-300">Damages</th>
-                    <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-28 text-right bg-[#142d54]/25">Closing Stock</th>
                     <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-28 text-right bg-yellow-400/20 text-yellow-200">Total Stock</th>
                     <th className="p-2 text-xs font-semibold w-28 text-center">Actions</th>
                   </tr>
@@ -1018,13 +1014,13 @@ const StockRegister = () => {
                 <tbody>
                   {loadingReport ? (
                     <tr>
-                      <td colSpan={isMultiSelectMode ? 14 : 13} className="p-12 text-center text-gray-500 font-bold">
+                      <td colSpan={isMultiSelectMode ? 12 : 11} className="p-12 text-center text-gray-500 font-bold">
                         Loading products register data...
                       </td>
                     </tr>
                   ) : filteredProducts.length === 0 ? (
                     <tr>
-                      <td colSpan={isMultiSelectMode ? 14 : 13} className="p-12 text-center text-gray-400">
+                      <td colSpan={isMultiSelectMode ? 12 : 11} className="p-12 text-center text-gray-400">
                         <div className="flex flex-col items-center">
                           <Package size={32} className="mb-2 opacity-50" />
                           <p className="italic text-sm">No items found matching search criteria.</p>
@@ -1065,26 +1061,22 @@ const StockRegister = () => {
                           <td className="border-r border-gray-200 p-2 text-xs text-gray-600 font-medium">{p.variety || '-'}</td>
                           <td className="border-r border-gray-200 p-2 text-xs text-center text-gray-600 font-medium">{p.size || '-'}</td>
                           
-                          <td className="border-r border-gray-200 p-2 text-right font-mono text-gray-700 bg-gray-50/30">{p.openingStock}</td>
                           <td className="border-r border-gray-200 p-2 text-right font-mono text-green-600 bg-green-50/20 font-bold">
-                            {p.inward > 0 ? `+${p.inward}` : ''}
+                            {p.inward > 0 ? p.inward : ''}
                           </td>
                           <td className="border-r border-gray-200 p-2 text-right font-mono text-red-600 bg-red-50/20 font-bold">
-                            {p.outward > 0 ? `-${p.outward}` : ''}
+                            {p.outward > 0 ? p.outward : ''}
                           </td>
                           <td className="border-r border-gray-200 p-2 text-right font-mono text-orange-600 bg-orange-50/15">
                             {p.damages > 0 ? p.damages : ''}
                           </td>
-                          <td className="border-r border-gray-200 p-2 text-right font-mono text-blue-700 bg-blue-50/20 font-black">
-                            <div>{p.closingStock}</div>
+                          <td className="border-r border-gray-200 p-2 text-right font-mono font-black text-yellow-700 bg-yellow-50/30">
+                            <div>{p.dbStock ?? p.stock ?? 0}</div>
                             {Number(p.pendingOrderQty) > 0 && (
                               <div className="text-[10px] text-amber-600 font-bold whitespace-nowrap leading-none mt-1">
                                 ({p.pendingOrderQty} {p.uom || 'PCS'} in sales order)
                               </div>
                             )}
-                          </td>
-                          <td className="border-r border-gray-200 p-2 text-right font-mono font-black text-yellow-700 bg-yellow-50/30">
-                            {p.dbStock ?? p.stock ?? 0}
                           </td>
                           
                           <td className="p-2 text-center" onClick={e => e.stopPropagation()}>
@@ -1130,24 +1122,16 @@ const StockRegister = () => {
 
               <div className="flex space-x-3 items-center flex-wrap gap-y-2">
                 <div className="flex items-center bg-[#142d54] px-4 py-1.5 rounded border border-[#0d1e38] shadow-inner text-xs font-bold text-blue-200">
-                  <span className="uppercase mr-2">Total Op:</span>
-                  <span className="font-mono text-sm font-black text-white">{summaryTotals.opening}</span>
-                </div>
-                <div className="flex items-center bg-[#142d54] px-4 py-1.5 rounded border border-[#0d1e38] shadow-inner text-xs font-bold text-blue-200">
                   <span className="uppercase mr-2">Total In:</span>
-                  <span className="font-mono text-sm font-black text-green-300">+{summaryTotals.inward}</span>
+                  <span className="font-mono text-sm font-black text-green-300">{summaryTotals.inward}</span>
                 </div>
                 <div className="flex items-center bg-[#142d54] px-4 py-1.5 rounded border border-[#0d1e38] shadow-inner text-xs font-bold text-blue-200">
                   <span className="uppercase mr-2">Total Out:</span>
-                  <span className="font-mono text-sm font-black text-red-300">-{summaryTotals.outward}</span>
+                  <span className="font-mono text-sm font-black text-red-300">{summaryTotals.outward}</span>
                 </div>
                 <div className="flex items-center bg-[#142d54] px-4 py-1.5 rounded border border-[#0d1e38] shadow-inner text-xs font-bold text-blue-200">
                   <span className="uppercase mr-2">Total Dmg:</span>
                   <span className="font-mono text-sm font-black text-orange-300">{summaryTotals.damages}</span>
-                </div>
-                <div className="flex items-center bg-[#142d54] px-5 py-1.5 rounded border border-[#0d1e38] shadow-inner text-xs font-bold text-blue-200">
-                  <span className="uppercase mr-2">Total Cl:</span>
-                  <span className="font-mono text-sm font-black text-yellow-300">{summaryTotals.closing}</span>
                 </div>
                 <div className="flex items-center bg-yellow-500 px-5 py-1.5 rounded border border-yellow-600 shadow-inner text-xs font-bold text-yellow-900">
                   <span className="uppercase mr-2">📦 Total Stock:</span>

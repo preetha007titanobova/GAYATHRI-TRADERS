@@ -32,6 +32,20 @@ export const searchPurchaseBills = async (req: Request, res: Response) => {
   }
 };
 
+export const getPurchaseBillById = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const bill = await purchaseService.getPurchaseBillById(id as string);
+    if (!bill) {
+      return res.status(404).json({ error: 'Purchase bill not found' });
+    }
+    res.json(bill);
+  } catch (error: any) {
+    console.error("Error fetching purchase bill by ID:", error);
+    res.status(500).json({ error: 'Failed to fetch purchase bill', details: error.message });
+  }
+};
+
 export const updatePurchaseBill = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;

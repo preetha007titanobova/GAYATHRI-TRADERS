@@ -39,6 +39,7 @@ const router = (0, express_1.Router)();
 router.get('/next-voucher', purchaseController.getNextPurchaseVoucher);
 router.post('/', purchaseController.createPurchaseBill);
 router.get('/', purchaseController.searchPurchaseBills);
+router.get('/:id', purchaseController.getPurchaseBillById);
 router.put('/:id', purchaseController.updatePurchaseBill);
 router.delete('/:id', purchaseController.deletePurchaseBill);
 // Purchase Returns / Debit Notes

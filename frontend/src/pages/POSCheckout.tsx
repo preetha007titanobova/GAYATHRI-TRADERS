@@ -803,6 +803,16 @@ const POSCheckout = () => {
     }, 100);
   };
 
+  const handleRemoveRow = (rowId: number) => {
+    setGridData(prev => {
+      const filtered = prev.filter(r => r.id !== rowId);
+      if (filtered.length === 0) {
+        return [{ id: Date.now(), itemName: '', itemDesc: '', size: '', qty: 0, uom: 'PCS', rate: 0, discPercent: 0, discAmt: 0, amount: 0 }];
+      }
+      return filtered;
+    });
+  };
+
   const selectProductFromModal = (product: any) => {
     setGridData(prev => prev.map(row => {
       if (row.id !== activeRowId) return row;
@@ -1279,11 +1289,11 @@ const POSCheckout = () => {
 
         let updatedRow = { ...row, [field]: field === 'itemName' || field === 'itemDesc' || field === 'uom' ? value : Number(value) };
 
-        // Real-time Stock Restriction Check on Manual Qty Input
+        // Real-time Stock Notification Warning on Manual Qty Input
         if (field === 'qty') {
           const requestedQty = Number(value) || 0;
           const match = availableProducts.find(p =>
-            p.name === updatedRow.itemName ||
+            (p.name && p.name.toLowerCase() === (updatedRow.itemName || '').toLowerCase()) ||
             (p.itemCode && p.itemCode.toLowerCase() === (updatedRow.itemDesc || '').toLowerCase()) ||
             (p.barcode && p.barcode.toLowerCase() === (updatedRow.itemDesc || '').toLowerCase())
           );
@@ -1292,12 +1302,11 @@ const POSCheckout = () => {
             if (requestedQty > availStock) {
               if (setGlobalNotification) {
                 setGlobalNotification({
-                  msg: `⚠️ Stock Limit Reached! Barcode "${match.barcode || match.itemCode}" (${match.name}) has only ${availStock} items in stock. Quantity restricted to ${availStock}.`,
+                  msg: `⚠️ Quantity Warning: "${match.name}" requested quantity (${requestedQty}) exceeds available stock (${availStock} PCS).`,
                   type: 'error'
                 });
                 setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
               }
-              updatedRow.qty = availStock;
             }
           }
         }
@@ -1752,6 +1761,7 @@ const POSCheckout = () => {
               <th className="legacy-grid-header w-16">Disc %</th>
               <th className="legacy-grid-header w-20">DiscAmt</th>
               <th className="legacy-grid-header w-28">Amount</th>
+              <th className="legacy-grid-header w-14 text-center">Action</th>
             </tr>
           </thead>
           <tbody>
@@ -1801,12 +1811,62 @@ const POSCheckout = () => {
                     onChange={e => handleGridChange(row.id, 'size', e.target.value)}
                   />
                 </td>
-                <td className="legacy-grid-cell p-0"><input id={`grid-input-${idx}-2`} type="number" className="w-full h-full p-1 text-right border-none outline-none focus:bg-yellow-100 font-bold text-gray-900" value={row.qty || ''} onChange={e => handleGridChange(row.id, 'qty', e.target.value)} onKeyDown={e => handleKeyDown(e, idx, 2, row.id, row.itemName)} /></td>
+                <td className="legacy-grid-cell p-0 relative">
+                  {(() => {
+                    const match = availableProducts.find(p =>
+                      (p.name && p.name.toLowerCase() === (row.itemName || '').toLowerCase()) ||
+                      (p.barcode && p.barcode === row.itemDesc) ||
+                      (p.itemCode && p.itemCode === row.itemDesc)
+                    );
+                    const availStock = match ? (typeof match.stock === 'number' ? match.stock : 0) : null;
+                    const totalQtyInGrid = gridData.reduce((acc, r) => {
+                      const isMatch = (r.itemName && row.itemName && r.itemName.toLowerCase() === row.itemName.toLowerCase()) ||
+                                      (r.itemDesc && row.itemDesc && r.itemDesc === row.itemDesc);
+                      return isMatch ? acc + (Number(r.qty) || 0) : acc;
+                    }, 0);
+                    const isExceeding = availStock !== null && totalQtyInGrid > availStock;
+
+                    return (
+                      <div className="relative w-full h-full flex items-center">
+                        <input
+                          id={`grid-input-${idx}-2`}
+                          type="number"
+                          className={`w-full h-full p-1 text-right outline-none focus:bg-yellow-100 font-bold ${
+                            isExceeding
+                              ? 'bg-red-100 text-red-900 border-2 border-red-500 ring-1 ring-red-400 font-extrabold'
+                              : 'text-gray-900 border-none'
+                          }`}
+                          value={row.qty || ''}
+                          onChange={e => handleGridChange(row.id, 'qty', e.target.value)}
+                          onKeyDown={e => handleKeyDown(e, idx, 2, row.id, row.itemName)}
+                        />
+                        {isExceeding && (
+                          <span
+                            className="absolute -top-3 right-0 bg-red-600 text-white text-[9px] font-extrabold px-1 rounded shadow z-10 whitespace-nowrap animate-pulse pointer-events-none"
+                            title={`Total ${totalQtyInGrid} exceeds available stock (${availStock} PCS)`}
+                          >
+                            ⚠️ Max: {availStock}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </td>
                 <td className="legacy-grid-cell p-0"><input id={`grid-input-${idx}-3`} type="text" className="w-full h-full p-1 border-none outline-none focus:bg-yellow-100" value={row.uom} onChange={e => handleGridChange(row.id, 'uom', e.target.value)} onKeyDown={e => handleKeyDown(e, idx, 3, row.id, row.itemName)} /></td>
                 <td className="legacy-grid-cell p-0"><input id={`grid-input-${idx}-4`} type="number" step="0.01" className="w-full h-full p-1 text-right border-none outline-none focus:bg-yellow-100 font-bold" value={row.rate || ''} onChange={e => handleGridChange(row.id, 'rate', e.target.value)} onKeyDown={e => handleKeyDown(e, idx, 4, row.id, row.itemName)} /></td>
                 <td className="legacy-grid-cell p-0"><input id={`grid-input-${idx}-5`} type="number" step="0.01" className="w-full h-full p-1 text-right border-none outline-none focus:bg-yellow-100" value={row.discPercent || ''} onChange={e => handleGridChange(row.id, 'discPercent', e.target.value)} onKeyDown={e => handleKeyDown(e, idx, 5, row.id, row.itemName)} /></td>
                 <td className="legacy-grid-cell p-0"><input id={`grid-input-${idx}-6`} type="number" step="0.01" className="w-full h-full p-1 text-right border-none outline-none focus:bg-yellow-100" value={row.discAmt || ''} onChange={e => handleGridChange(row.id, 'discAmt', e.target.value)} onKeyDown={e => handleKeyDown(e, idx, 6, row.id, row.itemName)} /></td>
                 <td className="legacy-grid-cell text-right bg-gray-50 font-bold text-gray-900">{row.amount.toFixed(2)}</td>
+                <td className="legacy-grid-cell text-center p-0.5 w-14 bg-red-50/20">
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveRow(row.id)}
+                    title="Cancel Row / Remove Product"
+                    className="p-1 text-red-500 hover:text-red-700 hover:bg-red-100 rounded transition-colors inline-flex items-center justify-center cursor-pointer"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -1814,14 +1874,28 @@ const POSCheckout = () => {
       </div>
 
       {/* Grid Table Action Buttons */}
-      <div className="flex gap-2 my-1.5">
+      <div className="flex gap-2 my-1.5 items-center">
         <button
           type="button"
           onClick={() => setGridData(prev => [...prev, { id: Date.now(), itemName: '', itemDesc: '', qty: 0, uom: '', rate: 0, discPercent: 0, discAmt: 0, amount: 0 }])}
-          className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded text-[11px] shadow flex items-center gap-1.5 transition-all"
+          className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded text-[11px] shadow flex items-center gap-1.5 transition-all cursor-pointer"
         >
           <span>+ Add Row</span>
         </button>
+        {gridData.some(r => r.itemName || r.itemDesc) && (
+          <button
+            type="button"
+            onClick={() => {
+              if (window.confirm("Are you sure you want to clear all product rows in this bill?")) {
+                setGridData([{ id: Date.now(), itemName: '', itemDesc: '', size: '', qty: 0, uom: 'PCS', rate: 0, discPercent: 0, discAmt: 0, amount: 0 }]);
+              }
+            }}
+            className="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-bold py-1 px-3 rounded text-[11px] flex items-center gap-1 transition-all cursor-pointer"
+          >
+            <Trash2 size={12} />
+            <span>Clear All Rows</span>
+          </button>
+        )}
       </div>
 
       {/* 4. Totals & Terms Panel */}
@@ -1981,36 +2055,58 @@ const POSCheckout = () => {
 
             {/* List Body */}
             <div className="overflow-y-auto flex-1 bg-white">
-              {filteredProducts.map((p, idx) => (
-                <div
-                  key={p.id}
-                  className={`grid grid-cols-12 gap-2 px-3 py-1.5 border-b border-gray-200 cursor-pointer items-center text-sm ${idx === highlightedIndex ? 'bg-[#a3c293] text-black font-semibold' : 'hover:bg-[#eaf1e6] text-gray-800'}`}
-                  onClick={() => selectProductFromModal(p)}
-                >
-                  <div className="col-span-2 text-xs">
-                    {p.itemCode || '-'}
-                  </div>
-                  <div className="col-span-6 flex flex-col justify-center">
-                    <span className="leading-tight font-medium">
-                      {p.name}
-                    </span>
-                    <div className="flex flex-wrap gap-1 mt-0.5 text-[10px]">
-                      {p.department && <span className={`px-1 rounded font-bold ${idx === highlightedIndex ? 'bg-[#f0f9eb] text-[#2b579a]' : 'bg-[#e8f4fd] text-blue-800'}`}>{p.department}</span>}
-                      {p.variety && <span className={`px-1 rounded font-bold ${idx === highlightedIndex ? 'bg-[#f3e8ff] text-[#2b579a]' : 'bg-purple-100 text-purple-800'}`}>{p.variety}</span>}
-                      {p.size && <span className={`px-1 rounded font-bold ${idx === highlightedIndex ? 'bg-[#fef3c7] text-[#2b579a]' : 'bg-amber-100 text-amber-800'}`}>Size: {p.size}</span>}
-                      {p.barcode && <span className={idx === highlightedIndex ? 'text-gray-800 ml-1' : 'text-gray-500 ml-1'}>Barcode: {p.barcode}</span>}
+              {filteredProducts.map((p, idx) => {
+                const qtyInBill = gridData.reduce((acc, r) => {
+                  const isMatch = (r.itemName && r.itemName.toLowerCase() === p.name.toLowerCase()) ||
+                                  (r.itemDesc && (r.itemDesc === p.barcode || r.itemDesc === p.itemCode));
+                  return isMatch ? acc + (Number(r.qty) || 0) : acc;
+                }, 0);
+                const effectiveStock = (typeof p.stock === 'number' ? p.stock : 0) - qtyInBill;
+
+                return (
+                  <div
+                    key={p.id}
+                    className={`grid grid-cols-12 gap-2 px-3 py-1.5 border-b border-gray-200 cursor-pointer items-center text-sm ${idx === highlightedIndex ? 'bg-[#a3c293] text-black font-semibold' : 'hover:bg-[#eaf1e6] text-gray-800'}`}
+                    onClick={() => selectProductFromModal(p)}
+                  >
+                    <div className="col-span-2 text-xs font-mono font-bold">
+                      {p.itemCode || '-'}
+                    </div>
+                    <div className="col-span-6 flex flex-col justify-center">
+                      <span className="leading-tight font-medium">
+                        {p.name}
+                      </span>
+                      <div className="flex flex-wrap gap-1 mt-0.5 text-[10px]">
+                        {p.department && <span className={`px-1 rounded font-bold ${idx === highlightedIndex ? 'bg-[#f0f9eb] text-[#2b579a]' : 'bg-[#e8f4fd] text-blue-800'}`}>{p.department}</span>}
+                        {p.variety && <span className={`px-1 rounded font-bold ${idx === highlightedIndex ? 'bg-[#f3e8ff] text-[#2b579a]' : 'bg-purple-100 text-purple-800'}`}>{p.variety}</span>}
+                        {p.size && <span className={`px-1 rounded font-bold ${idx === highlightedIndex ? 'bg-[#fef3c7] text-[#2b579a]' : 'bg-amber-100 text-amber-800'}`}>Size: {p.size}</span>}
+                        {p.barcode && <span className={idx === highlightedIndex ? 'text-gray-800 ml-1' : 'text-gray-500 ml-1'}>Barcode: {p.barcode}</span>}
+                      </div>
+                    </div>
+                    <div className="col-span-2 flex flex-col items-center justify-center">
+                      <span className={`px-1.5 py-0.5 text-xs font-bold rounded ${
+                        idx === highlightedIndex 
+                          ? 'text-black' 
+                          : effectiveStock > 5 
+                            ? 'text-green-700 bg-green-50' 
+                            : effectiveStock > 0 
+                              ? 'text-amber-800 bg-amber-100 font-extrabold' 
+                              : 'text-red-700 bg-red-100 font-extrabold'
+                      }`}>
+                        {effectiveStock > 0 ? `${effectiveStock} ${p.uom || 'PCS'}` : '0 PCS (OUT OF STOCK)'}
+                      </span>
+                      {qtyInBill > 0 && (
+                        <span className="text-[9px] text-blue-900 font-extrabold mt-0.5 whitespace-nowrap">
+                          ({qtyInBill} in current bill)
+                        </span>
+                      )}
+                    </div>
+                    <div className="col-span-2 text-right font-bold text-sm">
+                      {p.price.toFixed(2)}
                     </div>
                   </div>
-                  <div className="col-span-2 flex justify-center">
-                    <span className={`px-1.5 py-0.5 text-xs font-bold ${idx === highlightedIndex ? '' : p.stock > 10 ? 'text-green-700' : p.stock > 0 ? 'text-yellow-700' : 'text-red-700'}`}>
-                      {p.stock} {p.uom}
-                    </span>
-                  </div>
-                  <div className="col-span-2 text-right font-bold text-sm">
-                    {p.price.toFixed(2)}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
               {filteredProducts.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-10 text-gray-500">
                   <Search size={32} className="mb-2 text-gray-300" />

@@ -109,25 +109,27 @@ const createSalesBill = (data) => __awaiter(void 0, void 0, void 0, function* ()
                 });
             }
             const qty = Number(item.qty) || 0;
-            if (product) {
-                productId = new mongodb_1.ObjectId(product.id);
-                if (qty > 0) {
-                    const currentStock = Number(product.stock) || 0;
-                    const updatedStock = Math.max(0, currentStock - Math.round(qty));
-                    yield db_1.prisma.product.update({
-                        where: { id: product.id },
-                        data: { stock: updatedStock }
-                    });
-                    yield db.collection('Product').updateOne({ _id: new mongodb_1.ObjectId(product.id) }, { $set: { stock: updatedStock } });
-                }
-            }
-            else {
-                if (qty > 0 && item.itemName) {
-                    const p = yield db.collection('Product').findOne({ name: item.itemName });
-                    if (p) {
-                        const currentStock = Number(p.stock) || 0;
+            if (!fromSalesOrderId) {
+                if (product) {
+                    productId = new mongodb_1.ObjectId(product.id);
+                    if (qty > 0) {
+                        const currentStock = Number(product.stock) || 0;
                         const updatedStock = Math.max(0, currentStock - Math.round(qty));
-                        yield db.collection('Product').updateOne({ _id: p._id }, { $set: { stock: updatedStock } });
+                        yield db_1.prisma.product.update({
+                            where: { id: product.id },
+                            data: { stock: updatedStock }
+                        });
+                        yield db.collection('Product').updateOne({ _id: new mongodb_1.ObjectId(product.id) }, { $set: { stock: updatedStock } });
+                    }
+                }
+                else {
+                    if (qty > 0 && item.itemName) {
+                        const p = yield db.collection('Product').findOne({ name: item.itemName });
+                        if (p) {
+                            const currentStock = Number(p.stock) || 0;
+                            const updatedStock = Math.max(0, currentStock - Math.round(qty));
+                            yield db.collection('Product').updateOne({ _id: p._id }, { $set: { stock: updatedStock } });
+                        }
                     }
                 }
             }
@@ -1100,15 +1102,40 @@ const createSalesOrder = (data) => __awaiter(void 0, void 0, void 0, function* (
         const itemsToInsert = [];
         for (const item of items) {
             let productId = item.productId ? new mongodb_1.ObjectId(item.productId) : null;
-            if (!productId && item.itemCode) {
-                const prod = yield db_1.prisma.product.findUnique({
-                    where: { itemCode: item.itemCode }
+            let product = null;
+            if (productId) {
+                product = yield db_1.prisma.product.findUnique({ where: { id: productId.toString() } });
+            }
+            if (!product && item.itemCode) {
+                product = yield db_1.prisma.product.findFirst({
+                    where: { OR: [{ itemCode: item.itemCode }, { barcode: item.itemCode }] }
                 });
-                if (prod) {
-                    productId = new mongodb_1.ObjectId(prod.id);
-                }
+            }
+            if (!product && (item.itemDescription || item.itemName)) {
+                product = yield db_1.prisma.product.findFirst({
+                    where: { name: item.itemDescription || item.itemName }
+                });
             }
             const qty = Number(item.quantityOrdered) || 0;
+            if (product && qty > 0) {
+                productId = new mongodb_1.ObjectId(product.id);
+                const currentStock = Number(product.stock) || 0;
+                const updatedStock = Math.max(0, currentStock - Math.round(qty));
+                yield db_1.prisma.product.update({
+                    where: { id: product.id },
+                    data: { stock: updatedStock }
+                });
+                yield db.collection('Product').updateOne({ _id: new mongodb_1.ObjectId(product.id) }, { $set: { stock: updatedStock } });
+            }
+            else if (qty > 0 && (item.itemDescription || item.itemName)) {
+                const itemName = item.itemDescription || item.itemName;
+                const p = yield db.collection('Product').findOne({ name: itemName });
+                if (p) {
+                    const currentStock = Number(p.stock) || 0;
+                    const updatedStock = Math.max(0, currentStock - Math.round(qty));
+                    yield db.collection('Product').updateOne({ _id: p._id }, { $set: { stock: updatedStock } });
+                }
+            }
             itemsToInsert.push({
                 salesOrderId: orderResult.insertedId,
                 productId,
