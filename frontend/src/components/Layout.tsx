@@ -71,6 +71,76 @@ const Layout = () => {
 
   const [isCalcOpen, setIsCalcOpen] = useState(false);
   const [isGstCalcOpen, setIsGstCalcOpen] = useState(false);
+  
+  // Calculator logic
+  const [calcDisplay, setCalcDisplay] = useState('0');
+  const [calcPrev, setCalcPrev] = useState('');
+  const [calcOp, setCalcOp] = useState('');
+  const [calcResetOnNext, setCalcResetOnNext] = useState(false);
+
+  const handleCalcInput = (val: string) => {
+    if (val === 'C') {
+      setCalcDisplay('0');
+      setCalcPrev('');
+      setCalcOp('');
+      setCalcResetOnNext(false);
+      return;
+    }
+    if (val === '⌫') {
+      if (calcResetOnNext) return;
+      if (calcDisplay.length <= 1 || calcDisplay === 'Error') {
+        setCalcDisplay('0');
+      } else {
+        setCalcDisplay(calcDisplay.slice(0, -1));
+      }
+      return;
+    }
+    if (['+', '-', '*', '/'].includes(val)) {
+      setCalcPrev(calcDisplay);
+      setCalcOp(val);
+      setCalcResetOnNext(true);
+      return;
+    }
+    if (val === '=') {
+      if (!calcOp || calcPrev === '') return;
+      const p = parseFloat(calcPrev);
+      const c = parseFloat(calcDisplay);
+      let res = 0;
+      if (calcOp === '+') res = p + c;
+      if (calcOp === '-') res = p - c;
+      if (calcOp === '*') res = p * c;
+      if (calcOp === '/') res = c !== 0 ? p / c : NaN;
+
+      if (isNaN(res)) {
+        setCalcDisplay('Error');
+      } else {
+        const resStr = String(Math.round(res * 100000000) / 100000000);
+        setCalcDisplay(resStr);
+      }
+      setCalcPrev('');
+      setCalcOp('');
+      setCalcResetOnNext(true);
+      return;
+    }
+    if (calcResetOnNext || calcDisplay === '0' || calcDisplay === 'Error') {
+      setCalcDisplay(val === '.' ? '0.' : val);
+      setCalcResetOnNext(false);
+    } else {
+      if (val === '.' && calcDisplay.includes('.')) return;
+      setCalcDisplay(calcDisplay + val);
+    }
+  };
+
+  // GST Calculator logic
+  const [gstAmount, setGstAmount] = useState('');
+  const [gstRate, setGstRate] = useState<number | string>(18);
+
+  const parsedGstAmt = parseFloat(gstAmount) || 0;
+  const parsedGstRate = typeof gstRate === 'number' ? gstRate : (parseFloat(gstRate) || 0);
+  const gstTax = (parsedGstAmt * parsedGstRate) / 100;
+  const cgstAmt = gstTax / 2;
+  const sgstAmt = gstTax / 2;
+  const totalGstAmt = parsedGstAmt + gstTax;
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [globalSettings, setGlobalSettings] = useState({
     isSelectiveCustomer: false
@@ -882,48 +952,92 @@ const Layout = () => {
         </div> */}
           <div className="flex space-x-2">
            
-            <button onClick={() => setIsCalcOpen(!isCalcOpen)} className="bg-gray-200 text-black px-2 hover:bg-gray-300 border border-gray-400 text-[10px] relative">
-              Calculator
+            <div className="relative">
+              <button onClick={() => { setIsCalcOpen(!isCalcOpen); setIsGstCalcOpen(false); }} className="bg-gray-200 text-black px-2 hover:bg-gray-300 border border-gray-400 text-[10px] py-0.5">
+                Calculator
+              </button>
               {isCalcOpen && (
-                <div className="absolute bottom-8 right-0 w-48 bg-white border border-gray-400 shadow-xl p-2 text-left cursor-default z-50 text-sm" onClick={e => e.stopPropagation()}>
-                  <div className="font-bold border-b pb-1 mb-2 text-blue-900 flex justify-between">
-                    Calculator <span className="cursor-pointer text-red-500 hover:text-red-700" onClick={(e) => { e.stopPropagation(); setIsCalcOpen(false); }}>✕</span>
+                <div className="absolute bottom-6 left-0 w-52 bg-white border border-gray-400 shadow-2xl p-2.5 text-left cursor-default z-50 text-sm rounded select-none" onClick={e => e.stopPropagation()}>
+                  <div className="font-bold border-b pb-1 mb-2 text-blue-900 flex justify-between items-center text-xs">
+                    <span>Calculator</span>
+                    <span className="cursor-pointer text-red-500 hover:text-red-700 font-bold px-1" onClick={(e) => { e.stopPropagation(); setIsCalcOpen(false); }}>✕</span>
                   </div>
-                  <div className="bg-gray-100 p-2 text-right text-lg border border-gray-300 mb-2 font-mono">0.00</div>
-                  <div className="grid grid-cols-4 gap-1 text-center">
-                    {['7','8','9','/','4','5','6','*','1','2','3','-','0','.','=','+'].map(btn => (
-                      <div key={btn} className="bg-gray-200 hover:bg-gray-300 p-1 border border-gray-300 cursor-pointer">{btn}</div>
+                  <div className="bg-gray-900 text-green-400 p-2 text-right border border-gray-700 mb-2 font-mono rounded overflow-hidden min-h-[44px] flex flex-col justify-center">
+                    {calcPrev && <div className="text-[10px] text-gray-400 font-mono leading-none">{calcPrev} {calcOp}</div>}
+                    <div className="font-bold text-lg leading-tight truncate">{calcDisplay}</div>
+                  </div>
+                  <div className="grid grid-cols-4 gap-1 text-center font-semibold">
+                    <button onClick={() => handleCalcInput('C')} className="bg-red-100 hover:bg-red-200 text-red-700 p-1.5 border border-red-300 rounded text-xs font-bold">C</button>
+                    <button onClick={() => handleCalcInput('⌫')} className="bg-amber-100 hover:bg-amber-200 text-amber-800 p-1.5 border border-amber-300 rounded text-xs font-bold">⌫</button>
+                    <button onClick={() => handleCalcInput('/')} className="bg-blue-100 hover:bg-blue-200 text-blue-800 p-1.5 border border-blue-300 rounded text-xs font-bold">/</button>
+                    <button onClick={() => handleCalcInput('*')} className="bg-blue-100 hover:bg-blue-200 text-blue-800 p-1.5 border border-blue-300 rounded text-xs font-bold">×</button>
+                    
+                    {['7','8','9'].map(btn => (
+                      <button key={btn} onClick={() => handleCalcInput(btn)} className="bg-gray-100 hover:bg-gray-200 text-gray-800 p-1.5 border border-gray-300 rounded text-xs font-bold">{btn}</button>
                     ))}
+                    <button onClick={() => handleCalcInput('-')} className="bg-blue-100 hover:bg-blue-200 text-blue-800 p-1.5 border border-blue-300 rounded text-xs font-bold">-</button>
+
+                    {['4','5','6'].map(btn => (
+                      <button key={btn} onClick={() => handleCalcInput(btn)} className="bg-gray-100 hover:bg-gray-200 text-gray-800 p-1.5 border border-gray-300 rounded text-xs font-bold">{btn}</button>
+                    ))}
+                    <button onClick={() => handleCalcInput('+')} className="bg-blue-100 hover:bg-blue-200 text-blue-800 p-1.5 border border-blue-300 rounded text-xs font-bold">+</button>
+
+                    {['1','2','3'].map(btn => (
+                      <button key={btn} onClick={() => handleCalcInput(btn)} className="bg-gray-100 hover:bg-gray-200 text-gray-800 p-1.5 border border-gray-300 rounded text-xs font-bold">{btn}</button>
+                    ))}
+                    <button onClick={() => handleCalcInput('=')} className="bg-green-600 hover:bg-green-700 text-white p-1.5 border border-green-700 rounded text-xs row-span-2 flex items-center justify-center font-bold">=</button>
+
+                    <button onClick={() => handleCalcInput('0')} className="bg-gray-100 hover:bg-gray-200 text-gray-800 p-1.5 border border-gray-300 rounded text-xs font-bold col-span-2">0</button>
+                    <button onClick={() => handleCalcInput('.')} className="bg-gray-100 hover:bg-gray-200 text-gray-800 p-1.5 border border-gray-300 rounded text-xs font-bold">.</button>
                   </div>
                 </div>
               )}
-            </button>
-            <button onClick={() => setIsGstCalcOpen(!isGstCalcOpen)} className="bg-gray-200 text-black px-2 hover:bg-gray-300 border border-gray-400 text-[10px] relative">
-              GST Calculator
+            </div>
+
+            <div className="relative">
+              <button onClick={() => { setIsGstCalcOpen(!isGstCalcOpen); setIsCalcOpen(false); }} className="bg-gray-200 text-black px-2 hover:bg-gray-300 border border-gray-400 text-[10px] py-0.5">
+                GST Calculator
+              </button>
               {isGstCalcOpen && (
-                <div className="absolute bottom-8 right-0 w-56 bg-white border border-gray-400 shadow-xl p-2 text-left cursor-default z-50 text-sm" onClick={e => e.stopPropagation()}>
-                  <div className="font-bold border-b pb-1 mb-2 text-blue-900 flex justify-between">
-                    GST Calc <span className="cursor-pointer text-red-500 hover:text-red-700" onClick={(e) => { e.stopPropagation(); setIsGstCalcOpen(false); }}>✕</span>
+                <div className="absolute bottom-6 left-0 w-60 bg-white border border-gray-400 shadow-2xl p-2.5 text-left cursor-default z-50 text-sm rounded select-none" onClick={e => e.stopPropagation()}>
+                  <div className="font-bold border-b pb-1 mb-2 text-blue-900 flex justify-between items-center text-xs">
+                    <span>GST Calculator</span>
+                    <span className="cursor-pointer text-red-500 hover:text-red-700 font-bold px-1" onClick={(e) => { e.stopPropagation(); setIsGstCalcOpen(false); }}>✕</span>
                   </div>
-                  <div className="space-y-2">
-                    <div><label className="text-xs">Amount</label><input type="number" className="w-full border p-1 text-xs" placeholder="0.00" /></div>
-                    <div><label className="text-xs">GST %</label>
-                      <select className="w-full border p-1 text-xs">
-                        <option>5%</option>
-                        <option>12%</option>
-                        <option>18%</option>
-                        <option>28%</option>
-                      </select>
+                  <div className="space-y-2 text-black">
+                    <div>
+                      <label className="text-[11px] font-semibold block text-gray-700 mb-0.5">Amount (₹)</label>
+                      <input 
+                        type="number" 
+                        value={gstAmount}
+                        onChange={(e) => setGstAmount(e.target.value)}
+                        className="w-full border border-gray-300 rounded p-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500" 
+                        placeholder="0.00" 
+                      />
                     </div>
-                    <div className="bg-green-50 p-1 border text-xs">
-                      <div>CGST: 0.00</div>
-                      <div>SGST: 0.00</div>
-                      <div className="font-bold mt-1">Total: 0.00</div>
+                    <div>
+                      <label className="text-[11px] font-semibold block text-gray-700 mb-0.5">GST Rate (%)</label>
+                      <input 
+                        type="number" 
+                        value={gstRate}
+                        onChange={(e) => setGstRate(e.target.value === '' ? '' : Number(e.target.value))}
+                        className="w-full border border-gray-300 rounded p-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono" 
+                        placeholder="18"
+                        min="0"
+                        max="100"
+                        step="0.01"
+                      />
+                    </div>
+                    <div className="bg-green-50 p-2 border border-green-200 rounded text-xs space-y-1">
+                      <div className="flex justify-between text-gray-600"><span>CGST ({(parsedGstRate/2).toFixed(1)}%):</span><span className="font-mono">₹{cgstAmt.toFixed(2)}</span></div>
+                      <div className="flex justify-between text-gray-600"><span>SGST ({(parsedGstRate/2).toFixed(1)}%):</span><span className="font-mono">₹{sgstAmt.toFixed(2)}</span></div>
+                      <div className="flex justify-between text-gray-600"><span>GST Total:</span><span className="font-mono">₹{gstTax.toFixed(2)}</span></div>
+                      <div className="flex justify-between font-bold text-gray-900 border-t border-green-200 pt-1 mt-1"><span>Total Amount:</span><span className="font-mono text-green-700">₹{totalGstAmt.toFixed(2)}</span></div>
                     </div>
                   </div>
                 </div>
               )}
-            </button>
+            </div>
             <PrinterStatus />
           </div>
         </div>

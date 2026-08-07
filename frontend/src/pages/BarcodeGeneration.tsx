@@ -429,7 +429,6 @@ const BarcodeGeneration = () => {
     tspl += `REFERENCE 0,0\r\n`;
     tspl += `SET PEEL OFF\r\n`;
     tspl += `SET TEAR ON\r\n`;
-    tspl += `AUTODETECT ${calWidth},${calHeight}\r\n`;
     tspl += `GAPDETECT\r\n`;
     tspl += `HOME\r\n`;
 
