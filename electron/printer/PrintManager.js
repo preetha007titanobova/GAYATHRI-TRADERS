@@ -184,39 +184,44 @@ class PrintManager {
 
         try {
           const availablePrinters = await printWindow.webContents.getPrintersAsync();
-          console.log('[PrintManager] Connected System Printers:', availablePrinters.map(p => p.name));
+          console.log('[PrintManager] Connected System Printers:', availablePrinters.map(p => ({ name: p.name, status: p.status, isDefault: p.isDefault })));
+
+          let matchedPrinter = null;
 
           // 1. Check if user requested a specific printer name that exists in system
           if (config.printerName && config.printerName.trim() !== '') {
             const requested = config.printerName.trim().toLowerCase();
-            const matched = availablePrinters.find(p => p.name.toLowerCase() === requested || p.name.toLowerCase().includes(requested));
-            if (matched) {
-              targetDeviceName = matched.name;
-            }
+            matchedPrinter = availablePrinters.find(p => p.name.toLowerCase() === requested || p.name.toLowerCase().includes(requested));
           }
 
           // 2. Auto-detect RP3200, TVS, Thermal, POS receipt printer in Windows Print Queues
-          if (!targetDeviceName && availablePrinters.length > 0) {
+          if (!matchedPrinter && availablePrinters.length > 0) {
             const thermalKeywords = ['RP3200', 'TVS', 'POS', 'THERMAL', 'XP-', 'XP ', 'RECEIPT', 'ESC', '80MM', '58MM'];
             const virtualKeywords = ['PDF', 'XPS', 'ONENOTE', 'FAX', 'MICROSOFT'];
 
-            const thermalPrinter = availablePrinters.find(p => {
+            matchedPrinter = availablePrinters.find(p => {
               const nameUpper = p.name.toUpperCase();
               const isThermal = thermalKeywords.some(kw => nameUpper.includes(kw));
               const isVirtual = virtualKeywords.some(kw => nameUpper.includes(kw));
               return isThermal && !isVirtual;
             });
 
-            if (thermalPrinter) {
-              targetDeviceName = thermalPrinter.name;
-              console.log(`[PrintManager] Auto-selected thermal printer: "${targetDeviceName}"`);
-            } else {
+            if (!matchedPrinter) {
               // 3. Fallback to default OS printer or first physical printer
-              const defaultPrinter = availablePrinters.find(p => p.isDefault) || availablePrinters.find(p => !virtualKeywords.some(kw => p.name.toUpperCase().includes(kw)));
-              if (defaultPrinter) {
-                targetDeviceName = defaultPrinter.name;
-                console.log(`[PrintManager] Fallback system printer: "${targetDeviceName}"`);
+              matchedPrinter = availablePrinters.find(p => p.isDefault) || availablePrinters.find(p => !virtualKeywords.some(kw => p.name.toUpperCase().includes(kw)));
+            }
+          }
+
+          if (matchedPrinter) {
+            targetDeviceName = matchedPrinter.name;
+            // Status 7 = Offline, Status 2 = Error/Disconnected
+            if (matchedPrinter.status === 7 || matchedPrinter.status === 2) {
+              console.warn(`[PrintManager] Printer "${targetDeviceName}" is OFFLINE or DISCONNECTED (status: ${matchedPrinter.status}). Aborting print job.`);
+              if (printWindow && !printWindow.isDestroyed()) {
+                printWindow.destroy();
+                printWindow = null;
               }
+              return reject(new Error(`Printer "${targetDeviceName}" is Offline or Disconnected. Please connect the printer USB cable and turn it ON.`));
             }
           }
         } catch (e) {

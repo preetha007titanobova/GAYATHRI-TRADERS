@@ -121,6 +121,21 @@ const createPurchaseBill = (data) => __awaiter(void 0, void 0, void 0, function*
                 });
                 productId = new mongodb_1.ObjectId(newProduct.id);
             }
+            // Also update native MongoDB Product collection for offline consistency
+            if (item.itemCode) {
+                try {
+                    yield db.collection('Product').updateOne({ $or: [{ itemCode: item.itemCode }, { barcode: item.itemCode }] }, {
+                        $inc: { stock: Math.round(qty + freeQty) },
+                        $set: {
+                            purchaseRate: rate,
+                            price: sellingPrice || rate,
+                            mrp: mrp || rate,
+                            updatedAt: new Date()
+                        }
+                    });
+                }
+                catch (me) { }
+            }
             itemsToInsert.push({
                 purchaseBillId: purchaseBillId,
                 productId: productId,
@@ -317,26 +332,48 @@ const updatePurchaseBill = (id, data) => __awaiter(void 0, void 0, void 0, funct
 exports.updatePurchaseBill = updatePurchaseBill;
 const deletePurchaseBill = (id) => __awaiter(void 0, void 0, void 0, function* () {
     const db = yield (0, db_1.getDb)();
-    const billId = new mongodb_1.ObjectId(id);
-    // Revert stock changes
+    let billId;
+    try {
+        billId = new mongodb_1.ObjectId(id);
+    }
+    catch (err) {
+        const found = yield db.collection('PurchaseBill').findOne({ voucherNo: id });
+        if (!found)
+            return false;
+        billId = found._id;
+    }
+    // Revert stock changes safely using native MongoDB
     const oldItems = yield db.collection('PurchaseItem').find({ purchaseBillId: billId }).toArray();
     for (const item of oldItems) {
         const qty = Number(item.qty) || 0;
         const freeQty = Number(item.freeQty) || 0;
-        if ((qty + freeQty) > 0 && item.productId) {
-            yield db_1.prisma.product.update({
-                where: { id: item.productId.toString() },
-                data: {
-                    stock: {
-                        decrement: Math.round(qty + freeQty)
+        const totalItemQty = Math.round(qty + freeQty);
+        if (totalItemQty > 0) {
+            if (item.productId) {
+                try {
+                    let pId;
+                    try {
+                        pId = new mongodb_1.ObjectId(item.productId.toString());
                     }
+                    catch (_a) {
+                        pId = item.productId;
+                    }
+                    yield db.collection('Product').updateOne({ _id: pId }, { $inc: { stock: -totalItemQty } });
                 }
-            });
+                catch (pe) {
+                    console.warn("Stock decrement warning for productId:", pe);
+                }
+            }
+            else if (item.itemCode) {
+                try {
+                    yield db.collection('Product').updateOne({ itemCode: item.itemCode }, { $inc: { stock: -totalItemQty } });
+                }
+                catch (pe) { }
+            }
         }
     }
-    // Delete items
+    // Delete items and bill
     yield db.collection('PurchaseItem').deleteMany({ purchaseBillId: billId });
-    // Delete bill
     const result = yield db.collection('PurchaseBill').deleteOne({ _id: billId });
     return result.deletedCount > 0;
 });
@@ -547,25 +584,46 @@ const updatePurchaseReturn = (id, data) => __awaiter(void 0, void 0, void 0, fun
 exports.updatePurchaseReturn = updatePurchaseReturn;
 const deletePurchaseReturn = (id) => __awaiter(void 0, void 0, void 0, function* () {
     const db = yield (0, db_1.getDb)();
-    const returnId = new mongodb_1.ObjectId(id);
-    // Revert stock changes
+    let returnId;
+    try {
+        returnId = new mongodb_1.ObjectId(id);
+    }
+    catch (err) {
+        const found = yield db.collection('PurchaseReturn').findOne({ returnNo: id });
+        if (!found)
+            return false;
+        returnId = found._id;
+    }
+    // Revert stock changes safely using native MongoDB
     const oldItems = yield db.collection('PurchaseReturnItem').find({ purchaseReturnId: returnId }).toArray();
     for (const item of oldItems) {
-        const returnQty = Number(item.returnQty) || 0;
-        if (returnQty > 0 && item.productId) {
-            yield db_1.prisma.product.update({
-                where: { id: item.productId.toString() },
-                data: {
-                    stock: {
-                        increment: Math.round(returnQty)
+        const returnQty = Math.round(Number(item.returnQty) || 0);
+        if (returnQty > 0) {
+            if (item.productId) {
+                try {
+                    let pId;
+                    try {
+                        pId = new mongodb_1.ObjectId(item.productId.toString());
                     }
+                    catch (_a) {
+                        pId = item.productId;
+                    }
+                    yield db.collection('Product').updateOne({ _id: pId }, { $inc: { stock: returnQty } });
                 }
-            });
+                catch (pe) {
+                    console.warn("Stock increment warning for productId:", pe);
+                }
+            }
+            else if (item.itemCode) {
+                try {
+                    yield db.collection('Product').updateOne({ itemCode: item.itemCode }, { $inc: { stock: returnQty } });
+                }
+                catch (pe) { }
+            }
         }
     }
-    // Delete items
+    // Delete items and return bill
     yield db.collection('PurchaseReturnItem').deleteMany({ purchaseReturnId: returnId });
-    // Delete return bill
     const result = yield db.collection('PurchaseReturn').deleteOne({ _id: returnId });
     return result.deletedCount > 0;
 });

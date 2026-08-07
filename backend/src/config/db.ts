@@ -70,31 +70,6 @@ export async function setupDatabase() {
       console.warn("Prisma stock cleanup note:", pe);
     }
     console.log("Product database setup & stock non-negative sanitization ready");
-
-    // Seed sample product 100002 if missing
-    const existing = await db.collection('Product').findOne({
-      $or: [{ barcode: '100002' }, { itemCode: 'ITM-100002' }]
-    });
-
-    if (!existing) {
-      await db.collection('Product').insertOne({
-        itemCode: 'ITM-100002',
-        name: "Men's Shirt",
-        barcode: '100002',
-        size: 'L',
-        department: 'Mens',
-        variety: 'Formal',
-        uom: 'PCS',
-        purchaseRate: 450,
-        price: 799,
-        mrp: 799,
-        taxPercent: 5,
-        stock: 50,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      });
-      console.log("Seeded default barcode product 100002 (Men's Shirt, Size: L, Price: 799)");
-    }
   } catch (e: any) {
     console.log("Product database setup note:", e.message);
   }

@@ -218,7 +218,7 @@ const QuotationRegister = () => {
       };
     });
 
-    const storePhone = localStorage.getItem('close_day_whatsapp') || ownerWhatsApp || '+919698819482';
+    const storePhone = localStorage.getItem('close_day_whatsapp') || ownerWhatsApp || '';
 
     printReceipt({
       gridData: formattedItems,

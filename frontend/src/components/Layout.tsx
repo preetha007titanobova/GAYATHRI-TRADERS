@@ -81,8 +81,8 @@ const Layout = () => {
   const [isCloseDayModalOpen, setIsCloseDayModalOpen] = useState(false);
   const [isCloseRequested, setIsCloseRequested] = useState(false);
   const [closeDayLoading, setCloseDayLoading] = useState(false);
-  const [ownerWhatsApp, setOwnerWhatsApp] = useState(() => localStorage.getItem('close_day_whatsapp') || '+919698819482');
-  const [ownerEmail, setOwnerEmail] = useState(() => localStorage.getItem('close_day_email') || 'titanobovapvt@gmail.com');
+  const [ownerWhatsApp, setOwnerWhatsApp] = useState(() => localStorage.getItem('close_day_whatsapp') || '');
+  const [ownerEmail, setOwnerEmail] = useState(() => localStorage.getItem('close_day_email') || '');
   const [isOwnerSettingsModalOpen, setIsOwnerSettingsModalOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   
@@ -118,6 +118,35 @@ const Layout = () => {
       }
     }
   }, [location.pathname, unlockedReports]);
+
+  const [isBackendConnecting, setIsBackendConnecting] = useState(true);
+  const [backendAttempts, setBackendAttempts] = useState(0);
+
+  useEffect(() => {
+    let mounted = true;
+    const checkServerHealth = async () => {
+      try {
+        const res = await fetch(`${Api}/health`);
+        if (res.ok && mounted) {
+          setIsBackendConnecting(false);
+        } else if (mounted) {
+          setBackendAttempts(prev => prev + 1);
+        }
+      } catch (err) {
+        if (mounted) setBackendAttempts(prev => prev + 1);
+      }
+    };
+
+    checkServerHealth();
+    const interval = setInterval(() => {
+      checkServerHealth();
+    }, 1200);
+
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, []);
 
   useEffect(() => {
     if ((window as any).api) {
@@ -481,6 +510,34 @@ const Layout = () => {
         <span className="mr-2">{shopName} BILLING COUNTER - [{getPageTitle(location.pathname)}]</span>
       </div>
 
+      {/* Server Startup Health Check Loading Overlay */}
+      {isBackendConnecting && (
+        <div className="fixed inset-0 z-[99999] flex flex-col items-center justify-center bg-slate-900/90 text-white backdrop-blur-md">
+          <div className="bg-white text-slate-800 p-8 rounded-xl shadow-2xl max-w-md w-full text-center space-y-4 border border-slate-200 animate-in fade-in zoom-in duration-300">
+            <div className="flex justify-center">
+              <RefreshCw size={44} className="text-blue-600 animate-spin" />
+            </div>
+            <h2 className="text-xl font-bold text-slate-900">Starting POS Database Engine</h2>
+            <p className="text-xs text-slate-600 leading-relaxed font-medium">
+              Initializing offline database and background billing services... Please wait.
+            </p>
+            <div className="bg-blue-50 border border-blue-200 text-blue-800 text-xs font-semibold py-2 px-3 rounded-lg">
+              Status: Connecting to offline server (Attempt {backendAttempts + 1})
+            </div>
+            <button
+              onClick={() => {
+                fetch(`${Api}/health`)
+                  .then(res => { if (res.ok) setIsBackendConnecting(false); })
+                  .catch(() => {});
+              }}
+              className="mt-2 w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow transition-colors cursor-pointer"
+            >
+              Retry Connection Now
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* License Renewal Warning Banner (Indication for renewal - only shown if 4 days or fewer remaining) */}
       {!loading && isActivated && daysRemaining !== undefined && daysRemaining !== null && daysRemaining <= 4 && daysRemaining >= 0 && (
         <div className="bg-amber-600 text-white font-semibold text-xs px-4 py-2 text-center flex justify-center items-center gap-3 select-text border-b border-amber-700 shadow-sm">
@@ -514,6 +571,7 @@ const Layout = () => {
                <Link to="/ledger-master" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Ledger Master</Link>
                <Link to="/item-master" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Item Master</Link>
                <Link to="/barcode-generation" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Barcode Generation</Link>
+               <Link to="/barcode-register" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Barcode Register</Link>
                <div className="border-t border-gray-300 my-1"></div>
                <Link to="/opening-cash" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-bold text-emerald-700 hover:text-white">Cash Drawer Opening</Link>
                <div className="border-t border-gray-300 my-1"></div>

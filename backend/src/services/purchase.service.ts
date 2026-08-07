@@ -122,6 +122,24 @@ export const createPurchaseBill = async (data: any): Promise<any> => {
         productId = new ObjectId(newProduct.id);
       }
 
+      // Also update native MongoDB Product collection for offline consistency
+      if (item.itemCode) {
+        try {
+          await db.collection('Product').updateOne(
+            { $or: [{ itemCode: item.itemCode }, { barcode: item.itemCode }] },
+            {
+              $inc: { stock: Math.round(qty + freeQty) },
+              $set: {
+                purchaseRate: rate,
+                price: sellingPrice || rate,
+                mrp: mrp || rate,
+                updatedAt: new Date()
+              }
+            }
+          );
+        } catch (me) {}
+      }
+
       itemsToInsert.push({
         purchaseBillId: purchaseBillId,
         productId: productId,
@@ -349,29 +367,46 @@ export const updatePurchaseBill = async (id: string, data: any): Promise<boolean
 
 export const deletePurchaseBill = async (id: string): Promise<boolean> => {
   const db = await getDb();
-  const billId = new ObjectId(id);
+  let billId: ObjectId;
+  try {
+    billId = new ObjectId(id);
+  } catch (err) {
+    const found = await db.collection('PurchaseBill').findOne({ voucherNo: id });
+    if (!found) return false;
+    billId = found._id;
+  }
 
-  // Revert stock changes
+  // Revert stock changes safely using native MongoDB
   const oldItems = await db.collection('PurchaseItem').find({ purchaseBillId: billId }).toArray();
   for (const item of oldItems) {
     const qty = Number(item.qty) || 0;
     const freeQty = Number(item.freeQty) || 0;
-    if ((qty + freeQty) > 0 && item.productId) {
-      await prisma.product.update({
-        where: { id: item.productId.toString() },
-        data: {
-          stock: {
-            decrement: Math.round(qty + freeQty)
-          }
+    const totalItemQty = Math.round(qty + freeQty);
+    if (totalItemQty > 0) {
+      if (item.productId) {
+        try {
+          let pId: ObjectId;
+          try { pId = new ObjectId(item.productId.toString()); } catch { pId = item.productId; }
+          await db.collection('Product').updateOne(
+            { _id: pId },
+            { $inc: { stock: -totalItemQty } }
+          );
+        } catch (pe) {
+          console.warn("Stock decrement warning for productId:", pe);
         }
-      });
+      } else if (item.itemCode) {
+        try {
+          await db.collection('Product').updateOne(
+            { itemCode: item.itemCode },
+            { $inc: { stock: -totalItemQty } }
+          );
+        } catch (pe) {}
+      }
     }
   }
 
-  // Delete items
+  // Delete items and bill
   await db.collection('PurchaseItem').deleteMany({ purchaseBillId: billId });
-
-  // Delete bill
   const result = await db.collection('PurchaseBill').deleteOne({ _id: billId });
   return result.deletedCount > 0;
 };
@@ -623,28 +658,44 @@ export const updatePurchaseReturn = async (id: string, data: any): Promise<boole
 
 export const deletePurchaseReturn = async (id: string): Promise<boolean> => {
   const db = await getDb();
-  const returnId = new ObjectId(id);
+  let returnId: ObjectId;
+  try {
+    returnId = new ObjectId(id);
+  } catch (err) {
+    const found = await db.collection('PurchaseReturn').findOne({ returnNo: id });
+    if (!found) return false;
+    returnId = found._id;
+  }
 
-  // Revert stock changes
+  // Revert stock changes safely using native MongoDB
   const oldItems = await db.collection('PurchaseReturnItem').find({ purchaseReturnId: returnId }).toArray();
   for (const item of oldItems) {
-    const returnQty = Number(item.returnQty) || 0;
-    if (returnQty > 0 && item.productId) {
-      await prisma.product.update({
-        where: { id: item.productId.toString() },
-        data: {
-          stock: {
-            increment: Math.round(returnQty)
-          }
+    const returnQty = Math.round(Number(item.returnQty) || 0);
+    if (returnQty > 0) {
+      if (item.productId) {
+        try {
+          let pId: ObjectId;
+          try { pId = new ObjectId(item.productId.toString()); } catch { pId = item.productId; }
+          await db.collection('Product').updateOne(
+            { _id: pId },
+            { $inc: { stock: returnQty } }
+          );
+        } catch (pe) {
+          console.warn("Stock increment warning for productId:", pe);
         }
-      });
+      } else if (item.itemCode) {
+        try {
+          await db.collection('Product').updateOne(
+            { itemCode: item.itemCode },
+            { $inc: { stock: returnQty } }
+          );
+        } catch (pe) {}
+      }
     }
   }
 
-  // Delete items
+  // Delete items and return bill
   await db.collection('PurchaseReturnItem').deleteMany({ purchaseReturnId: returnId });
-
-  // Delete return bill
   const result = await db.collection('PurchaseReturn').deleteOne({ _id: returnId });
   return result.deletedCount > 0;
 };

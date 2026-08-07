@@ -124,10 +124,20 @@ const searchItems = (q) => __awaiter(void 0, void 0, void 0, function* () {
     }
     const map = new Map();
     [...mongoItems, ...prismaItems].forEach((item) => {
-        var _a;
-        const id = ((_a = item._id) === null || _a === void 0 ? void 0 : _a.toString()) || item.id;
-        if (id && !map.has(id)) {
-            map.set(id, Object.assign(Object.assign({}, item), { id, _id: id, barcode: item.barcode || '', itemCode: item.itemCode || '', size: item.size || '', price: Number(item.price) || 0, stock: Math.max(0, Number(item.stock) || 0), damageReasons: returnReasonsMap.get(id) || [] }));
+        var _a, _b;
+        const codeKey = (item.itemCode || item.barcode || ((_a = item._id) === null || _a === void 0 ? void 0 : _a.toString()) || item.id || '').toUpperCase().trim();
+        if (codeKey) {
+            if (!map.has(codeKey)) {
+                const id = ((_b = item._id) === null || _b === void 0 ? void 0 : _b.toString()) || item.id;
+                map.set(codeKey, Object.assign(Object.assign({}, item), { id, _id: id, barcode: item.barcode || '', itemCode: item.itemCode || '', size: item.size || '', price: Number(item.price) || 0, stock: Math.max(0, Number(item.stock) || 0), damageReasons: returnReasonsMap.get(id) || [] }));
+            }
+            else {
+                const existing = map.get(codeKey);
+                const itemStock = Math.max(0, Number(item.stock) || 0);
+                if (itemStock > (existing.stock || 0)) {
+                    existing.stock = itemStock;
+                }
+            }
         }
     });
     return Array.from(map.values());

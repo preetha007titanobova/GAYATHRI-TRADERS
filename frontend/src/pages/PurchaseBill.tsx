@@ -1787,13 +1787,14 @@ const PurchaseBill = () => {
                 </div>
                 <div>
                   <label className="block text-gray-700 font-bold mb-1">Tax %</label>
-                  <select value={quickAddForm.taxPercent} onChange={e => setQuickAddForm(prev => ({ ...prev, taxPercent: Number(e.target.value) }))} className="w-full border border-gray-300 p-2 rounded outline-none bg-white font-bold">
-                    <option value="0">0%</option>
-                    <option value="5">5%</option>
-                    <option value="12">12%</option>
-                    <option value="18">18%</option>
-                    <option value="28">28%</option>
-                  </select>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={quickAddForm.taxPercent || ''}
+                    onChange={e => setQuickAddForm(prev => ({ ...prev, taxPercent: Number(e.target.value) }))}
+                    className="w-full border border-gray-300 p-2 rounded outline-none text-right font-mono font-bold"
+                    placeholder="0"
+                  />
                 </div>
               </div>
 

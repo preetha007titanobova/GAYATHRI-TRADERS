@@ -12,6 +12,7 @@ import QuotationRegister from './pages/QuotationRegister';
 import SalesOrder from './pages/SalesOrder';
 import SalesReturn from './pages/SalesReturn';
 import BarcodeGeneration from './pages/BarcodeGeneration';
+import BarcodeRegister from './pages/BarcodeRegister';
 import SalesRegister from './pages/SalesRegister';
 import SalesStatus from './pages/SalesStatus';
 import PurchaseBill from './pages/PurchaseBill';
@@ -60,6 +61,7 @@ function App() {
           <Route path="ledger-master" element={<LedgerMaster />} />
           <Route path="item-master" element={<ItemMaster />} />
           <Route path="barcode-generation" element={<BarcodeGeneration />} />
+          <Route path="barcode-register" element={<BarcodeRegister />} />
           <Route path="backup" element={<Backup />} />
           
           {/* Admin & Staff */}

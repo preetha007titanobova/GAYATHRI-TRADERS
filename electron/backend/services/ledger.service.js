@@ -24,18 +24,21 @@ exports.getLedgerStatement = exports.deleteLedger = exports.updateLedger = expor
 const mongodb_1 = require("mongodb");
 const db_1 = require("../config/db");
 const getNextLedgerCode = () => __awaiter(void 0, void 0, void 0, function* () {
-    const lastLedger = yield db_1.prisma.ledger.findFirst({
-        orderBy: { createdAt: 'desc' }
-    });
-    let nextNum = 1;
-    if (lastLedger && lastLedger.ledgerCode) {
-        const parts = lastLedger.ledgerCode.split('-');
-        const currentNum = parseInt(parts[1]);
-        if (!isNaN(currentNum)) {
-            nextNum = currentNum + 1;
+    const db = yield (0, db_1.getDb)();
+    const ledgers = yield db.collection('Ledger').find({}, { projection: { ledgerCode: 1 } }).toArray();
+    let maxNum = 0;
+    for (const l of ledgers) {
+        if (l.ledgerCode && typeof l.ledgerCode === 'string') {
+            const parts = l.ledgerCode.split('-');
+            if (parts.length >= 2) {
+                const num = parseInt(parts[1], 10);
+                if (!isNaN(num) && num > maxNum) {
+                    maxNum = num;
+                }
+            }
         }
     }
-    return `LDG-${nextNum.toString().padStart(3, '0')}`;
+    return `LDG-${(maxNum + 1).toString().padStart(3, '0')}`;
 });
 exports.getNextLedgerCode = getNextLedgerCode;
 const searchLedgers = (q, group) => __awaiter(void 0, void 0, void 0, function* () {
@@ -64,7 +67,17 @@ const searchLedgers = (q, group) => __awaiter(void 0, void 0, void 0, function* 
 exports.searchLedgers = searchLedgers;
 const createLedger = (data) => __awaiter(void 0, void 0, void 0, function* () {
     const db = yield (0, db_1.getDb)();
-    return yield db.collection('Ledger').insertOne(Object.assign(Object.assign({}, data), { openingBalance: Number(data.openingBalance) || 0, creditLimit: Number(data.creditLimit) || 0, defaultCreditPeriod: Number(data.defaultCreditPeriod) || 0, createdAt: new Date(), updatedAt: new Date() }));
+    let codeToUse = data.ledgerCode;
+    if (!codeToUse || codeToUse.trim() === '') {
+        codeToUse = yield (0, exports.getNextLedgerCode)();
+    }
+    else {
+        const existing = yield db.collection('Ledger').findOne({ ledgerCode: codeToUse });
+        if (existing) {
+            codeToUse = yield (0, exports.getNextLedgerCode)();
+        }
+    }
+    return yield db.collection('Ledger').insertOne(Object.assign(Object.assign({}, data), { ledgerCode: codeToUse, openingBalance: Number(data.openingBalance) || 0, creditLimit: Number(data.creditLimit) || 0, defaultCreditPeriod: Number(data.defaultCreditPeriod) || 0, createdAt: new Date(), updatedAt: new Date() }));
 });
 exports.createLedger = createLedger;
 const updateLedger = (id, data) => __awaiter(void 0, void 0, void 0, function* () {

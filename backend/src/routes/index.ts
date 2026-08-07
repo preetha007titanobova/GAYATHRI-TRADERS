@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
+import { getDb } from '../config/db';
 import ledgerRoutes from './ledger.route';
 import productRoutes from './product.route';
 import salesRoutes from './sales.route';
@@ -13,6 +14,16 @@ import shopSalesRoutes from './shopSales.route';
 import cashDrawerRoutes from './cashDrawer.route';
 
 const router = Router();
+
+router.get('/health', async (req, res) => {
+  try {
+    const db = await getDb();
+    await db.command({ ping: 1 });
+    res.json({ status: 'ok', db: 'connected', time: new Date().toISOString() });
+  } catch (err: any) {
+    res.status(503).json({ status: 'starting', db: 'connecting', error: err.message });
+  }
+});
 
 router.get('/rupee-font', (req, res) => {
   try {

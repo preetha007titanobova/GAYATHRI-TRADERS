@@ -249,7 +249,12 @@ const StockRegister = () => {
       });
     }
 
-    const combinedMovements = [...dbMovements, ...localPurchaseMovements, ...localShopSalesMovements];
+    // Filter local purchase and shop sales movements to prevent double-counting vouchers already present in dbMovements
+    const dbVoucherNos = new Set(dbMovements.map(m => m.vchNo).filter(Boolean));
+    const uniqueLocalPurchases = localPurchaseMovements.filter(m => !dbVoucherNos.has(m.vchNo));
+    const uniqueLocalShopSales = localShopSalesMovements.filter(m => !dbVoucherNos.has(m.vchNo));
+
+    const combinedMovements = [...dbMovements, ...uniqueLocalPurchases, ...uniqueLocalShopSales];
     combinedMovements.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     const priorMoves = combinedMovements.filter(m => {

@@ -399,7 +399,7 @@ const Quotation = () => {
       };
     });
 
-    const storePhone = localStorage.getItem('close_day_whatsapp') || '+919698819482';
+    const storePhone = localStorage.getItem('close_day_whatsapp') || '';
 
     printReceipt({
       gridData: formattedItems,

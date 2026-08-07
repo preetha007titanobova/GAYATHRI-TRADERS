@@ -101,19 +101,28 @@ export const searchItems = async (q: string): Promise<any[]> => {
 
   const map = new Map();
   [...mongoItems, ...prismaItems].forEach((item: any) => {
-    const id = item._id?.toString() || item.id;
-    if (id && !map.has(id)) {
-      map.set(id, {
-        ...item,
-        id,
-        _id: id,
-        barcode: item.barcode || '',
-        itemCode: item.itemCode || '',
-        size: item.size || '',
-        price: Number(item.price) || 0,
-        stock: Math.max(0, Number(item.stock) || 0),
-        damageReasons: returnReasonsMap.get(id) || []
-      });
+    const codeKey = (item.itemCode || item.barcode || item._id?.toString() || item.id || '').toUpperCase().trim();
+    if (codeKey) {
+      if (!map.has(codeKey)) {
+        const id = item._id?.toString() || item.id;
+        map.set(codeKey, {
+          ...item,
+          id,
+          _id: id,
+          barcode: item.barcode || '',
+          itemCode: item.itemCode || '',
+          size: item.size || '',
+          price: Number(item.price) || 0,
+          stock: Math.max(0, Number(item.stock) || 0),
+          damageReasons: returnReasonsMap.get(id) || []
+        });
+      } else {
+        const existing = map.get(codeKey);
+        const itemStock = Math.max(0, Number(item.stock) || 0);
+        if (itemStock > (existing.stock || 0)) {
+          existing.stock = itemStock;
+        }
+      }
     }
   });
 

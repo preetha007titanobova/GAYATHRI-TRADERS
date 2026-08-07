@@ -1,5 +1,5 @@
 if (typeof process !== 'undefined' && !process.getBuiltinModule) {
-    process.getBuiltinModule = function(name) {
+    process.getBuiltinModule = function (name) {
         return require(name);
     };
 }
@@ -101,7 +101,7 @@ function startLocalMongo() {
 
     // Path to the portable mongod.exe bundled in the application resources
     // Place your portable mongod binary inside your packaging resources folder
-    const mongodPath = app.isPackaged 
+    const mongodPath = app.isPackaged
         ? path.join(process.resourcesPath, 'bin', 'mongod.exe')
         : path.join(__dirname, 'bin', 'mongod.exe');
 
@@ -137,8 +137,8 @@ function startLocalMongo() {
             const client = new MongoClient('mongodb://127.0.0.1:27017', { directConnection: true });
             await client.connect();
             try {
-                await client.db('admin').command({ 
-                    replSetInitiate: { _id: 'rs0', members: [{ _id: 0, host: '127.0.0.1:27017' }] } 
+                await client.db('admin').command({
+                    replSetInitiate: { _id: 'rs0', members: [{ _id: 0, host: '127.0.0.1:27017' }] }
                 });
                 console.log('Local MongoDB Replica Set rs0 initialized successfully.');
             } catch (err) {
@@ -163,8 +163,8 @@ function resolveDatabaseUrl() {
         try {
             const backendEnvPath = path.join(__dirname, '..', 'backend', '.env');
             const packagedEnvPath = path.join(__dirname, 'backend', '.env');
-            let envPath = fs.existsSync(backendEnvPath) 
-                ? backendEnvPath 
+            let envPath = fs.existsSync(backendEnvPath)
+                ? backendEnvPath
                 : (fs.existsSync(packagedEnvPath) ? packagedEnvPath : null);
             if (envPath) {
                 const dotenv = require('dotenv');
@@ -199,7 +199,7 @@ function startLocalBackend() {
         const backendDir = path.join(__dirname, '..', 'backend');
         const shell = process.platform === 'win32' ? 'cmd.exe' : '/bin/sh';
         const args = process.platform === 'win32' ? ['/c', 'npm run dev'] : ['-c', 'npm run dev'];
-        
+
         backendProcess = spawn(shell, args, {
             cwd: backendDir,
             env: {
@@ -225,19 +225,30 @@ function startLocalBackend() {
 function createWindow() {
     const licenseStatus = verifyLicenseOffline();
 
-    const { session } = require('electron');
+    const { session, Menu } = require('electron');
+    Menu.setApplicationMenu(null);
+
     if (session.defaultSession) {
-        session.defaultSession.clearCache().catch(() => {});
+        session.defaultSession.clearCache().catch(() => { });
     }
 
     mainWindow = new BrowserWindow({
         width: 1280,
         height: 800,
+        show: false,
+        autoHideMenuBar: true,
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
             preload: path.join(__dirname, 'preload.js')
         }
+    });
+
+    mainWindow.setMenu(null);
+
+    mainWindow.once('ready-to-show', () => {
+        mainWindow.show();
+        mainWindow.focus();
     });
 
     // Disable auto-opening devtools on startup
@@ -278,7 +289,7 @@ function createWindow() {
                     console.log(`Waiting for Vite dev server (5173)... retry ${viteRetryCount}/${MAX_VITE_RETRIES}`);
                     setTimeout(() => {
                         if (mainWindow && !mainWindow.isDestroyed() && !devServerFailed) {
-                            mainWindow.loadURL(`${devServerUrl}/${route}`).catch(() => {});
+                            mainWindow.loadURL(`${devServerUrl}/${route}`).catch(() => { });
                         }
                     }, 1000);
                 } else {
@@ -299,7 +310,7 @@ function createWindow() {
 
     if (isDev) {
         console.log(`Attempting to connect to Vite dev server at ${devServerUrl}/${route}`);
-        mainWindow.loadURL(`${devServerUrl}/${route}`).catch(() => {});
+        mainWindow.loadURL(`${devServerUrl}/${route}`).catch(() => { });
     } else {
         mainWindow.loadURL(`http://localhost:5000/${route}`);
     }
@@ -350,7 +361,7 @@ ipcMain.on('save-license', (event, licenseObject) => {
 
         fs.writeFileSync(LICENSE_PATH, JSON.stringify(licenseObject, null, 2));
         event.reply('save-license-response', { success: true });
-        
+
         // Reboot app to apply license
         app.relaunch();
         app.exit();

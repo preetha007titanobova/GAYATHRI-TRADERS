@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext, useNavigate } from 'react-router-dom';
 import { Printer, Save, RotateCcw, Download, Trash2, Plus, Search, Package, Check, Tag, FileDown } from 'lucide-react';
 import Api from '../Api';
 import { useLicense } from '../context/LicenseContext';
@@ -153,20 +153,21 @@ function getBarcodeSVGString(text: string, type: string = 'Code 128'): string {
 }
 
 const BarcodeGeneration = () => {
+  const navigate = useNavigate();
   const { shopName } = useLicense();
   // --- Form States ---
-  const [productName, setProductName] = useState('POLO SHIRT XL');
-  const [barcodeValue, setBarcodeValue] = useState('8901234567890');
-  const [department, setDepartment] = useState('Mens');
-  const [variety, setVariety] = useState('Standard');
-  const [size, setSize] = useState('L');
-  const [mfgDate, setMfgDate] = useState('2025-05-10');
+  const [productName, setProductName] = useState('');
+  const [barcodeValue, setBarcodeValue] = useState('');
+  const [department, setDepartment] = useState('');
+  const [variety, setVariety] = useState('');
+  const [size, setSize] = useState('');
+  const [mfgDate, setMfgDate] = useState('');
   const [expDate, setExpDate] = useState('');
-  const [batchNo, setBatchNo] = useState('BATCH-1001');
-  const [mrp, setMrp] = useState<number | ''>(450);
-  const [salesPrice, setSalesPrice] = useState<number | ''>(450);
+  const [batchNo, setBatchNo] = useState('');
+  const [mrp, setMrp] = useState<number | ''>('');
+  const [salesPrice, setSalesPrice] = useState<number | ''>('');
   const [barcodeType, setBarcodeType] = useState('Code 128');
-  const [printCount, setPrintCount] = useState<number | ''>(3);
+  const [printCount, setPrintCount] = useState<number | ''>(1);
   const [labelLayout, setLabelLayout] = useState<'3-UP' | '3-UP-TALL' | '3-UP-WIDE' | '1-UP' | 'A4'>('3-UP');
   const [useSystemPrintDialog, setUseSystemPrintDialog] = useState(false);
   const [previewViewMode, setPreviewViewMode] = useState<'row' | 'single'>('row');
@@ -1015,22 +1016,15 @@ const BarcodeGeneration = () => {
           </div>
         </div>
 
-        {/* <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-2">
           <button
-            onClick={handleSaveBarcodeToTable}
-            className="flex items-center space-x-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-3 py-2 rounded shadow transition-all active:scale-95"
+            onClick={() => navigate('/barcode-register')}
+            className="flex items-center space-x-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-3.5 py-2 rounded-md shadow transition-all active:scale-95 cursor-pointer"
           >
-            <Save size={15} />
-            <span>SAVE TO TABLE</span>
+            <Tag size={15} />
+            <span>Barcode Register (History)</span>
           </button>
-          <button
-            onClick={handlePrintCurrentForm}
-            className="flex items-center space-x-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-3 py-2 rounded shadow transition-all active:scale-95"
-          >
-            <Printer size={15} />
-            <span>PRINT LABELS</span>
-          </button>
-        </div> */}
+        </div>
       </div>
 
       {/* 2. Main Workstation: Form (Left) & Live Label Preview (Right) */}
@@ -1747,127 +1741,6 @@ const BarcodeGeneration = () => {
 
         </div>
 
-      </div>
-
-      {/* 3. SAVED BARCODE MASTER TABLE LIST */}
-      <div className="bg-white border border-slate-300 rounded-md shadow-md">
-        <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white px-4 py-2.5 flex items-center justify-between rounded-t-md">
-          <div className="flex items-center space-x-2">
-            <Tag size={18} className="text-yellow-400" />
-            <h2 className="font-extrabold text-sm tracking-wide uppercase">Saved Barcodes Master Table List</h2>
-            <span className="bg-emerald-500 text-slate-950 font-extrabold text-xs px-2 py-0.5 rounded-full">
-              {savedBarcodes.length} Records
-            </span>
-          </div>
-
-          {/* Table Search Field */}
-          <div className="relative w-64">
-            <input
-              type="text"
-              className="w-full bg-slate-800 text-white font-semibold text-xs py-1 px-3 pl-8 rounded border border-slate-700 focus:outline-none focus:border-yellow-400 placeholder-slate-400"
-              placeholder="Search table barcodes..."
-              value={tableSearch}
-              onChange={e => setTableSearch(e.target.value)}
-            />
-            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-          </div>
-        </div>
-
-        {/* Table Content */}
-        <div className="overflow-x-auto min-h-[200px]">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-300 uppercase tracking-wider text-[11px]">
-                <th className="p-2 border-r border-slate-200 text-center w-12">S.No</th>
-                <th className="p-2 border-r border-slate-200">Barcode No</th>
-                <th className="p-2 border-r border-slate-200">Product Name</th>
-                <th className="p-2 border-r border-slate-200">Category</th>
-                <th className="p-2 border-r border-slate-200">Variety</th>
-                <th className="p-2 border-r border-slate-200 text-center">Size</th>
-                <th className="p-2 border-r border-slate-200 text-right">MRP (₹)</th>
-                <th className="p-2 border-r border-slate-200 text-right">Sale Price (₹)</th>
-                <th className="p-2 border-r border-slate-200">Batch No</th>
-                <th className="p-2 border-r border-slate-200 text-center">Print Qty</th>
-                <th className="p-2 text-center w-28">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredSavedTable.length === 0 ? (
-                <tr>
-                  <td colSpan={11} className="p-6 text-center text-slate-500 italic">
-                    No saved barcodes in table list. Use the form above to add items.
-                  </td>
-                </tr>
-              ) : (
-                filteredSavedTable.map((item, idx) => (
-                  <tr key={item.id} className="hover:bg-blue-50/70 border-b border-slate-200 transition-colors">
-                    <td className="p-2 border-r border-slate-200 text-center font-semibold text-slate-600">{idx + 1}</td>
-                    <td className="p-2 border-r border-slate-200 font-mono font-bold text-blue-900 bg-yellow-50/50">
-                      {item.barcodeValue}
-                    </td>
-                    <td className="p-2 border-r border-slate-200 font-bold text-slate-900">{item.productName}</td>
-                    <td className="p-2 border-r border-slate-200 text-slate-700">{item.department || 'General'}</td>
-                    <td className="p-2 border-r border-slate-200 text-slate-700">{item.variety || 'Standard'}</td>
-                    <td className="p-2 border-r border-slate-200 text-center font-bold text-blue-800 bg-blue-50/30">
-                      {item.size || 'L'}
-                    </td>
-                    <td className="p-2 border-r border-slate-200 text-right font-mono text-slate-700">
-                      ₹{Number(item.mrp || 0).toFixed(2)}
-                    </td>
-                    <td className="p-2 border-r border-slate-200 text-right font-mono font-bold text-emerald-700">
-                      ₹{Number(item.salesPrice || 0).toFixed(2)}
-                    </td>
-                    <td className="p-2 border-r border-slate-200 font-mono text-slate-600">{item.batchNo || '-'}</td>
-                    <td className="p-2 border-r border-slate-200 text-center font-bold text-slate-900">{item.printCount || 1}</td>
-                    <td className="p-2 text-center">
-                      <div className="flex items-center justify-center space-x-1.5">
-                        {/* PRINT ICON BUTTON */}
-                        <button
-                          type="button"
-                          title="Print Barcode Label (HTML)"
-                          onClick={() => printLabelHTML([item])}
-                          className="bg-blue-600 hover:bg-blue-700 text-white p-1.5 rounded shadow transition-all active:scale-95"
-                        >
-                          <Printer size={14} />
-                        </button>
-
-                        {/* DIRECT TSPL HARDWARE PRINT BUTTON */}
-                        <button
-                          type="button"
-                          title="Direct TSPL Hardware Print to TSC Printer"
-                          onClick={() => handleDirectTSPLHardwarePrint([item])}
-                          className="bg-purple-600 hover:bg-purple-700 text-white p-1.5 rounded shadow transition-all active:scale-95"
-                        >
-                          <Tag size={14} />
-                        </button>
-
-                        {/* DOWNLOAD ICON BUTTON */}
-                        <button
-                          type="button"
-                          title="Download Barcode PNG Image"
-                          onClick={() => handleDownloadLabelImage(item)}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white p-1.5 rounded shadow transition-all active:scale-95"
-                        >
-                          <FileDown size={14} />
-                        </button>
-
-                        {/* DELETE ICON BUTTON */}
-                        <button
-                          type="button"
-                          title="Delete from Saved Table"
-                          onClick={() => handleDeleteSaved(item.id)}
-                          className="bg-rose-600 hover:bg-rose-700 text-white p-1.5 rounded shadow transition-all active:scale-95"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
       </div>
 
     </div>

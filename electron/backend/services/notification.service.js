@@ -26,7 +26,7 @@ const sendCloseDayEmail = (dateStr, base64Pdf, ownerEmail) => __awaiter(void 0, 
     const base64Data = base64Pdf.replace(/^data:application\/pdf;base64,/, '');
     const mailOptions = {
         from: process.env.EMAIL_USER,
-        to: ownerEmail || 'titanobovapvt@gmail.com',
+        to: ownerEmail || process.env.EMAIL_USER || '',
         subject: `Ithu Namma Kada - Daily Stock Status Report (${dateStr})`,
         text: `Hello,\n\nPlease find attached the Daily Stock Status Report for ${dateStr}.\n\nBest Regards,\nIthu Namma Kada Billing System`,
         attachments: [
