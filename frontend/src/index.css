@@ -2,14 +2,79 @@
 
 @layer base {
   body {
-    background-color: #d1e8e2; /* The specific pale-green/cyan legacy background */
-    color: #000000;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; /* Windows classic font */
+    background-color: #f8fafc;
+    color: #0f172a;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     overflow: hidden;
+    -webkit-font-smoothing: antialiased;
   }
 }
 
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.4);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.6);
+}
+
 @layer components {
+  /* Apple Glassmorphism Utility Classes */
+  .apple-glass {
+    background: rgba(255, 255, 255, 0.72);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.05), 0 4px 12px rgba(0, 0, 0, 0.03);
+  }
+
+  .apple-glass-card {
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(16px) saturate(160%);
+    -webkit-backdrop-filter: blur(16px) saturate(160%);
+    border: 1px solid rgba(226, 232, 240, 0.8);
+    box-shadow: 0 8px 24px -4px rgba(15, 23, 42, 0.06);
+  }
+
+  .apple-glass-panel {
+    background: rgba(248, 250, 252, 0.85);
+    backdrop-filter: blur(24px) saturate(190%);
+    -webkit-backdrop-filter: blur(24px) saturate(190%);
+    border: 1px solid rgba(255, 255, 255, 0.8);
+  }
+
+  .apple-glass-dark {
+    background: rgba(15, 23, 42, 0.82);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.3);
+  }
+
+  .apple-input {
+    @apply bg-white/70 backdrop-blur-md border border-slate-200/80 rounded-xl px-3.5 py-2 text-sm text-slate-800 placeholder-slate-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 focus:bg-white/95 shadow-sm;
+  }
+
+  .apple-button-primary {
+    @apply bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 active:scale-[0.98] text-white font-medium rounded-xl px-5 py-2.5 shadow-lg shadow-blue-500/25 transition-all duration-200 flex items-center justify-center gap-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .apple-button-secondary {
+    @apply bg-slate-100 hover:bg-slate-200/80 active:scale-[0.98] text-slate-700 font-medium rounded-xl px-4 py-2 border border-slate-200/80 shadow-sm transition-all duration-200 flex items-center justify-center gap-2 text-sm;
+  }
+
+  /* Legacy compatibility classes */
   .legacy-input {
     @apply bg-white border border-gray-400 shadow-inner px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500;
   }
@@ -38,3 +103,4 @@
     @apply border border-gray-300 p-1 text-sm bg-white;
   }
 }
+

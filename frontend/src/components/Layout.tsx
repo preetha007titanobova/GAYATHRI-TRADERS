@@ -1,9 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { Edit, Power, TrendingUp, Lock, Unlock, ChevronDown, ChevronUp } from 'lucide-react';
+import { Edit, Power, TrendingUp, Lock, Unlock, ChevronDown, ChevronUp, Shield, RefreshCw, Calendar } from 'lucide-react';
 import Api from '../Api';
+import { useLicense } from '../context/LicenseContext';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import PrinterStatus from './PrinterStatus';
+import { OpeningCashModal } from './OpeningCashModal';
+import { sendWhatsAppTextMessage } from '../utils/whatsappHelper';
 
 export type ToolbarActions = {
   onAdd?: () => void;
@@ -21,21 +25,134 @@ export type ToolbarActions = {
 };
 
 const Layout = () => {
+  const { shopName, daysRemaining, isActivated, loading } = useLicense();
   const [toolbarActions, setToolbarActions] = useState<ToolbarActions>({});
   const [globalNotification, setGlobalNotification] = useState<{msg: string, type: 'error' | 'success' | 'info' | ''}>({msg: '', type: ''});
+  const [indianTime, setIndianTime] = useState('');
+
+  // Clock in Asia/Kolkata (IST) 24h
+  useEffect(() => {
+    const updateTime = () => {
+      const d = new Date();
+      const formatter = new Intl.DateTimeFormat('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      });
+      const parts = formatter.formatToParts(d);
+      const day = parts.find(p => p.type === 'day')?.value || '';
+      const month = parts.find(p => p.type === 'month')?.value || '';
+      const year = parts.find(p => p.type === 'year')?.value || '';
+      const hour = parts.find(p => p.type === 'hour')?.value || '';
+      const minute = parts.find(p => p.type === 'minute')?.value || '';
+      const second = parts.find(p => p.type === 'second')?.value || '';
+      setIndianTime(`${day}-${month}-${year} ${hour}:${minute}:${second}`);
+    };
+
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Auto-dismiss notifications after 5 seconds
+  useEffect(() => {
+    if (globalNotification.msg) {
+      const timer = setTimeout(() => {
+        setGlobalNotification({ msg: '', type: '' });
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [globalNotification.msg]);
+
   const [isCalcOpen, setIsCalcOpen] = useState(false);
   const [isGstCalcOpen, setIsGstCalcOpen] = useState(false);
+  
+  // Calculator logic
+  const [calcDisplay, setCalcDisplay] = useState('0');
+  const [calcPrev, setCalcPrev] = useState('');
+  const [calcOp, setCalcOp] = useState('');
+  const [calcResetOnNext, setCalcResetOnNext] = useState(false);
+
+  const handleCalcInput = (val: string) => {
+    if (val === 'C') {
+      setCalcDisplay('0');
+      setCalcPrev('');
+      setCalcOp('');
+      setCalcResetOnNext(false);
+      return;
+    }
+    if (val === '⌫') {
+      if (calcResetOnNext) return;
+      if (calcDisplay.length <= 1 || calcDisplay === 'Error') {
+        setCalcDisplay('0');
+      } else {
+        setCalcDisplay(calcDisplay.slice(0, -1));
+      }
+      return;
+    }
+    if (['+', '-', '*', '/'].includes(val)) {
+      setCalcPrev(calcDisplay);
+      setCalcOp(val);
+      setCalcResetOnNext(true);
+      return;
+    }
+    if (val === '=') {
+      if (!calcOp || calcPrev === '') return;
+      const p = parseFloat(calcPrev);
+      const c = parseFloat(calcDisplay);
+      let res = 0;
+      if (calcOp === '+') res = p + c;
+      if (calcOp === '-') res = p - c;
+      if (calcOp === '*') res = p * c;
+      if (calcOp === '/') res = c !== 0 ? p / c : NaN;
+
+      if (isNaN(res)) {
+        setCalcDisplay('Error');
+      } else {
+        const resStr = String(Math.round(res * 100000000) / 100000000);
+        setCalcDisplay(resStr);
+      }
+      setCalcPrev('');
+      setCalcOp('');
+      setCalcResetOnNext(true);
+      return;
+    }
+    if (calcResetOnNext || calcDisplay === '0' || calcDisplay === 'Error') {
+      setCalcDisplay(val === '.' ? '0.' : val);
+      setCalcResetOnNext(false);
+    } else {
+      if (val === '.' && calcDisplay.includes('.')) return;
+      setCalcDisplay(calcDisplay + val);
+    }
+  };
+
+  // GST Calculator logic
+  const [gstAmount, setGstAmount] = useState('');
+  const [gstRate, setGstRate] = useState<number | string>(18);
+
+  const parsedGstAmt = parseFloat(gstAmount) || 0;
+  const parsedGstRate = typeof gstRate === 'number' ? gstRate : (parseFloat(gstRate) || 0);
+  const gstTax = (parsedGstAmt * parsedGstRate) / 100;
+  const cgstAmt = gstTax / 2;
+  const sgstAmt = gstTax / 2;
+  const totalGstAmt = parsedGstAmt + gstTax;
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [globalSettings, setGlobalSettings] = useState({
-    isSelectedCustomer: false
+    isSelectiveCustomer: false
   });
   const location = useLocation();
   const navigate = useNavigate();
 
   const [isCloseDayModalOpen, setIsCloseDayModalOpen] = useState(false);
+  const [isCloseRequested, setIsCloseRequested] = useState(false);
   const [closeDayLoading, setCloseDayLoading] = useState(false);
-  const [ownerWhatsApp, setOwnerWhatsApp] = useState(() => localStorage.getItem('close_day_whatsapp') || '+919876543210');
-  const [ownerEmail, setOwnerEmail] = useState(() => localStorage.getItem('close_day_email') || 'titanobovapvt@gmail.com');
+  const [ownerWhatsApp, setOwnerWhatsApp] = useState(() => localStorage.getItem('close_day_whatsapp') || '');
+  const [ownerEmail, setOwnerEmail] = useState(() => localStorage.getItem('close_day_email') || '');
   const [isOwnerSettingsModalOpen, setIsOwnerSettingsModalOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   
@@ -71,6 +188,65 @@ const Layout = () => {
       }
     }
   }, [location.pathname, unlockedReports]);
+
+  const [isBackendConnecting, setIsBackendConnecting] = useState(true);
+  const [backendAttempts, setBackendAttempts] = useState(0);
+
+  useEffect(() => {
+    let mounted = true;
+    const checkServerHealth = async () => {
+      try {
+        const res = await fetch(`${Api}/health`);
+        if (res.ok && mounted) {
+          setIsBackendConnecting(false);
+        } else if (mounted) {
+          setBackendAttempts(prev => prev + 1);
+        }
+      } catch (err) {
+        if (mounted) setBackendAttempts(prev => prev + 1);
+      }
+    };
+
+    checkServerHealth();
+    const interval = setInterval(() => {
+      checkServerHealth();
+    }, 1200);
+
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  useEffect(() => {
+    if ((window as any).api) {
+      (window as any).api.receive('app-close-requested', () => {
+        setIsCloseRequested(true);
+        setIsCloseDayModalOpen(true);
+      });
+    }
+  }, []);
+
+  // Trigger warning to renew the plan: on open and every 4 hours when daysRemaining <= 4
+  useEffect(() => {
+    if (!loading && isActivated && daysRemaining !== undefined && daysRemaining !== null && daysRemaining <= 4 && daysRemaining >= 0) {
+      const showRenewalNotification = () => {
+        setGlobalNotification({
+          msg: `⚠️ Attention: Your license will expire in ${daysRemaining} ${daysRemaining === 1 ? 'day' : 'days'}. Please renew the plan.`,
+          type: 'error'
+        });
+        setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 10000);
+      };
+
+      // 1. Show notification immediately when software opens/loads
+      showRenewalNotification();
+
+      // 2. Show notification every 4 hours
+      const interval = setInterval(showRenewalNotification, 4 * 60 * 60 * 1000);
+      return () => clearInterval(interval);
+    }
+  }, [daysRemaining, isActivated, loading]);
+
 
   const handleVerifyReportPin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -261,29 +437,35 @@ const Layout = () => {
         emailFailed = true;
       }
 
-      const whatsappText = `*Sri Gayathri Traders - Close Day Report*\n` +
-                           `*Date:* ${formattedDate}\n` +
-                           `*Total Items:* ${data.length}\n` +
-                           `*Total Qty In (Pur):* ${totalInward}\n` +
-                           `*Total Qty Out (Sold):* ${totalOutward}\n` +
-                           `*Total Qty Returned:* ${totalReturns}\n` +
-                           `*Total Closing Qty:* ${totalClosing}\n` +
-                           `*Total Closing Valuation:* Rs. ${(totalValuation || 0).toFixed(2)}\n\n` +
-                           (pdfUrl ? `*Download PDF Report:* ${pdfUrl}\n\n` : '') +
+      const whatsappText = `*🧾 ${shopName || 'ITHU NAMMA KADA'} - CLOSE DAY REPORT*\n` +
+                           `📅 *Date:* ${formattedDate}\n` +
+                           `----------------------------------------\n` +
+                           `📦 *Total Items In Stock Master:* ${data.length}\n` +
+                           `📥 *Total Purchased Today (Inward):* ${totalInward} PCS\n` +
+                           `📤 *Total Sold Today (Outward):* ${totalOutward} PCS\n` +
+                           `🔄 *Total Returns Today:* ${totalReturns} PCS\n` +
+                           `📊 *Current Closing Stock Qty:* ${totalClosing} PCS\n` +
+                           `💰 *Total Stock Valuation:* ₹${(totalValuation || 0).toFixed(2)}\n` +
+                           `----------------------------------------\n` +
+                           (pdfUrl ? `📄 *Download Full PDF Report:* ${pdfUrl}\n\n` : '') +
                            (emailFailed 
-                             ? `*Note:* Emailed PDF report failed to send due to email credentials error.\n\n`
-                             : `*Notification:* Daily PDF stock report has been generated and emailed to ${ownerEmail}.\n\n`) +
+                             ? `⚠️ *Email Status:* PDF report generate complete.\n\n`
+                             : `✅ *Email Status:* PDF report generated & emailed to ${ownerEmail}.\n\n`) +
                            `Generated automatically via Billing System.`;
 
-      const whatsappUrl = `https://api.whatsapp.com/send?phone=${ownerWhatsApp}&text=${encodeURIComponent(whatsappText)}`;
-      window.open(whatsappUrl, '_blank');
+      // Dispatch Close Day summary to owner's WhatsApp number
+      sendWhatsAppTextMessage(ownerWhatsApp, whatsappText);
 
-      if (emailFailed) {
-        setGlobalNotification({ msg: `Day closed! WhatsApp opened, but daily report email failed to send (please check SMTP credentials).`, type: 'error' });
-      } else {
-        setGlobalNotification({ msg: `Day closed successfully! Report emailed and WhatsApp opened.`, type: 'success' });
-      }
+      setGlobalNotification({ msg: `✓ Day closed! Report sent to owner's WhatsApp [${ownerWhatsApp}]`, type: 'success' });
       setIsCloseDayModalOpen(false);
+
+      if (isCloseRequested) {
+        setTimeout(() => {
+          if ((window as any).api) {
+            (window as any).api.send('app-close-confirmed');
+          }
+        }, 2000);
+      }
     } catch (err: any) {
       console.error(err);
       setGlobalNotification({ msg: err.message || 'Error executing Close Day process.', type: 'error' });
@@ -310,6 +492,7 @@ const Layout = () => {
       '/barcode-generation': 'Barcode Generation',
       '/backup': 'Backup',
       '/quotation': 'Quotation',
+      '/quotation-register': 'Quotation Register',
       '/sales-order': 'Sales Order',
       '/sales-bill': 'Sales Bill',
       '/sales-return': 'Sales Return',
@@ -332,7 +515,10 @@ const Layout = () => {
       '/p-l-statment': 'P & L Statment',
       '/balance-sheet': 'Balance Sheet',
       '/staff-master': 'Staff Master (Admin)',
-      '/staff-attendance': 'Staff Attendance'
+      '/staff-attendance': 'Staff Attendance',
+      '/shop-sales-bill': 'Wholesale Sales Bill',
+      '/shop-sales-register': 'Wholesale Sales Register',
+      '/license': 'License & Renewal'
     };
     return routeTitles[pathname] || 'Dashboard';
   };
@@ -372,19 +558,68 @@ const Layout = () => {
       
       {/* Global Notification Banner */}
       {globalNotification.msg && (
-        <div className={`absolute top-0 left-0 w-full z-[100] px-4 py-2 text-sm font-bold text-center shadow-md border-b ${
+        <div className={`absolute top-0 left-0 w-full z-[100] px-10 py-2 text-sm font-bold text-center shadow-md border-b flex justify-center items-center ${
           globalNotification.type === 'success' ? 'bg-[#d4edda] text-[#155724] border-[#c3e6cb]' : 
           globalNotification.type === 'error' ? 'bg-[#f8d7da] text-[#721c24] border-[#f5c6cb]' :
           'bg-[#cce5ff] text-[#004085] border-[#b8daff]'
         }`}>
-          {globalNotification.msg}
+          <span>{globalNotification.msg}</span>
+          <button 
+            onClick={() => setGlobalNotification({ msg: '', type: '' })}
+            className="absolute right-4 top-1/2 -translate-y-1/2 font-bold hover:opacity-75 focus:outline-none text-lg leading-none cursor-pointer p-1"
+            aria-label="Close notification"
+            style={{ border: 'none', background: 'transparent' }}
+          >
+            &times;
+          </button>
         </div>
       )}
       
       {/* 1. Window Title */}
       <div className="bg-[#2b579a] text-white px-2 py-1 flex items-center text-sm font-semibold">
-        <span className="mr-2">SRI GAYATHRI TRADERS BILLING COUNTER - [{getPageTitle(location.pathname)}]</span>
+        <span className="mr-2">{shopName} BILLING COUNTER - [{getPageTitle(location.pathname)}]</span>
       </div>
+
+      {/* Server Startup Health Check Loading Overlay */}
+      {isBackendConnecting && (
+        <div className="fixed inset-0 z-[99999] flex flex-col items-center justify-center bg-slate-900/90 text-white backdrop-blur-md">
+          <div className="bg-white text-slate-800 p-8 rounded-xl shadow-2xl max-w-md w-full text-center space-y-4 border border-slate-200 animate-in fade-in zoom-in duration-300">
+            <div className="flex justify-center">
+              <RefreshCw size={44} className="text-blue-600 animate-spin" />
+            </div>
+            <h2 className="text-xl font-bold text-slate-900">Starting POS Database Engine</h2>
+            <p className="text-xs text-slate-600 leading-relaxed font-medium">
+              Initializing offline database and background billing services... Please wait.
+            </p>
+            <div className="bg-blue-50 border border-blue-200 text-blue-800 text-xs font-semibold py-2 px-3 rounded-lg">
+              Status: Connecting to offline server (Attempt {backendAttempts + 1})
+            </div>
+            <button
+              onClick={() => {
+                fetch(`${Api}/health`)
+                  .then(res => { if (res.ok) setIsBackendConnecting(false); })
+                  .catch(() => {});
+              }}
+              className="mt-2 w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow transition-colors cursor-pointer"
+            >
+              Retry Connection Now
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* License Renewal Warning Banner (Indication for renewal - only shown if 4 days or fewer remaining) */}
+      {!loading && isActivated && daysRemaining !== undefined && daysRemaining !== null && daysRemaining <= 4 && daysRemaining >= 0 && (
+        <div className="bg-amber-600 text-white font-semibold text-xs px-4 py-2 text-center flex justify-center items-center gap-3 select-text border-b border-amber-700 shadow-sm">
+          <span className="flex items-center gap-1">
+            <Shield size={14} className="animate-pulse" />
+            <span>Attention: Your subscription license will expire in <strong>{daysRemaining} {daysRemaining === 1 ? 'day' : 'days'}</strong>. Please renew to avoid service disruption.</span>
+          </span>
+          <Link to="/license" className="bg-white text-amber-900 px-2.5 py-0.5 rounded font-black hover:bg-gray-100 transition-colors shadow-xs no-underline text-[10px]">
+            RENEW NOW
+          </Link>
+        </div>
+      )}
 
       {/* 2. Main Menu Bar */}
    
@@ -406,6 +641,9 @@ const Layout = () => {
                <Link to="/ledger-master" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Ledger Master</Link>
                <Link to="/item-master" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Item Master</Link>
                <Link to="/barcode-generation" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Barcode Generation</Link>
+               <Link to="/barcode-register" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Barcode Register</Link>
+               <div className="border-t border-gray-300 my-1"></div>
+               <Link to="/opening-cash" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-bold text-emerald-700 hover:text-white">Cash Drawer Opening</Link>
                <div className="border-t border-gray-300 my-1"></div>
                <Link to="/staff-master" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium flex items-center justify-between">
                  <span>Staff Master (Admin)</span>
@@ -414,6 +652,11 @@ const Layout = () => {
                <Link to="/staff-attendance" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Staff Attendance</Link>
                <div className="border-t border-gray-300 my-1"></div>
                <Link to="/backup" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Backup</Link>
+               <div className="border-t border-gray-300 my-1"></div>
+               <Link to="/license" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium flex items-center justify-between">
+                 <span>License & Renewal</span>
+                 <Shield size={12} className="text-blue-600" />
+               </Link>
             </div>
           )}
         </div>
@@ -423,15 +666,16 @@ const Layout = () => {
           <span onClick={() => toggleMenu('Sales')} className={`px-3 py-1 cursor-pointer select-none rounded ${activeMenu === 'Sales' ? 'bg-blue-200 shadow-inner' : 'hover:bg-blue-100'}`}>Sales</span>
           {activeMenu === 'Sales' && (
             <div className="absolute top-full left-0 mt-1 bg-white border border-gray-400 shadow-xl w-48 flex flex-col py-1 z-50">
-               <Link to="/quotation" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Quotation</Link>
-               <Link to="/sales-order" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Sales Order</Link>
                <Link to="/sales-bill" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Sales Bill</Link>
-               <Link to="/sales-return" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Sales Return</Link>
-               <Link to="/shop-sales-bill" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Shop Sales Bill</Link>
-               <div className="border-t border-gray-300 my-1"></div>
                <Link to="/sales-register" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Sales Register</Link>
-               <Link to="/shop-sales-register" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Shop Sales Register</Link>
+               <Link to="/sales-return" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Sales Return</Link>
                <Link to="/sales-status" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Sales Status</Link>
+               <Link to="/sales-order" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Sales Order</Link>
+               <div className="border-t border-gray-300 my-1"></div>
+               <Link to="/quotation" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Quotation</Link>
+               <Link to="/quotation-register" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Quotation Register</Link>
+               <Link to="/shop-sales-bill" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Wholesale Sales Bill</Link>
+               <Link to="/shop-sales-register" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Wholesale Sales Register</Link>
             </div>
           )}
         </div>
@@ -454,10 +698,14 @@ const Layout = () => {
         <div className="relative">
           <span onClick={() => toggleMenu('Stock')} className={`px-3 py-1 cursor-pointer select-none rounded ${activeMenu === 'Stock' ? 'bg-blue-200 shadow-inner' : 'hover:bg-blue-100'}`}>Stock</span>
           {activeMenu === 'Stock' && (
-            <div className="absolute top-full left-0 mt-1 bg-white border border-gray-400 shadow-xl w-48 flex flex-col py-1 z-50">
+            <div className="absolute top-full left-0 mt-1 bg-white border border-gray-400 shadow-xl w-52 flex flex-col py-1 z-50">
                 <Link to="/stock-status" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Stock Status</Link>
                 <Link to="/daily-stock-status" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Daily Stock Status</Link>
                 <Link to="/stock-register" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium">Stock Register</Link>
+                <Link to="/stock-valuation" onClick={closeMenu} className="px-4 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium flex items-center justify-between">
+                  <span>Stock Valuation</span>
+                  <Lock size={12} className="text-amber-600" />
+                </Link>
             </div>
           )}
         </div>
@@ -491,10 +739,6 @@ const Layout = () => {
                  <span>Balance Sheet</span>
                  <Lock size={12} className="text-amber-600" />
                </Link>
-               <Link to="/stock-valuation" onClick={closeMenu} className="px-5 py-1.5 hover:bg-blue-500 hover:text-white cursor-pointer font-medium flex items-center justify-between text-xs">
-                 <span>Stock Valuation</span>
-                 <Lock size={12} className="text-amber-600" />
-               </Link>
                <div className="border-t border-gray-300 my-1"></div>
                <button onClick={handleLockScreen} className="w-full text-left px-4 py-1.5 hover:bg-red-600 hover:text-white text-red-700 font-bold cursor-pointer flex items-center space-x-2">
                  <Lock size={14} />
@@ -511,12 +755,12 @@ const Layout = () => {
       </div>
       
 
-        {/* Status Indicators - Selected Customer appears ONLY on Sales Bill page */}
+        {/* Status Indicators - Selective Customer appears ONLY on Sales Bill page */}
         {location.pathname === '/sales-bill' && (
           <div className="flex space-x-4 items-center bg-[#d1e8e2] px-3 py-1 border border-gray-400 shadow-inner text-sm font-semibold">
             <label className="flex items-center space-x-1 cursor-pointer">
-              <input type="checkbox" className="form-checkbox" checked={globalSettings.isSelectedCustomer} onChange={e => setGlobalSettings({...globalSettings, isSelectedCustomer: e.target.checked})} />
-              <span>Selected Customer ?</span>
+              <input type="checkbox" className="form-checkbox" checked={globalSettings.isSelectiveCustomer} onChange={e => setGlobalSettings({...globalSettings, isSelectiveCustomer: e.target.checked})} />
+              <span>Selective Customer ?</span>
             </label>
           </div>
         )}
@@ -536,12 +780,19 @@ const Layout = () => {
             <TrendingUp size={16} />
             <span className="text-[10px] mt-1 font-bold">DAILY STOCK STATUS</span>
           </Link>
+          <Link to="/opening-cash" className="flex flex-col items-center justify-center p-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded min-w-[85px] focus:outline-none transition-colors shadow no-underline text-center">
+            <RefreshCw size={16} />
+            <span className="text-[10px] mt-1 font-bold">OPENING CASH</span>
+          </Link>
           <button onClick={() => setIsCloseDayModalOpen(true)} className="flex flex-col items-center justify-center p-1 bg-red-600 hover:bg-red-700 text-white rounded min-w-[70px] focus:outline-none transition-colors shadow">
             <Power size={16} />
             <span className="text-[10px] mt-1 font-bold">CLOSE DAY</span>
           </button>
         </div>
       </div>
+
+      {/* Daily Startup Opening Cash Prompt Modal */}
+      <OpeningCashModal />
 
       {/* Main Content Area */}
       <div className="flex-1 flex overflow-hidden relative">
@@ -551,16 +802,16 @@ const Layout = () => {
             setToolbarActions, 
             setGlobalNotification, 
             globalSettings, 
+            setGlobalSettings,
             ownerWhatsApp, 
             ownerEmail, 
             openOwnerSettings: () => setIsOwnerSettingsModalOpen(true) 
           }} />
         </div>
 
-        {/* Toggle Tab Button */}
         <button 
           onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-          className="absolute top-1/2 -translate-y-1/2 bg-white border border-gray-400 hover:bg-blue-50 text-blue-900 w-4 h-16 flex items-center justify-center rounded-l-md shadow-md cursor-pointer z-50 focus:outline-none transition-all duration-300"
+          className="absolute top-1/2 -translate-y-1/2 bg-white border border-gray-400 hover:bg-blue-50 text-blue-900 w-4 h-16 flex items-center justify-center rounded-l-md shadow-md cursor-pointer z-40 focus:outline-none transition-all duration-300"
           style={{ right: isSidebarOpen ? '192px' : '0px' }}
           title={isSidebarOpen ? "Hide Sidebar" : "Show Sidebar"}
         >
@@ -576,14 +827,15 @@ const Layout = () => {
                 { name: 'Item Master', path: '/item-master' },
                 { name: 'Barcode Generation', path: '/barcode-generation' },
                 { name: 'Backup', path: '/backup' },
-                { name: 'Quotation', path: '/quotation' },
-                { name: 'Sales Order', path: '/sales-order' },
                 { name: 'Sales Bill', path: '/sales-bill' },
-                { name: 'Sales Return', path: '/sales-return' },
-                { name: 'Shop Sales Bill', path: '/shop-sales-bill' },
-                { name: 'Shop Sales Register', path: '/shop-sales-register' },
                 { name: 'Sales Register', path: '/sales-register' },
+                { name: 'Sales Return', path: '/sales-return' },
                 { name: 'Sales Status', path: '/sales-status' },
+                { name: 'Sales Order', path: '/sales-order' },
+                { name: 'Quotation', path: '/quotation' },
+                { name: 'Quotation Register', path: '/quotation-register' },
+                { name: 'Wholesale Sales Bill', path: '/shop-sales-bill' },
+                { name: 'Wholesale Sales Register', path: '/shop-sales-register' },
                 { name: 'Purchase Bill', path: '/purchase-bill' },
                 { name: 'Pur. Return', path: '/pur-return' },
                 { name: 'Pur. Register', path: '/pur-register' },
@@ -593,18 +845,25 @@ const Layout = () => {
                 { name: 'Stock Status', path: '/stock-status' },
                 { name: 'Daily Stock Status', path: '/daily-stock-status' },
                 { name: 'Stock Register', path: '/stock-register' },
-                { name: 'View Ledger', path: '/view-ledger' }
+                { name: 'Stock Valuation', path: '/stock-valuation', isLocked: true },
+                { name: 'View Ledger', path: '/view-ledger' },
+                { name: 'License & Renewal', path: '/license' }
               ].map((item, idx) => {
                 const isActive = location.pathname === item.path || (location.pathname === '/' && item.path === '/sales-register'); // default to sales register
                 return (
                   <Link 
                     key={idx} 
                     to={item.path} 
-                    className={`block px-3 py-1 cursor-pointer border-b border-gray-100 transition-colors ${
+                    className={`px-3 py-1 cursor-pointer border-b border-gray-100 transition-colors flex items-center justify-between ${
                       isActive ? 'bg-[#2b579a] text-white font-bold' : 'hover:bg-blue-100 hover:text-blue-700 text-blue-900'
                     }`}
                   >
-                    {item.name}
+                    <span>{item.name}</span>
+                    {item.isLocked && (
+                      <span title="PIN Protected Screen">
+                        <Lock size={11} className={isActive ? 'text-amber-300' : 'text-amber-700'} />
+                      </span>
+                    )}
                   </Link>
                 );
               })}
@@ -646,8 +905,7 @@ const Layout = () => {
                       { name: 'Statistic Report', path: '/statistic-report' },
                       { name: 'Trial B & S', path: '/trial-b-s' },
                       { name: 'P & L Statment', path: '/p-l-statment' },
-                      { name: 'Balance Sheet', path: '/balance-sheet' },
-                      { name: 'Stock Valuation', path: '/stock-valuation' }
+                      { name: 'Balance Sheet', path: '/balance-sheet' }
                     ].map((item, idx) => {
                       const isActive = location.pathname === item.path;
                       return (
@@ -693,54 +951,99 @@ const Layout = () => {
       
         <div className="bg-[#2b579a] text-white text-[10px] flex justify-between items-center px-2 py-0.5">
         {/* <div className="flex space-x-6">
-          <span>Company Name: SRI GAYATHRI TRADERS</span>
+          <span>Company Name: {shopName}</span>
           <span>Welcome: Administrator</span>
           <span>Year: {displayYear}</span>
         </div> */}
           <div className="flex space-x-2">
            
-            <button onClick={() => setIsCalcOpen(!isCalcOpen)} className="bg-gray-200 text-black px-2 hover:bg-gray-300 border border-gray-400 text-[10px] relative">
-              Calculator
+            <div className="relative">
+              <button onClick={() => { setIsCalcOpen(!isCalcOpen); setIsGstCalcOpen(false); }} className="bg-gray-200 text-black px-2 hover:bg-gray-300 border border-gray-400 text-[10px] py-0.5">
+                Calculator
+              </button>
               {isCalcOpen && (
-                <div className="absolute bottom-8 right-0 w-48 bg-white border border-gray-400 shadow-xl p-2 text-left cursor-default z-50 text-sm" onClick={e => e.stopPropagation()}>
-                  <div className="font-bold border-b pb-1 mb-2 text-blue-900 flex justify-between">
-                    Calculator <span className="cursor-pointer text-red-500 hover:text-red-700" onClick={(e) => { e.stopPropagation(); setIsCalcOpen(false); }}>✕</span>
+                <div className="absolute bottom-6 left-0 w-52 bg-white border border-gray-400 shadow-2xl p-2.5 text-left cursor-default z-50 text-sm rounded select-none" onClick={e => e.stopPropagation()}>
+                  <div className="font-bold border-b pb-1 mb-2 text-blue-900 flex justify-between items-center text-xs">
+                    <span>Calculator</span>
+                    <span className="cursor-pointer text-red-500 hover:text-red-700 font-bold px-1" onClick={(e) => { e.stopPropagation(); setIsCalcOpen(false); }}>✕</span>
                   </div>
-                  <div className="bg-gray-100 p-2 text-right text-lg border border-gray-300 mb-2 font-mono">0.00</div>
-                  <div className="grid grid-cols-4 gap-1 text-center">
-                    {['7','8','9','/','4','5','6','*','1','2','3','-','0','.','=','+'].map(btn => (
-                      <div key={btn} className="bg-gray-200 hover:bg-gray-300 p-1 border border-gray-300 cursor-pointer">{btn}</div>
+                  <div className="bg-gray-900 text-green-400 p-2 text-right border border-gray-700 mb-2 font-mono rounded overflow-hidden min-h-[44px] flex flex-col justify-center">
+                    {calcPrev && <div className="text-[10px] text-gray-400 font-mono leading-none">{calcPrev} {calcOp}</div>}
+                    <div className="font-bold text-lg leading-tight truncate">{calcDisplay}</div>
+                  </div>
+                  <div className="grid grid-cols-4 gap-1 text-center font-semibold">
+                    <button onClick={() => handleCalcInput('C')} className="bg-red-100 hover:bg-red-200 text-red-700 p-1.5 border border-red-300 rounded text-xs font-bold">C</button>
+                    <button onClick={() => handleCalcInput('⌫')} className="bg-amber-100 hover:bg-amber-200 text-amber-800 p-1.5 border border-amber-300 rounded text-xs font-bold">⌫</button>
+                    <button onClick={() => handleCalcInput('/')} className="bg-blue-100 hover:bg-blue-200 text-blue-800 p-1.5 border border-blue-300 rounded text-xs font-bold">/</button>
+                    <button onClick={() => handleCalcInput('*')} className="bg-blue-100 hover:bg-blue-200 text-blue-800 p-1.5 border border-blue-300 rounded text-xs font-bold">×</button>
+                    
+                    {['7','8','9'].map(btn => (
+                      <button key={btn} onClick={() => handleCalcInput(btn)} className="bg-gray-100 hover:bg-gray-200 text-gray-800 p-1.5 border border-gray-300 rounded text-xs font-bold">{btn}</button>
                     ))}
+                    <button onClick={() => handleCalcInput('-')} className="bg-blue-100 hover:bg-blue-200 text-blue-800 p-1.5 border border-blue-300 rounded text-xs font-bold">-</button>
+
+                    {['4','5','6'].map(btn => (
+                      <button key={btn} onClick={() => handleCalcInput(btn)} className="bg-gray-100 hover:bg-gray-200 text-gray-800 p-1.5 border border-gray-300 rounded text-xs font-bold">{btn}</button>
+                    ))}
+                    <button onClick={() => handleCalcInput('+')} className="bg-blue-100 hover:bg-blue-200 text-blue-800 p-1.5 border border-blue-300 rounded text-xs font-bold">+</button>
+
+                    {['1','2','3'].map(btn => (
+                      <button key={btn} onClick={() => handleCalcInput(btn)} className="bg-gray-100 hover:bg-gray-200 text-gray-800 p-1.5 border border-gray-300 rounded text-xs font-bold">{btn}</button>
+                    ))}
+                    <button onClick={() => handleCalcInput('=')} className="bg-green-600 hover:bg-green-700 text-white p-1.5 border border-green-700 rounded text-xs row-span-2 flex items-center justify-center font-bold">=</button>
+
+                    <button onClick={() => handleCalcInput('0')} className="bg-gray-100 hover:bg-gray-200 text-gray-800 p-1.5 border border-gray-300 rounded text-xs font-bold col-span-2">0</button>
+                    <button onClick={() => handleCalcInput('.')} className="bg-gray-100 hover:bg-gray-200 text-gray-800 p-1.5 border border-gray-300 rounded text-xs font-bold">.</button>
                   </div>
                 </div>
               )}
-            </button>
-            <button onClick={() => setIsGstCalcOpen(!isGstCalcOpen)} className="bg-gray-200 text-black px-2 hover:bg-gray-300 border border-gray-400 text-[10px] relative">
-              GST Calculator
+            </div>
+
+            <div className="relative">
+              <button onClick={() => { setIsGstCalcOpen(!isGstCalcOpen); setIsCalcOpen(false); }} className="bg-gray-200 text-black px-2 hover:bg-gray-300 border border-gray-400 text-[10px] py-0.5">
+                GST Calculator
+              </button>
               {isGstCalcOpen && (
-                <div className="absolute bottom-8 right-0 w-56 bg-white border border-gray-400 shadow-xl p-2 text-left cursor-default z-50 text-sm" onClick={e => e.stopPropagation()}>
-                  <div className="font-bold border-b pb-1 mb-2 text-blue-900 flex justify-between">
-                    GST Calc <span className="cursor-pointer text-red-500 hover:text-red-700" onClick={(e) => { e.stopPropagation(); setIsGstCalcOpen(false); }}>✕</span>
+                <div className="absolute bottom-6 left-0 w-60 bg-white border border-gray-400 shadow-2xl p-2.5 text-left cursor-default z-50 text-sm rounded select-none" onClick={e => e.stopPropagation()}>
+                  <div className="font-bold border-b pb-1 mb-2 text-blue-900 flex justify-between items-center text-xs">
+                    <span>GST Calculator</span>
+                    <span className="cursor-pointer text-red-500 hover:text-red-700 font-bold px-1" onClick={(e) => { e.stopPropagation(); setIsGstCalcOpen(false); }}>✕</span>
                   </div>
-                  <div className="space-y-2">
-                    <div><label className="text-xs">Amount</label><input type="number" className="w-full border p-1 text-xs" placeholder="0.00" /></div>
-                    <div><label className="text-xs">GST %</label>
-                      <select className="w-full border p-1 text-xs">
-                        <option>5%</option>
-                        <option>12%</option>
-                        <option>18%</option>
-                        <option>28%</option>
-                      </select>
+                  <div className="space-y-2 text-black">
+                    <div>
+                      <label className="text-[11px] font-semibold block text-gray-700 mb-0.5">Amount (₹)</label>
+                      <input 
+                        type="number" 
+                        value={gstAmount}
+                        onChange={(e) => setGstAmount(e.target.value)}
+                        className="w-full border border-gray-300 rounded p-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500" 
+                        placeholder="0.00" 
+                      />
                     </div>
-                    <div className="bg-green-50 p-1 border text-xs">
-                      <div>CGST: 0.00</div>
-                      <div>SGST: 0.00</div>
-                      <div className="font-bold mt-1">Total: 0.00</div>
+                    <div>
+                      <label className="text-[11px] font-semibold block text-gray-700 mb-0.5">GST Rate (%)</label>
+                      <input 
+                        type="number" 
+                        value={gstRate}
+                        onChange={(e) => setGstRate(e.target.value === '' ? '' : Number(e.target.value))}
+                        className="w-full border border-gray-300 rounded p-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono" 
+                        placeholder="18"
+                        min="0"
+                        max="100"
+                        step="0.01"
+                      />
+                    </div>
+                    <div className="bg-green-50 p-2 border border-green-200 rounded text-xs space-y-1">
+                      <div className="flex justify-between text-gray-600"><span>CGST ({(parsedGstRate/2).toFixed(1)}%):</span><span className="font-mono">₹{cgstAmt.toFixed(2)}</span></div>
+                      <div className="flex justify-between text-gray-600"><span>SGST ({(parsedGstRate/2).toFixed(1)}%):</span><span className="font-mono">₹{sgstAmt.toFixed(2)}</span></div>
+                      <div className="flex justify-between text-gray-600"><span>GST Total:</span><span className="font-mono">₹{gstTax.toFixed(2)}</span></div>
+                      <div className="flex justify-between font-bold text-gray-900 border-t border-green-200 pt-1 mt-1"><span>Total Amount:</span><span className="font-mono text-green-700">₹{totalGstAmt.toFixed(2)}</span></div>
                     </div>
                   </div>
                 </div>
               )}
-            </button>
+            </div>
+            <PrinterStatus />
           </div>
         </div>
       </div>
@@ -752,10 +1055,13 @@ const Layout = () => {
             <div className="bg-[#2b579a] text-white p-3 font-bold flex justify-between items-center">
               <span className="flex items-center space-x-2">
                 <Power size={18} />
-                <span>Close Day Report & Exit</span>
+                <span>{isCloseRequested ? 'Confirm Application Exit' : 'Close Day Report & Exit'}</span>
               </span>
               <button 
-                onClick={() => setIsCloseDayModalOpen(false)}
+                onClick={() => {
+                  setIsCloseDayModalOpen(false);
+                  setIsCloseRequested(false);
+                }}
                 className="text-white hover:text-red-300 font-bold focus:outline-none text-lg"
               >
                 ✕
@@ -763,8 +1069,18 @@ const Layout = () => {
             </div>
             
             <form onSubmit={handleCloseDay} className="p-4 space-y-4 text-left">
+              {!loading && isActivated && daysRemaining !== undefined && daysRemaining !== null && daysRemaining <= 4 && daysRemaining >= 0 && (
+                <div className="bg-red-100 border border-red-300 text-red-700 px-3.5 py-2.5 rounded-lg text-xs font-bold mb-3 shadow-xs">
+                  <p className="flex items-center gap-1.5 text-sm mb-1 text-red-800 font-extrabold">⚠️ ATTENTION: LICENSE EXPIRING SOON</p>
+                  <p className="text-red-700">
+                    Your subscription license expires in <strong>{daysRemaining === 0 ? 'Today (0 days)' : `${daysRemaining} ${daysRemaining === 1 ? 'day' : 'days'}`}</strong>. Please renew your plan to prevent software lockout.
+                  </p>
+                </div>
+              )}
               <p className="text-sm font-semibold text-gray-700">
-                Are you sure you want to close the day? This will download the daily stock status PDF, email it to the owner, and open WhatsApp to share the status.
+                {isCloseRequested 
+                  ? 'Would you like to send the daily stock status report via WhatsApp before exiting the application?' 
+                  : 'Are you sure you want to close the day? This will download the daily stock status PDF, email it to the owner, and open WhatsApp to share the status.'}
               </p>
               
               <div className="space-y-3 bg-gray-50 p-3 border border-gray-200 rounded">
@@ -793,21 +1109,43 @@ const Layout = () => {
                 </div>
               </div>
               
-              <div className="flex space-x-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsCloseDayModalOpen(false)}
-                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 rounded text-sm transition-colors border border-gray-300"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={closeDayLoading}
-                  className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white font-bold py-2 rounded text-sm transition-colors border border-red-700 shadow"
-                >
-                  {closeDayLoading ? 'Closing Day...' : 'Send & Close Day'}
-                </button>
+              <div className="flex flex-col space-y-2 pt-2">
+                <div className="flex space-x-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCloseDayModalOpen(false);
+                      setIsCloseRequested(false);
+                    }}
+                    className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 rounded text-sm transition-colors border border-gray-300"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={closeDayLoading}
+                    className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white font-bold py-2 rounded text-sm transition-colors border border-red-700 shadow"
+                  >
+                    {closeDayLoading 
+                      ? 'Processing...' 
+                      : isCloseRequested 
+                        ? 'Send & Exit' 
+                        : 'Send & Close Day'}
+                  </button>
+                </div>
+                {isCloseRequested && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if ((window as any).api) {
+                        (window as any).api.send('app-close-confirmed');
+                      }
+                    }}
+                    className="w-full bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 rounded text-sm transition-colors border border-gray-700 shadow"
+                  >
+                    Exit Without Sending
+                  </button>
+                )}
               </div>
             </form>
           </div>
@@ -975,7 +1313,7 @@ const Layout = () => {
             <div className="bg-blue-600/30 p-4 rounded-full mb-4 border border-blue-400/40 text-blue-300 shadow-inner">
               <Lock size={44} />
             </div>
-            <h2 className="text-xl font-bold tracking-tight text-white mb-1">SRI GAYATHRI TRADERS</h2>
+            <h2 className="text-xl font-bold tracking-tight text-white mb-1">{shopName}</h2>
             <p className="text-xs text-blue-200 uppercase font-bold tracking-wider mb-6">System Screen Locked</p>
             
             <form onSubmit={(e) => {
@@ -1074,6 +1412,15 @@ const Layout = () => {
           </div>
         </div>
       )}
+
+      {/* Dynamic Indian Date & Time Footer */}
+      <div className="bg-[#2b579a] text-white border-t border-[#1d3f70] px-4 py-1.5 flex justify-between items-center text-xs font-bold shadow-inner z-10 flex-shrink-0">
+        <span>© Ithu Namma Kada - Professional Billing Counter System</span>
+        <div className="flex items-center space-x-2 bg-slate-900/40 border border-indigo-400/20 px-3 py-1 rounded-lg text-yellow-350 font-mono tracking-wider shadow-inner">
+          <Calendar size={12} className="text-yellow-400 mr-1" />
+          <span>{indianTime}</span>
+        </div>
+      </div>
 
     </div>
   );

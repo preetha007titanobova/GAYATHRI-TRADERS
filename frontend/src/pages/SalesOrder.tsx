@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useOutletContext, useLocation, useNavigate } from 'react-router-dom';
-import { Plus, Trash2, Calendar, FileText, Printer, ArrowLeft, RefreshCw } from 'lucide-react';
+import { Plus, Trash2, Calendar, FileText, ArrowLeft, RefreshCw, ClipboardList, Search, MessageCircle, Save } from 'lucide-react';
 import Api from '../Api';
 
 interface SalesOrderItemLine {
@@ -158,7 +158,7 @@ const printOrder = (order: any) => {
       </head>
       <body>
         <div class="header">
-          <h1 class="shop-name">SRI GAYATHRI TRADERS</h1>
+          <h1 class="shop-name">ITHU NAMMA KADA</h1>
           <div class="title">SALES ORDER</div>
         </div>
 
@@ -182,7 +182,7 @@ const printOrder = (order: any) => {
         <table class="items-table">
           <thead>
             <tr>
-              <th style="width: 5%;" class="text-center">#</th>
+              <th style="width: 5%;" class="text-center">S.No</th>
               <th style="width: 15%;">Item Code</th>
               <th>Description</th>
               <th style="width: 10%;">Color</th>
@@ -270,12 +270,16 @@ const printOrder = (order: any) => {
   doc.write(htmlContent);
   doc.close();
 
-  setTimeout(() => {
-    if (iframe.contentWindow) {
-      iframe.contentWindow.focus();
-      iframe.contentWindow.print();
-    }
-  }, 250);
+  if ((window as any).api) {
+    (window as any).api.send('print-html', htmlContent);
+  } else {
+    setTimeout(() => {
+      if (iframe.contentWindow) {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+      }
+    }, 250);
+  }
 };
 
 const SalesOrder = () => {
@@ -295,7 +299,7 @@ const SalesOrder = () => {
   const [deliveryDate, setDeliveryDate] = useState('');
   const [salesman, setSalesman] = useState('');
   const [isInterstate, setIsInterstate] = useState(false);
-  const [advancePaid, setAdvancePaid] = useState<number | string>(0);
+  const [advancePaid, setAdvancePaid] = useState<number | string>('');
   const [paymentMode, setPaymentMode] = useState('Cash');
   const [remarks, setRemarks] = useState('');
   const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(true);
@@ -321,6 +325,61 @@ const SalesOrder = () => {
   });
 
   const isReadOnly = status === 'Completed' || status === 'Cancelled';
+
+  // Dress Selection Modal state
+  const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+  const [modalSearchQuery, setModalSearchQuery] = useState('');
+  const [activeRowId, setActiveRowId] = useState<string | null>(null);
+  const [highlightedProductIndex, setHighlightedProductIndex] = useState(0);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Filter products for the modal search list
+  const modalFilteredProducts = useMemo(() => {
+    const q = modalSearchQuery.toLowerCase().trim();
+    if (!q) return availableProducts;
+    return availableProducts.filter(p => 
+      p.name?.toLowerCase().includes(q) ||
+      p.itemCode?.toLowerCase().includes(q) ||
+      p.barcode?.toLowerCase().includes(q) ||
+      p.variety?.toLowerCase().includes(q) ||
+      p.size?.toLowerCase().includes(q)
+    );
+  }, [availableProducts, modalSearchQuery]);
+
+  // Handle select product from modal
+  const selectProductFromModal = (prod: any) => {
+    if (!activeRowId) return;
+    handleItemChange(activeRowId, 'itemCode', prod.itemCode || '');
+    setIsProductModalOpen(false);
+    setModalSearchQuery('');
+  };
+
+  // Handle keyboard events in modal search
+  const handleModalKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightedProductIndex(prev => Math.min(prev + 1, modalFilteredProducts.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightedProductIndex(prev => Math.max(0, prev - 1));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (modalFilteredProducts[highlightedProductIndex]) {
+        selectProductFromModal(modalFilteredProducts[highlightedProductIndex]);
+      }
+    } else if (e.key === 'Escape') {
+      setIsProductModalOpen(false);
+    }
+  };
+
+  // Focus modal input on open
+  useEffect(() => {
+    if (isProductModalOpen) {
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 50);
+    }
+  }, [isProductModalOpen]);
 
   // Fetch initial data
   useEffect(() => {
@@ -349,7 +408,7 @@ const SalesOrder = () => {
       setAddress(orderToEdit.address || '');
       setDeliveryDate(orderToEdit.expectedDeliveryDate ? new Date(orderToEdit.expectedDeliveryDate).toISOString().split('T')[0] : '');
       setIsInterstate(orderToEdit.cgst === 0 && orderToEdit.igst > 0);
-      setAdvancePaid(orderToEdit.advancePaid || 0);
+      setAdvancePaid(orderToEdit.advancePaid ? orderToEdit.advancePaid : '');
       setPaymentMode(orderToEdit.paymentMode || 'Cash');
       setRemarks(orderToEdit.remarks || '');
       setSalesman(orderToEdit.salesman || '');
@@ -520,9 +579,33 @@ const SalesOrder = () => {
         }
       }
 
+      if (field === 'quantityOrdered') {
+        const reqQty = Number(value) || 0;
+        const match = availableProducts.find(p =>
+          (p.itemCode && p.itemCode === updated.itemCode) ||
+          (p.barcode && p.barcode === updated.itemCode) ||
+          (p.name && updated.itemDescription && p.name.toLowerCase() === updated.itemDescription.toLowerCase())
+        );
+        if (match) {
+          const avail = typeof match.stock === 'number' ? match.stock : 0;
+          if (reqQty > avail) {
+            if (setGlobalNotification) {
+              setGlobalNotification({
+                msg: `⚠️ Stock Limit Warning: "${match.name}" has only ${avail} PCS in stock. Requested quantity (${reqQty}) exceeds stock.`,
+                type: 'error'
+              });
+              setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
+            }
+          }
+        }
+      }
+
       return updated;
     }));
   };
+
+  // Validation Errors state
+  const [formErrors, setFormErrors] = useState<{ customer?: string; mobileNo?: string; items?: string }>({});
 
   const handleSave = async () => {
     if (isReadOnly) {
@@ -530,11 +613,61 @@ const SalesOrder = () => {
       return;
     }
 
-    const validItems = lineItems.filter(item => Number(item.quantityOrdered) > 0 && item.itemCode);
+    const errors: { customer?: string; mobileNo?: string; items?: string } = {};
+
+    if (!customer || !customer.trim()) {
+      errors.customer = "Customer Name is a mandatory field.";
+    }
+
+    const cleanPhone = (mobileNo || '').replace(/\D/g, '');
+    if (!cleanPhone || cleanPhone.length < 10) {
+      errors.mobileNo = "Customer Phone Number is mandatory (minimum 10 digits).";
+    }
+
+    const validItems = lineItems.filter(item => Number(item.quantityOrdered) > 0 && (item.itemCode || item.itemDescription));
     if (validItems.length === 0) {
-      if (setGlobalNotification) setGlobalNotification({msg: "Cannot save: Please add at least one valid item.", type: 'error'});
+      errors.items = "Cannot save: Please add at least one valid item with Quantity > 0.";
+    }
+
+    // Strict Stock Check for Sales Order Items
+    for (const item of validItems) {
+      const match = availableProducts.find(p =>
+        (p.itemCode && p.itemCode === item.itemCode) ||
+        (p.barcode && p.barcode === item.itemCode) ||
+        (p.name && item.itemDescription && p.name.toLowerCase() === item.itemDescription.toLowerCase())
+      );
+      if (match) {
+        const avail = typeof match.stock === 'number' ? match.stock : 0;
+        const totalOrderedInOrder = lineItems.reduce((acc, l) => {
+          const isMatch = (l.itemCode && item.itemCode && l.itemCode === item.itemCode) ||
+                          (l.itemDescription && item.itemDescription && l.itemDescription.toLowerCase() === item.itemDescription.toLowerCase());
+          return isMatch ? acc + (Number(l.quantityOrdered) || 0) : acc;
+        }, 0);
+
+        if (avail <= 0) {
+          errors.items = `Cannot save order! "${match.name}" is OUT OF STOCK (0 PCS available).`;
+          break;
+        }
+        if (totalOrderedInOrder > avail) {
+          errors.items = `Cannot save order! "${match.name}" requested quantity (${totalOrderedInOrder}) exceeds available stock (${avail} PCS).`;
+          break;
+        }
+      }
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      if (errors.customer || errors.mobileNo) {
+        setIsLeftPanelOpen(true);
+      }
+      if (setGlobalNotification) {
+        const firstErr = errors.customer || errors.mobileNo || errors.items;
+        setGlobalNotification({ msg: `⚠️ Form Validation Failed: ${firstErr}`, type: 'error' });
+      }
       return;
     }
+
+    setFormErrors({});
 
     if (setGlobalNotification) {
       setGlobalNotification({msg: "Saving Sales Order...", type: 'info'});
@@ -544,8 +677,8 @@ const SalesOrder = () => {
       const payload = {
         orderNo,
         orderDate,
-        customer,
-        mobileNo,
+        customer: customer.trim(),
+        mobileNo: cleanPhone,
         address,
         deliveryDate,
         status,
@@ -572,7 +705,7 @@ const SalesOrder = () => {
         if (setGlobalNotification) {
           setGlobalNotification({msg: `Sales Order Saved Successfully!`, type: 'success'});
         }
-        setTimeout(() => navigate('/sales-register'), 1000);
+        setTimeout(() => navigate('/sales-register', { state: { activeTab: 'orders' } }), 1000);
       } else {
         if (setGlobalNotification) {
           setGlobalNotification({msg: "Failed to save: " + data.error, type: 'error'});
@@ -610,21 +743,43 @@ const SalesOrder = () => {
     navigate('/sales-bill', { state: { orderToConvert: orderPayload } });
   };
 
-  const triggerPrint = () => {
-    const printPayload = {
-      orderNo,
-      orderDate,
-      customer,
-      mobileNo,
-      address,
-      deliveryDate,
-      status,
-      summary,
-      advancePaid,
-      balanceAmount: Math.max(0, summary.grandTotal - Number(advancePaid)),
-      items: lineItems
-    };
-    printOrder(printPayload);
+  const handleShareWhatsApp = () => {
+    if (!customer || !customer.trim()) {
+      if (setGlobalNotification) setGlobalNotification({ msg: "Please enter Customer Name before sharing on WhatsApp.", type: 'error' });
+      return;
+    }
+
+    const cleanMobile = (mobileNo || '').replace(/\D/g, '');
+    if (!cleanMobile || cleanMobile.length < 10) {
+      if (setGlobalNotification) setGlobalNotification({ msg: "Please enter a valid 10-digit Customer Phone Number before sharing on WhatsApp.", type: 'error' });
+      return;
+    }
+
+    const validItems = lineItems.filter(item => item.itemDescription || item.itemCode);
+    if (!validItems || validItems.length === 0) {
+      if (setGlobalNotification) setGlobalNotification({ msg: "No order items to share on WhatsApp.", type: "error" });
+      return;
+    }
+
+    const text = `*SALES ORDER SUMMARY*
+Order No: ${orderNo}
+Order Date: ${new Date(orderDate).toLocaleDateString('en-IN')}
+Customer Name: ${customer.trim()}
+Mobile: ${cleanMobile}
+${deliveryDate ? `Expected Delivery: ${new Date(deliveryDate).toLocaleDateString('en-IN')}\n` : ''}
+*Order Items:*
+${validItems.map((item, i) => `${i + 1}. ${item.itemDescription || item.itemCode} | Qty: ${item.quantityOrdered} | Size: ${item.size || '-'} | Rate: ₹${Number(item.unitPrice).toFixed(2)}`).join('\n')}
+
+Subtotal: ₹${summary.subtotal.toFixed(2)}
+Grand Total: ₹${summary.grandTotal.toFixed(2)}
+Advance Paid: ₹${Number(advancePaid).toFixed(2)}
+*Balance Due: ₹${Math.max(0, summary.grandTotal - Number(advancePaid)).toFixed(2)}*
+
+Thank you!`;
+
+    const encodedText = encodeURIComponent(text);
+    const whatsappUrl = `https://wa.me/91${cleanMobile}?text=${encodedText}`;
+    window.open(whatsappUrl, '_blank');
   };
 
   // --- Hotkeys ---
@@ -633,15 +788,12 @@ const SalesOrder = () => {
       if (e.ctrlKey && e.key.toLowerCase() === 's') {
         e.preventDefault();
         handleSave();
-      } else if (e.ctrlKey && e.key.toLowerCase() === 'p') {
-        e.preventDefault();
-        triggerPrint();
       } else if (e.ctrlKey && e.key.toLowerCase() === 'b') {
         e.preventDefault();
         handleConvertToBill();
       } else if (e.key === 'Escape') {
         e.preventDefault();
-        navigate('/sales-register');
+        navigate('/sales-register', { state: { activeTab: 'orders' } });
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -655,7 +807,7 @@ const SalesOrder = () => {
       <div className="bg-white border-b border-slate-200 px-4 py-2 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center space-x-3">
           <button 
-            onClick={() => navigate('/sales-register')}
+            onClick={() => navigate('/sales-register', { state: { activeTab: 'orders' } })}
             className="p-1.5 hover:bg-slate-100 rounded-md transition-colors"
             title="Back (ESC)"
           >
@@ -668,32 +820,31 @@ const SalesOrder = () => {
 
         <div className="flex items-center space-x-2">
           <button 
-            onClick={triggerPrint} 
-            className="flex items-center space-x-1 px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-sm font-semibold rounded-md shadow-sm transition-all"
-            title="Print Order (CTRL+P)"
+            onClick={() => navigate('/sales-register', { state: { activeTab: 'orders', selectedCustomerName: customer } })}
+            className="flex items-center space-x-1.5 px-3 py-1.5 bg-[#d1e8e2] hover:bg-[#c3dfd8] border border-[#a8d08d] text-emerald-900 text-sm font-semibold rounded-md shadow-sm transition-all"
+            title="Click to see customer orders"
           >
-            <Printer className="w-4 h-4" />
-            <span>Print (Ctrl+P)</span>
+            <ClipboardList className="w-4 h-4 text-emerald-800" />
+            <span>Customer Orders</span>
+          </button>
+
+          <button 
+            onClick={handleShareWhatsApp} 
+            className="flex items-center space-x-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-md shadow-sm transition-all"
+            title="Share Order via WhatsApp"
+          >
+            <MessageCircle className="w-4 h-4" />
+            <span>WhatsApp Share</span>
           </button>
 
           {!isReadOnly && editingOrderId && (
             <button 
               onClick={handleConvertToBill}
-              className="flex items-center space-x-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-md shadow-sm transition-all"
+              className="flex items-center space-x-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-md shadow-sm transition-all"
               title="Convert to Bill (CTRL+B)"
             >
               <FileText className="w-4 h-4" />
               <span>Convert to Bill (Ctrl+B)</span>
-            </button>
-          )}
-
-          {!isReadOnly && (
-            <button 
-              onClick={handleSave} 
-              className="flex items-center space-x-1 px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-md shadow-sm shadow-blue-500/10 transition-all"
-              title="Save Order (CTRL+S)"
-            >
-              <span>Save (Ctrl+S)</span>
             </button>
           )}
         </div>
@@ -739,10 +890,19 @@ const SalesOrder = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Customer / Client</label>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Customer / Client Ledger</label>
                 <select 
-                  value={customer} 
-                  onChange={e => setCustomer(e.target.value)}
+                  value={availableCustomers.some(c => c.accountName === customer) ? customer : ""} 
+                  onChange={e => {
+                    const val = e.target.value;
+                    setCustomer(val);
+                    const found = availableCustomers.find(c => c.accountName === val);
+                    if (found) {
+                      const phone = found.mobileNo || found.mobile || found.phone || '';
+                      if (phone) setMobileNo(phone);
+                      if (found.address) setAddress(found.address);
+                    }
+                  }}
                   disabled={isReadOnly}
                   className="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm bg-white outline-none focus:border-blue-500"
                 >
@@ -753,7 +913,31 @@ const SalesOrder = () => {
                 </select>
               </div>
 
-              {customer && (
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
+                  Customer Name <span className="text-red-500 font-extrabold">*</span>
+                </label>
+                <input 
+                  type="text" 
+                  value={customer} 
+                  onChange={e => {
+                    setCustomer(e.target.value);
+                    if (formErrors.customer) setFormErrors(prev => ({ ...prev, customer: undefined }));
+                  }}
+                  disabled={isReadOnly}
+                  placeholder="Enter Customer Name"
+                  className={`w-full border rounded-md px-3 py-1.5 text-sm outline-none focus:border-blue-500 ${
+                    formErrors.customer ? 'border-2 border-red-500 bg-red-50 text-red-900 font-semibold' : 'border-slate-300'
+                  }`}
+                />
+                {formErrors.customer && (
+                  <span className="text-[11px] font-bold text-red-600 block mt-0.5 animate-pulse">
+                    ⚠️ {formErrors.customer}
+                  </span>
+                )}
+              </div>
+
+              {availableCustomers.some(c => c.accountName === customer) && (
                 <div className="bg-slate-50 border border-slate-200 p-2.5 rounded-md space-y-1.5 text-xs text-slate-600">
                   <div className="flex justify-between">
                     <span>Credit Limit:</span>
@@ -769,14 +953,37 @@ const SalesOrder = () => {
               )}
 
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Customer Phone</label>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
+                  Customer Phone <span className="text-red-500 font-extrabold">*</span>
+                </label>
                 <input 
                   type="text" 
                   value={mobileNo} 
-                  onChange={e => setMobileNo(e.target.value)}
+                  onChange={e => {
+                    setMobileNo(e.target.value);
+                    if (formErrors.mobileNo) setFormErrors(prev => ({ ...prev, mobileNo: undefined }));
+                  }}
+                  disabled={isReadOnly}
+                  placeholder="10-digit mobile number"
+                  className={`w-full border rounded-md px-3 py-1.5 text-sm outline-none focus:border-blue-500 ${
+                    formErrors.mobileNo ? 'border-2 border-red-500 bg-red-50 text-red-900 font-semibold' : 'border-slate-300'
+                  }`}
+                />
+                {formErrors.mobileNo && (
+                  <span className="text-[11px] font-bold text-red-600 block mt-0.5 animate-pulse">
+                    ⚠️ {formErrors.mobileNo}
+                  </span>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Customer Address</label>
+                <textarea 
+                  value={address} 
+                  onChange={e => setAddress(e.target.value)}
                   disabled={isReadOnly}
                   className="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm outline-none focus:border-blue-500"
-                  placeholder="Phone No"
+                  rows={2}
                 />
               </div>
 
@@ -846,7 +1053,7 @@ const SalesOrder = () => {
               <table className="w-full text-left border-collapse min-w-[1200px]">
                 <thead>
                   <tr className="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-wider font-bold border-b border-slate-200">
-                    <th className="p-2 w-10 text-center">#</th>
+                    <th className="p-2 w-10 text-center">S.No</th>
                     <th className="p-2 w-44">Item Code</th>
                     <th className="p-2">Item Description</th>
                     <th className="p-2 w-28">Color</th>
@@ -869,14 +1076,51 @@ const SalesOrder = () => {
                       <tr key={item.lineId} className="hover:bg-slate-50/50 transition-colors">
                         <td className="p-2 text-center text-slate-400 font-bold">{idx + 1}</td>
                         <td className="p-2">
-                          <input 
-                            type="text" 
-                            value={item.itemCode}
-                            onChange={e => handleItemChange(item.lineId, 'itemCode', e.target.value)}
-                            disabled={isReadOnly}
-                            placeholder="Search Code..."
-                            className="w-full bg-transparent border border-slate-200 rounded px-2 py-1 focus:border-blue-500 outline-none"
-                          />
+                          <div className="flex items-center relative pr-1 min-w-[150px]">
+                            <input 
+                              type="text" 
+                              value={item.itemCode}
+                              onChange={e => handleItemChange(item.lineId, 'itemCode', e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') {
+                                  const val = (e.target as HTMLInputElement).value.trim();
+                                  const found = availableProducts.find(p => p.itemCode?.toLowerCase() === val.toLowerCase() || p.barcode?.toLowerCase() === val.toLowerCase());
+                                  if (!found) {
+                                    e.preventDefault();
+                                    setActiveRowId(item.lineId);
+                                    setModalSearchQuery(val);
+                                    setHighlightedProductIndex(0);
+                                    setIsProductModalOpen(true);
+                                  }
+                                }
+                              }}
+                              onDoubleClick={() => {
+                                if (isReadOnly) return;
+                                setActiveRowId(item.lineId);
+                                setModalSearchQuery(item.itemCode || '');
+                                setHighlightedProductIndex(0);
+                                setIsProductModalOpen(true);
+                              }}
+                              disabled={isReadOnly}
+                              placeholder="Double click to search..."
+                              className="w-full bg-transparent border border-slate-200 rounded pl-2 pr-12 py-1 focus:border-blue-500 outline-none text-xs font-mono font-bold"
+                            />
+                            {!isReadOnly && (
+                              <button
+                                onClick={() => {
+                                  setActiveRowId(item.lineId);
+                                  setModalSearchQuery(item.itemCode || '');
+                                  setHighlightedProductIndex(0);
+                                  setIsProductModalOpen(true);
+                                }}
+                                type="button"
+                                className="absolute right-1 px-1.5 py-0.5 text-[9px] font-bold bg-emerald-100 hover:bg-emerald-200 active:bg-emerald-300 text-emerald-700 rounded transition-colors shadow-sm"
+                                title="Search dress table"
+                              >
+                                Find
+                              </button>
+                            )}
+                          </div>
                         </td>
                         <td className="p-2">
                           <input 
@@ -908,15 +1152,44 @@ const SalesOrder = () => {
                             className="w-full bg-transparent border border-slate-200 rounded px-2 py-1 focus:border-blue-500 outline-none text-center"
                           />
                         </td>
-                        <td className="p-2">
-                          <input 
-                            type="number" 
-                            value={item.quantityOrdered}
-                            onChange={e => handleItemChange(item.lineId, 'quantityOrdered', e.target.value)}
-                            disabled={isReadOnly}
-                            min="1"
-                            className="w-full bg-transparent border border-slate-200 rounded px-2 py-1 text-center outline-none focus:border-blue-500"
-                          />
+                        <td className="p-2 relative">
+                          {(() => {
+                            const match = availableProducts.find(p =>
+                              (p.itemCode && p.itemCode === item.itemCode) ||
+                              (p.barcode && p.barcode === item.itemCode) ||
+                              (p.name && item.itemDescription && p.name.toLowerCase() === item.itemDescription.toLowerCase())
+                            );
+                            const availStock = match ? (typeof match.stock === 'number' ? match.stock : 0) : null;
+                            const totalOrderedInOrder = lineItems.reduce((acc, l) => {
+                              const isMatch = (l.itemCode && item.itemCode && l.itemCode === item.itemCode) ||
+                                              (l.itemDescription && item.itemDescription && l.itemDescription.toLowerCase() === item.itemDescription.toLowerCase());
+                              return isMatch ? acc + (Number(l.quantityOrdered) || 0) : acc;
+                            }, 0);
+                            const isExceeding = availStock !== null && totalOrderedInOrder > availStock;
+
+                            return (
+                              <div className="relative flex items-center justify-center">
+                                <input 
+                                  type="number" 
+                                  value={item.quantityOrdered}
+                                  onChange={e => handleItemChange(item.lineId, 'quantityOrdered', e.target.value)}
+                                  disabled={isReadOnly}
+                                  min="1"
+                                  className={`w-full bg-transparent border rounded px-2 py-1 text-center outline-none focus:border-blue-500 font-bold ${
+                                    isExceeding ? 'bg-red-100 text-red-900 border-2 border-red-500 font-extrabold ring-1 ring-red-400' : 'border-slate-200'
+                                  }`}
+                                />
+                                {isExceeding && (
+                                  <span 
+                                    className="absolute -top-3 right-0 bg-red-600 text-white text-[9px] font-extrabold px-1 rounded shadow z-10 whitespace-nowrap animate-pulse pointer-events-none"
+                                    title={`Total ordered (${totalOrderedInOrder}) exceeds available stock (${availStock} PCS)`}
+                                  >
+                                    ⚠️ Max: {availStock}
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td className="p-2 text-center font-mono text-slate-500 bg-slate-50/30">
                           {item.quantityFulfilled}
@@ -1002,12 +1275,13 @@ const SalesOrder = () => {
                   <label className="block font-semibold text-slate-500 mb-1">Advance Paid</label>
                   <input 
                     type="number" 
-                    value={advancePaid} 
-                    onChange={e => setAdvancePaid(Number(e.target.value) || 0)}
+                    value={advancePaid === 0 ? '' : advancePaid} 
+                    onChange={e => setAdvancePaid(e.target.value)}
                     disabled={isReadOnly}
                     min="0"
                     max={summary.grandTotal}
-                    className="w-full border border-slate-300 rounded-md px-2 py-1 font-mono text-sm outline-none focus:border-blue-500"
+                    placeholder="0.00"
+                    className="w-full border border-slate-300 rounded-md px-2 py-1 font-mono text-sm outline-none focus:border-blue-500 bg-white"
                   />
                 </div>
                 <div>
@@ -1078,10 +1352,140 @@ const SalesOrder = () => {
                   ₹{summary.grandTotal.toFixed(2)}
                 </span>
               </div>
+
+              {!isReadOnly && (
+                <div className="pt-3 border-t border-slate-200">
+                  <button 
+                    onClick={handleSave} 
+                    className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-[#2b579a] hover:bg-[#1f3f6f] text-white text-sm font-extrabold rounded-md shadow-md shadow-blue-500/20 transition-all focus:outline-none"
+                    title="Save Sales Order (CTRL+S)"
+                  >
+                    <Save className="w-4.5 h-4.5" />
+                    <span>Save Sales Order (Ctrl+S)</span>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
       </div>
+      {/* Dress Selection Modal */}
+      {isProductModalOpen && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center backdrop-blur-sm" style={{ backgroundColor: 'rgba(0, 0, 0, 0.45)', backdropFilter: 'blur(3px)' }} onClick={() => setIsProductModalOpen(false)}>
+          <div
+            className="bg-white shadow-2xl flex flex-col border border-gray-300 rounded-lg overflow-hidden w-full max-w-4xl h-[500px]"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="bg-[#2b579a] text-white px-4 py-3 flex justify-between items-center shadow-md">
+              <div className="flex items-center space-x-2">
+                <Search size={18} />
+                <span className="font-bold tracking-wide text-sm">Dress/Product Table Lookup</span>
+              </div>
+              <button onClick={() => setIsProductModalOpen(false)} className="text-white hover:text-red-300 font-bold focus:outline-none text-lg">
+                ✕
+              </button>
+            </div>
+
+            {/* Search Input and Help */}
+            <div className="p-3 bg-slate-100 border-b border-gray-300 flex items-center justify-between">
+              <div className="relative flex-1 max-w-lg">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  placeholder="Search by dress name, code, variety, size..."
+                  className="w-full pl-9 pr-3 py-1.5 border border-gray-300 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-sm text-gray-800 shadow-inner font-semibold"
+                  value={modalSearchQuery}
+                  onChange={e => {
+                    setModalSearchQuery(e.target.value);
+                    setHighlightedProductIndex(0);
+                  }}
+                  onKeyDown={handleModalKeyDown}
+                />
+              </div>
+              <div className="text-[11px] text-slate-600 bg-white border border-slate-200 rounded px-2.5 py-1.5 shadow-sm space-x-3 flex font-medium">
+                <span><kbd className="bg-slate-100 border border-slate-300 rounded px-1 text-[9px] font-bold">↑</kbd> <kbd className="bg-slate-100 border border-slate-300 rounded px-1 text-[9px] font-bold">↓</kbd> Navigate</span>
+                <span><kbd className="bg-slate-100 border border-slate-300 rounded px-1 text-[9px] font-bold">Enter</kbd> Select</span>
+                <span><kbd className="bg-slate-100 border border-slate-300 rounded px-1 text-[9px] font-bold">Esc</kbd> Close</span>
+              </div>
+            </div>
+
+            {/* List Table Headers */}
+            <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-slate-200 border-b border-slate-300 text-xs font-bold text-slate-700 uppercase tracking-wider">
+              <div className="col-span-2">Item Code</div>
+              <div className="col-span-4">Dress Name</div>
+              <div className="col-span-2">Variety</div>
+              <div className="col-span-1 text-center">Size</div>
+              <div className="col-span-1 text-center">Stock</div>
+              <div className="col-span-2 text-right">Price (₹)</div>
+            </div>
+
+            {/* List Body */}
+            <div className="overflow-y-auto flex-1 bg-white">
+              {modalFilteredProducts.map((p, idx) => (
+                <div
+                  key={p.id || idx}
+                  className={`grid grid-cols-12 gap-2 px-4 py-2.5 border-b border-slate-100 cursor-pointer items-center text-sm transition-colors ${idx === highlightedProductIndex ? 'bg-blue-100 text-blue-900 font-bold border-l-4 border-blue-600' : 'hover:bg-slate-50 text-slate-800'}`}
+                  onClick={() => selectProductFromModal(p)}
+                >
+                  <div className="col-span-2 font-mono font-bold text-blue-700">
+                    {p.itemCode || '-'}
+                  </div>
+                  <div className="col-span-4 font-semibold">
+                    {p.name}
+                  </div>
+                  <div className="col-span-2 text-xs font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100 w-fit">
+                    {p.variety || '-'}
+                  </div>
+                  <div className="col-span-1 text-center font-bold text-amber-700 bg-amber-50 px-1 py-0.5 rounded border border-amber-100 text-xs">
+                    {p.size || '-'}
+                  </div>
+                  <div className="col-span-1 text-center">
+                    {(() => {
+                      const qtyInCurrentOrder = lineItems.reduce((acc, l) => {
+                        const isMatch = (l.itemCode && p.itemCode && l.itemCode === p.itemCode) ||
+                                        (l.itemDescription && p.name && l.itemDescription.toLowerCase() === p.name.toLowerCase());
+                        return isMatch ? acc + (Number(l.quantityOrdered) || 0) : acc;
+                      }, 0);
+                      const effectiveStock = (typeof p.stock === 'number' ? p.stock : 0) - qtyInCurrentOrder;
+
+                      return (
+                        <div className="flex flex-col items-center">
+                          <span className={`px-1.5 py-0.5 rounded-full text-xs font-bold ${
+                            idx === highlightedProductIndex
+                              ? 'text-black'
+                              : effectiveStock > 10 
+                                ? 'bg-green-100 text-green-800' 
+                                : effectiveStock > 0 
+                                  ? 'bg-yellow-100 text-yellow-800 font-extrabold' 
+                                  : 'bg-red-100 text-red-800 font-extrabold'
+                          }`}>
+                            {effectiveStock > 0 ? effectiveStock : '0 (NO STOCK)'}
+                          </span>
+                          {qtyInCurrentOrder > 0 && (
+                            <span className="text-[9px] text-blue-900 font-extrabold whitespace-nowrap mt-0.5">
+                              ({qtyInCurrentOrder} in order)
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                  <div className="col-span-2 text-right font-mono font-extrabold text-slate-800">
+                    {Number(p.price || 0).toFixed(2)}
+                  </div>
+                </div>
+              ))}
+              {modalFilteredProducts.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-16 text-gray-400 italic">
+                  No matching dresses found in master catalog.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

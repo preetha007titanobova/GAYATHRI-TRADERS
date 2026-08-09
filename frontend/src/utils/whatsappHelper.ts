@@ -1,6 +1,39 @@
 import type { BillData } from './downloadPdfBill';
 
+export const checkWhatsAppLicenseAllowed = (): { allowed: boolean; message: string } => {
+  const isValid = localStorage.getItem('license_valid');
+  const daysStr = localStorage.getItem('license_days_remaining');
+
+  if (isValid === 'false') {
+    return {
+      allowed: false,
+      message: '⚠️ License Key Inactive or Expired! WhatsApp feature is blocked across all modules. Please renew your software license to resume WhatsApp sharing.'
+    };
+  }
+
+  if (daysStr !== null) {
+    const days = parseInt(daysStr, 10);
+    if (!isNaN(days) && days <= 0) {
+      return {
+        allowed: false,
+        message: '⚠️ Subscription License Expired! WhatsApp sharing is disabled in all modules. Please renew your plan to unlock WhatsApp messaging.'
+      };
+    }
+  }
+
+  return { allowed: true, message: '' };
+};
+
 export const sendWhatsAppBill = (data: BillData, overridePhone?: string, useNativeApp: boolean = true) => {
+  const licenseStatus = checkWhatsAppLicenseAllowed();
+  if (!licenseStatus.allowed) {
+    alert(licenseStatus.message);
+    return {
+      success: false,
+      error: licenseStatus.message
+    };
+  }
+
   const rawPhone = overridePhone || data.mobileNo || '';
   let phone = rawPhone.replace(/\D/g, ''); // strip non-digits
 
@@ -23,10 +56,12 @@ export const sendWhatsAppBill = (data: BillData, overridePhone?: string, useNati
     return `${idx + 1}. *${item.itemName}*${sizeStr}\n   ${item.qty} ${item.uom || 'PCS'} x ₹${item.rate.toFixed(2)} = *₹${item.amount.toFixed(2)}*`;
   }).join('\n');
 
-  const storeName = data.storeName || 'SRI GAYATHRI TRADERS';
+  const storeName = data.storeName || localStorage.getItem('registered_shop_name') || localStorage.getItem('shop_name') || '';
 
-  const text = 
-`🧾 *${storeName} - TAX INVOICE*
+  const headerLine = storeName ? `🧾 *${storeName} - TAX INVOICE*` : `🧾 *TAX INVOICE*`;
+
+  const text =
+    `${headerLine}
 ----------------------------------------
 📄 *Invoice No:* ${data.invoiceNo}
 📅 *Date:* ${data.invDate}
@@ -39,9 +74,9 @@ ${itemsFormatted}
 ----------------------------------------
 📦 *Total Qty:* ${data.totalQty}
 💵 *SubTotal:* ₹${data.totalAmount.toFixed(2)}` +
-(data.favourDiscount ? `\n🏷️ *Discount:* -₹${data.favourDiscount.toFixed(2)}` : '') +
-(data.cgst || data.sgst ? `\n🏛️ *GST Total:* ₹${((data.cgst || 0) + (data.sgst || 0)).toFixed(2)}` : '') +
-`\n💰 *GRAND TOTAL:* *₹${data.netAmount.toFixed(2)}*
+    (data.favourDiscount ? `\n🏷️ *Discount:* -₹${data.favourDiscount.toFixed(2)}` : '') +
+    (data.cgst || data.sgst ? `\n🏛️ *GST Total:* ₹${((data.cgst || 0) + (data.sgst || 0)).toFixed(2)}` : '') +
+    `\n💰 *GRAND TOTAL:* *₹${data.netAmount.toFixed(2)}*
 ----------------------------------------
 Thank you for shopping with us! 🙏 Have a great day!`;
 
@@ -63,6 +98,52 @@ Thank you for shopping with us! 🙏 Have a great day!`;
   return {
     success: true,
     url: useNativeApp ? nativeAppUrl : webAppUrl,
+    phone
+  };
+};
+
+export const sendWhatsAppTextMessage = (rawPhone: string, text: string) => {
+  const licenseStatus = checkWhatsAppLicenseAllowed();
+  if (!licenseStatus.allowed) {
+    alert(licenseStatus.message);
+    return {
+      success: false,
+      error: licenseStatus.message
+    };
+  }
+
+  let phone = rawPhone.replace(/\D/g, '');
+  if (!phone) {
+    return { success: false, error: 'Please enter a valid mobile number for WhatsApp.' };
+  }
+
+  if (phone.length === 10) {
+    phone = `91${phone}`;
+  }
+
+  const encodedText = encodeURIComponent(text);
+  const nativeAppUrl = `whatsapp://send?phone=${phone}&text=${encodedText}`;
+  const webAppUrl = `https://api.whatsapp.com/send?phone=${phone}&text=${encodedText}`;
+
+  // Launch WhatsApp protocol link
+  try {
+    const a = document.createElement('a');
+    a.href = nativeAppUrl;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  } catch (e) {
+    console.error('Native WhatsApp launch error:', e);
+  }
+
+  // Also trigger window.open fallback for browser/Electron compatibility
+  setTimeout(() => {
+    window.open(webAppUrl, '_blank');
+  }, 400);
+
+  return {
+    success: true,
+    url: webAppUrl,
     phone
   };
 };

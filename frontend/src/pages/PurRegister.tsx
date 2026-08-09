@@ -1,23 +1,91 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import type { ToolbarActions } from '../components/Layout';
-import { Search, Calendar, Filter, FileText, AlertCircle, Eye } from 'lucide-react';
+import { Search, Calendar, Filter, FileText, AlertCircle, Eye, Edit, Trash2 } from 'lucide-react';
 import Modal from '../components/Modal';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Api from '../Api';
+import { applyRupeeFont } from '../utils/pdfFontLoader';
+
+// --- INDIAN TIME FORMATTING HELPERS ---
+const formatIndianDateTime = (dateInput?: string | Date) => {
+  if (!dateInput) return '-';
+  try {
+    const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+    if (isNaN(d.getTime())) return String(dateInput);
+
+    const formatter = new Intl.DateTimeFormat('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    });
+    
+    const parts = formatter.formatToParts(d);
+    const day = parts.find(p => p.type === 'day')?.value || '';
+    const month = parts.find(p => p.type === 'month')?.value || '';
+    const year = parts.find(p => p.type === 'year')?.value || '';
+    const hour = parts.find(p => p.type === 'hour')?.value || '';
+    const minute = parts.find(p => p.type === 'minute')?.value || '';
+    const second = parts.find(p => p.type === 'second')?.value || '';
+    
+    return `${day}-${month}-${year} ${hour}:${minute}:${second}`;
+  } catch (e) {
+    return String(dateInput);
+  }
+};
+
+const formatIndianDate = (dateInput?: string | Date) => {
+  if (!dateInput) return '-';
+  try {
+    const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+    if (isNaN(d.getTime())) return String(dateInput);
+
+    const formatter = new Intl.DateTimeFormat('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+    
+    const parts = formatter.formatToParts(d);
+    const day = parts.find(p => p.type === 'day')?.value || '';
+    const month = parts.find(p => p.type === 'month')?.value || '';
+    const year = parts.find(p => p.type === 'year')?.value || '';
+    
+    return `${day}-${month}-${year}`;
+  } catch (e) {
+    return String(dateInput);
+  }
+};
 
 // --- DATA STRUCTURES ---
 interface LineItem {
   itemCode: string;
+  itemName?: string;
   itemDesc: string;
   qty: number;
+  freeQty?: number;
   rate: number;
   taxPercent: number;
   total: number;
   size?: string;
   variety?: string;
+  color?: string;
   category?: string;
+  vendorItemCode?: string;
+  mrp?: number;
+  sellingPrice?: number;
+  discount?: number;
+  barcode?: string;
+  discPercent?: number;
+  returnedQty?: number;
+  netQty?: number;
 }
 
 interface PurchaseRecord {
@@ -25,6 +93,7 @@ interface PurchaseRecord {
   date: string;
   voucherNo: string;
   supplierInvoiceNo: string;
+  supplierInvoiceDate?: string;
   supplierName: string;
   supplierGstin: string;
   taxableAmt: number;
@@ -32,11 +101,26 @@ interface PurchaseRecord {
   sgst: number;
   igst: number;
   otherCharges: number;
+  discount?: number;
+  roundOff?: number;
   netPayable: number;
   status: 'Paid' | 'Partial' | 'Credit';
   type: 'Local' | 'Central';
   paymentMode: 'Cash' | 'Credit';
   items: LineItem[];
+  totalQty?: number;
+  returnedQty?: number;
+  netQty?: number;
+  returnedAmt?: number;
+  returnStatus?: 'None' | 'Partially Returned' | 'Fully Returned';
+  returns?: Array<{
+    id: string;
+    returnNo: string;
+    returnDate: string;
+    reason?: string;
+    netReturnAmount: number;
+    itemsCount: number;
+  }>;
 }
 
 const PurRegister = () => {
@@ -126,14 +210,19 @@ const PurRegister = () => {
   }, []);
 
   // --- ACTIONS ---
-  const handleFetchReport = () => {
+  useEffect(() => {
     let filtered = allData.filter(record => {
-      const recDate = new Date(record.date);
-      const from = new Date(filters.fromDate);
-      const to = new Date(filters.toDate);
-      if (recDate < from || recDate > to) return false;
+      const recDateStr = record.date ? record.date.split('T')[0] : '';
+      if (recDateStr) {
+        if (recDateStr < filters.fromDate || recDateStr > filters.toDate) return false;
+      } else {
+        const recDate = new Date(record.date);
+        const from = new Date(filters.fromDate);
+        const to = new Date(filters.toDate);
+        if (recDate < from || recDate > to) return false;
+      }
 
-      if (filters.supplier !== 'All' && record.supplierName !== filters.supplier) return false;
+      if (filters.supplier !== 'All' && (record.supplierName || '').trim().toLowerCase() !== filters.supplier.trim().toLowerCase()) return false;
       
       if (filters.purchaseType === 'Cash' && record.paymentMode !== 'Cash') return false;
       if (filters.purchaseType === 'Credit' && record.paymentMode !== 'Credit') return false;
@@ -141,8 +230,16 @@ const PurRegister = () => {
       if (filters.purchaseType === 'Central' && record.type !== 'Central') return false;
 
       if (filters.query) {
-        const q = filters.query.toLowerCase();
-        if (!record.voucherNo.toLowerCase().includes(q) && !(record.supplierInvoiceNo || '').toLowerCase().includes(q)) {
+        const q = filters.query.toLowerCase().trim();
+        const vchMatch = (record.voucherNo || '').toLowerCase().includes(q);
+        const invMatch = (record.supplierInvoiceNo || '').toLowerCase().includes(q);
+        const supplierMatch = (record.supplierName || '').toLowerCase().includes(q);
+        const itemMatch = record.items && record.items.some(item => 
+          (item.itemName || '').toLowerCase().includes(q) ||
+          (item.itemCode || '').toLowerCase().includes(q) ||
+          (item.itemDesc || '').toLowerCase().includes(q)
+        );
+        if (!vchMatch && !invMatch && !supplierMatch && !itemMatch) {
           return false;
         }
       }
@@ -150,7 +247,11 @@ const PurRegister = () => {
       return true;
     });
     setDisplayedData(filtered);
-    setGlobalNotification({ msg: `Fetched ${filtered.length} records successfully.`, type: 'success' });
+  }, [filters, allData]);
+
+  const handleFetchReport = () => {
+    setGlobalNotification({ msg: `Report updated. Displaying ${displayedData.length} records.`, type: 'success' });
+    setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
   };
 
   const setQuickDate = (type: 'Today' | 'ThisMonth' | 'ThisFY') => {
@@ -168,8 +269,9 @@ const PurRegister = () => {
     }
   };
 
-  const downloadPDF = () => {
+  const downloadPDF = async () => {
     const doc = new jsPDF();
+    const fontName = await applyRupeeFont(doc);
     doc.setFontSize(16);
     doc.setTextColor(43, 87, 154);
     doc.text('Purchase Register Report', 14, 15);
@@ -196,8 +298,8 @@ const PurRegister = () => {
       head: [headers],
       body: rows,
       theme: 'grid',
-      headStyles: { fillColor: [43, 87, 154] },
-      styles: { fontSize: 8 },
+      headStyles: { fillColor: [43, 87, 154], font: fontName },
+      styles: { fontSize: 8, font: fontName },
     });
 
     doc.save(`Purchase_Register_${new Date().toISOString().split('T')[0]}.pdf`);
@@ -212,6 +314,7 @@ const PurRegister = () => {
     setGlobalNotification({ msg: 'Generating PDF and preparing WhatsApp share...', type: 'info' });
     try {
       const doc = new jsPDF();
+      const fontName = await applyRupeeFont(doc);
       doc.setFontSize(16);
       doc.setTextColor(43, 87, 154);
       doc.text('Purchase Register Report', 14, 15);
@@ -238,8 +341,8 @@ const PurRegister = () => {
         head: [headers],
         body: rows,
         theme: 'grid',
-        headStyles: { fillColor: [43, 87, 154] },
-        styles: { fontSize: 8 },
+        headStyles: { fillColor: [43, 87, 154], font: fontName },
+        styles: { fontSize: 8, font: fontName },
       });
 
       const pdfBase64 = doc.output('datauristring');
@@ -255,12 +358,12 @@ const PurRegister = () => {
       const resData = await res.json();
       if (!resData.success || !resData.pdfUrl) throw new Error('PDF upload returned unsuccessful');
 
-      const whatsappText = `*Sri Gayathri Traders - Purchase Register Report*\n` +
+      const whatsappText = `*Ithu Namma Kada - Purchase Register Report*\n` +
                            `*Period:* ${filters.fromDate} to ${filters.toDate}\n` +
                            `*Supplier:* ${filters.supplier}\n` +
                            `*Total Net Payable:* ₹${totals.net.toFixed(2)}\n\n` +
                            `*Download PDF:* ${resData.pdfUrl}\n\n` +
-                           `Generated automatically via Sri Gayathri Traders Billing System.`;
+                           `Generated automatically via Ithu Namma Kada Billing System.`;
 
       const whatsappUrl = `https://api.whatsapp.com/send?phone=${ownerWhatsApp}&text=${encodeURIComponent(whatsappText)}`;
       window.open(whatsappUrl, '_blank');
@@ -272,6 +375,61 @@ const PurRegister = () => {
       setSharing(false);
       setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 5000);
     }
+  };
+
+
+  const downloadSingleBillPDF = async (record: PurchaseRecord) => {
+    const doc = new jsPDF();
+    const fontName = await applyRupeeFont(doc);
+    doc.setFontSize(16);
+    doc.setTextColor(43, 87, 154);
+    doc.text(`Purchase Voucher: ${record.voucherNo}`, 14, 15);
+    
+    doc.setFontSize(9);
+    doc.setTextColor(100);
+    doc.text(`Voucher Date: ${formatIndianDateTime(record.date)}`, 14, 21);
+    doc.text(`Supplier: ${record.supplierName} | GSTIN: ${record.supplierGstin || 'N/A'}`, 14, 26);
+    doc.text(`Invoice No: ${record.supplierInvoiceNo || 'N/A'} | Invoice Date: ${record.supplierInvoiceDate ? formatIndianDate(record.supplierInvoiceDate) : 'N/A'}`, 14, 31);
+    doc.text(`Place of Supply: ${record.type === 'Local' ? 'Tamil Nadu' : 'Interstate'}`, 14, 36);
+
+    const headers = ["S.No", "Barcode", "Product Name", "Size", "Variety", "Color", "Qty", "Free Qty", "Rate", "GST", "Amount"];
+    const rows = record.items.map((it, idx) => [
+      idx + 1,
+      it.itemCode || '-',
+      it.itemName || it.itemDesc || '-',
+      it.size || '-',
+      it.variety || '-',
+      it.color || '-',
+      it.qty,
+      it.freeQty || 0,
+      `₹${it.rate.toFixed(2)}`,
+      `${it.taxPercent}%`,
+      `₹${it.total.toFixed(2)}`
+    ]);
+
+    autoTable(doc, {
+      startY: 40,
+      head: [headers],
+      body: rows,
+      theme: 'grid',
+      headStyles: { fillColor: [43, 87, 154], font: fontName },
+      styles: { fontSize: 7.5, font: fontName },
+    });
+
+    const finalY = (doc as any).lastAutoTable.finalY + 8;
+    doc.setFontSize(9);
+    doc.setTextColor(50);
+    doc.text(`Sub Total: ₹${record.taxableAmt.toFixed(2)}`, 135, finalY);
+    doc.text(`Discount: -₹${(record.discount || 0).toFixed(2)}`, 135, finalY + 4);
+    doc.text(`CGST: ₹${record.cgst.toFixed(2)}`, 135, finalY + 8);
+    doc.text(`SGST: ₹${record.sgst.toFixed(2)}`, 135, finalY + 12);
+    doc.text(`IGST: ₹${record.igst.toFixed(2)}`, 135, finalY + 16);
+    doc.text(`Round Off: ₹${(record.roundOff || record.otherCharges || 0).toFixed(2)}`, 135, finalY + 20);
+    doc.setFontSize(10.5);
+    doc.setTextColor(0);
+    doc.text(`Grand Total: ₹${record.netPayable.toFixed(2)}`, 135, finalY + 26);
+
+    doc.save(`Voucher_${record.voucherNo}.pdf`);
   };
 
   // Bind Print functionality to global toolbar
@@ -353,11 +511,11 @@ const PurRegister = () => {
             <label className="block text-xs font-bold text-gray-700 mb-1">Search Vch / Inv No.</label>
             <div className="relative">
               <input type="text" value={filters.query} onChange={e => setFilters({...filters, query: e.target.value})} onKeyDown={(e) => e.key === 'Enter' && handleFetchReport()} placeholder="Search..." className="w-full border border-gray-400 p-1.5 pl-7 rounded text-sm focus:border-blue-500" />
-              <Search size={14} className="absolute left-2 top-2 text-gray-400" />
+              <Search size={14} className="absolute left-2.5 top-2.5 text-gray-400" />
             </div>
           </div>
           <div className="col-span-1">
-            <button onClick={handleFetchReport} className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-1.5 rounded text-sm shadow flex items-center justify-center transition-colors">
+            <button onClick={handleFetchReport} className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded text-sm shadow flex items-center justify-center transition-colors">
               Fetch
             </button>
           </div>
@@ -368,26 +526,24 @@ const PurRegister = () => {
       <div className="flex-1 flex flex-col bg-white border border-gray-400 shadow-sm relative overflow-hidden rounded">
         <div className="flex-1 overflow-auto">
           <table className="w-full text-left text-sm border-collapse whitespace-nowrap min-w-max">
-            <thead className="bg-[#2b579a] text-white sticky top-0 z-10 shadow-sm">
+            <thead className="bg-[#2b579a] text-white sticky top-0 z-10 shadow-sm text-xs font-semibold">
               <tr>
-                <th className="border-r border-[#1e3f70] p-2 w-12 text-center text-xs font-semibold">S.No</th>
-                <th className="border-r border-[#1e3f70] p-2 w-24 text-xs font-semibold">Date</th>
-                <th className="border-r border-[#1e3f70] p-2 w-28 text-xs font-semibold">Voucher No</th>
-                <th className="border-r border-[#1e3f70] p-2 w-28 text-xs font-semibold">Inv No</th>
-                <th className="border-r border-[#1e3f70] p-2 text-xs font-semibold">Supplier Name & GSTIN</th>
-                <th className="border-r border-[#1e3f70] p-2 w-28 text-xs font-semibold text-right">Taxable Amt</th>
-                <th className="border-r border-[#1e3f70] p-2 w-24 text-xs font-semibold text-right">CGST</th>
-                <th className="border-r border-[#1e3f70] p-2 w-24 text-xs font-semibold text-right">SGST</th>
-                <th className="border-r border-[#1e3f70] p-2 w-24 text-xs font-semibold text-right">IGST</th>
-                <th className="border-r border-[#1e3f70] p-2 w-24 text-xs font-semibold text-right">Round Off</th>
-                <th className="border-r border-[#1e3f70] p-2 w-32 text-xs font-semibold text-right bg-blue-700">Net Payable</th>
-                <th className="p-2 w-24 text-center text-xs font-semibold">Status</th>
+                <th className="border-r border-[#1e3f70] p-2.5 w-12 text-center">S.No</th>
+                <th className="border-r border-[#1e3f70] p-2.5 w-36">Voucher No</th>
+                <th className="border-r border-[#1e3f70] p-2.5 w-28 text-center">Date</th>
+                <th className="border-r border-[#1e3f70] p-2.5">Vendor Name</th>
+                <th className="border-r border-[#1e3f70] p-2.5 w-24 text-center bg-blue-800">Purchased Qty</th>
+                <th className="border-r border-[#1e3f70] p-2.5 w-28 text-center bg-amber-700">Returned Qty</th>
+                <th className="border-r border-[#1e3f70] p-2.5 w-28 text-center bg-emerald-700 font-bold">Net Stock Qty</th>
+                <th className="border-r border-[#1e3f70] p-2.5 w-36 text-center">Return Status</th>
+                <th className="border-r border-[#1e3f70] p-2.5 w-32 text-right">Net Payable</th>
+                <th className="p-2.5 w-24 text-center">Actions</th>
               </tr>
             </thead>
             <tbody>
               {displayedData.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="p-16 text-center text-gray-500 bg-gray-50">
+                  <td colSpan={10} className="p-16 text-center text-gray-500 bg-gray-50">
                     <div className="flex flex-col items-center justify-center">
                        <FileText className="w-12 h-12 text-gray-300 mb-3" />
                        <p className="text-xl font-medium text-gray-400">No purchase records found</p>
@@ -396,38 +552,83 @@ const PurRegister = () => {
                   </td>
                 </tr>
               ) : (
-                displayedData.map((row, idx) => (
-                  <tr 
-                    key={row.id} 
-                    onClick={() => setSelectedRecord(row)}
-                    className="border-b border-gray-300 hover:bg-yellow-50 cursor-pointer transition-colors even:bg-gray-50"
-                    title="Click to view line items"
-                  >
-                    <td className="border-r border-gray-300 p-2 text-center text-gray-500">{idx + 1}</td>
-                    <td className="border-r border-gray-300 p-2 font-medium text-gray-700">{row.date.split('-').reverse().join('-')}</td>
-                    <td className="border-r border-gray-300 p-2 font-mono text-blue-700">{row.voucherNo}</td>
-                    <td className="border-r border-gray-300 p-2 text-gray-600">{row.supplierInvoiceNo}</td>
-                    <td className="border-r border-gray-300 p-2">
-                      <div className="font-semibold text-gray-800">{row.supplierName}</div>
-                      <div className="text-[10px] text-gray-500">{row.supplierGstin}</div>
-                    </td>
-                    <td className="border-r border-gray-300 p-2 text-right font-mono text-gray-700">{row.taxableAmt.toFixed(2)}</td>
-                    <td className="border-r border-gray-300 p-2 text-right font-mono text-gray-500">{row.cgst > 0 ? row.cgst.toFixed(2) : '-'}</td>
-                    <td className="border-r border-gray-300 p-2 text-right font-mono text-gray-500">{row.sgst > 0 ? row.sgst.toFixed(2) : '-'}</td>
-                    <td className="border-r border-gray-300 p-2 text-right font-mono text-gray-500">{row.igst > 0 ? row.igst.toFixed(2) : '-'}</td>
-                    <td className="border-r border-gray-300 p-2 text-right font-mono text-gray-400">{row.otherCharges > 0 ? row.otherCharges.toFixed(2) : '-'}</td>
-                    <td className="border-r border-gray-300 p-2 text-right font-mono font-bold text-gray-900 bg-blue-50/50">{row.netPayable.toFixed(2)}</td>
-                    <td className="p-2 text-center">
-                      <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider shadow-sm
-                        ${row.status === 'Paid' ? 'bg-green-100 text-green-700 border border-green-200' : 
-                          row.status === 'Partial' ? 'bg-yellow-100 text-yellow-700 border border-yellow-200' : 
-                          'bg-red-100 text-red-700 border border-red-200'}`}
+                displayedData.map((row, idx) => {
+                  const purchasedQty = row.totalQty ?? (row.items ? row.items.reduce((acc, curr) => acc + (curr.qty || 0) + (curr.freeQty || 0), 0) : 0);
+                  const retQty = row.returnedQty || 0;
+                  const netStockQty = row.netQty ?? Math.max(0, purchasedQty - retQty);
+                  const rStatus = row.returnStatus || (retQty > 0 ? (netStockQty <= 0 ? 'Fully Returned' : 'Partially Returned') : 'None');
+
+                  return (
+                    <tr 
+                      key={row.id} 
+                      className="border-b border-gray-300 hover:bg-slate-50 transition-colors even:bg-gray-50/30 text-xs"
+                    >
+                      <td className="border-r border-gray-300 p-2 text-center text-gray-500">{idx + 1}</td>
+                      <td 
+                        className="border-r border-gray-300 p-2 font-mono text-blue-700 font-bold hover:underline cursor-pointer"
+                        onClick={() => setSelectedRecord(row)}
+                        title="Click to view details modal"
                       >
-                        {row.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))
+                        {row.voucherNo}
+                      </td>
+                      <td className="border-r border-gray-300 p-2 text-center text-gray-600 font-mono">
+                        {formatIndianDate(row.date)}
+                      </td>
+                      <td className="border-r border-gray-300 p-2">
+                        <div className="font-bold text-gray-800 text-xs">{row.supplierName}</div>
+                        {row.supplierGstin && <div className="text-[10px] text-gray-400 font-mono mt-0.5">{row.supplierGstin}</div>}
+                      </td>
+                      <td className="border-r border-gray-300 p-2 text-center font-bold text-blue-700 bg-blue-50/20">{purchasedQty} Pcs</td>
+                      <td className="border-r border-gray-300 p-2 text-center font-bold text-amber-700 bg-amber-50/30">
+                        {retQty > 0 ? `-${retQty} Pcs` : '0 Pcs'}
+                      </td>
+                      <td className="border-r border-gray-300 p-2 text-center font-extrabold text-emerald-800 bg-emerald-50/40 text-sm">
+                        {netStockQty} Pcs
+                      </td>
+                      <td className="border-r border-gray-300 p-2 text-center">
+                        {rStatus === 'Fully Returned' ? (
+                          <span className="inline-block px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-rose-100 text-rose-800 border border-rose-300">
+                            Fully Returned
+                          </span>
+                        ) : rStatus === 'Partially Returned' ? (
+                          <span className="inline-block px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-300">
+                            Partially Returned
+                          </span>
+                        ) : (
+                          <span className="inline-block px-2 py-0.5 rounded text-[10px] font-semibold text-slate-500 bg-slate-100 border border-slate-200">
+                            Normal
+                          </span>
+                        )}
+                      </td>
+                      <td className="border-r border-gray-300 p-2 text-right font-mono font-bold text-slate-800">
+                        ₹{row.netPayable.toFixed(2)}
+                      </td>
+                      <td className="p-2 text-center flex items-center justify-center space-x-1.5">
+                        <button 
+                          onClick={() => setSelectedRecord(row)}
+                          className="text-blue-600 hover:bg-blue-50 p-1 rounded transition-colors"
+                          title="View Details"
+                        >
+                          <Eye size={14} />
+                        </button>
+                        <button 
+                          onClick={() => handleEditBill(row)}
+                          className="text-indigo-600 hover:text-indigo-850 hover:bg-indigo-50 p-1 rounded transition-colors"
+                          title="Edit Voucher"
+                        >
+                          <Edit size={14} />
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteBill(row.id)}
+                          className="text-rose-500 hover:bg-rose-50 p-1 rounded transition-colors"
+                          title="Delete Voucher"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -435,16 +636,22 @@ const PurRegister = () => {
         
         {/* STICKY FOOTER TOTALS */}
         <div className="bg-[#1e3f70] text-white border-t border-[#142d54] flex-shrink-0 z-20 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
-          <table className="w-full text-right text-sm border-collapse whitespace-nowrap min-w-max">
+          <table className="w-full text-right text-xs border-collapse whitespace-nowrap min-w-max">
              <tbody>
                <tr>
                  <td className="p-2 text-blue-200 font-bold uppercase tracking-widest text-xs text-left pl-4">Page Totals</td>
-                 <td className="p-2 w-28 text-yellow-200 font-bold font-mono">₹ {totals.taxable.toFixed(2)}</td>
-                 <td className="p-2 w-24 font-bold font-mono">₹ {totals.cgst.toFixed(2)}</td>
-                 <td className="p-2 w-24 font-bold font-mono">₹ {totals.sgst.toFixed(2)}</td>
-                 <td className="p-2 w-24 font-bold font-mono">₹ {totals.igst.toFixed(2)}</td>
-                 <td className="p-2 w-24 text-gray-400 font-mono">-</td>
-                 <td className="p-2 w-32 font-black text-lg text-white font-mono bg-blue-800">₹ {totals.net.toFixed(2)}</td>
+                 <td className="p-2 w-28 text-center font-bold text-blue-100">
+                   Purchased: {displayedData.reduce((acc, curr) => acc + (curr.totalQty ?? (curr.items ? curr.items.reduce((a, c) => a + (c.qty || 0) + (c.freeQty || 0), 0) : 0)), 0)} Pcs
+                 </td>
+                 <td className="p-2 w-28 text-center font-bold text-amber-300">
+                   Returned: -{displayedData.reduce((acc, curr) => acc + (curr.returnedQty || 0), 0)} Pcs
+                 </td>
+                 <td className="p-2 w-32 text-center font-black text-sm text-yellow-300 font-mono bg-blue-800">
+                   Net Stock: {displayedData.reduce((acc, curr) => acc + (curr.netQty ?? ((curr.totalQty || 0) - (curr.returnedQty || 0))), 0)} Pcs
+                 </td>
+                 <td className="p-2 w-36 text-right font-mono font-extrabold text-sm text-white">
+                   Total: ₹{totals.net.toFixed(2)}
+                 </td>
                  <td className="p-2 w-24"></td>
                </tr>
              </tbody>
@@ -457,74 +664,198 @@ const PurRegister = () => {
         isOpen={!!selectedRecord}
         onClose={() => setSelectedRecord(null)}
         title={`Voucher Details: ${selectedRecord?.voucherNo}`}
+        size="full"
       >
         {selectedRecord && (
-          <div className="space-y-4">
-            <div className="flex justify-between bg-gray-50 p-3 border border-gray-200 rounded text-sm">
-               <div>
-                 <p className="text-gray-500 text-xs">Supplier</p>
-                 <p className="font-bold text-gray-800">{selectedRecord.supplierName}</p>
-                 <p className="text-gray-500 text-xs mt-1">Invoice: {selectedRecord.supplierInvoiceNo}</p>
-               </div>
-               <div className="text-right">
-                 <p className="text-gray-500 text-xs">Date</p>
-                 <p className="font-bold text-gray-800">{selectedRecord.date}</p>
-                 <span className={`mt-1 inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider
-                        ${selectedRecord.status === 'Paid' ? 'bg-green-100 text-green-700' : 
-                          selectedRecord.status === 'Partial' ? 'bg-yellow-100 text-yellow-700' : 
-                          'bg-red-100 text-red-700'}`}
-                      >
-                        {selectedRecord.status}
+          <div className="space-y-5 text-slate-800">
+            {/* Header info */}
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 shadow-xs grid grid-cols-4 gap-4 text-xs">
+              <div>
+                <p className="text-slate-400 font-black uppercase tracking-wider mb-0.5">Supplier Name</p>
+                <p className="font-bold text-sm text-slate-800">{selectedRecord.supplierName}</p>
+                {selectedRecord.supplierGstin && (
+                  <p className="text-slate-500 font-mono mt-1">GSTIN: {selectedRecord.supplierGstin}</p>
+                )}
+              </div>
+              <div>
+                <p className="text-slate-400 font-black uppercase tracking-wider mb-0.5">Voucher Date</p>
+                <p className="font-semibold text-slate-800">{formatIndianDateTime(selectedRecord.date)}</p>
+                <p className="text-slate-400 font-black uppercase tracking-wider mt-2.5 mb-0.5">Place of Supply</p>
+                <p className="font-semibold text-slate-800">{selectedRecord.type === 'Local' ? 'Tamil Nadu (Local)' : 'Central (Interstate)'}</p>
+              </div>
+              <div>
+                <p className="text-slate-400 font-black uppercase tracking-wider mb-0.5">Supplier Invoice No</p>
+                <p className="font-bold text-slate-800 text-sm">{selectedRecord.supplierInvoiceNo || 'N/A'}</p>
+                {selectedRecord.supplierInvoiceDate && (
+                  <>
+                    <p className="text-slate-400 font-black uppercase tracking-wider mt-2.5 mb-0.5">Invoice Date</p>
+                    <p className="font-semibold text-slate-800">{formatIndianDate(selectedRecord.supplierInvoiceDate)}</p>
+                  </>
+                )}
+              </div>
+              <div className="text-right">
+                <p className="text-slate-400 font-black uppercase tracking-wider mb-0.5">Payment Status</p>
+                <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider shadow-sm
+                  ${selectedRecord.status === 'Paid' ? 'bg-green-100 text-green-700 border border-green-200' : 
+                    selectedRecord.status === 'Partial' ? 'bg-yellow-100 text-yellow-700 border border-yellow-200' : 
+                    'bg-red-100 text-red-700 border border-red-200'}`}
+                >
+                  {selectedRecord.status}
                 </span>
-               </div>
+                <p className="text-slate-400 font-black uppercase tracking-wider mt-4 mb-0.5">Payment Mode</p>
+                <p className="font-bold text-indigo-700">{selectedRecord.paymentMode || 'Cash'}</p>
+              </div>
             </div>
 
-            <div className="border border-gray-300 rounded overflow-hidden">
-               <table className="w-full text-left text-xs">
-                 <thead className="bg-gray-100 border-b border-gray-300">
-                   <tr>
-                     <th className="p-2 font-semibold text-gray-700">Item</th>
-                     <th className="p-2 font-semibold text-gray-700 text-right">Qty</th>
-                     <th className="p-2 font-semibold text-gray-700 text-right">Rate</th>
-                     <th className="p-2 font-semibold text-gray-700 text-right">Tax %</th>
-                     <th className="p-2 font-semibold text-gray-700 text-right">Total</th>
-                   </tr>
-                 </thead>
-                 <tbody>
-                   {selectedRecord.items.map((it, i) => (
-                     <tr key={i} className="border-b border-gray-200 last:border-0 hover:bg-gray-50">
-                       <td className="p-2">
-                         <div className="font-semibold text-gray-800">{it.itemCode}</div>
-                         <div className="text-gray-500">{it.itemDesc}</div>
-                       </td>
-                       <td className="p-2 text-right font-mono">{it.qty}</td>
-                       <td className="p-2 text-right font-mono">{it.rate.toFixed(2)}</td>
-                       <td className="p-2 text-right font-mono">{it.taxPercent}%</td>
-                       <td className="p-2 text-right font-mono font-bold text-gray-700">{it.total.toFixed(2)}</td>
-                     </tr>
-                   ))}
-                 </tbody>
-               </table>
+            {/* Modal Product Grid */}
+            <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs bg-white">
+              <table className="w-full text-left text-xs border-collapse whitespace-nowrap">
+                <thead className="bg-slate-900 text-white border-b border-slate-800">
+                  <tr>
+                    <th className="p-2 w-8 text-center font-bold">S.No</th>
+                    <th className="p-2 w-28 font-bold">Barcode</th>
+                    <th className="p-2 font-bold">Product</th>
+                    <th className="p-2 w-24 font-bold">Vendor Code</th>
+                    <th className="p-2 w-16 font-bold">Size</th>
+                    <th className="p-2 w-24 font-bold">Variety</th>
+                    <th className="p-2 w-16 text-right font-bold bg-blue-900">Purchased</th>
+                    <th className="p-2 w-16 text-right font-bold bg-amber-900">Returned</th>
+                    <th className="p-2 w-16 text-right font-bold bg-emerald-900">Net Stock</th>
+                    <th className="p-2 w-20 text-right font-bold">Rate</th>
+                    <th className="p-2 w-20 text-right font-bold">Selling Price</th>
+                    <th className="p-2 w-16 text-right font-bold">GST</th>
+                    <th className="p-2 w-24 text-right font-bold bg-slate-850">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {selectedRecord.items.map((it, i) => {
+                    const retQty = it.returnedQty || 0;
+                    const netRemaining = it.netQty ?? Math.max(0, (it.qty || 0) - retQty);
+                    return (
+                      <tr key={i} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors">
+                        <td className="p-2 text-center text-slate-450">{i + 1}</td>
+                        <td className="p-2 font-mono font-bold text-slate-600">{it.itemCode}</td>
+                        <td className="p-2 font-semibold text-slate-800 max-w-[150px] truncate" title={it.itemName || it.itemDesc}>
+                          {it.itemName || it.itemDesc || it.itemCode}
+                        </td>
+                        <td className="p-2 font-mono text-slate-650">{it.vendorItemCode || '-'}</td>
+                        <td className="p-2 text-center">{it.size || '-'}</td>
+                        <td className="p-2">{it.variety || '-'}</td>
+                        <td className="p-2 text-right font-mono font-bold text-blue-700 bg-blue-50/20">{it.qty} Pcs</td>
+                        <td className="p-2 text-right font-mono font-bold text-amber-700 bg-amber-50/30">
+                          {retQty > 0 ? `-${retQty} Pcs` : '0 Pcs'}
+                        </td>
+                        <td className="p-2 text-right font-mono font-extrabold text-emerald-800 bg-emerald-50/40">
+                          {netRemaining} Pcs
+                        </td>
+                        <td className="p-2 text-right font-mono">₹{it.rate.toFixed(2)}</td>
+                        <td className="p-2 text-right font-mono">₹{(it.sellingPrice || 0).toFixed(2)}</td>
+                        <td className="p-2 text-right font-mono">{it.taxPercent}%</td>
+                        <td className="p-2 text-right font-mono font-bold text-slate-900 bg-slate-50/30">₹{it.total.toFixed(2)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
 
-             <div className="flex justify-between items-center pt-4 border-t border-gray-200 mt-4">
-               <div className="flex space-x-2">
-                 <button 
-                   onClick={() => handleDeleteBill(selectedRecord.id)} 
-                   className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded font-semibold transition-colors text-xs"
-                 >
-                   Delete Bill
-                 </button>
-                 <button 
-                   onClick={() => handleEditBill(selectedRecord)} 
-                   className="px-3 py-1.5 bg-[#2b579a] hover:bg-blue-800 text-white rounded font-semibold transition-colors text-xs"
-                 >
-                   Edit Bill
-                 </button>
-               </div>
-               <button onClick={() => setSelectedRecord(null)} className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded font-semibold transition-colors text-xs">
-                 Close
-               </button>
+            {/* Linked Purchase Returns (Debit Notes) Panel */}
+            {selectedRecord.returns && selectedRecord.returns.length > 0 && (
+              <div className="bg-amber-50/60 border border-amber-200 rounded-xl p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-amber-900 uppercase tracking-wider flex items-center">
+                    <span className="w-2 h-2 rounded-full bg-amber-600 mr-2"></span>
+                    Linked Purchase Returns (Debit Notes)
+                  </h4>
+                  <span className="text-[10px] font-mono text-amber-800 font-bold bg-amber-100 px-2 py-0.5 rounded border border-amber-300">
+                    Total Refunded: ₹{(selectedRecord.returnedAmt || 0).toFixed(2)}
+                  </span>
+                </div>
+                <div className="divide-y divide-amber-200/60 text-xs">
+                  {selectedRecord.returns.map(ret => (
+                    <div key={ret.id} className="py-2 flex justify-between items-center font-mono">
+                      <div>
+                        <span className="font-bold text-amber-950 mr-2">{ret.returnNo}</span>
+                        <span className="text-amber-700 text-[11px] mr-3">({formatIndianDate(ret.returnDate)})</span>
+                        <span className="text-slate-600 text-[11px] font-sans">{ret.reason ? `Reason: ${ret.reason}` : ''}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="font-bold text-amber-900">₹{ret.netReturnAmount.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Totals Summary Panel inside Modal */}
+            <div className="flex justify-end">
+              <div className="w-80 bg-slate-900 text-white rounded-xl p-4 shadow-md border border-slate-800 text-xs space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Sub Total:</span>
+                  <span className="font-mono font-semibold">₹ {selectedRecord.taxableAmt.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Discount:</span>
+                  <span className="font-mono font-semibold text-red-400">- ₹ {(selectedRecord.discount || 0).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">CGST:</span>
+                  <span className="font-mono font-semibold">₹ {selectedRecord.cgst.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">SGST:</span>
+                  <span className="font-mono font-semibold">₹ {selectedRecord.sgst.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">IGST:</span>
+                  <span className="font-mono font-semibold">₹ {selectedRecord.igst.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between border-b border-slate-800 pb-2">
+                  <span className="text-slate-400">Round Off:</span>
+                  <span className="font-mono font-semibold">₹ {(selectedRecord.roundOff || selectedRecord.otherCharges || 0).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between items-center pt-2 font-bold">
+                  <span className="text-indigo-300 uppercase tracking-wider">Grand Total:</span>
+                  <span className="text-lg text-yellow-400 font-mono">₹ {selectedRecord.netPayable.toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Actions Footer */}
+            <div className="flex justify-between items-center pt-4 border-t border-slate-200 mt-4">
+              <div className="flex space-x-2">
+                <button 
+                  onClick={() => handleEditBill(selectedRecord)} 
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold transition-all text-xs active:scale-95 shadow-sm"
+                >
+                  Edit Purchase
+                </button>
+                <button 
+                  onClick={() => window.print()} 
+                  className="px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white rounded-lg font-bold transition-all text-xs active:scale-95 shadow-sm"
+                >
+                  Print
+                </button>
+                <button 
+                  onClick={() => downloadSingleBillPDF(selectedRecord)} 
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold transition-all text-xs active:scale-95 shadow-sm"
+                >
+                  Download PDF
+                </button>
+                <button 
+                  onClick={() => handleDeleteBill(selectedRecord.id)} 
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold transition-all text-xs active:scale-95 shadow-sm"
+                >
+                  Delete
+                </button>
+              </div>
+              <button 
+                onClick={() => setSelectedRecord(null)} 
+                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-lg font-bold transition-all text-xs cursor-pointer"
+              >
+                Close
+              </button>
             </div>
           </div>
         )}

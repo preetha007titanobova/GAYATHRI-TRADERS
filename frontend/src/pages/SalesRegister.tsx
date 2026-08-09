@@ -1,263 +1,54 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useOutletContext, useNavigate, useLocation } from 'react-router-dom';
 import type { ToolbarActions } from '../components/Layout';
-import { Search, Calendar, X, Eye, Edit, Printer, FileText, Trash2 } from 'lucide-react';
+import { Search, Calendar, X, Eye, Edit, Printer, FileText, Trash2, MessageCircle, CheckSquare } from 'lucide-react';
 import Api from '../Api';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { printReceipt } from '../utils/printReceipt';
+import { sendWhatsAppBill, sendWhatsAppTextMessage } from '../utils/whatsappHelper';
+import { applyRupeeFont } from '../utils/pdfFontLoader';
 
-const printOrder = (order: any) => {
-  const existingIframe = document.getElementById('printOrderIframe');
-  if (existingIframe) {
-    document.body.removeChild(existingIframe);
+const printOrder = (order: any, mode: 'print' | 'whatsapp' = 'print') => {
+  const cartItems = (order.items || []).map((it: any) => ({
+    itemCode: it.itemCode,
+    itemDesc: it.itemDescription || it.itemName || 'Item',
+    qty: it.quantityOrdered || it.orderedQty || it.qty || 1,
+    rate: it.unitPrice || it.rate || 0,
+    totalAmt: it.lineSubTotal || it.lineTotal || it.amount || 0
+  }));
+
+  const printData = {
+    invoiceNo: order.invoiceNo || order.orderNo || order.returnNo || order.orderNumber,
+    date: new Date(order.invDate || order.orderDate || order.returnDate || new Date()).toLocaleDateString('en-IN'),
+    customerName: order.buyerName || order.customer || order.customerName || 'Walk-in',
+    paymentMode: order.paymentMode || order.refundMethod || 'Cash',
+    totalQty: order.summary?.totalQty || order.totalQty || cartItems.reduce((a: number, c: any) => a + c.qty, 0),
+    subTotal: order.summary?.subTotal || order.subTotal || order.totalTaxable || 0,
+    cgst: order.summary?.cgst || order.cgst,
+    sgst: order.summary?.sgst || order.sgst,
+    totalAmount: order.summary?.grandTotal || order.grandTotal || order.netAmount || order.netRefundAmount || 0,
+    customerMobile: order.mobileNo,
+    receiptTitle: order.orderNo ? 'SALES ORDER' : order.returnNo ? 'SALES RETURN' : 'TAX INVOICE'
+  };
+
+  if (mode === 'print') {
+    printReceipt({ gridData: cartItems, ...printData });
+  } else if (mode === 'whatsapp') {
+    sendWhatsAppBill({
+      invoiceNo: printData.invoiceNo,
+      invDate: printData.date,
+      buyerName: printData.customerName,
+      mobileNo: printData.customerMobile,
+      paymentMode: printData.paymentMode,
+      items: cartItems.map((i: any) => ({ itemName: i.itemDesc, qty: i.qty, rate: i.rate, amount: i.totalAmt })),
+      totalQty: printData.totalQty,
+      totalAmount: printData.subTotal,
+      cgst: printData.cgst,
+      sgst: printData.sgst,
+      netAmount: printData.totalAmount
+    });
   }
-
-  const iframe = document.createElement('iframe');
-  iframe.id = 'printOrderIframe';
-  iframe.style.position = 'absolute';
-  iframe.style.top = '-10000px';
-  iframe.style.left = '-10000px';
-  iframe.style.width = '210mm'; // A4 width
-  iframe.style.opacity = '0';
-  iframe.style.pointerEvents = 'none';
-  
-  document.body.appendChild(iframe);
-  const doc = iframe.contentWindow?.document;
-  if (!doc) return;
-
-  const orderDateStr = new Date(order.orderDate).toLocaleDateString('en-IN');
-  const deliveryDateStr = order.expectedDeliveryDate ? new Date(order.expectedDeliveryDate).toLocaleDateString('en-IN') : 'N/A';
-
-  const htmlContent = `
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <title>Sales Order - ${order.orderNo || order.orderNumber}</title>
-        <style>
-          body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 20px;
-            color: #333;
-            font-size: 14px;
-          }
-          .header {
-            text-align: center;
-            border-bottom: 2px solid #2b579a;
-            padding-bottom: 10px;
-            margin-bottom: 20px;
-          }
-          .shop-name {
-            font-size: 24px;
-            font-weight: bold;
-            color: #2b579a;
-            margin: 0;
-            text-transform: uppercase;
-          }
-          .title {
-            font-size: 18px;
-            font-weight: bold;
-            margin: 5px 0 0 0;
-            letter-spacing: 1px;
-          }
-          .info-table {
-            width: 100%;
-            margin-bottom: 20px;
-            border-collapse: collapse;
-          }
-          .info-table td {
-            padding: 5px;
-            vertical-align: top;
-          }
-          .info-title {
-            font-weight: bold;
-            color: #555;
-            width: 150px;
-          }
-          .items-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 25px;
-          }
-          .items-table th, .items-table td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
-          }
-          .items-table th {
-            background-color: #f2f2f2;
-            color: #2b579a;
-            font-weight: bold;
-          }
-          .text-right {
-            text-align: right;
-          }
-          .text-center {
-            text-align: center;
-          }
-          .summary-container {
-            float: right;
-            width: 300px;
-            margin-bottom: 30px;
-          }
-          .summary-line {
-            display: flex;
-            justify-content: space-between;
-            padding: 4px 0;
-            font-size: 13px;
-          }
-          .summary-line.total {
-            font-size: 16px;
-            font-weight: bold;
-            border-top: 1px solid #333;
-            padding-top: 8px;
-            color: #2b579a;
-          }
-          .footer {
-            margin-top: 50px;
-            clear: both;
-            border-top: 1px solid #eee;
-            padding-top: 15px;
-          }
-          .terms {
-            font-size: 11px;
-            color: #777;
-            width: 60%;
-            float: left;
-          }
-          .signatures {
-            float: right;
-            width: 35%;
-            text-align: center;
-            margin-top: 20px;
-          }
-          .sig-line {
-            border-top: 1px solid #999;
-            margin-top: 40px;
-            padding-top: 5px;
-            font-weight: bold;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h1 class="shop-name">SRI GAYATHRI TRADERS</h1>
-          <div class="title">SALES ORDER</div>
-        </div>
-
-        <table class="info-table">
-          <tr>
-            <td>
-              <div><span class="info-title">Order Number:</span> <strong>${order.orderNo || order.orderNumber}</strong></div>
-              <div><span class="info-title">Order Date:</span> ${orderDateStr}</div>
-              <div><span class="info-title">Expected Delivery:</span> <strong>${deliveryDateStr}</strong></div>
-              <div><span class="info-title">Status:</span> <span style="text-transform: uppercase;">${order.status}</span></div>
-            </td>
-            <td style="text-align: right;">
-              <div><strong>Customer Details:</strong></div>
-              <div>Name: ${order.customer || order.buyerName || 'Walk-in Customer'}</div>
-              ${order.mobileNo ? `<div>Phone: ${order.mobileNo}</div>` : ''}
-              ${order.address ? `<div>Address: ${order.address}</div>` : ''}
-            </td>
-          </tr>
-        </table>
-
-        <table class="items-table">
-          <thead>
-            <tr>
-              <th style="width: 5%;" class="text-center">#</th>
-              <th style="width: 15%;">Item Code</th>
-              <th>Description</th>
-              <th style="width: 10%;">Color</th>
-              <th style="width: 10%;">Size</th>
-              <th style="width: 10%;" class="text-center">Qty Ordered</th>
-              <th style="width: 12%;" class="text-right">Unit Price</th>
-              <th style="width: 10%;" class="text-center">Disc %</th>
-              <th style="width: 15%;" class="text-right">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${order.items.map((item: any, idx: number) => `
-              <tr>
-                <td class="text-center">${idx + 1}</td>
-                <td>${item.itemCode || '-'}</td>
-                <td>${item.itemDescription || item.itemName || 'Unknown Item'}</td>
-                <td>${item.color || '-'}</td>
-                <td>${item.size || '-'}</td>
-                <td class="text-center">${item.quantityOrdered || item.orderedQty}</td>
-                <td class="text-right">₹${Number(item.unitPrice).toFixed(2)}</td>
-                <td class="text-center">${item.discountPercentage || item.discount || 0}%</td>
-                <td class="text-right">₹${Number(item.lineSubTotal || item.lineTotal).toFixed(2)}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-
-        <div class="summary-container">
-          <div class="summary-line">
-            <span>Subtotal:</span>
-            <span>₹${Number(order.summary?.subtotal || order.subtotal).toFixed(2)}</span>
-          </div>
-          ${(order.summary?.cgst || order.cgst) > 0 ? `
-          <div class="summary-line">
-            <span>CGST:</span>
-            <span>₹${Number(order.summary?.cgst || order.cgst).toFixed(2)}</span>
-          </div>` : ''}
-          ${(order.summary?.sgst || order.sgst) > 0 ? `
-          <div class="summary-line">
-            <span>SGST:</span>
-            <span>₹${Number(order.summary?.sgst || order.sgst).toFixed(2)}</span>
-          </div>` : ''}
-          ${(order.summary?.igst || order.igst) > 0 ? `
-          <div class="summary-line">
-            <span>IGST:</span>
-            <span>₹${Number(order.summary?.igst || order.igst).toFixed(2)}</span>
-          </div>` : ''}
-          <div class="summary-line">
-            <span>Rounding:</span>
-            <span>₹${Number(order.summary?.rounding || order.roundOff || 0).toFixed(2)}</span>
-          </div>
-          <div class="summary-line total">
-            <span>Grand Total:</span>
-            <span>₹${Number(order.summary?.grandTotal || order.grandTotal).toFixed(2)}</span>
-          </div>
-          <div class="summary-line" style="font-weight: bold; color: #15803d; border-top: 1px dashed #ddd; padding-top: 4px;">
-            <span>Advance Paid:</span>
-            <span>₹${Number(order.advancePaid || 0).toFixed(2)}</span>
-          </div>
-          <div class="summary-line" style="font-weight: bold; color: #b91c1c;">
-            <span>Balance Due:</span>
-            <span>₹${Number(order.balanceAmount || (order.summary?.grandTotal - order.advancePaid) || 0).toFixed(2)}</span>
-          </div>
-        </div>
-
-        <div class="footer">
-          <div class="terms">
-            <strong>Terms & Conditions:</strong>
-            <ol style="margin: 5px 0; padding-left: 15px;">
-              <li>Goods once ordered cannot be cancelled or returned.</li>
-              <li>Expected delivery dates are estimates subject to transport availability.</li>
-              <li>Balance amount must be cleared prior to or at the time of final delivery.</li>
-            </ol>
-          </div>
-
-          <div class="signatures">
-            <div class="sig-line">Authorized Signature</div>
-          </div>
-        </div>
-      </body>
-    </html>
-  `;
-
-  doc.open();
-  doc.write(htmlContent);
-  doc.close();
-
-  setTimeout(() => {
-    if (iframe.contentWindow) {
-      iframe.contentWindow.focus();
-      iframe.contentWindow.print();
-    }
-  }, 250);
 };
 
 const SalesRegister = () => {
@@ -271,10 +62,10 @@ const SalesRegister = () => {
     ownerWhatsApp: string;
   }>();
 
-  const [activeTab, setActiveTab] = useState<'bills' | 'orders' | 'returns'>('bills');
+  const location = useLocation();
+  const [activeTab, setActiveTab] = useState<'bills' | 'orders' | 'returns'>(() => location.state?.activeTab || 'bills');
   const [records, setRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const location = useLocation();
   const [searchQuery, setSearchQuery] = useState(() => location.state?.selectedCustomerName || '');
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
 
@@ -295,6 +86,17 @@ const SalesRegister = () => {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deletingOrder, setDeletingOrder] = useState<any | null>(null);
   const [deleteReason, setDeleteReason] = useState('');
+
+  // Bulk & Single Delete States
+  const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [itemToDelete, setItemToDelete] = useState<any | null>(null);
+  const [singleDeleteModalOpen, setSingleDeleteModalOpen] = useState(false);
+  const [deletingSingle, setDeletingSingle] = useState(false);
+
+  const [bulkDeleteModalOpen, setBulkDeleteModalOpen] = useState(false);
+  const [bulkConfirmText, setBulkConfirmText] = useState('');
+  const [deletingBulk, setDeletingBulk] = useState(false);
 
   const handleOpenDetailModal = async (type: 'bill' | 'order' | 'return', rec: any) => {
     setDetailModalOpen(true);
@@ -422,13 +224,12 @@ const SalesRegister = () => {
       }
 
       // Payment Mode Dropdown filter
-      const mode = (rec.paymentMode || rec.refundMethod || 'Cash').toLowerCase();
       if (selectedPaymentMode !== 'all') {
-        const selMode = selectedPaymentMode.toLowerCase();
-        if (selMode === 'cash' && !mode.includes('cash')) return false;
-        if (selMode === 'upi' && !mode.includes('upi') && !mode.includes('online')) return false;
-        if (selMode === 'card' && !mode.includes('card') && !mode.includes('bank')) return false;
-        if (selMode === 'credit' && !mode.includes('credit') && !mode.includes('ledger')) return false;
+        const pMode = (rec.paymentMode || rec.refundMethod || 'Cash').toLowerCase();
+        if (selectedPaymentMode === 'cash' && !pMode.includes('cash')) return false;
+        if (selectedPaymentMode === 'upi' && !pMode.includes('upi') && !pMode.includes('online')) return false;
+        if (selectedPaymentMode === 'card' && !pMode.includes('card') && !pMode.includes('bank')) return false;
+        if (selectedPaymentMode === 'credit' && !pMode.includes('credit') && !pMode.includes('ledger')) return false;
       }
 
       // Client-side text search (for payment mode or invoice/customer)
@@ -443,8 +244,9 @@ const SalesRegister = () => {
         const matchBuyer = buyer.includes(q);
         const matchMob = mob.includes(q);
         const matchPayMode = payMode.includes(q) || (q === 'upi' && (payMode.includes('online') || payMode.includes('upi')));
+        const matchSelective = q.includes('selective') && rec.isSelectiveCustomer;
 
-        if (!matchInv && !matchBuyer && !matchMob && !matchPayMode) {
+        if (!matchInv && !matchBuyer && !matchMob && !matchPayMode && !matchSelective) {
           return false;
         }
       }
@@ -452,6 +254,83 @@ const SalesRegister = () => {
       return true;
     });
   }, [records, startDate, endDate, selectedPaymentMode, searchQuery, activeTab]);
+
+  // Reset selected checkboxes on filter or tab change
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [activeTab, searchQuery, startDate, endDate, selectedPaymentMode]);
+
+  const isAllSelected = useMemo(() => {
+    return filteredRecords.length > 0 && filteredRecords.every(r => selectedIds.includes(r._id));
+  }, [filteredRecords, selectedIds]);
+
+  const handleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filteredRecords.map(r => r._id));
+    }
+  };
+
+  const handleToggleSelect = (id: string) => {
+    if (selectedIds.includes(id)) {
+      setSelectedIds(selectedIds.filter(i => i !== id));
+    } else {
+      setSelectedIds([...selectedIds, id]);
+    }
+  };
+
+  // Single Record Delete Handler
+  const handleConfirmSingleDelete = async () => {
+    if (!itemToDelete) return;
+    setDeletingSingle(true);
+    try {
+      let url = `${Api}/sales/${itemToDelete._id}`;
+      if (activeTab === 'orders') url = `${Api}/sales/orders/${itemToDelete._id}`;
+      if (activeTab === 'returns') url = `${Api}/sales/returns/${itemToDelete._id}`;
+
+      const res = await fetch(url, { method: 'DELETE' });
+      if (res.ok) {
+        setGlobalNotification({ msg: 'Record deleted successfully.', type: 'success' });
+        fetchRecords();
+      } else {
+        const data = await res.json();
+        setGlobalNotification({ msg: data.error || 'Failed to delete record.', type: 'error' });
+      }
+    } catch (err) {
+      console.error(err);
+      setGlobalNotification({ msg: 'Error deleting record.', type: 'error' });
+    } finally {
+      setDeletingSingle(false);
+      setSingleDeleteModalOpen(false);
+      setItemToDelete(null);
+    }
+  };
+
+  // Bulk Records Delete Handler (Requires typing CONFIRM DELETE)
+  const handleConfirmBulkDelete = async () => {
+    if (bulkConfirmText.trim().toUpperCase() !== 'CONFIRM DELETE') return;
+    setDeletingBulk(true);
+    try {
+      const deletePromises = selectedIds.map(id => {
+        let url = `${Api}/sales/${id}`;
+        if (activeTab === 'orders') url = `${Api}/sales/orders/${id}`;
+        if (activeTab === 'returns') url = `${Api}/sales/returns/${id}`;
+        return fetch(url, { method: 'DELETE' });
+      });
+      await Promise.all(deletePromises);
+      setGlobalNotification({ msg: `Successfully deleted ${selectedIds.length} records.`, type: 'success' });
+      setSelectedIds([]);
+      fetchRecords();
+    } catch (err) {
+      console.error(err);
+      setGlobalNotification({ msg: 'Error performing bulk deletion.', type: 'error' });
+    } finally {
+      setDeletingBulk(false);
+      setBulkDeleteModalOpen(false);
+      setBulkConfirmText('');
+    }
+  };
 
   // Fetch customer details when a row is selected or a customer filter is set
   useEffect(() => {
@@ -493,22 +372,6 @@ const SalesRegister = () => {
         if (activeTab === 'bills') navigate('/sales-bill');
         else if (activeTab === 'orders') navigate('/sales-order');
         else if (activeTab === 'returns') navigate('/sales-return');
-      },
-      onEdit: () => {
-        if (!selectedRowId) {
-          setGlobalNotification({ msg: 'Please select a record to edit.', type: 'error' });
-          return;
-        }
-        const selectedRecord = records.find(r => r._id === selectedRowId);
-        if (selectedRecord) {
-          if (activeTab === 'bills') {
-            navigate('/sales-bill', { state: { invoiceToEdit: selectedRecord } });
-          } else if (activeTab === 'orders') {
-            navigate('/sales-order', { state: { orderToEdit: selectedRecord } });
-          } else if (activeTab === 'returns') {
-            navigate('/sales-return', { state: { returnToEdit: selectedRecord } });
-          }
-        }
       },
       onDelete: async () => {
         if (!selectedRowId) {
@@ -560,8 +423,9 @@ const SalesRegister = () => {
     return () => setToolbarActions({});
   }, [setToolbarActions, navigate, selectedRowId, records, activeTab, setGlobalNotification]);
 
-  const downloadPDF = () => {
+  const downloadPDF = async () => {
     const doc = new jsPDF();
+    const fontName = await applyRupeeFont(doc);
     const title = activeTab === 'bills' ? 'Sales Bills Register' : activeTab === 'orders' ? 'Sales Orders Register' : 'Sales Returns Register';
 
     // Header styling
@@ -616,8 +480,8 @@ const SalesRegister = () => {
       head: [headers],
       body: rows,
       theme: 'grid',
-      headStyles: { fillColor: [43, 87, 154] },
-      styles: { fontSize: 8 },
+      headStyles: { fillColor: [43, 87, 154], font: fontName },
+      styles: { fontSize: 8, font: fontName },
     });
 
     doc.save(`${title.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`);
@@ -626,10 +490,20 @@ const SalesRegister = () => {
   const handleShareWhatsApp = async () => {
     if (sharing) return;
     setSharing(true);
+
+    const targetPhone = ownerWhatsApp || localStorage.getItem('close_day_whatsapp') || localStorage.getItem('owner_whatsapp') || '';
+    if (!targetPhone) {
+      setGlobalNotification({ msg: 'Please configure your WhatsApp number in Close Day settings.', type: 'error' });
+      setSharing(false);
+      return;
+    }
+
     setGlobalNotification({ msg: 'Generating PDF and preparing WhatsApp share...', type: 'info' });
     try {
       const doc = new jsPDF();
+      const fontName = await applyRupeeFont(doc);
       const title = activeTab === 'bills' ? 'Sales Bills Register' : activeTab === 'orders' ? 'Sales Orders Register' : 'Sales Returns Register';
+      const storeName = localStorage.getItem('registered_shop_name') || localStorage.getItem('shop_name') || 'Ithu Namma Kada';
 
       // Header styling
       doc.setFontSize(16);
@@ -642,40 +516,53 @@ const SalesRegister = () => {
 
       let headers: string[] = [];
       let rows: any[][] = [];
+      let grandNetTotal = 0;
 
       if (activeTab === 'bills') {
         headers = ["Invoice No", "Date", "Customer Name", "Pay Mode", "Gross Amt", "Tax Amt", "Net Amt"];
-        rows = filteredRecords.map(rec => [
-          rec.invoiceNo,
-          new Date(rec.invDate).toLocaleDateString(),
-          rec.buyerName || 'CASH CUSTOMER',
-          rec.paymentMode || 'Cash',
-          `₹${(rec.totalAmount || 0).toFixed(2)}`,
-          `₹${((rec.cgst || 0) + (rec.sgst || 0)).toFixed(2)}`,
-          `₹${(rec.netAmount || 0).toFixed(2)}`
-        ]);
+        rows = filteredRecords.map(rec => {
+          const net = rec.netAmount || 0;
+          grandNetTotal += net;
+          return [
+            rec.invoiceNo,
+            new Date(rec.invDate).toLocaleDateString(),
+            rec.buyerName || 'CASH CUSTOMER',
+            rec.paymentMode || 'Cash',
+            `₹${(rec.totalAmount || 0).toFixed(2)}`,
+            `₹${((rec.cgst || 0) + (rec.sgst || 0)).toFixed(2)}`,
+            `₹${net.toFixed(2)}`
+          ];
+        });
       } else if (activeTab === 'orders') {
         headers = ["Order No", "Date", "Customer Name", "Delivery Date", "Terms", "Grand Total", "Status"];
-        rows = filteredRecords.map(rec => [
-          rec.orderNo,
-          new Date(rec.orderDate).toLocaleDateString(),
-          rec.customer || 'CASH CUSTOMER',
-          rec.deliveryDate ? new Date(rec.deliveryDate).toLocaleDateString() : '-',
-          rec.paymentTerms || '-',
-          `₹${(rec.grandTotal || 0).toFixed(2)}`,
-          rec.status || 'OPEN'
-        ]);
+        rows = filteredRecords.map(rec => {
+          const total = rec.grandTotal || 0;
+          grandNetTotal += total;
+          return [
+            rec.orderNo || rec.orderNumber,
+            new Date(rec.orderDate).toLocaleDateString(),
+            rec.customer || rec.buyerName || 'CASH CUSTOMER',
+            rec.deliveryDate ? new Date(rec.deliveryDate).toLocaleDateString() : '-',
+            rec.paymentTerms || '-',
+            `₹${total.toFixed(2)}`,
+            rec.status || 'OPEN'
+          ];
+        });
       } else {
         headers = ["Return No", "Date", "Customer Name", "Orig. Invoice", "Reason", "Tax Return", "Net Refund"];
-        rows = filteredRecords.map(rec => [
-          rec.returnNo,
-          new Date(rec.returnDate).toLocaleDateString(),
-          rec.customerName || 'CASH CUSTOMER',
-          rec.originalInvoice || '-',
-          rec.reason || '-',
-          `₹${((rec.cgstReturn || 0) + (rec.sgstReturn || 0) + (rec.igstReturn || 0)).toFixed(2)}`,
-          `₹${(rec.netRefundAmount || 0).toFixed(2)}`
-        ]);
+        rows = filteredRecords.map(rec => {
+          const net = rec.netRefundAmount || 0;
+          grandNetTotal += net;
+          return [
+            rec.returnNo,
+            new Date(rec.returnDate).toLocaleDateString(),
+            rec.customerName || 'CASH CUSTOMER',
+            rec.originalInvoice || '-',
+            rec.reason || '-',
+            `₹${((rec.cgstReturn || 0) + (rec.sgstReturn || 0) + (rec.igstReturn || 0)).toFixed(2)}`,
+            `₹${net.toFixed(2)}`
+          ];
+        });
       }
 
       autoTable(doc, {
@@ -683,32 +570,45 @@ const SalesRegister = () => {
         head: [headers],
         body: rows,
         theme: 'grid',
-        headStyles: { fillColor: [43, 87, 154] },
-        styles: { fontSize: 8 },
+        headStyles: { fillColor: [43, 87, 154], font: fontName },
+        styles: { fontSize: 8, font: fontName },
       });
 
-      const pdfBase64 = doc.output('datauristring');
-      const filename = `${title.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+      let pdfUrl = '';
+      try {
+        const pdfBase64 = doc.output('datauristring');
+        const filename = `${title.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
 
-      const res = await fetch(`${Api}/products/upload-pdf`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pdf: pdfBase64, filename })
-      });
+        const res = await fetch(`${Api}/products/upload-pdf`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pdf: pdfBase64, filename })
+        });
+        if (res.ok) {
+          const resData = await res.json();
+          if (resData.success && resData.pdfUrl) {
+            pdfUrl = resData.pdfUrl;
+          }
+        }
+      } catch (uploadErr) {
+        console.warn('PDF upload unavailable, sending text summary:', uploadErr);
+      }
 
-      if (!res.ok) throw new Error('Failed to upload PDF report');
-      const resData = await res.json();
-      if (!resData.success || !resData.pdfUrl) throw new Error('PDF upload returned unsuccessful');
+      let whatsappText = `📊 *${storeName} - ${title}*\n` +
+        `----------------------------------------\n` +
+        `📅 *Period:* ${startDate || 'All'} to ${endDate || 'All'}\n` +
+        `🔢 *Total Records:* ${filteredRecords.length}\n` +
+        `💰 *Total Net Amount:* ₹${grandNetTotal.toFixed(2)}\n` +
+        `----------------------------------------\n`;
 
-      const whatsappText = `*Sri Gayathri Traders - ${title}*\n` +
-        `*Period:* ${startDate || 'All'} to ${endDate || 'All'}\n` +
-        `*Records Count:* ${filteredRecords.length}\n\n` +
-        `*Download PDF:* ${resData.pdfUrl}\n\n` +
-        `Generated automatically via Sri Gayathri Traders Billing System.`;
+      if (pdfUrl) {
+        whatsappText += `📄 *Download Full PDF Report:* ${pdfUrl}\n\n`;
+      }
 
-      const whatsappUrl = `https://api.whatsapp.com/send?phone=${ownerWhatsApp}&text=${encodeURIComponent(whatsappText)}`;
-      window.open(whatsappUrl, '_blank');
-      setGlobalNotification({ msg: 'WhatsApp Web/API link opened successfully!', type: 'success' });
+      whatsappText += `Generated via Ithu Namma Kada Billing System. 🙏`;
+
+      sendWhatsAppTextMessage(targetPhone, whatsappText);
+      setGlobalNotification({ msg: `WhatsApp share triggered for ${targetPhone}!`, type: 'success' });
     } catch (err: any) {
       console.error(err);
       setGlobalNotification({ msg: err.message || 'Failed to share on WhatsApp.', type: 'error' });
@@ -720,13 +620,15 @@ const SalesRegister = () => {
 
   return (
     <div className="flex flex-col h-full bg-[#f0f9f4] p-2 relative">
-      <div className="flex justify-between items-center mb-2 bg-white p-2 border border-gray-300 shadow-sm rounded">
-        <h2 className="text-xl font-bold text-gray-700 flex items-center">
-          <span className="bg-[#2b579a] w-2 h-6 mr-2 block"></span>
-          Sales Register
-        </h2>
+      {/* Page Heading */}
+      <div className="flex items-center mb-2 px-1">
+        <span className="bg-[#2b579a] w-2 h-6 mr-2 block"></span>
+        <h2 className="text-xl font-bold text-gray-700 m-0">Sales Register</h2>
+      </div>
 
-        <div className="flex items-center space-x-2">
+      {/* Filters Area */}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-2 bg-white p-2 border border-gray-300 shadow-sm rounded">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Date Range Selection */}
           <div className="flex items-center space-x-1.5 text-xs bg-slate-50 border border-gray-300 p-1 rounded-md shadow-sm">
             <span className="font-bold text-[#2b579a] flex items-center pl-1"><Calendar size={12} className="mr-1" /> Period:</span>
@@ -779,17 +681,47 @@ const SalesRegister = () => {
               ref={searchInputRef}
               type="text"
               placeholder={`Search bill, UPI, Cash...`}
-              className="border border-gray-400 pl-8 pr-2 py-1 text-sm rounded focus:outline-none focus:border-blue-500 w-48 shadow-inner"
+              className="border border-gray-400 pl-8 pr-2 py-1.5 text-sm rounded focus:outline-none focus:border-blue-500 w-48 shadow-inner"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
-            <Search size={16} className="absolute left-2 top-1.5 text-gray-500" />
+            <Search size={16} className="absolute left-2 top-2 text-gray-500" />
           </div>
-          <button onClick={downloadPDF} className="bg-emerald-600 text-white px-3  text-sm font-semibold rounded hover:bg-emerald-700 shadow border border-emerald-800 transition-colors">Download PDF</button>
+        </div>
+
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={() => {
+              setIsMultiSelectMode(!isMultiSelectMode);
+              setSelectedIds([]);
+            }}
+            className={`px-3 py-1.5 rounded text-xs font-bold shadow-sm transition-all flex items-center space-x-1.5 border cursor-pointer ${
+              isMultiSelectMode 
+                ? 'bg-amber-500 hover:bg-amber-600 text-white border-amber-600' 
+                : 'bg-[#2b579a] hover:bg-[#1f3f6f] text-white border-blue-900'
+            }`}
+          >
+            <CheckSquare size={14} />
+            <span>{isMultiSelectMode ? 'Cancel Selection' : 'Select Multiple'}</span>
+          </button>
+
+          {selectedIds.length > 0 && (
+            <button
+              onClick={() => {
+                setBulkConfirmText('');
+                setBulkDeleteModalOpen(true);
+              }}
+              className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 text-xs font-bold rounded shadow border border-red-800 transition-colors flex items-center gap-1 cursor-pointer"
+            >
+              <Trash2 size={14} />
+              <span>Bulk Delete ({selectedIds.length})</span>
+            </button>
+          )}
+          <button onClick={downloadPDF} className="bg-emerald-600 text-white px-3 py-1.5 text-sm font-semibold rounded hover:bg-emerald-700 shadow border border-emerald-800 transition-colors">Download PDF</button>
           <button
             onClick={handleShareWhatsApp}
             disabled={sharing}
-            className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-3 py-1 text-sm font-semibold rounded shadow border border-green-800 transition-colors flex items-center"
+            className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-3 py-1.5 text-sm font-semibold rounded shadow border border-green-800 transition-colors flex items-center"
           >
             <svg className="w-4 h-4 mr-1.5 fill-current" viewBox="0 0 24 24">
               <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.455L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.625 1.451 5.403.002 9.803-4.394 9.806-9.799.002-2.618-1.016-5.079-2.865-6.93C16.368 2.025 13.91 1.006 11.298 1.006c-5.408 0-9.81 4.398-9.813 9.802-.002 1.83.479 3.618 1.393 5.17l-.997 3.642 3.734-.978zM17.15 13.563c-.3-.15-1.771-.875-2.04-.972-.269-.099-.465-.148-.659.15-.195.297-.753.971-.922 1.168-.169.197-.337.221-.637.072-.3-.15-1.264-.467-2.408-1.486-.89-.794-1.49-1.775-1.665-2.072-.175-.297-.019-.458.131-.606.134-.133.3-.347.449-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.659-1.591-.903-2.176-.237-.573-.478-.495-.659-.504-.17-.008-.365-.01-.56-.01s-.51.074-.777.363c-.266.289-1.016.992-1.016 2.42 0 1.427 1.039 2.805 1.182 2.996.143.19 2.043 3.12 4.949 4.377.691.299 1.23.478 1.651.611.693.22 1.325.189 1.822.115.556-.083 1.771-.724 2.019-1.422.25-.698.25-1.299.176-1.422-.075-.123-.269-.197-.569-.347z" />
@@ -802,21 +734,21 @@ const SalesRegister = () => {
       {/* Tabs Row */}
       <div className="flex space-x-1 mb-1 border-b border-gray-300">
         <button
-          onClick={() => { setActiveTab('bills'); setSelectedRowId(null); }}
+          onClick={() => { setActiveTab('bills'); setSelectedRowId(null); setSelectedIds([]); }}
           className={`px-4 py-1.5 text-xs font-bold border-t border-x rounded-t transition-all ${activeTab === 'bills' ? 'bg-white border-gray-300 border-b-white text-[#2b579a]' : 'bg-[#e0e0e0]/70 border-transparent text-gray-600 hover:bg-gray-100'
             }`}
         >
           Sales Bills
         </button>
         <button
-          onClick={() => { setActiveTab('orders'); setSelectedRowId(null); }}
+          onClick={() => { setActiveTab('orders'); setSelectedRowId(null); setSelectedIds([]); }}
           className={`px-4 py-1.5 text-xs font-bold border-t border-x rounded-t transition-all ${activeTab === 'orders' ? 'bg-white border-gray-300 border-b-white text-[#2b579a]' : 'bg-[#e0e0e0]/70 border-transparent text-gray-600 hover:bg-gray-100'
             }`}
         >
           Sales Orders
         </button>
         <button
-          onClick={() => { setActiveTab('returns'); setSelectedRowId(null); }}
+          onClick={() => { setActiveTab('returns'); setSelectedRowId(null); setSelectedIds([]); }}
           className={`px-4 py-1.5 text-xs font-bold border-t border-x rounded-t transition-all ${activeTab === 'returns' ? 'bg-white border-gray-300 border-b-white text-[#2b579a]' : 'bg-[#e0e0e0]/70 border-transparent text-gray-600 hover:bg-gray-100'
             }`}
         >
@@ -831,7 +763,17 @@ const SalesRegister = () => {
             <thead className="bg-[#e0e0e0] text-gray-800 sticky top-0 z-10 shadow-sm">
               {activeTab === 'bills' && (
                 <tr>
-                  <th className="border-r border-b border-gray-400 p-2 font-bold w-12 text-center">#</th>
+                  {isMultiSelectMode && (
+                    <th className="border-r border-b border-gray-400 p-2 font-bold w-10 text-center">
+                      <input
+                        type="checkbox"
+                        checked={isAllSelected}
+                        onChange={handleSelectAll}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                    </th>
+                  )}
+                  <th className="border-r border-b border-gray-400 p-2 font-bold w-12 text-center">S.No</th>
                   <th className="border-r border-b border-gray-400 p-2 font-bold">Invoice No</th>
                   <th className="border-r border-b border-gray-400 p-2 font-bold font-semibold">Date</th>
                   <th className="border-r border-b border-gray-400 p-2 font-bold">Customer Name</th>
@@ -839,15 +781,26 @@ const SalesRegister = () => {
                   <th className="border-r border-b border-gray-400 p-2 font-bold text-right">Gross Amt</th>
                   <th className="border-r border-b border-gray-400 p-2 font-bold text-right">Tax Amt</th>
                   <th className="border-r border-b border-gray-400 p-2 font-bold text-right">Net Amt</th>
-                  <th className="border-b border-gray-400 p-2 font-bold text-center">Status</th>
+                  <th className="border-r border-b border-gray-400 p-2 font-bold text-center">Status</th>
+                  <th className="border-b border-gray-400 p-2 font-bold text-center">Actions</th>
                 </tr>
               )}
               {activeTab === 'orders' && (
                 <tr>
-                  <th className="border-r border-b border-gray-400 p-2 font-bold w-12 text-center">#</th>
+                  {isMultiSelectMode && (
+                    <th className="border-r border-b border-gray-400 p-2 font-bold w-10 text-center">
+                      <input
+                        type="checkbox"
+                        checked={isAllSelected}
+                        onChange={handleSelectAll}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                    </th>
+                  )}
+                  <th className="border-r border-b border-gray-400 p-2 font-bold w-12 text-center">S.No</th>
                   <th className="border-r border-b border-gray-400 p-2 font-bold">Order No</th>
                   <th className="border-r border-b border-gray-400 p-2 font-bold">Date</th>
-                  <th className="border-r border-b border-gray-400 p-2 font-bold">Customer</th>
+                  <th className="border-r border-b border-gray-400 p-2 font-bold">Customer Name</th>
                   <th className="border-r border-b border-gray-400 p-2 font-bold text-center">Items</th>
                   <th className="border-r border-b border-gray-400 p-2 font-bold text-center">Qty</th>
                   <th className="border-r border-b border-gray-400 p-2 font-bold text-right">Total</th>
@@ -859,7 +812,17 @@ const SalesRegister = () => {
               )}
               {activeTab === 'returns' && (
                 <tr>
-                  <th className="border-r border-b border-gray-400 p-2 font-bold w-12 text-center">#</th>
+                  {isMultiSelectMode && (
+                    <th className="border-r border-b border-gray-400 p-2 font-bold w-10 text-center">
+                      <input
+                        type="checkbox"
+                        checked={isAllSelected}
+                        onChange={handleSelectAll}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                    </th>
+                  )}
+                  <th className="border-r border-b border-gray-400 p-2 font-bold w-12 text-center">S.No</th>
                   <th className="border-r border-b border-gray-400 p-2 font-bold">Return No</th>
                   <th className="border-r border-b border-gray-400 p-2 font-bold">Date</th>
                   <th className="border-r border-b border-gray-400 p-2 font-bold">Customer Name</th>
@@ -867,18 +830,19 @@ const SalesRegister = () => {
                   <th className="border-r border-b border-gray-400 p-2 font-bold">Reason</th>
                   <th className="border-r border-b border-gray-400 p-2 font-bold text-right">Tax Return</th>
                   <th className="border-r border-b border-gray-400 p-2 font-bold text-right">Net Refund</th>
-                  <th className="border-b border-gray-400 p-2 font-bold text-center">Status</th>
+                  <th className="border-r border-b border-gray-400 p-2 font-bold text-center">Status</th>
+                  <th className="border-b border-gray-400 p-2 font-bold text-center">Actions</th>
                 </tr>
               )}
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={11} className="p-4 text-center text-gray-500 font-semibold">Loading data...</td>
+                  <td colSpan={activeTab === 'orders' ? (isMultiSelectMode ? 12 : 11) : (isMultiSelectMode ? 11 : 10)} className="p-4 text-center text-gray-500 font-semibold">Loading data...</td>
                 </tr>
               ) : filteredRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="p-4 text-center text-gray-500 font-semibold">No records found for the selected date range.</td>
+                  <td colSpan={activeTab === 'orders' ? (isMultiSelectMode ? 12 : 11) : (isMultiSelectMode ? 11 : 10)} className="p-4 text-center text-gray-500 font-semibold">No records found for the selected date range.</td>
                 </tr>
               ) : (
                 filteredRecords.map((rec, index) => {
@@ -889,10 +853,20 @@ const SalesRegister = () => {
                     return (
                       <tr
                         key={rec._id}
-                        onClick={() => setSelectedRowId(rec._id)}
+                        onClick={() => setSelectedRowId(isSelected ? null : rec._id)}
                         className={`border-b border-gray-200 cursor-pointer transition-colors ${isSelected ? 'bg-[#cce5ff] text-[#004085] font-medium border-l-4 border-l-blue-600' : 'hover:bg-blue-50'
                           }`}
                       >
+                        {isMultiSelectMode && (
+                          <td className="border-r border-gray-300 p-1.5 text-center" onClick={(e) => e.stopPropagation()}>
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.includes(rec._id)}
+                              onChange={() => handleToggleSelect(rec._id)}
+                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                            />
+                          </td>
+                        )}
                         <td className="border-r border-gray-300 p-1.5 text-center text-gray-600">{index + 1}</td>
                         <td
                           className="border-r border-gray-300 p-1.5 font-semibold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer animate-pulse-subtle"
@@ -904,7 +878,16 @@ const SalesRegister = () => {
                           {rec.invoiceNo}
                         </td>
                         <td className="border-r border-gray-300 p-1.5">{new Date(rec.invDate).toLocaleDateString()}</td>
-                        <td className="border-r border-gray-300 p-1.5">{rec.buyerName || 'CASH CUSTOMER'}</td>
+                        <td className="border-r border-gray-300 p-1.5">
+                          <div className="flex flex-col">
+                            <span>{rec.buyerName || 'CASH CUSTOMER'}</span>
+                            {rec.isSelectiveCustomer && (
+                              <span className="text-[10px] text-orange-600 font-bold uppercase tracking-wider mt-0.5">
+                                Selective Customer
+                              </span>
+                            )}
+                          </div>
+                        </td>
                         <td className="border-r border-gray-300 p-1.5 text-center">
                           {(() => {
                             const mode = rec.paymentMode || 'Cash';
@@ -924,74 +907,54 @@ const SalesRegister = () => {
                         <td className="border-r border-gray-300 p-1.5 text-right font-mono">₹{rec.totalAmount?.toFixed(2) || '0.00'}</td>
                         <td className="border-r border-gray-300 p-1.5 text-right font-mono text-red-600">₹{taxAmt.toFixed(2)}</td>
                         <td className="border-r border-gray-300 p-1.5 text-right font-mono font-bold text-green-700">₹{rec.netAmount?.toFixed(2) || '0.00'}</td>
-                        <td className="p-1.5 text-center">
+                        <td className="border-r border-gray-300 p-1.5 text-center">
                           <span className="bg-green-100 text-green-800 text-[10px] font-bold px-2 py-0.5 rounded border border-green-300">CLEARED</span>
+                        </td>
+                        <td className="p-1.5 text-center space-x-1.5 whitespace-nowrap">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleOpenDetailModal('bill', rec); }}
+                            className="inline-flex items-center justify-center p-1 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-600 rounded transition-colors"
+                            title="View"
+                          >
+                            <Eye size={14} />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              printOrder(rec, 'print');
+                            }}
+                            className="inline-flex items-center justify-center p-1 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 rounded transition-colors"
+                            title="Print"
+                          >
+                            <Printer size={14} />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              printOrder(rec, 'whatsapp');
+                            }}
+                            className="inline-flex items-center justify-center p-1 bg-green-50 hover:bg-green-100 border border-green-200 text-green-600 rounded transition-colors"
+                            title="WhatsApp"
+                          >
+                            <MessageCircle size={14} />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setItemToDelete(rec);
+                              setSingleDeleteModalOpen(true);
+                            }}
+                            className="inline-flex items-center justify-center p-1 bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 rounded transition-colors"
+                            title="Delete Sales Bill"
+                          >
+                            <Trash2 size={14} />
+                          </button>
                         </td>
                       </tr>
                     );
                   } else if (activeTab === 'orders') {
                     const itemsCount = rec.items?.length || 0;
                     const totalQty = rec.items?.reduce((sum: number, item: any) => sum + (item.orderedQty || 0), 0) || 0;
-                    
-                    const handleCancelClick = async (e: React.MouseEvent) => {
-                      e.stopPropagation();
-                      if (rec.status === 'Completed' || rec.status === 'Cancelled') return;
-                      const reason = window.prompt("Enter reason for cancelling this sales order:");
-                      if (reason !== null) {
-                        try {
-                          const res = await fetch(`${Api}/sales/orders/${rec._id}/cancel`, {
-                            method: 'PUT',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ cancelReason: reason, cancelledBy: 'Owner' })
-                          });
-                          const resData = await res.json();
-                          if (resData.success) {
-                            setGlobalNotification({ msg: 'Order cancelled successfully.', type: 'success' });
-                            fetchRecords();
-                          } else {
-                            setGlobalNotification({ msg: 'Failed to cancel: ' + resData.error, type: 'error' });
-                          }
-                        } catch (err) {
-                          console.error(err);
-                          setGlobalNotification({ msg: 'Error cancelling order.', type: 'error' });
-                        }
-                      }
-                    };
-
-                    const handlePrintClick = (e: React.MouseEvent) => {
-                      e.stopPropagation();
-                      const printPayload = {
-                        orderNo: rec.orderNumber || rec.orderNo,
-                        orderDate: rec.orderDate,
-                        customer: rec.buyerName || rec.customer,
-                        mobileNo: rec.mobileNo,
-                        address: rec.address,
-                        expectedDeliveryDate: rec.expectedDeliveryDate,
-                        status: rec.status,
-                        summary: {
-                          subtotal: rec.subtotal,
-                          cgst: rec.cgst,
-                          sgst: rec.sgst,
-                          igst: rec.igst,
-                          rounding: rec.roundOff,
-                          grandTotal: rec.grandTotal
-                        },
-                        advancePaid: rec.advancePaid,
-                        balanceAmount: rec.balanceAmount,
-                        items: rec.items?.map((it: any) => ({
-                          itemCode: it.itemCode,
-                          itemDescription: it.itemName,
-                          color: it.color,
-                          size: it.size,
-                          quantityOrdered: it.orderedQty,
-                          quantityFulfilled: it.deliveredQty,
-                          unitPrice: it.unitPrice,
-                          discountPercentage: it.discount,
-                          lineSubTotal: it.lineTotal
-                        })) || []
-                      };
-                      printOrder(printPayload);
-                    };
 
                     const handleConvertClick = (e: React.MouseEvent) => {
                       e.stopPropagation();
@@ -1023,10 +986,20 @@ const SalesRegister = () => {
                     return (
                       <tr
                         key={rec._id}
-                        onClick={() => setSelectedRowId(rec._id)}
+                        onClick={() => setSelectedRowId(isSelected ? null : rec._id)}
                         className={`border-b border-gray-200 cursor-pointer transition-colors ${isSelected ? 'bg-[#cce5ff] text-[#004085] font-medium border-l-4 border-l-blue-600' : 'hover:bg-blue-50'
                           }`}
                       >
+                        {isMultiSelectMode && (
+                          <td className="border-r border-gray-300 p-1.5 text-center" onClick={(e) => e.stopPropagation()}>
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.includes(rec._id)}
+                              onChange={() => handleToggleSelect(rec._id)}
+                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                            />
+                          </td>
+                        )}
                         <td className="border-r border-gray-300 p-1.5 text-center text-gray-600">{index + 1}</td>
                         <td
                           className="border-r border-gray-300 p-1.5 font-semibold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
@@ -1049,9 +1022,9 @@ const SalesRegister = () => {
                         <td className="border-r border-gray-300 p-1.5 text-right font-mono text-red-600">₹{rec.balanceAmount?.toFixed(2) || '0.00'}</td>
                         <td className="border-r border-gray-300 p-1.5 text-center">
                           <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${rec.status === 'Completed' || rec.status === 'FULFILLED' ? 'bg-green-100 text-green-800 border-green-300' :
-                              rec.status === 'Partial' || rec.status === 'PENDING' ? 'bg-orange-100 text-orange-800 border-orange-300' :
-                                rec.status === 'Cancelled' ? 'bg-red-100 text-red-800 border-red-300' :
-                                  'bg-blue-100 text-blue-800 border-blue-300'
+                            rec.status === 'Partial' || rec.status === 'PENDING' ? 'bg-orange-100 text-orange-800 border-orange-300' :
+                              rec.status === 'Cancelled' ? 'bg-red-100 text-red-800 border-red-300' :
+                                'bg-blue-100 text-blue-800 border-blue-300'
                             }`}>{rec.status || 'Open'}</span>
                         </td>
                         <td className="p-1.5 text-center space-x-1.5 whitespace-nowrap">
@@ -1072,35 +1045,45 @@ const SalesRegister = () => {
                             </button>
                           )}
                           <button
-                            onClick={handlePrintClick}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              printOrder(rec, 'print');
+                            }}
                             className="inline-flex items-center justify-center p-1 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 rounded transition-colors"
                             title="Print"
                           >
                             <Printer size={14} />
                           </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              printOrder(rec, 'whatsapp');
+                            }}
+                            className="inline-flex items-center justify-center p-1 bg-green-50 hover:bg-green-100 border border-green-200 text-green-600 rounded transition-colors"
+                            title="WhatsApp"
+                          >
+                            <MessageCircle size={14} />
+                          </button>
                           {rec.status !== 'Completed' && rec.status !== 'Cancelled' && (
-                            <>
-                              <button
-                                onClick={handleConvertClick}
-                                className="inline-flex items-center justify-center p-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-600 rounded transition-colors"
-                                title="Convert"
-                              >
-                                <FileText size={14} />
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setDeletingOrder(rec);
-                                  setDeleteReason('');
-                                  setDeleteModalOpen(true);
-                                }}
-                                className="inline-flex items-center justify-center p-1 bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 rounded transition-colors"
-                                title="Delete"
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            </>
+                            <button
+                              onClick={handleConvertClick}
+                              className="inline-flex items-center justify-center p-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-600 rounded transition-colors"
+                              title="Convert"
+                            >
+                              <FileText size={14} />
+                            </button>
                           )}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setItemToDelete(rec);
+                              setSingleDeleteModalOpen(true);
+                            }}
+                            className="inline-flex items-center justify-center p-1 bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 rounded transition-colors"
+                            title="Delete Order"
+                          >
+                            <Trash2 size={14} />
+                          </button>
                         </td>
                       </tr>
                     );
@@ -1111,10 +1094,20 @@ const SalesRegister = () => {
                     return (
                       <tr
                         key={rec._id}
-                        onClick={() => setSelectedRowId(rec._id)}
+                        onClick={() => setSelectedRowId(isSelected ? null : rec._id)}
                         className={`border-b border-gray-200 cursor-pointer transition-colors ${isSelected ? 'bg-[#cce5ff] text-[#004085] font-medium border-l-4 border-l-blue-600' : 'hover:bg-blue-50'
                           }`}
                       >
+                        {isMultiSelectMode && (
+                          <td className="border-r border-gray-300 p-1.5 text-center" onClick={(e) => e.stopPropagation()}>
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.includes(rec._id)}
+                              onChange={() => handleToggleSelect(rec._id)}
+                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                            />
+                          </td>
+                        )}
                         <td className="border-r border-gray-300 p-1.5 text-center text-gray-600">{index + 1}</td>
                         <td
                           className="border-r border-gray-300 p-1.5 font-semibold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
@@ -1143,14 +1136,53 @@ const SalesRegister = () => {
                             `₹${(rec.netRefundAmount || 0).toFixed(2)}`
                           )}
                         </td>
-                        <td className="p-1.5 text-center">
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
-                            isExchange 
-                              ? 'bg-purple-100 text-purple-800 border-purple-300' 
-                              : 'bg-yellow-100 text-yellow-800 border-yellow-300'
-                          }`}>
+                        <td className="border-r border-gray-300 p-1.5 text-center">
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${isExchange
+                            ? 'bg-purple-100 text-purple-800 border-purple-300'
+                            : 'bg-yellow-100 text-yellow-800 border-yellow-300'
+                            }`}>
                             {isExchange ? 'EXCHANGE' : 'RETURN'}
                           </span>
+                        </td>
+                        <td className="p-1.5 text-center space-x-1.5 whitespace-nowrap">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleOpenDetailModal('return', rec); }}
+                            className="inline-flex items-center justify-center p-1 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-600 rounded transition-colors"
+                            title="View"
+                          >
+                            <Eye size={14} />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              printOrder(rec, 'print');
+                            }}
+                            className="inline-flex items-center justify-center p-1 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 rounded transition-colors"
+                            title="Print"
+                          >
+                            <Printer size={14} />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              printOrder(rec, 'whatsapp');
+                            }}
+                            className="inline-flex items-center justify-center p-1 bg-green-50 hover:bg-green-100 border border-green-200 text-green-600 rounded transition-colors"
+                            title="WhatsApp"
+                          >
+                            <MessageCircle size={14} />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setItemToDelete(rec);
+                              setSingleDeleteModalOpen(true);
+                            }}
+                            className="inline-flex items-center justify-center p-1 bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 rounded transition-colors"
+                            title="Delete Return"
+                          >
+                            <Trash2 size={14} />
+                          </button>
                         </td>
                       </tr>
                     );
@@ -1166,7 +1198,19 @@ const SalesRegister = () => {
           <div className="w-[30%] bg-slate-50 border border-gray-400 rounded flex flex-col p-3 shadow-md space-y-4 overflow-y-auto">
             {selectedRowId && (
               <div className="border-b border-slate-300 pb-2">
-                <h3 className="font-bold text-[#2b579a] text-xs uppercase tracking-wider">Transaction Summary</h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-[#2b579a] text-xs uppercase tracking-wider">Transaction Summary</h3>
+                  <button
+                    onClick={() => {
+                      setSelectedRowId(null);
+                      setSelectedCustomerDetails(null);
+                    }}
+                    className="p-1 text-slate-400 hover:text-red-600 hover:bg-slate-200 rounded transition-colors"
+                    title="Close Transaction Summary"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
                 {(() => {
                   const rec = records.find(r => r._id === selectedRowId);
                   if (!rec) return null;
@@ -1188,10 +1232,10 @@ const SalesRegister = () => {
                           <div className="flex justify-between font-bold text-slate-900 border-t border-slate-300 pt-1.5">
                             <span>Net Adjustment:</span>
                             <span className="font-mono">
-                              {rec.extraReceived > 0 
-                                ? `+₹${rec.extraReceived.toFixed(2)}` 
-                                : rec.refundAmount > 0 
-                                  ? `-₹${rec.refundAmount.toFixed(2)}` 
+                              {rec.extraReceived > 0
+                                ? `+₹${rec.extraReceived.toFixed(2)}`
+                                : rec.refundAmount > 0
+                                  ? `-₹${rec.refundAmount.toFixed(2)}`
                                   : '₹0.00'}
                             </span>
                           </div>
@@ -1396,8 +1440,8 @@ const SalesRegister = () => {
                             <span className="font-medium text-slate-500">Status:</span>
                             <span className="font-semibold text-slate-800">
                               <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${detailModalData.status === 'FULFILLED' ? 'bg-green-100 text-green-800 border-green-300' :
-                                  detailModalData.status === 'PENDING' ? 'bg-orange-100 text-orange-800 border-orange-300' :
-                                    'bg-blue-100 text-blue-800 border-blue-300'
+                                detailModalData.status === 'PENDING' ? 'bg-orange-100 text-orange-800 border-orange-300' :
+                                  'bg-blue-100 text-blue-800 border-blue-300'
                                 }`}>{detailModalData.status || 'OPEN'}</span>
                             </span>
                           </>
@@ -1630,21 +1674,10 @@ const SalesRegister = () => {
             </div>
 
             {/* Modal Footer */}
-            <div className="bg-slate-100 px-6 py-4 flex justify-between items-center border-t border-slate-200">
-              <button
-                onClick={() => {
-                  if (detailModalData) {
-                    setSelectedRowId(detailModalData._id);
-                  }
-                  setDetailModalOpen(false);
-                }}
-                className="bg-[#2b579a] hover:bg-[#1f3f6f] text-white text-xs font-bold px-4 py-2 rounded shadow transition-all focus:outline-none"
-              >
-                Select & Close
-              </button>
+            <div className="bg-slate-100 px-6 py-4 flex justify-end items-center border-t border-slate-200">
               <button
                 onClick={() => setDetailModalOpen(false)}
-                className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-bold px-4 py-2 rounded shadow transition-all focus:outline-none"
+                className="bg-slate-600 hover:bg-slate-700 text-white text-xs font-bold px-5 py-2 rounded shadow transition-all focus:outline-none"
               >
                 Close
               </button>
@@ -1666,7 +1699,7 @@ const SalesRegister = () => {
             </div>
             <div className="p-4 space-y-4 text-slate-800 text-sm">
               <p className="font-semibold text-slate-700">Do you want to delete this Sales Order?</p>
-              
+
               {/* Item codes display */}
               <div className="bg-slate-50 border border-slate-200 p-3 rounded-md space-y-1.5 max-h-40 overflow-y-auto">
                 <div className="text-xs font-bold text-slate-500 uppercase pb-1 border-b border-slate-200">Items in this order:</div>
@@ -1691,7 +1724,7 @@ const SalesRegister = () => {
               </div>
             </div>
             <div className="bg-slate-50 px-4 py-3 border-t border-slate-200 flex justify-between items-center">
-              <button 
+              <button
                 onClick={() => {
                   setDeleteModalOpen(false);
                   const orderPayload = {
@@ -1716,13 +1749,13 @@ const SalesRegister = () => {
                 Convert to Bill
               </button>
               <div className="flex space-x-2">
-                <button 
+                <button
                   onClick={() => setDeleteModalOpen(false)}
                   className="bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 px-3 py-1.5 rounded text-xs font-medium cursor-pointer"
                 >
                   Cancel
                 </button>
-                <button 
+                <button
                   onClick={async () => {
                     if (!deleteReason) {
                       setGlobalNotification({ msg: 'Please provide a deletion reason.', type: 'error' });
@@ -1752,6 +1785,96 @@ const SalesRegister = () => {
                   Confirm Delete
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Single Item Delete Confirmation Modal */}
+      {singleDeleteModalOpen && itemToDelete && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setSingleDeleteModalOpen(false)}>
+          <div className="bg-white rounded-lg shadow-2xl max-w-md w-full overflow-hidden border border-gray-300" onClick={e => e.stopPropagation()}>
+            <div className="bg-red-600 text-white px-4 py-3 font-bold text-sm flex justify-between items-center shadow">
+              <span>Confirm Deletion</span>
+              <button onClick={() => setSingleDeleteModalOpen(false)} className="text-white hover:text-red-200 text-lg font-bold leading-none">✕</button>
+            </div>
+            <div className="p-4 text-sm text-slate-700 space-y-3">
+              <p className="font-semibold text-slate-800">Are you sure you want to delete this record?</p>
+              <div className="bg-slate-50 border border-slate-200 rounded p-3 text-xs text-slate-700 space-y-1.5 font-sans">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Record No:</span>
+                  <span className="font-mono font-bold text-slate-900">{itemToDelete.invoiceNo || itemToDelete.orderNumber || itemToDelete.returnNo}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Customer:</span>
+                  <span className="font-semibold text-slate-800">{itemToDelete.buyerName || itemToDelete.customer || itemToDelete.customerName || 'CASH CUSTOMER'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Net Amount:</span>
+                  <span className="font-mono font-bold text-emerald-700">₹{(itemToDelete.netAmount || itemToDelete.grandTotal || itemToDelete.netRefundAmount || 0).toFixed(2)}</span>
+                </div>
+              </div>
+              <p className="text-xs text-red-600 font-bold">⚠️ Warning: This action cannot be undone.</p>
+            </div>
+            <div className="bg-slate-50 px-4 py-3 border-t border-slate-200 flex justify-end space-x-2">
+              <button
+                onClick={() => setSingleDeleteModalOpen(false)}
+                className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 rounded text-xs font-bold transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={deletingSingle}
+                onClick={handleConfirmSingleDelete}
+                className="px-4 py-1.5 bg-red-600 hover:bg-red-700 disabled:bg-red-300 text-white rounded text-xs font-bold shadow transition-colors cursor-pointer"
+              >
+                {deletingSingle ? 'Deleting...' : 'Confirm Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Delete Modal (Requires typing CONFIRM DELETE) */}
+      {bulkDeleteModalOpen && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setBulkDeleteModalOpen(false)}>
+          <div className="bg-white rounded-lg shadow-2xl max-w-md w-full overflow-hidden border border-gray-300" onClick={e => e.stopPropagation()}>
+            <div className="bg-red-700 text-white px-4 py-3 font-bold text-sm flex justify-between items-center shadow">
+              <span>Bulk Delete Confirmation ({selectedIds.length} Selected)</span>
+              <button onClick={() => setBulkDeleteModalOpen(false)} className="text-white hover:text-red-200 text-lg font-bold leading-none">✕</button>
+            </div>
+            <div className="p-4 text-sm text-slate-700 space-y-3">
+              <div className="bg-red-50 border border-red-200 rounded p-3 text-red-800 text-xs font-medium space-y-1">
+                <div className="font-bold flex items-center gap-1 text-sm">⚠️ High Risk Action</div>
+                <div>You are about to permanently delete <strong>{selectedIds.length}</strong> selected records from the database.</div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-slate-700">
+                  Type <span className="font-mono text-red-600 font-extrabold select-all">CONFIRM DELETE</span> below to unlock deletion:
+                </label>
+                <input
+                  type="text"
+                  autoFocus
+                  value={bulkConfirmText}
+                  onChange={(e) => setBulkConfirmText(e.target.value)}
+                  placeholder="Type CONFIRM DELETE"
+                  className="w-full border border-red-300 rounded px-3 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-500 uppercase tracking-wider bg-red-50/20"
+                />
+              </div>
+            </div>
+            <div className="bg-slate-50 px-4 py-3 border-t border-slate-200 flex justify-end space-x-2">
+              <button
+                onClick={() => setBulkDeleteModalOpen(false)}
+                className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 rounded text-xs font-bold transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={bulkConfirmText.trim().toUpperCase() !== 'CONFIRM DELETE' || deletingBulk}
+                onClick={handleConfirmBulkDelete}
+                className="px-4 py-1.5 bg-red-600 hover:bg-red-700 disabled:bg-gray-300 disabled:text-gray-500 disabled:border-gray-300 disabled:cursor-not-allowed text-white rounded text-xs font-bold shadow transition-colors cursor-pointer"
+              >
+                {deletingBulk ? 'Deleting...' : `Confirm Bulk Delete (${selectedIds.length})`}
+              </button>
             </div>
           </div>
         </div>

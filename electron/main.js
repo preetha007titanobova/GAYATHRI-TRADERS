@@ -90,19 +90,30 @@ function startLocalMongo() {
 
 // 3. Spawn Local Express Backend
 function startLocalBackend() {
-    const backendPath = path.join(__dirname, '..', 'backend', 'src', 'index.ts'); // dev mode path
-    const prodBackendPath = path.join(__dirname, 'backend', 'index.js'); // prod compiled path
-
     console.log('Spawning billing logic server...');
     const localDbUrl = 'mongodb://127.0.0.1:27017/ERP_DB';
+    const backendDir = path.join(__dirname, '..', 'backend');
 
-    backendProcess = fork(app.isPackaged ? prodBackendPath : backendPath, [], {
-        env: {
-            PORT: 5000,
-            DATABASE_URL: localDbUrl,
-            NODE_ENV: 'production'
+    if (app.isPackaged) {
+        const prodBackendPath = path.join(__dirname, 'backend', 'index.js');
+        backendProcess = fork(prodBackendPath, [], {
+            env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', PORT: 5000, DATABASE_URL: localDbUrl, NODE_ENV: 'production' }
+        });
+    } else {
+        const isWin = process.platform === 'win32';
+        const cmd = isWin ? 'npx.cmd' : 'npx';
+        backendProcess = spawn(cmd, ['ts-node-dev', '--respawn', '--transpile-only', 'src/index.ts'], {
+            cwd: backendDir,
+            shell: true,
+            env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', PORT: 5000, DATABASE_URL: localDbUrl, NODE_ENV: 'production' }
+        });
+        if (backendProcess.stdout) {
+            backendProcess.stdout.on('data', (d) => console.log('[Backend]', d.toString().trim()));
         }
-    });
+        if (backendProcess.stderr) {
+            backendProcess.stderr.on('data', (d) => console.error('[Backend Err]', d.toString().trim()));
+        }
+    }
 
     backendProcess.on('error', (err) => console.error('Backend logic server crashed:', err));
 }
@@ -120,14 +131,19 @@ function createWindow() {
         }
     });
 
-    // If license is invalid, redirect to activation page
-    if (!licenseStatus.valid) {
-        // Load the React app's local activation screen
-        mainWindow.loadURL('http://localhost:5000/activation');
-    } else {
-        // Load the main POS billing dashboard
-        mainWindow.loadURL('http://localhost:5000');
-    }
+    // In dev mode (when not packaged), load main POS app
+    const targetUrl = (app.isPackaged && !licenseStatus.valid) 
+        ? 'http://localhost:5000/activation' 
+        : 'http://localhost:5000';
+
+    const loadApp = () => {
+        mainWindow.loadURL(targetUrl).catch((err) => {
+            console.log(`Backend server starting up... retrying load (reason: ${err.message})`);
+            setTimeout(loadApp, 1000);
+        });
+    };
+
+    loadApp();
 }
 
 app.whenReady().then(() => {

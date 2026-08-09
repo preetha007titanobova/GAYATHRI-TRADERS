@@ -12,7 +12,7 @@ try {
 dotenv.config();
 
 export const prisma = new PrismaClient();
-export const mongoClient = new MongoClient(process.env.DATABASE_URL as string);
+export const mongoClient = new MongoClient(process.env.DATABASE_URL || 'mongodb://127.0.0.1:27017/ERP_DB');
 
 let isConnected = false;
 

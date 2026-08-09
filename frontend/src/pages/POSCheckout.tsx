@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useOutletContext, useLocation, useNavigate } from 'react-router-dom';
 import { Plus, Edit, Trash2, ArrowLeft, ArrowRight, Search, Printer, Mail, Paperclip, MessageSquare, Download, Send, QrCode, CreditCard, Smartphone, CheckCircle, Sparkles, MessageCircle, FileText, Zap } from 'lucide-react';
+import { useLicense } from '../context/LicenseContext';
 import { printReceipt } from '../utils/printReceipt';
 import { downloadPdfBill } from '../utils/downloadPdfBill';
 import { sendWhatsAppBill } from '../utils/whatsappHelper';
 import Api from '../Api';
+import { BillingTabBar, type TabSummary } from '../components/BillingTabBar';
 
 // Types for our grid
 interface GridRow {
@@ -23,17 +25,18 @@ interface GridRow {
 const POSCheckout = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const billToEdit = location.state?.billToEdit;
   const incomingPayload = location.state?.quotationPayload;
   const orderToConvert = location.state?.orderToConvert;
 
-  const [editingBillId, setEditingBillId] = useState<string | null>(null);
+  const [editingBillId, setEditingBillId] = useState<string | null>(billToEdit?._id || billToEdit?.id || null);
   const [fromSalesOrderId, setFromSalesOrderId] = useState<string | null>(null);
 
   // --- State for Document Input Panel ---
-  const [invoiceNo, setInvoiceNo] = useState('Loading...'); // Fetched from backend
-  const [invDate, setInvDate] = useState(new Date().toISOString().split('T')[0]);
+  const [invoiceNo, setInvoiceNo] = useState(billToEdit?.invoiceNo || 'Loading...'); // Fetched from backend
+  const [invDate, setInvDate] = useState(billToEdit?.invDate ? billToEdit.invDate.split('T')[0] : new Date().toISOString().split('T')[0]);
   const [payDays, setPayDays] = useState(0);
-  const [buyerName, setBuyerName] = useState(incomingPayload?.buyerName || orderToConvert?.buyerName || '');
+  const [buyerName, setBuyerName] = useState(billToEdit?.buyerName || incomingPayload?.buyerName || orderToConvert?.buyerName || '');
   const [salesman, setSalesman] = useState('');
   const [paymentMode, setPaymentMode] = useState('Cash');
   const [rapidBarcode, setRapidBarcode] = useState('');
@@ -56,9 +59,21 @@ const POSCheckout = () => {
   const [gstNo, setGstNo] = useState('');
   const [printIn, setPrintIn] = useState('Blank A4');
   const [invoiceFormat, setInvoiceFormat] = useState('GSTFormat Full Page');
+  const [shippingAddress, setShippingAddress] = useState('');
+  const [remarks, setRemarks] = useState('');
 
-  // Searchable Buyer State
-  const [customerSearch, setCustomerSearch] = useState('');
+  // --- Totals State ---
+  const [totalQty, setTotalQty] = useState(0);
+  const [totalAmount, setTotalAmount] = useState(0);
+  const [cgstPercent, setCgstPercent] = useState(0);
+  const [sgstPercent, setSgstPercent] = useState(0);
+  const [cgst, setCgst] = useState(0);
+  const [sgst, setSgst] = useState(0);
+  const [roundOff, setRoundOff] = useState(0);
+  const [netAmount, setNetAmount] = useState(0);
+  const [tendered, setTendered] = useState(0);
+
+  const { shopName } = useLicense();
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [favourDiscount, setFavourDiscount] = useState<number>(0);
 
@@ -83,31 +98,26 @@ const POSCheckout = () => {
   const resetPageState = () => {
     setGridData([{ id: Date.now(), itemName: '', itemDesc: '', qty: 0, uom: 'PCS', rate: 0, discPercent: 0, discAmt: 0, amount: 0 }]);
     setBuyerName('');
-    setCustomerSearch('');
     setAddress('');
     setMobileNo('');
     setGstNo('');
+    setSalesman('');
     setTendered(0);
     setFavourDiscount(0);
     setEditingBillId(null);
     setFromSalesOrderId(null);
+    setShippingAddress('');
+    setRemarks('');
     fetchNextInvoiceNo();
     fetchProducts();
+    if (setGlobalSettings) {
+      setGlobalSettings({ isSelectiveCustomer: false });
+    }
   };
-  useEffect(() => {
-    if (buyerName !== customerSearch) {
-      setCustomerSearch(buyerName);
-    }
-  }, [buyerName]);
 
-  useEffect(() => {
-    if (customerSearch !== buyerName) {
-      setBuyerName(customerSearch || '');
-    }
-  }, [customerSearch]);
 
   const filteredCustomersList = useMemo(() => {
-    const q = customerSearch.toLowerCase();
+    const q = buyerName.toLowerCase();
     const matches = availableCustomers.filter(c =>
       c.accountName.toLowerCase().includes(q) ||
       (c.ledgerCode && c.ledgerCode.toLowerCase().includes(q))
@@ -118,11 +128,11 @@ const POSCheckout = () => {
       }
     }
     return matches;
-  }, [availableCustomers, customerSearch]);
+  }, [availableCustomers, buyerName]);
 
   // --- State for Data Entry Grid ---
   const initialGridData = useMemo(() => {
-    const payload = incomingPayload || orderToConvert;
+    const payload = billToEdit || incomingPayload || orderToConvert;
     if (payload?.items?.length > 0) {
       return payload.items.map((item: any, idx: number) => {
         const qty = Number(item.qty) || Number(item.quantityOrdered) || 0;
@@ -134,17 +144,18 @@ const POSCheckout = () => {
           id: idx + 1,
           itemName: item.itemName || item.itemDescription || '',
           itemDesc: item.itemDesc || item.itemCode || '',
+          size: item.size || '',
           qty,
           uom: item.uom || 'PCS',
           rate,
           discPercent,
           discAmt: discAmt,
-          amount: baseAmount - discAmt
+          amount: item.amount || (baseAmount - discAmt)
         };
       });
     }
     return [{ id: 1, itemName: '', itemDesc: '', qty: 0, uom: '', rate: 0, discPercent: 0, discAmt: 0, amount: 0 }];
-  }, [incomingPayload, orderToConvert]);
+  }, [billToEdit, incomingPayload, orderToConvert]);
 
   const [gridData, setGridData] = useState<GridRow[]>(initialGridData);
 
@@ -154,16 +165,287 @@ const POSCheckout = () => {
     }
   }, [initialGridData]);
 
-  // --- Totals State ---
-  const [totalQty, setTotalQty] = useState(0);
-  const [totalAmount, setTotalAmount] = useState(0);
-  const [cgstPercent, setCgstPercent] = useState(0);
-  const [sgstPercent, setSgstPercent] = useState(0);
-  const [cgst, setCgst] = useState(0);
-  const [sgst, setSgst] = useState(0);
-  const [roundOff, setRoundOff] = useState(0);
-  const [netAmount, setNetAmount] = useState(0);
-  const [tendered, setTendered] = useState(0);
+  useEffect(() => {
+    if (billToEdit) {
+      setEditingBillId(billToEdit._id || billToEdit.id);
+      if (billToEdit.invoiceNo) setInvoiceNo(billToEdit.invoiceNo);
+      if (billToEdit.invDate) setInvDate(billToEdit.invDate.split('T')[0]);
+      if (billToEdit.buyerName) setBuyerName(billToEdit.buyerName);
+      if (billToEdit.mobileNo) setMobileNo(billToEdit.mobileNo);
+      if (billToEdit.address) setAddress(billToEdit.address);
+      if (billToEdit.paymentMode) setPaymentMode(billToEdit.paymentMode);
+      if (billToEdit.favourDiscount) setFavourDiscount(billToEdit.favourDiscount);
+      if (billToEdit.remarks) setRemarks(billToEdit.remarks);
+      if (billToEdit.shippingAddress) setShippingAddress(billToEdit.shippingAddress);
+    }
+  }, [billToEdit]);
+
+  // --- Multi-Bill / Hold Billing System State ---
+  interface BillTab {
+    id: string;
+    tabTitle: string;
+    invoiceNo: string;
+    invDate: string;
+    payDays: number;
+    buyerName: string;
+    salesman: string;
+    paymentMode: string;
+    address: string;
+    eType: string;
+    mobileNo: string;
+    gstNo: string;
+    shippingAddress: string;
+    remarks: string;
+    favourDiscount: number;
+    tendered: number;
+    gridData: GridRow[];
+    editingBillId: string | null;
+    fromSalesOrderId: string | null;
+  }
+
+  const [tabs, setTabs] = useState<BillTab[]>(() => {
+    return [{
+      id: 'tab-1',
+      tabTitle: 'Bill #001',
+      invoiceNo: 'Loading...',
+      invDate: new Date().toISOString().split('T')[0],
+      payDays: 0,
+      buyerName: incomingPayload?.buyerName || orderToConvert?.buyerName || '',
+      salesman: '',
+      paymentMode: 'Cash',
+      address: orderToConvert?.address || '',
+      eType: 'Local',
+      mobileNo: orderToConvert?.mobileNo || '',
+      gstNo: '',
+      shippingAddress: '',
+      remarks: '',
+      favourDiscount: 0,
+      tendered: 0,
+      gridData: initialGridData,
+      editingBillId: null,
+      fromSalesOrderId: null
+    }];
+  });
+
+  const [activeTabId, setActiveTabId] = useState<string>('tab-1');
+
+  // Compute tab summaries for BillingTabBar
+  const tabSummaries: TabSummary[] = useMemo(() => {
+    return tabs.map(t => {
+      const isAct = t.id === activeTabId;
+      const curGrid = isAct ? gridData : t.gridData;
+      const validItems = curGrid.filter(row => row.itemName && row.qty > 0);
+      const curBuyer = isAct ? buyerName : t.buyerName;
+
+      return {
+        id: t.id,
+        title: t.tabTitle,
+        invoiceNo: isAct ? invoiceNo : t.invoiceNo,
+        itemCount: validItems.length,
+        totalAmount: isAct ? netAmount : validItems.reduce((acc, row) => acc + (row.amount || 0), 0),
+        buyerName: curBuyer
+      };
+    });
+  }, [tabs, activeTabId, gridData, buyerName, invoiceNo, netAmount]);
+
+  const handleSelectTab = (targetTabId: string) => {
+    if (targetTabId === activeTabId) return;
+
+    setTabs(prevTabs =>
+      prevTabs.map(t => {
+        if (t.id === activeTabId) {
+          return {
+            ...t,
+            invoiceNo,
+            invDate,
+            payDays,
+            buyerName,
+            salesman,
+            paymentMode,
+            address,
+            eType,
+            mobileNo,
+            gstNo,
+            shippingAddress,
+            remarks,
+            favourDiscount,
+            tendered,
+            gridData,
+            editingBillId,
+            fromSalesOrderId
+          };
+        }
+        return t;
+      })
+    );
+
+    const targetTab = tabs.find(t => t.id === targetTabId);
+    if (targetTab) {
+      setInvoiceNo(targetTab.invoiceNo);
+      setInvDate(targetTab.invDate);
+      setPayDays(targetTab.payDays);
+      setBuyerName(targetTab.buyerName);
+      setSalesman(targetTab.salesman);
+      setPaymentMode(targetTab.paymentMode);
+      setAddress(targetTab.address);
+      setEType(targetTab.eType);
+      setMobileNo(targetTab.mobileNo);
+      setGstNo(targetTab.gstNo);
+      setShippingAddress(targetTab.shippingAddress);
+      setRemarks(targetTab.remarks);
+      setFavourDiscount(targetTab.favourDiscount);
+      setTendered(targetTab.tendered);
+      setGridData(targetTab.gridData.length > 0 ? targetTab.gridData : [{ id: 1, itemName: '', itemDesc: '', qty: 0, uom: '', rate: 0, discPercent: 0, discAmt: 0, amount: 0 }]);
+      setEditingBillId(targetTab.editingBillId);
+      setFromSalesOrderId(targetTab.fromSalesOrderId);
+      setActiveTabId(targetTabId);
+    }
+  };
+
+  const handleAddTab = () => {
+    if (tabs.length >= 15) {
+      if (setGlobalNotification) {
+        setGlobalNotification({ msg: 'Maximum limit of 15 open billing tabs reached.', type: 'error' });
+      }
+      return;
+    }
+
+    const updatedTabs = tabs.map(t => {
+      if (t.id === activeTabId) {
+        return {
+          ...t,
+          invoiceNo,
+          invDate,
+          payDays,
+          buyerName,
+          salesman,
+          paymentMode,
+          address,
+          eType,
+          mobileNo,
+          gstNo,
+          shippingAddress,
+          remarks,
+          favourDiscount,
+          tendered,
+          gridData,
+          editingBillId,
+          fromSalesOrderId
+        };
+      }
+      return t;
+    });
+
+    const newTabId = `tab-${Date.now()}`;
+    const nextTabNum = tabs.length + 1;
+    const newTabTitle = `Bill #${String(nextTabNum).padStart(3, '0')}`;
+
+    const newTab: BillTab = {
+      id: newTabId,
+      tabTitle: newTabTitle,
+      invoiceNo: 'Loading...',
+      invDate: new Date().toISOString().split('T')[0],
+      payDays: 0,
+      buyerName: '',
+      salesman: '',
+      paymentMode: 'Cash',
+      address: '',
+      eType: 'Local',
+      mobileNo: '',
+      gstNo: '',
+      shippingAddress: '',
+      remarks: '',
+      favourDiscount: 0,
+      tendered: 0,
+      gridData: [{ id: Date.now(), itemName: '', itemDesc: '', qty: 0, uom: '', rate: 0, discPercent: 0, discAmt: 0, amount: 0 }],
+      editingBillId: null,
+      fromSalesOrderId: null
+    };
+
+    setTabs([...updatedTabs, newTab]);
+    setActiveTabId(newTabId);
+
+    setInvoiceNo('Loading...');
+    setInvDate(new Date().toISOString().split('T')[0]);
+    setPayDays(0);
+    setBuyerName('');
+    setSalesman('');
+    setPaymentMode('Cash');
+    setAddress('');
+    setEType('Local');
+    setMobileNo('');
+    setGstNo('');
+    setShippingAddress('');
+    setRemarks('');
+    setFavourDiscount(0);
+    setTendered(0);
+    setGridData([{ id: Date.now(), itemName: '', itemDesc: '', qty: 0, uom: '', rate: 0, discPercent: 0, discAmt: 0, amount: 0 }]);
+    setEditingBillId(null);
+    setFromSalesOrderId(null);
+
+    fetch(`${Api}/sales/next-invoice`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.invoiceNo) {
+          setInvoiceNo(data.invoiceNo);
+        }
+      })
+      .catch(err => console.error("Error fetching next invoice for new tab:", err));
+  };
+
+  const handleCloseTab = (targetTabId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (tabs.length <= 1) return;
+
+    const remainingTabs = tabs.filter(t => t.id !== targetTabId);
+    setTabs(remainingTabs);
+
+    if (targetTabId === activeTabId) {
+      const nextActive = remainingTabs[remainingTabs.length - 1];
+      if (nextActive) {
+        setActiveTabId(nextActive.id);
+        setInvoiceNo(nextActive.invoiceNo);
+        setInvDate(nextActive.invDate);
+        setPayDays(nextActive.payDays);
+        setBuyerName(nextActive.buyerName);
+        setSalesman(nextActive.salesman);
+        setPaymentMode(nextActive.paymentMode);
+        setAddress(nextActive.address);
+        setEType(nextActive.eType);
+        setMobileNo(nextActive.mobileNo);
+        setGstNo(nextActive.gstNo);
+        setShippingAddress(nextActive.shippingAddress);
+        setRemarks(nextActive.remarks);
+        setFavourDiscount(nextActive.favourDiscount);
+        setTendered(nextActive.tendered);
+        setGridData(nextActive.gridData.length > 0 ? nextActive.gridData : [{ id: 1, itemName: '', itemDesc: '', qty: 0, uom: '', rate: 0, discPercent: 0, discAmt: 0, amount: 0 }]);
+        setEditingBillId(nextActive.editingBillId);
+        setFromSalesOrderId(nextActive.fromSalesOrderId);
+      }
+    }
+  };
+
+  useEffect(() => {
+    const handleKeyNav = (e: KeyboardEvent) => {
+      if (e.altKey && e.key.toLowerCase() === 'n') {
+        e.preventDefault();
+        handleAddTab();
+      } else if (e.altKey && e.key.toLowerCase() === 'w') {
+        e.preventDefault();
+        if (activeTabId && tabs.length > 1) {
+          handleCloseTab(activeTabId, new MouseEvent('click') as any);
+        }
+      } else if (e.altKey && !isNaN(Number(e.key))) {
+        const idx = Number(e.key) - 1;
+        if (idx >= 0 && idx < tabs.length) {
+          e.preventDefault();
+          handleSelectTab(tabs[idx].id);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyNav);
+    return () => window.removeEventListener('keydown', handleKeyNav);
+  }, [tabs, activeTabId, gridData, buyerName, invoiceNo]);
 
   // --- Modal Search State ---
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
@@ -183,7 +465,7 @@ const POSCheckout = () => {
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // --- Global Context ---
-  const { setToolbarActions, setGlobalNotification } = useOutletContext<{ setToolbarActions?: any, setGlobalNotification?: any }>() || {};
+  const { setToolbarActions, setGlobalNotification, globalSettings, setGlobalSettings } = useOutletContext<{ setToolbarActions?: any, setGlobalNotification?: any, globalSettings?: any, setGlobalSettings?: any }>() || {};
 
   const [availableProducts, setAvailableProducts] = useState<any[]>([]);
 
@@ -213,23 +495,29 @@ const POSCheckout = () => {
       setGstNo(invoiceToEdit.gstNo || '');
       setPrintIn(invoiceToEdit.printIn || 'Blank A4');
       setInvoiceFormat(invoiceToEdit.invFormat || invoiceToEdit.invoiceFormat || 'GSTFormat Full Page');
+      setShippingAddress(invoiceToEdit.shippingAddress || '');
+      setRemarks(invoiceToEdit.remarks || '');
 
       // Fetch full details with items                                                                                                  
       fetch(`${Api}/sales/bills/${invoiceToEdit.invoiceNo}`)
         .then(res => res.json())
         .then(data => {
-          if (data && Array.isArray(data.items)) {
-            setGridData(data.items.map((item: any, idx: number) => ({
-              id: idx + 1,
-              itemName: item.itemName,
-              itemDesc: item.itemDesc || '',
-              qty: item.qty,
-              uom: item.uom || 'PCS',
-              rate: item.rate,
-              discPercent: item.discPercent || 0,
-              discAmt: item.discAmt || 0,
-              amount: item.amount
-            })));
+          if (data) {
+            if (data.remarks) setRemarks(data.remarks);
+            if (data.shippingAddress) setShippingAddress(data.shippingAddress);
+            if (Array.isArray(data.items)) {
+              setGridData(data.items.map((item: any, idx: number) => ({
+                id: idx + 1,
+                itemName: item.itemName,
+                itemDesc: item.itemDesc || '',
+                qty: item.qty,
+                uom: item.uom || 'PCS',
+                rate: item.rate,
+                discPercent: item.discPercent || 0,
+                discAmt: item.discAmt || 0,
+                amount: item.amount
+              })));
+            }
           }
         })
         .catch(err => console.error("Error fetching full bill details:", err));
@@ -241,6 +529,29 @@ const POSCheckout = () => {
         setBuyerName(orderToConvert.buyerName || '');
         setMobileNo(orderToConvert.mobileNo || '');
         setAddress(orderToConvert.address || '');
+        setRemarks(orderToConvert.remarks || '');
+      } else if (incomingPayload) {
+        setBuyerName(incomingPayload.buyerName || '');
+        if (incomingPayload.items && incomingPayload.items.length > 0) {
+          const mappedItems = incomingPayload.items.map((item: any, idx: number) => {
+            const baseAmount = (item.qty || 0) * (item.rate || 0);
+            const discAmt = (baseAmount * (item.discPercent || 0)) / 100;
+            return {
+              id: idx + 1,
+              itemName: item.itemName || '',
+              itemDesc: item.itemDesc || '',
+              size: item.size || '',
+              qty: item.qty || 0,
+              uom: item.uom || 'PCS',
+              rate: item.rate || 0,
+              discPercent: item.discPercent || 0,
+              discAmt: discAmt,
+              amount: item.amount || (baseAmount - discAmt)
+            };
+          });
+          setGridData(mappedItems);
+          setTabs(prev => prev.map(t => t.id === 'tab-1' ? { ...t, buyerName: incomingPayload.buyerName || '', gridData: mappedItems } : t));
+        }
       }
     }
   }, [location.state]);
@@ -492,6 +803,16 @@ const POSCheckout = () => {
     }, 100);
   };
 
+  const handleRemoveRow = (rowId: number) => {
+    setGridData(prev => {
+      const filtered = prev.filter(r => r.id !== rowId);
+      if (filtered.length === 0) {
+        return [{ id: Date.now(), itemName: '', itemDesc: '', size: '', qty: 0, uom: 'PCS', rate: 0, discPercent: 0, discAmt: 0, amount: 0 }];
+      }
+      return filtered;
+    });
+  };
+
   const selectProductFromModal = (product: any) => {
     setGridData(prev => prev.map(row => {
       if (row.id !== activeRowId) return row;
@@ -547,41 +868,36 @@ const POSCheckout = () => {
     }
   };
 
+  // --- Debounce Locks for Print and Save ---
+  const isSavingRef = useRef(false);
+  const isPrintingRef = useRef(false);
+
   // --- API Integrations ---
+
+  const handleInstantCheckout = async () => {
+    const validItems = gridData.filter(row => row.itemName && row.qty > 0 && row.rate > 0);
+    if (validItems.length === 0) {
+      if (setGlobalNotification) {
+        setGlobalNotification({ msg: "Please add at least one valid item to the grid before checking out.", type: 'error' });
+        setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
+      }
+      return;
+    }
+
+    // Save invoice to DB and trigger single print on backend success
+    executeSave(validItems);
+  };
 
   const handleTenderedEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      const validItems = gridData.filter(row => row.itemName && row.qty > 0 && row.rate > 0);
-      if (validItems.length === 0) {
-        if (setGlobalNotification) {
-          setGlobalNotification({ msg: "Please add at least one valid item to the grid before saving.", type: 'error' });
-          setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
-        }
-        return;
-      }
-      
-      const formattedItems = validItems.map(item => ({
-        itemCode: item.itemDesc || item.itemName,
-        itemDesc: item.itemName,
-        qty: item.qty,
-        rate: item.rate,
-        totalAmt: item.amount
-      }));
-
-      printReceipt(formattedItems, {
-        invoiceNo: invoiceNo,
-        date: invDate,
-        customerName: buyerName,
-        paymentMode: paymentMode,
-        totalQty: totalQty,
-        subTotal: totalAmount,
-        cgst: cgst,
-        sgst: sgst,
-        totalAmount: netAmount
-      });
-
-      executeSave(validItems);
+      handleInstantCheckout();
+    }
+  };
+  const handleDiscountKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleInstantCheckout();
     }
   };
 
@@ -600,6 +916,8 @@ const POSCheckout = () => {
   };
 
   const executeSave = async (validItems: any[]) => {
+    if (isSavingRef.current) return;
+    isSavingRef.current = true;
     setConfirmModalState({ isOpen: false, action: null });
 
     // Stock Check: Ensure no item quantity exceeds available physical stock
@@ -612,6 +930,7 @@ const POSCheckout = () => {
       if (match) {
         const avail = typeof match.stock === 'number' ? match.stock : 0;
         if (avail <= 0) {
+          isSavingRef.current = false;
           if (setGlobalNotification) {
             setGlobalNotification({
               msg: `Cannot save bill! "${item.itemName}" is out of stock (Available: 0). Stock cannot go negative.`,
@@ -622,6 +941,7 @@ const POSCheckout = () => {
           return;
         }
         if (item.qty > avail) {
+          isSavingRef.current = false;
           if (setGlobalNotification) {
             setGlobalNotification({
               msg: `Cannot save bill! "${item.itemName}" requested quantity (${item.qty}) exceeds available stock (${avail}). Stock cannot go negative.`,
@@ -641,6 +961,9 @@ const POSCheckout = () => {
       cgst, sgst, roundOff, netAmount,
       salesman, paymentMode,
       fromSalesOrderId,
+      isSelectiveCustomer: globalSettings?.isSelectiveCustomer || false,
+      shippingAddress,
+      remarks,
       items: validItems.map(item => ({
         itemName: item.itemName,
         itemDesc: item.itemDesc,
@@ -665,8 +988,28 @@ const POSCheckout = () => {
       const data = await res.json();
       if (data.success) {
         if (setGlobalNotification) setGlobalNotification({ msg: `Sales Bill ${invoiceNo} saved successfully!`, type: 'success' });
+
+        // 1. Auto-Print receipt once to printer
+        try {
+          handlePrintAction('Sales Bill');
+        } catch (printErr) {
+          console.error("Auto print error:", printErr);
+        }
+
+        // 2. Auto-Send invoice receipt via WhatsApp if mobile number is available
+        if (mobileNo && mobileNo.replace(/\D/g, '').length >= 10) {
+          try {
+            const billData = getBillPayloadData();
+            sendWhatsAppBill(billData, undefined, true);
+          } catch (waErr) {
+            console.error("Auto WhatsApp error:", waErr);
+          }
+        }
+
         if (editingBillId) {
           setTimeout(() => navigate('/sales-register'), 1500);
+        } else if (fromSalesOrderId) {
+          setTimeout(() => navigate('/sales-register', { state: { activeTab: 'orders' } }), 1500);
         } else {
           setTimeout(() => {
             resetPageState();
@@ -687,6 +1030,10 @@ const POSCheckout = () => {
         setGlobalNotification({ msg: "Network error while saving.", type: 'error' });
         setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
       }
+    } finally {
+      setTimeout(() => {
+        isSavingRef.current = false;
+      }, 1500);
     }
   };
 
@@ -700,8 +1047,11 @@ const POSCheckout = () => {
         setAddress('');
         setMobileNo('');
         setGstNo('');
+        setSalesman('');
         setTendered(0);
         setFavourDiscount(0);
+        setShippingAddress('');
+        setRemarks('');
         setConfirmModalState({ isOpen: false, action: null });
         if (setGlobalNotification) {
           setGlobalNotification({ msg: 'Invoice data cleared successfully.', type: 'success' });
@@ -713,29 +1063,39 @@ const POSCheckout = () => {
   };
 
   const handlePrintAction = (docType: string) => {
+    if (isPrintingRef.current) return;
+    isPrintingRef.current = true;
+    setTimeout(() => { isPrintingRef.current = false; }, 2000);
+
     if (setGlobalNotification) setGlobalNotification({ msg: `Preparing ${docType} for printing...`, type: 'success' });
 
     // Format items for the print utility
     const formattedItems = gridData
-      .filter(item => item.itemName) // Only print valid items
+      .filter(item => item.itemName && item.itemName.trim() !== '') // Only print valid items
       .map(item => ({
+        itemName: item.itemName,
         itemCode: item.itemDesc || item.itemName,
         itemDesc: item.itemName,
         qty: item.qty,
         rate: item.rate,
-        totalAmt: item.amount
+        amount: item.amount || (item.qty * item.rate),
+        totalAmt: item.amount || (item.qty * item.rate)
       }));
 
-    printReceipt(formattedItems, {
+    printReceipt({
+      gridData: formattedItems,
       invoiceNo: invoiceNo,
       date: invDate,
       customerName: buyerName,
+      customerMobile: mobileNo,
       paymentMode: paymentMode,
       totalQty: totalQty,
       subTotal: totalAmount,
       cgst: cgst,
       sgst: sgst,
-      totalAmount: netAmount
+      totalAmount: netAmount,
+      storeName: shopName,
+      storePhone: localStorage.getItem('close_day_whatsapp') || undefined
     });
 
     setTimeout(() => {
@@ -782,6 +1142,7 @@ const POSCheckout = () => {
   const getBillPayloadData = () => {
     const validItems = gridData.filter(row => row.itemName && row.qty > 0);
     return {
+      storeName: shopName || localStorage.getItem('registered_shop_name') || localStorage.getItem('shop_name') || '',
       invoiceNo,
       invDate,
       buyerName: buyerName || 'CASH CUSTOMER',
@@ -821,7 +1182,7 @@ const POSCheckout = () => {
   };
 
   const handleSendWhatsApp = () => {
-    const validItems = gridData.filter(row => row.itemName && row.qty > 0);
+    const validItems = gridData.filter(row => row.itemName && row.qty > 0 && row.rate > 0);
     if (validItems.length === 0) {
       if (setGlobalNotification) {
         setGlobalNotification({ msg: "Please add at least one item before sending WhatsApp bill.", type: 'error' });
@@ -853,48 +1214,6 @@ const POSCheckout = () => {
     }
   };
 
-  const handleInstantCheckout = async () => {
-    const validItems = gridData.filter(row => row.itemName && row.qty > 0 && row.rate > 0);
-    if (validItems.length === 0) {
-      if (setGlobalNotification) {
-        setGlobalNotification({ msg: "Please add at least one valid item to the grid before checking out.", type: 'error' });
-        setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
-      }
-      return;
-    }
-
-    // 1. Trigger Thermal Receipt Print
-    const formattedItems = validItems.map(item => ({
-      itemCode: item.itemDesc || item.itemName,
-      itemDesc: item.itemName,
-      qty: item.qty,
-      rate: item.rate,
-      totalAmt: item.amount
-    }));
-
-    printReceipt(formattedItems, {
-      invoiceNo: invoiceNo,
-      date: invDate,
-      customerName: buyerName,
-      paymentMode: paymentMode,
-      totalQty: totalQty,
-      subTotal: totalAmount,
-      cgst: cgst,
-      sgst: sgst,
-      totalAmount: netAmount
-    });
-
-    // 2. Download PDF Bill
-    handleDownloadPDF();
-
-    // 3. Send WhatsApp Bill if mobile exists
-    if (mobileNo) {
-      handleSendWhatsApp();
-    }
-
-    // 4. Save Invoice in Database
-    executeSave(validItems);
-  };
 
   // --- Global Toolbar Wiring (Layout Bridge) ---
   // Note: setGlobalNotification is destructured above
@@ -970,11 +1289,11 @@ const POSCheckout = () => {
 
         let updatedRow = { ...row, [field]: field === 'itemName' || field === 'itemDesc' || field === 'uom' ? value : Number(value) };
 
-        // Real-time Stock Restriction Check on Manual Qty Input
+        // Real-time Stock Notification Warning on Manual Qty Input
         if (field === 'qty') {
           const requestedQty = Number(value) || 0;
           const match = availableProducts.find(p =>
-            p.name === updatedRow.itemName ||
+            (p.name && p.name.toLowerCase() === (updatedRow.itemName || '').toLowerCase()) ||
             (p.itemCode && p.itemCode.toLowerCase() === (updatedRow.itemDesc || '').toLowerCase()) ||
             (p.barcode && p.barcode.toLowerCase() === (updatedRow.itemDesc || '').toLowerCase())
           );
@@ -983,12 +1302,11 @@ const POSCheckout = () => {
             if (requestedQty > availStock) {
               if (setGlobalNotification) {
                 setGlobalNotification({
-                  msg: `⚠️ Stock Limit Reached! Barcode "${match.barcode || match.itemCode}" (${match.name}) has only ${availStock} items in stock. Quantity restricted to ${availStock}.`,
+                  msg: `⚠️ Quantity Warning: "${match.name}" requested quantity (${requestedQty}) exceeds available stock (${availStock} PCS).`,
                   type: 'error'
                 });
                 setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
               }
-              updatedRow.qty = availStock;
             }
           }
         }
@@ -1006,14 +1324,7 @@ const POSCheckout = () => {
         return updatedRow;
       });
 
-      // Auto-add new empty row if the last row's item name was just modified
-      const isLastRow = newGrid[newGrid.length - 1].id === id;
-      if (isLastRow && field === 'itemName' && value.trim() !== '') {
-        newGrid.push({
-          id: Date.now(),
-          itemName: '', itemDesc: '', qty: 0, uom: '', rate: 0, discPercent: 0, discAmt: 0, amount: 0
-        });
-      }
+
 
       return newGrid;
     });
@@ -1100,31 +1411,37 @@ const POSCheckout = () => {
           return;
         }
         processBarcodeScan(barcode, row.id);
+        setTimeout(() => {
+          document.getElementById(`grid-input-${rowIndex}-1`)?.focus();
+        }, 100);
       } else if (colIndex === 1) {
         if (!itemName.trim()) {
           openSearchModal(rowId, e.currentTarget);
         } else {
-          // Trigger autocomplete on Item Name then jump to Qty
           handleItemBlur(rowId, itemName);
           setTimeout(() => {
             document.getElementById(`grid-input-${rowIndex}-2`)?.focus();
-          }, 150); // slight delay to allow row generation if it was the last row
+          }, 100);
         }
-      } else {
-        // Move to next column
+      } else if (colIndex < 7) {
         const nextInput = document.getElementById(`grid-input-${rowIndex}-${colIndex + 1}`);
         if (nextInput) {
           nextInput.focus();
+        }
+      } else if (colIndex === 7) {
+        // Last cell of row (DiscAmt)
+        if (rowIndex < gridData.length - 1) {
+          document.getElementById(`grid-input-${rowIndex + 1}-0`)?.focus();
         } else {
-          // If at the end of the row, move to the Barcode of the next row
-          if (rowIndex === gridData.length - 1) {
-            setGridData(prev => [...prev, { id: Date.now(), itemName: '', itemDesc: '', qty: 0, uom: '', rate: 0, discPercent: 0, discAmt: 0, amount: 0 }]);
-            setTimeout(() => {
-              document.getElementById(`grid-input-${rowIndex + 1}-0`)?.focus();
-            }, 50);
-          } else {
+          // If this is the last row, automatically append a new row and focus its barcode input
+          const newRowId = Date.now();
+          setGridData(prev => [
+            ...prev,
+            { id: newRowId, itemName: '', itemDesc: '', qty: 0, uom: 'PCS', rate: 0, discPercent: 0, discAmt: 0, amount: 0 }
+          ]);
+          setTimeout(() => {
             document.getElementById(`grid-input-${rowIndex + 1}-0`)?.focus();
-          }
+          }, 60);
         }
       }
     } else if (e.key === 'F2' && colIndex === 1) {
@@ -1203,6 +1520,16 @@ const POSCheckout = () => {
   return (
     <div className="flex flex-col h-full space-y-2">
 
+      {/* Multi-Bill / Hold Billing Tabs */}
+      <BillingTabBar
+        tabs={tabSummaries}
+        activeTabId={activeTabId}
+        onSelectTab={handleSelectTab}
+        onAddTab={handleAddTab}
+        onCloseTab={handleCloseTab}
+        maxTabs={15}
+      />
+
       {/* 1. Header & Rapid Scan */}
       <div className="bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-900 border border-blue-700 p-2.5 rounded-md shadow-md text-white flex flex-col md:flex-row items-center justify-between gap-3">
         <div className="flex items-center space-x-2">
@@ -1267,22 +1594,34 @@ const POSCheckout = () => {
       {/* 2. Main Document Input Panel */}
       <div className="legacy-panel p-1.5 text-xs grid grid-cols-12 gap-x-2 gap-y-1.5 items-center">
         <label className="legacy-label text-right">Buyer</label>
-        <div className="col-span-3 relative">
+        <div className="col-span-3 relative flex items-center">
           <input
             type="text"
-            className="legacy-input w-full font-bold text-blue-900 bg-blue-50 py-0.5 px-2 pr-6 focus:bg-yellow-50 outline-none border border-gray-300 rounded-sm"
-            value={customerSearch}
+            className={`legacy-input w-full font-bold text-blue-900 bg-blue-50 py-0.5 px-2 focus:bg-yellow-50 outline-none border border-gray-300 rounded-sm ${globalSettings?.isSelectiveCustomer ? 'pr-20' : 'pr-6'}`}
+            value={buyerName}
             onChange={e => {
-              setCustomerSearch(e.target.value);
+              setBuyerName(e.target.value);
               setShowCustomerDropdown(true);
             }}
             onFocus={() => setShowCustomerDropdown(true)}
             onBlur={() => {
               setTimeout(() => setShowCustomerDropdown(false), 200);
             }}
+            onKeyDown={e => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                setShowCustomerDropdown(false);
+                document.getElementById('inv-date-input')?.focus();
+              }
+            }}
             placeholder="Search / select buyer..."
           />
-          <span className="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none text-blue-400 font-bold">▾</span>
+          {globalSettings?.isSelectiveCustomer && (
+            <span className="absolute right-5 bg-orange-100 text-orange-800 text-[9px] font-extrabold px-1.5 py-0.5 rounded border border-orange-300 uppercase tracking-wide pointer-events-none">
+              Selective
+            </span>
+          )}
+          <span className="absolute right-1.5 text-blue-400 font-bold pointer-events-none">▾</span>
 
           {showCustomerDropdown && (
             <div className="absolute left-0 right-0 top-full mt-0.5 bg-white border border-gray-300 max-h-48 overflow-y-auto z-[999] shadow-lg rounded text-left">
@@ -1295,7 +1634,6 @@ const POSCheckout = () => {
                     type="button"
                     onMouseDown={() => {
                       setBuyerName(c.accountName);
-                      setCustomerSearch(c.accountName);
                       if (c.accountName === 'CASH') {
                         setAddress('');
                         setMobileNo('');
@@ -1322,10 +1660,33 @@ const POSCheckout = () => {
         <input type="text" className="legacy-input col-span-1 font-bold py-0.5 font-mono text-center" value={invoiceNo} disabled />
 
         <label className="legacy-label text-right">Inv Date</label>
-        <input type="date" className="legacy-input col-span-2 py-0.5 font-bold" value={invDate} onChange={e => setInvDate(e.target.value)} />
+        <input
+          id="inv-date-input"
+          type="date"
+          className="legacy-input col-span-2 py-0.5 font-bold"
+          value={invDate}
+          onChange={e => setInvDate(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              document.getElementById('etype-select')?.focus();
+            }
+          }}
+        />
 
         <label className="legacy-label text-right">E.Type</label>
-        <select className="legacy-input col-span-1.5 py-0.5 font-bold" value={eType} onChange={e => setEType(e.target.value)}>
+        <select
+          id="etype-select"
+          className="legacy-input col-span-2 py-0.5 font-bold"
+          value={eType}
+          onChange={e => setEType(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              document.getElementById('mobile-input')?.focus();
+            }
+          }}
+        >
           <option>Local</option>
           <option>Interstate</option>
         </select>
@@ -1334,12 +1695,19 @@ const POSCheckout = () => {
           <MessageSquare size={13} className="mr-1 text-emerald-600" />
           Mobile
         </label>
-        <div className="col-span-2 relative flex items-center">
+        <div className="col-span-3 relative flex items-center">
           <input
+            id="mobile-input"
             type="text"
             className="legacy-input w-full py-0.5 font-mono font-bold text-gray-900 bg-white border-gray-400 focus:bg-yellow-50 focus:border-blue-500 pr-6"
             value={mobileNo}
             onChange={e => setMobileNo(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                document.getElementById('salesman-input')?.focus();
+              }
+            }}
             placeholder="Mobile / WhatsApp..."
           />
           {mobileNo && (
@@ -1355,11 +1723,25 @@ const POSCheckout = () => {
         </div>
 
         <label className="legacy-label text-right">Salesman</label>
-        <input type="text" className="legacy-input col-span-2 bg-yellow-50 py-0.5 font-bold" value={salesman} onChange={e => setSalesman(e.target.value)} placeholder="Billed By" />
+        <input
+          id="salesman-input"
+          type="text"
+          className="legacy-input col-span-2 bg-yellow-50 py-0.5 font-bold"
+          value={salesman}
+          onChange={e => setSalesman(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              document.getElementById('pay-mode-select')?.focus();
+            }
+          }}
+          placeholder="Billed By"
+        />
 
         <label className="legacy-label text-right text-blue-900 font-bold">Pay Mode</label>
         <div className="col-span-4 flex items-center space-x-1 min-w-0">
           <select
+            id="pay-mode-select"
             className="legacy-input min-w-0 flex-1 font-bold py-0.5 border-blue-500 bg-blue-50 focus:bg-yellow-50 text-xs truncate"
             value={paymentMode}
             onChange={e => {
@@ -1367,6 +1749,12 @@ const POSCheckout = () => {
               setPaymentMode(mode);
               if (mode.includes('UPI') || mode.includes('Online')) {
                 setShowUpiModal(true);
+              }
+            }}
+            onKeyDown={e => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                document.getElementById('grid-input-0-0')?.focus();
               }
             }}
           >
@@ -1434,6 +1822,7 @@ const POSCheckout = () => {
               <th className="legacy-grid-header w-16">Disc %</th>
               <th className="legacy-grid-header w-20">DiscAmt</th>
               <th className="legacy-grid-header w-28">Amount</th>
+              <th className="legacy-grid-header w-14 text-center">Action</th>
             </tr>
           </thead>
           <tbody>
@@ -1456,38 +1845,119 @@ const POSCheckout = () => {
                     id={`grid-input-${idx}-1`}
                     type="text"
                     placeholder="Press Enter to search..."
-                    className="w-full h-full p-1 pl-2 border-none outline-none focus:bg-yellow-100 placeholder-gray-300 font-semibold text-gray-800"
+                    className="w-full h-full p-1 pl-2 pr-8 border-none outline-none focus:bg-yellow-100 placeholder-gray-300 font-semibold text-gray-800"
                     value={row.itemName}
                     onChange={e => handleGridChange(row.id, 'itemName', e.target.value)}
                     onBlur={e => handleItemBlur(row.id, e.target.value)}
                     onKeyDown={e => handleKeyDown(e, idx, 1, row.id, row.itemName)}
+                    onDoubleClick={e => openSearchModal(row.id, e.currentTarget)}
                   />
                   {!row.itemName && (
-                    <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-gray-300">
+                    <button 
+                      onClick={e => openSearchModal(row.id, e.currentTarget)}
+                      type="button"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-600 transition-colors focus:outline-none"
+                    >
                       <Search size={14} />
-                    </div>
+                    </button>
                   )}
                 </td>
                 <td className="legacy-grid-cell p-0">
                   <input
-                    id={`grid-input-${idx}-size`}
+                    id={`grid-input-${idx}-2`}
                     type="text"
                     placeholder="Size"
                     className="w-full h-full p-1 text-center border-none outline-none focus:bg-yellow-100 font-bold text-blue-900 bg-blue-50/30"
                     value={row.size || ''}
                     onChange={e => handleGridChange(row.id, 'size', e.target.value)}
+                    onKeyDown={e => handleKeyDown(e, idx, 2, row.id, row.itemName)}
                   />
                 </td>
-                <td className="legacy-grid-cell p-0"><input id={`grid-input-${idx}-2`} type="number" className="w-full h-full p-1 text-right border-none outline-none focus:bg-yellow-100 font-bold text-gray-900" value={row.qty || ''} onChange={e => handleGridChange(row.id, 'qty', e.target.value)} onKeyDown={e => handleKeyDown(e, idx, 2, row.id, row.itemName)} /></td>
-                <td className="legacy-grid-cell p-0"><input id={`grid-input-${idx}-3`} type="text" className="w-full h-full p-1 border-none outline-none focus:bg-yellow-100" value={row.uom} onChange={e => handleGridChange(row.id, 'uom', e.target.value)} onKeyDown={e => handleKeyDown(e, idx, 3, row.id, row.itemName)} /></td>
-                <td className="legacy-grid-cell p-0"><input id={`grid-input-${idx}-4`} type="number" step="0.01" className="w-full h-full p-1 text-right border-none outline-none focus:bg-yellow-100 font-bold" value={row.rate || ''} onChange={e => handleGridChange(row.id, 'rate', e.target.value)} onKeyDown={e => handleKeyDown(e, idx, 4, row.id, row.itemName)} /></td>
-                <td className="legacy-grid-cell p-0"><input id={`grid-input-${idx}-5`} type="number" step="0.01" className="w-full h-full p-1 text-right border-none outline-none focus:bg-yellow-100" value={row.discPercent || ''} onChange={e => handleGridChange(row.id, 'discPercent', e.target.value)} onKeyDown={e => handleKeyDown(e, idx, 5, row.id, row.itemName)} /></td>
-                <td className="legacy-grid-cell p-0"><input id={`grid-input-${idx}-6`} type="number" step="0.01" className="w-full h-full p-1 text-right border-none outline-none focus:bg-yellow-100" value={row.discAmt || ''} onChange={e => handleGridChange(row.id, 'discAmt', e.target.value)} onKeyDown={e => handleKeyDown(e, idx, 6, row.id, row.itemName)} /></td>
+                <td className="legacy-grid-cell p-0 relative">
+                  {(() => {
+                    const match = availableProducts.find(p =>
+                      (p.name && p.name.toLowerCase() === (row.itemName || '').toLowerCase()) ||
+                      (p.barcode && p.barcode === row.itemDesc) ||
+                      (p.itemCode && p.itemCode === row.itemDesc)
+                    );
+                    const availStock = match ? (typeof match.stock === 'number' ? match.stock : 0) : null;
+                    const totalQtyInGrid = gridData.reduce((acc, r) => {
+                      const isMatch = (r.itemName && row.itemName && r.itemName.toLowerCase() === row.itemName.toLowerCase()) ||
+                                      (r.itemDesc && row.itemDesc && r.itemDesc === row.itemDesc);
+                      return isMatch ? acc + (Number(r.qty) || 0) : acc;
+                    }, 0);
+                    const isExceeding = availStock !== null && totalQtyInGrid > availStock;
+
+                    return (
+                      <div className="relative w-full h-full flex items-center">
+                        <input
+                          id={`grid-input-${idx}-3`}
+                          type="number"
+                          className={`w-full h-full p-1 text-right outline-none focus:bg-yellow-100 font-bold ${
+                            isExceeding
+                              ? 'bg-red-100 text-red-900 border-2 border-red-500 ring-1 ring-red-400 font-extrabold'
+                              : 'text-gray-900 border-none'
+                          }`}
+                          value={row.qty || ''}
+                          onChange={e => handleGridChange(row.id, 'qty', e.target.value)}
+                          onKeyDown={e => handleKeyDown(e, idx, 3, row.id, row.itemName)}
+                        />
+                        {isExceeding && (
+                          <span
+                            className="absolute -top-3 right-0 bg-red-600 text-white text-[9px] font-extrabold px-1 rounded shadow z-10 whitespace-nowrap animate-pulse pointer-events-none"
+                            title={`Total ${totalQtyInGrid} exceeds available stock (${availStock} PCS)`}
+                          >
+                            ⚠️ Max: {availStock}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </td>
+                <td className="legacy-grid-cell p-0"><input id={`grid-input-${idx}-4`} type="text" className="w-full h-full p-1 border-none outline-none focus:bg-yellow-100" value={row.uom} onChange={e => handleGridChange(row.id, 'uom', e.target.value)} onKeyDown={e => handleKeyDown(e, idx, 4, row.id, row.itemName)} /></td>
+                <td className="legacy-grid-cell p-0"><input id={`grid-input-${idx}-5`} type="number" step="0.01" className="w-full h-full p-1 text-right border-none outline-none focus:bg-yellow-100 font-bold" value={row.rate || ''} onChange={e => handleGridChange(row.id, 'rate', e.target.value)} onKeyDown={e => handleKeyDown(e, idx, 5, row.id, row.itemName)} /></td>
+                <td className="legacy-grid-cell p-0"><input id={`grid-input-${idx}-6`} type="number" step="0.01" className="w-full h-full p-1 text-right border-none outline-none focus:bg-yellow-100" value={row.discPercent || ''} onChange={e => handleGridChange(row.id, 'discPercent', e.target.value)} onKeyDown={e => handleKeyDown(e, idx, 6, row.id, row.itemName)} /></td>
+                <td className="legacy-grid-cell p-0"><input id={`grid-input-${idx}-7`} type="number" step="0.01" className="w-full h-full p-1 text-right border-none outline-none focus:bg-yellow-100" value={row.discAmt || ''} onChange={e => handleGridChange(row.id, 'discAmt', e.target.value)} onKeyDown={e => handleKeyDown(e, idx, 7, row.id, row.itemName)} /></td>
                 <td className="legacy-grid-cell text-right bg-gray-50 font-bold text-gray-900">{row.amount.toFixed(2)}</td>
+                <td className="legacy-grid-cell text-center p-0.5 w-14 bg-red-50/20">
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveRow(row.id)}
+                    title="Cancel Row / Remove Product"
+                    className="p-1 text-red-500 hover:text-red-700 hover:bg-red-100 rounded transition-colors inline-flex items-center justify-center cursor-pointer"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/* Grid Table Action Buttons */}
+      <div className="flex gap-2 my-1.5 items-center">
+        <button
+          type="button"
+          onClick={() => setGridData(prev => [...prev, { id: Date.now(), itemName: '', itemDesc: '', qty: 0, uom: '', rate: 0, discPercent: 0, discAmt: 0, amount: 0 }])}
+          className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded text-[11px] shadow flex items-center gap-1.5 transition-all cursor-pointer"
+        >
+          <span>+ Add Row</span>
+        </button>
+        {gridData.some(r => r.itemName || r.itemDesc) && (
+          <button
+            type="button"
+            onClick={() => {
+              if (window.confirm("Are you sure you want to clear all product rows in this bill?")) {
+                setGridData([{ id: Date.now(), itemName: '', itemDesc: '', size: '', qty: 0, uom: 'PCS', rate: 0, discPercent: 0, discAmt: 0, amount: 0 }]);
+              }
+            }}
+            className="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-bold py-1 px-3 rounded text-[11px] flex items-center gap-1 transition-all cursor-pointer"
+          >
+            <Trash2 size={12} />
+            <span>Clear All Rows</span>
+          </button>
+        )}
       </div>
 
       {/* 4. Totals & Terms Panel */}
@@ -1498,11 +1968,21 @@ const POSCheckout = () => {
           <div className="legacy-panel p-1 flex space-x-2">
             <div className="flex-1 flex items-center">
               <label className="legacy-label whitespace-nowrap mr-2">Shipping Addr.</label>
-              <input type="text" className="legacy-input w-full py-0.5" />
+              <input 
+                type="text" 
+                className="legacy-input w-full py-0.5" 
+                value={shippingAddress}
+                onChange={e => setShippingAddress(e.target.value)}
+              />
             </div>
             <div className="flex-1 flex items-center">
               <label className="legacy-label whitespace-nowrap mr-2">Remarks</label>
-              <input type="text" className="legacy-input w-full py-0.5" />
+              <input 
+                type="text" 
+                className="legacy-input w-full py-0.5" 
+                value={remarks}
+                onChange={e => setRemarks(e.target.value)}
+              />
             </div>
           </div>
 
@@ -1512,7 +1992,7 @@ const POSCheckout = () => {
             <div className="flex-1"></div>
             <button type="button" className="legacy-button py-1.5 px-4 bg-green-600 text-white font-extrabold border-green-700 hover:bg-green-700 shadow-sm transition-all flex items-center space-x-1.5 rounded" onClick={handleInstantCheckout}>
               <Zap size={13} className="text-yellow-300 fill-yellow-300" />
-              <span>⚡ Save + Print + PDF + WhatsApp (1-Click)</span>
+              <span> Save + Print + WhatsApp</span>
             </button>
             <button type="button" className="legacy-button py-1.5 px-3 bg-red-100 font-bold border-red-400 hover:bg-red-200 transition-colors rounded text-xs" onClick={handleCancelClick}>Cancel</button>
           </div>
@@ -1536,6 +2016,7 @@ const POSCheckout = () => {
             value={favourDiscount || ''}
             onChange={e => setFavourDiscount(Number(e.target.value))}
             placeholder="Special Discount"
+            onKeyDown={handleDiscountKeyDown}
           />
 
           <label className="legacy-label col-span-2 flex items-center justify-end">
@@ -1636,36 +2117,58 @@ const POSCheckout = () => {
 
             {/* List Body */}
             <div className="overflow-y-auto flex-1 bg-white">
-              {filteredProducts.map((p, idx) => (
-                <div
-                  key={p.id}
-                  className={`grid grid-cols-12 gap-2 px-3 py-1.5 border-b border-gray-200 cursor-pointer items-center text-sm ${idx === highlightedIndex ? 'bg-[#a3c293] text-black font-semibold' : 'hover:bg-[#eaf1e6] text-gray-800'}`}
-                  onClick={() => selectProductFromModal(p)}
-                >
-                  <div className="col-span-2 text-xs">
-                    {p.itemCode || '-'}
-                  </div>
-                  <div className="col-span-6 flex flex-col justify-center">
-                    <span className="leading-tight font-medium">
-                      {p.name}
-                    </span>
-                    <div className="flex flex-wrap gap-1 mt-0.5 text-[10px]">
-                      {p.department && <span className={`px-1 rounded font-bold ${idx === highlightedIndex ? 'bg-[#f0f9eb] text-[#2b579a]' : 'bg-[#e8f4fd] text-blue-800'}`}>{p.department}</span>}
-                      {p.variety && <span className={`px-1 rounded font-bold ${idx === highlightedIndex ? 'bg-[#f3e8ff] text-[#2b579a]' : 'bg-purple-100 text-purple-800'}`}>{p.variety}</span>}
-                      {p.size && <span className={`px-1 rounded font-bold ${idx === highlightedIndex ? 'bg-[#fef3c7] text-[#2b579a]' : 'bg-amber-100 text-amber-800'}`}>Size: {p.size}</span>}
-                      {p.barcode && <span className={idx === highlightedIndex ? 'text-gray-800 ml-1' : 'text-gray-500 ml-1'}>Barcode: {p.barcode}</span>}
+              {filteredProducts.map((p, idx) => {
+                const qtyInBill = gridData.reduce((acc, r) => {
+                  const isMatch = (r.itemName && r.itemName.toLowerCase() === p.name.toLowerCase()) ||
+                                  (r.itemDesc && (r.itemDesc === p.barcode || r.itemDesc === p.itemCode));
+                  return isMatch ? acc + (Number(r.qty) || 0) : acc;
+                }, 0);
+                const effectiveStock = (typeof p.stock === 'number' ? p.stock : 0) - qtyInBill;
+
+                return (
+                  <div
+                    key={p.id}
+                    className={`grid grid-cols-12 gap-2 px-3 py-1.5 border-b border-gray-200 cursor-pointer items-center text-sm ${idx === highlightedIndex ? 'bg-[#a3c293] text-black font-semibold' : 'hover:bg-[#eaf1e6] text-gray-800'}`}
+                    onClick={() => selectProductFromModal(p)}
+                  >
+                    <div className="col-span-2 text-xs font-mono font-bold">
+                      {p.itemCode || '-'}
+                    </div>
+                    <div className="col-span-6 flex flex-col justify-center">
+                      <span className="leading-tight font-medium">
+                        {p.name}
+                      </span>
+                      <div className="flex flex-wrap gap-1 mt-0.5 text-[10px]">
+                        {p.department && <span className={`px-1 rounded font-bold ${idx === highlightedIndex ? 'bg-[#f0f9eb] text-[#2b579a]' : 'bg-[#e8f4fd] text-blue-800'}`}>{p.department}</span>}
+                        {p.variety && <span className={`px-1 rounded font-bold ${idx === highlightedIndex ? 'bg-[#f3e8ff] text-[#2b579a]' : 'bg-purple-100 text-purple-800'}`}>{p.variety}</span>}
+                        {p.size && <span className={`px-1 rounded font-bold ${idx === highlightedIndex ? 'bg-[#fef3c7] text-[#2b579a]' : 'bg-amber-100 text-amber-800'}`}>Size: {p.size}</span>}
+                        {p.barcode && <span className={idx === highlightedIndex ? 'text-gray-800 ml-1' : 'text-gray-500 ml-1'}>Barcode: {p.barcode}</span>}
+                      </div>
+                    </div>
+                    <div className="col-span-2 flex flex-col items-center justify-center">
+                      <span className={`px-1.5 py-0.5 text-xs font-bold rounded ${
+                        idx === highlightedIndex 
+                          ? 'text-black' 
+                          : effectiveStock > 5 
+                            ? 'text-green-700 bg-green-50' 
+                            : effectiveStock > 0 
+                              ? 'text-amber-800 bg-amber-100 font-extrabold' 
+                              : 'text-red-700 bg-red-100 font-extrabold'
+                      }`}>
+                        {effectiveStock > 0 ? `${effectiveStock} ${p.uom || 'PCS'}` : '0 PCS (OUT OF STOCK)'}
+                      </span>
+                      {qtyInBill > 0 && (
+                        <span className="text-[9px] text-blue-900 font-extrabold mt-0.5 whitespace-nowrap">
+                          ({qtyInBill} in current bill)
+                        </span>
+                      )}
+                    </div>
+                    <div className="col-span-2 text-right font-bold text-sm">
+                      {p.price.toFixed(2)}
                     </div>
                   </div>
-                  <div className="col-span-2 flex justify-center">
-                    <span className={`px-1.5 py-0.5 text-xs font-bold ${idx === highlightedIndex ? '' : p.stock > 10 ? 'text-green-700' : p.stock > 0 ? 'text-yellow-700' : 'text-red-700'}`}>
-                      {p.stock} {p.uom}
-                    </span>
-                  </div>
-                  <div className="col-span-2 text-right font-bold text-sm">
-                    {p.price.toFixed(2)}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
               {filteredProducts.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-10 text-gray-500">
                   <Search size={32} className="mb-2 text-gray-300" />
@@ -1725,83 +2228,6 @@ const POSCheckout = () => {
               >
                 {confirmModalState.yesText || "Yes, Save"}
               </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* UPI / Online Payment Modal */}
-      {showUpiModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70]" onClick={() => setShowUpiModal(false)}>
-          <div className="bg-white shadow-2xl w-[420px] rounded-lg border border-blue-300 overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="bg-gradient-to-r from-blue-900 to-indigo-900 text-white px-4 py-3 flex justify-between items-center">
-              <div className="flex items-center space-x-2">
-                <QrCode size={20} className="text-yellow-400" />
-                <span className="font-bold text-base">Online Payment (UPI QR)</span>
-              </div>
-              <button onClick={() => setShowUpiModal(false)} className="text-white hover:text-red-300 font-bold text-lg">✕</button>
-            </div>
-            
-            <div className="p-5 flex flex-col items-center text-center space-y-3 bg-slate-50">
-              <div className="bg-white p-3 border-2 border-dashed border-blue-400 rounded-xl shadow-md flex flex-col items-center">
-                {/* Simulated UPI QR Code */}
-                <div className="w-44 h-44 bg-white p-2 border border-gray-300 rounded flex flex-col items-center justify-center relative">
-                  <div className="grid grid-cols-6 gap-1.5 w-full h-full p-1 bg-gray-900 rounded opacity-90">
-                    <div className="bg-white col-span-2 row-span-2 rounded-xs border-2 border-gray-900 p-1"><div className="bg-gray-900 w-full h-full"></div></div>
-                    <div className="bg-white col-span-2 row-span-2 col-start-5 rounded-xs border-2 border-gray-900 p-1"><div className="bg-gray-900 w-full h-full"></div></div>
-                    <div className="bg-white col-span-2 row-span-2 row-start-5 rounded-xs border-2 border-gray-900 p-1"><div className="bg-gray-900 w-full h-full"></div></div>
-                    <div className="bg-yellow-400 col-span-2 row-span-2 col-start-3 row-start-3 rounded-full flex items-center justify-center text-[9px] font-black text-blue-950">UPI</div>
-                  </div>
-                </div>
-                <p className="text-[11px] font-bold text-gray-500 mt-1">Scan using PhonePe / Google Pay / Paytm</p>
-              </div>
-
-              <div className="w-full bg-blue-50 border border-blue-200 p-2.5 rounded-md text-left text-xs font-mono">
-                <div className="flex justify-between text-gray-700 mb-1">
-                  <span>Merchant UPI ID:</span>
-                  <strong className="text-blue-900 font-bold select-all">srigayathritraders@upi</strong>
-                </div>
-                <div className="flex justify-between text-gray-900 font-bold text-sm border-t border-blue-200 pt-1">
-                  <span>Amount Payable:</span>
-                  <strong className="text-emerald-700 text-base">₹{netAmount.toFixed(2)}</strong>
-                </div>
-              </div>
-
-              <div className="w-full text-left">
-                <label className="text-xs font-bold text-gray-700 block mb-1">UPI Transaction Ref / UTR No (Optional)</label>
-                <input
-                  type="text"
-                  className="w-full px-3 py-1.5 border border-gray-300 rounded font-mono text-xs focus:ring-2 focus:ring-blue-500 outline-none"
-                  placeholder="e.g. 420918736122"
-                  value={upiTxnId}
-                  onChange={e => setUpiTxnId(e.target.value)}
-                />
-              </div>
-
-              <div className="flex space-x-2 w-full pt-1">
-                <button
-                  type="button"
-                  onClick={() => setShowUpiModal(false)}
-                  className="flex-1 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold rounded text-xs transition-all"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPaymentMode('UPI / Online Pay');
-                    setShowUpiModal(false);
-                    if (setGlobalNotification) {
-                      setGlobalNotification({ msg: `✓ Online Payment of ₹${netAmount.toFixed(2)} confirmed!`, type: 'success' });
-                      setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
-                    }
-                  }}
-                  className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded text-xs shadow transition-all flex items-center justify-center space-x-1"
-                >
-                  <CheckCircle size={14} />
-                  <span>Confirm Payment</span>
-                </button>
-              </div>
             </div>
           </div>
         </div>

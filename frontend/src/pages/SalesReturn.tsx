@@ -453,6 +453,21 @@ const SalesReturn = () => {
     }
   };
 
+  const resetForm = () => {
+    setInvoiceDetails(null);
+    setItemsToReturn([]);
+    setReplacementItems([]);
+    setExtraReceived(0);
+    setRefundAmount(0);
+    setPaymentMode('Cash');
+    setRefundMethod('Cash');
+    setSearchQuery('');
+    setProductSearchQuery('');
+    setProductSearchResults([]);
+    setIsProductDropdownOpen(false);
+    fetchNextSequence();
+  };
+
   const handleSaveClick = async () => {
     // Validation Rule 1: Zero-Quantity Exception Guardrail
     const selectedItems = itemsToReturn.filter(row => row.isSelected && row.returnQty > 0);
@@ -503,7 +518,10 @@ const SalesReturn = () => {
         if (editingReturnId) {
           setTimeout(() => navigate('/sales-register'), 1500);
         } else {
-          setTimeout(() => window.location.reload(), 1500);
+          setTimeout(() => {
+            resetForm();
+            if (setGlobalNotification) setGlobalNotification({msg: '', type: ''});
+          }, 1500);
         }
       } else {
         if (setGlobalNotification) setGlobalNotification({msg: "Error saving: " + data.error, type: 'error'});
@@ -515,18 +533,7 @@ const SalesReturn = () => {
   };
 
   const handleCancelClick = () => {
-    setInvoiceDetails(null);
-    setItemsToReturn([]);
-    setReplacementItems([]);
-    setExtraReceived(0);
-    setRefundAmount(0);
-    setPaymentMode('Cash');
-    setRefundMethod('Cash');
-    setSearchQuery('');
-    setProductSearchQuery('');
-    setProductSearchResults([]);
-    setIsProductDropdownOpen(false);
-    fetchNextSequence();
+    resetForm();
     if (setGlobalNotification) {
       setGlobalNotification({msg: 'Return form cleared.', type: 'success'});
       setTimeout(() => setGlobalNotification({msg: '', type: ''}), 2000);
@@ -582,38 +589,35 @@ const SalesReturn = () => {
     <div className="flex flex-col h-full space-y-2 relative">
       
       {/* 1. Header Area */}
-      <div className="bg-red-50 border border-red-200 p-3 rounded-md text-sm text-red-800 shadow-sm mb-2 flex items-start space-x-3">
-        <div className="bg-red-100 p-2 rounded-full">
-          <Search size={20} className="text-red-600" />
+      <div className="bg-red-50 border border-red-200 p-2 rounded-md text-xs text-red-800 shadow-sm mb-1.5 flex items-center space-x-2">
+        <div className="bg-red-100 p-1 rounded-full">
+          <Search size={14} className="text-red-600" />
         </div>
         <div>
-          <h2 className="font-bold text-base text-red-900 mb-1 flex items-center space-x-2">
+          <h2 className="font-bold text-sm text-red-900 flex items-center space-x-2">
             <span>Sales Return (Credit Note Engine)</span>
-            <span className="bg-yellow-200 text-yellow-800 text-[10px] px-2 py-0.5 rounded border border-yellow-400 font-bold uppercase">
+            <span className="bg-yellow-200 text-yellow-800 text-[9px] px-1.5 py-0.5 rounded border border-yellow-400 font-bold uppercase">
               {invoiceDetails ? 'DRAFT' : 'NEW'}
             </span>
           </h2>
-          <p className="text-red-700 leading-snug">
-            Process customer returns and generate credit notes. Link an original invoice to auto-populate items.
-          </p>
         </div>
       </div>
       
       {/* 2. Top Metadata Pane */}
-      <div className="flex flex-row gap-4 mb-2">
-        <div className="legacy-panel p-4 flex-1 grid grid-cols-2 gap-6 relative shadow-sm">
-          <div className="flex flex-col space-y-3">
+      <div className="flex flex-row gap-3 mb-1.5">
+        <div className="legacy-panel p-2.5 flex-1 grid grid-cols-2 gap-3.5 relative shadow-sm">
+          <div className="flex flex-col space-y-2">
             <div className="flex flex-col">
-              <label className="text-sm font-semibold text-gray-600 mb-1">Return No.</label>
-              <input type="text" className="legacy-input font-bold text-blue-900 bg-gray-100" value={returnNo} disabled />
+              <label className="text-xs font-semibold text-gray-600 mb-0.5">Return No.</label>
+              <input type="text" className="legacy-input font-bold text-blue-900 bg-gray-100 py-1" value={returnNo} disabled />
             </div>
             <div className="flex flex-col">
-              <label className="text-sm font-semibold text-gray-600 mb-1">Return Date</label>
-              <input type="date" className="legacy-input" value={returnDate} onChange={e => setReturnDate(e.target.value)} />
+              <label className="text-xs font-semibold text-gray-600 mb-0.5">Return Date</label>
+              <input type="date" className="legacy-input py-1" value={returnDate} onChange={e => setReturnDate(e.target.value)} />
             </div>
             <div className="flex flex-col">
-              <label className="text-sm font-semibold text-gray-600 mb-1">Reason</label>
-              <select className="legacy-input" value={reason} onChange={e => {
+              <label className="text-xs font-semibold text-gray-600 mb-0.5">Reason</label>
+              <select className="legacy-input py-1" value={reason} onChange={e => {
                 setReason(e.target.value);
                 if (e.target.value !== 'Other') setCustomReason('');
               }}>
@@ -627,7 +631,7 @@ const SalesReturn = () => {
                 <input 
                   type="text" 
                   placeholder="Specify custom reason..." 
-                  className="legacy-input mt-1.5 focus:border-red-500" 
+                  className="legacy-input mt-1 focus:border-red-500 py-1" 
                   value={customReason} 
                   onChange={e => setCustomReason(e.target.value)} 
                 />
@@ -635,13 +639,13 @@ const SalesReturn = () => {
             </div>
           </div>
 
-          <div className="flex flex-col space-y-3">
+          <div className="flex flex-col space-y-2">
             <div className="flex flex-col">
-              <label className="text-sm font-bold text-red-800 mb-1">Orig. Invoice No.</label>
-              <div className="flex space-x-2">
+              <label className="text-xs font-bold text-red-800 mb-0.5">Orig. Invoice No.</label>
+              <div className="flex space-x-1.5">
                 <input 
                   type="text" 
-                  className="legacy-input flex-1" 
+                  className="legacy-input flex-1 py-1" 
                   placeholder="Search INV-..." 
                   value={searchQuery} 
                   onChange={e => setSearchQuery(e.target.value)}
@@ -649,16 +653,16 @@ const SalesReturn = () => {
                     if (e.key === 'Enter') handleSearchInvoice();
                   }}
                 />
-                <button className="bg-blue-600 text-white px-4 rounded text-xs font-bold hover:bg-blue-700 shadow-sm transition-colors" onClick={handleSearchInvoice}>Find</button>
+                <button className="bg-blue-600 text-white px-3 rounded text-[11px] font-bold hover:bg-blue-700 shadow-sm transition-colors py-1" onClick={handleSearchInvoice}>Find</button>
               </div>
             </div>
             <div className="flex flex-col">
-              <label className="text-sm font-semibold text-gray-600 mb-1">Customer Name</label>
-              <input type="text" className="legacy-input bg-gray-100" value={invoiceDetails?.buyerName || ''} disabled />
+              <label className="text-xs font-semibold text-gray-600 mb-0.5">Customer Name</label>
+              <input type="text" className="legacy-input bg-gray-100 py-1" value={invoiceDetails?.buyerName || ''} disabled />
             </div>
             <div className="flex flex-col">
-              <label className="text-sm font-semibold text-gray-600 mb-1">Return Type / Action</label>
-              <select className="legacy-input font-bold text-slate-800" value={returnType} onChange={e => setReturnType(e.target.value)}>
+              <label className="text-xs font-semibold text-gray-600 mb-0.5">Return Type / Action</label>
+              <select className="legacy-input font-bold text-slate-800 py-1" value={returnType} onChange={e => setReturnType(e.target.value)}>
                 <option>Credit Note (Refund)</option>
                 <option>Exchange (Replacement)</option>
               </select>
@@ -667,7 +671,7 @@ const SalesReturn = () => {
         </div>
 
         {/* Highlighted Grand Total Overlay */}
-        <div className="w-80 bg-gray-900 rounded-md border border-gray-700 flex flex-col justify-center text-white shadow-md p-4 space-y-2">
+        <div className="w-80 bg-gray-900 rounded-md border border-gray-700 flex flex-col justify-center text-white shadow-md p-2.5 space-y-1.5">
           {returnType === 'Exchange (Replacement)' ? (
             <>
               <div className="flex justify-between items-center text-xs">
@@ -701,49 +705,66 @@ const SalesReturn = () => {
         </div>
       </div>
 
+      {/* Action Buttons Bar (Moved Upward) */}
+      <div className="flex space-x-2 bg-slate-50 p-1.5 border border-gray-300 rounded shadow-sm w-fit mb-1">
+        <button 
+          id="save-credit-note-btn" 
+          onClick={handleSaveClick} 
+          className="bg-green-600 hover:bg-green-700 text-white font-bold py-1.5 px-3 rounded text-xs shadow transition-colors focus:ring-2 focus:ring-green-400 focus:outline-none"
+        >
+          {returnType === 'Exchange (Replacement)' ? '✓ Confirm Exchange' : '💾 Confirm Return'}
+        </button>
+        <button 
+          onClick={handleCancelClick} 
+          className="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-1.5 px-3 rounded text-xs shadow transition-colors focus:outline-none"
+        >
+          Cancel / Clear
+        </button>
+      </div>
+
       {/* 3. Data Entry Grid */}
-      <div className="flex-1 min-h-[350px] bg-white border border-gray-400 overflow-auto shadow-sm">
-        <table className="w-full text-left border-collapse">
-          <thead className="sticky top-0 bg-[#e8ecef] shadow-sm z-10">
+      <div className="flex-1 min-h-[180px] max-h-[260px] bg-white border border-gray-400 overflow-auto shadow-sm">
+        <table className="w-full text-left border-collapse text-xs whitespace-nowrap min-w-max">
+          <thead className="bg-[#2b579a] text-white sticky top-0 z-10">
             <tr>
-              <th className="legacy-grid-header w-12 text-center">SELECT</th>
-              <th className="legacy-grid-header w-10 text-center">#</th>
-              <th className="legacy-grid-header w-24">ITEM CODE</th>
-              <th className="legacy-grid-header w-32">BARCODE</th>
-              <th className="legacy-grid-header">DESCRIPTION</th>
-              <th className="legacy-grid-header w-24 text-center">INVOICED QTY</th>
-              <th className="legacy-grid-header w-24 text-center">RETURN QTY</th>
-              <th className="legacy-grid-header w-24 text-right">UNIT PRICE</th>
-              <th className="legacy-grid-header w-28 text-right">AMT SPENT</th>
-              <th className="legacy-grid-header w-24 text-right">TAXABLE AMT</th>
-              <th className="legacy-grid-header w-16 text-center">TAX %</th>
-              <th className="legacy-grid-header w-40">DISPOSITION</th>
-              <th className="legacy-grid-header w-24 text-right pr-4">SUBTOTAL</th>
+              <th className="border-r border-gray-400 p-2 w-12 text-center font-semibold">SELECT</th>
+              <th className="border-r border-gray-400 p-2 w-10 text-center font-semibold">S.No</th>
+              <th className="border-r border-gray-400 p-2 w-28 font-semibold">ITEM CODE</th>
+              <th className="border-r border-gray-400 p-2 w-32 font-semibold">BARCODE</th>
+              <th className="border-r border-gray-400 p-2 font-semibold">DESCRIPTION</th>
+              <th className="border-r border-gray-400 p-2 w-24 text-center font-semibold">INVOICED QTY</th>
+              <th className="border-r border-gray-400 p-2 w-24 text-center font-semibold">RETURN QTY</th>
+              <th className="border-r border-gray-400 p-2 w-24 text-right font-semibold">UNIT PRICE</th>
+              <th className="border-r border-gray-400 p-2 w-28 text-right font-semibold">AMT SPENT</th>
+              <th className="border-r border-gray-400 p-2 w-24 text-right font-semibold">TAXABLE AMT</th>
+              <th className="border-r border-gray-400 p-2 w-16 text-center font-semibold">TAX %</th>
+              <th className="border-r border-gray-400 p-2 w-40 font-semibold">DISPOSITION</th>
+              <th className="p-2 w-24 text-right pr-4 font-semibold">SUBTOTAL</th>
             </tr>
           </thead>
           <tbody>
             {itemsToReturn.length === 0 ? (
               <tr>
-                <td colSpan={13} className="text-center py-8 text-gray-400 italic text-sm">
+                <td colSpan={13} className="text-center py-8 text-gray-400 italic text-sm bg-slate-50">
                   Search and select an Original Invoice to populate items...
                 </td>
               </tr>
             ) : itemsToReturn.map((row, idx) => (
-              <tr key={row.id} className="hover:bg-red-50 border-b border-gray-200">
-                <td className="legacy-grid-cell text-center">
+              <tr key={row.id} className="hover:bg-yellow-50 border-b border-gray-300 focus-within:bg-blue-50 transition-colors">
+                <td className="border-r border-gray-300 p-2 text-center">
                   <input 
                     type="checkbox" 
-                    className="form-checkbox h-4.5 w-4.5 text-red-600 rounded cursor-pointer"
+                    className="form-checkbox h-4 w-4 text-blue-600 rounded cursor-pointer"
                     checked={!!row.isSelected}
                     onChange={e => handleGridChange(row.id, 'isSelected', e.target.checked)}
                   />
                 </td>
-                <td className="legacy-grid-cell text-center text-gray-500 font-mono text-xs">{row.id}</td>
-                <td className="legacy-grid-cell font-mono text-xs text-gray-700">{row.itemCode}</td>
-                <td className="legacy-grid-cell font-mono text-xs text-blue-900 bg-slate-50">{row.barcode || '-'}</td>
-                <td className="legacy-grid-cell font-semibold text-gray-800 text-xs">{row.itemName}</td>
-                <td className="legacy-grid-cell text-center bg-gray-50 font-bold text-gray-600">{row.invoicedQty}</td>
-                <td className="legacy-grid-cell p-0 relative">
+                <td className="border-r border-gray-300 p-2 text-center text-gray-500 font-mono">{row.id}</td>
+                <td className="border-r border-gray-300 p-2 font-mono text-gray-700">{row.itemCode}</td>
+                <td className="border-r border-gray-300 p-2 font-mono text-blue-900 bg-slate-50">{row.barcode || '-'}</td>
+                <td className="border-r border-gray-300 p-2 font-semibold text-gray-800">{row.itemName}</td>
+                <td className="border-r border-gray-300 p-2 text-center bg-gray-50 font-bold text-gray-600">{row.invoicedQty}</td>
+                <td className="border-r border-gray-300 p-0 relative">
                   <input 
                     id={`grid-input-${idx}-0`}
                     type="number" 
@@ -751,22 +772,22 @@ const SalesReturn = () => {
                     max={row.invoicedQty}
                     step="1"
                     disabled={!row.isSelected}
-                    className={`w-full h-full p-1 text-center font-bold outline-none focus:bg-yellow-100 ${!row.isSelected ? 'bg-slate-100/50 text-slate-400 cursor-not-allowed' : (row.returnQty > row.invoicedQty ? 'border-2 border-red-500 bg-red-100 text-red-700' : 'border-none')}`} 
+                    className={`w-full h-full p-2 text-center font-bold outline-none focus:bg-yellow-100 ${!row.isSelected ? 'bg-slate-100/50 text-slate-400 cursor-not-allowed' : (row.returnQty > row.invoicedQty ? 'border-2 border-red-500 bg-red-100 text-red-700' : 'border-none')}`} 
                     value={row.returnQty || ''} 
                     onChange={e => handleGridChange(row.id, 'returnQty', e.target.value)} 
                     onKeyDown={e => handleGridKeyDown(e, idx, 0)}
                   />
                 </td>
-                <td className="legacy-grid-cell text-right text-gray-600">{row.unitPrice.toFixed(2)}</td>
-                <td className="legacy-grid-cell text-right bg-slate-50 font-mono text-slate-700">
+                <td className="border-r border-gray-300 p-2 text-right text-gray-600 font-mono">₹{row.unitPrice.toFixed(2)}</td>
+                <td className="border-r border-gray-300 p-2 text-right bg-slate-50 font-mono text-slate-700">
                   ₹{((row._originalTaxable * (1 + row.taxPercent / 100)) || 0).toFixed(2)}
                 </td>
-                <td className="legacy-grid-cell text-right bg-red-50/50 font-semibold text-red-900">{row.taxableAmt.toFixed(2)}</td>
-                <td className="legacy-grid-cell text-center text-gray-600 text-[10px]">{row.taxPercent.toFixed(1)}%</td>
-                <td className="legacy-grid-cell p-0">
+                <td className="border-r border-gray-300 p-2 text-right bg-red-50/50 font-semibold text-red-900 font-mono">₹{row.taxableAmt.toFixed(2)}</td>
+                <td className="border-r border-gray-300 p-2 text-center text-gray-600 font-mono">{row.taxPercent.toFixed(1)}%</td>
+                <td className="border-r border-gray-300 p-0">
                   <select 
                     id={`grid-input-${idx}-1`}
-                    className="w-full h-full p-1 border-none outline-none text-xs focus:bg-yellow-100" 
+                    className="w-full h-full p-2 border-none outline-none focus:bg-yellow-100 bg-white text-xs" 
                     value={row.disposition} 
                     onChange={e => handleGridChange(row.id, 'disposition', e.target.value)}
                     onKeyDown={e => handleGridKeyDown(e, idx, 1)}
@@ -776,7 +797,7 @@ const SalesReturn = () => {
                     <option>Defective / Damaged</option>
                   </select>
                 </td>
-                <td className="legacy-grid-cell text-right bg-gray-100 font-bold text-gray-800 pr-4">{row.subtotal.toFixed(2)}</td>
+                <td className="p-2 text-right bg-gray-100 font-bold text-gray-800 pr-4 font-mono">₹{row.subtotal.toFixed(2)}</td>
               </tr>
             ))}
           </tbody>
@@ -823,18 +844,18 @@ const SalesReturn = () => {
           </div>
           
           <div className="overflow-x-auto max-h-[160px] bg-white rounded border border-gray-200">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead className="bg-[#f0f4f8] sticky top-0 z-10">
+            <table className="w-full text-left border-collapse text-xs whitespace-nowrap min-w-max">
+              <thead className="bg-[#2b579a] text-white sticky top-0 z-10">
                 <tr>
-                  <th className="p-2 border border-gray-300 w-10 text-center">#</th>
-                  <th className="p-2 border border-gray-300 w-24">Item Code</th>
-                  <th className="p-2 border border-gray-300">Name</th>
-                  <th className="p-2 border border-gray-300 w-24 text-center">Qty</th>
-                  <th className="p-2 border border-gray-300 w-28 text-right">Unit Price</th>
-                  <th className="p-2 border border-gray-300 w-20 text-center">Tax %</th>
-                  <th className="p-2 border border-gray-300 w-28 text-right">Taxable</th>
-                  <th className="p-2 border border-gray-300 w-28 text-right">Subtotal</th>
-                  <th className="p-2 border border-gray-300 w-20 text-center">Action</th>
+                  <th className="border-r border-gray-400 p-2 w-10 text-center font-semibold">S.No</th>
+                  <th className="border-r border-gray-400 p-2 w-24 font-semibold">Item Code</th>
+                  <th className="border-r border-gray-400 p-2 font-semibold">Name</th>
+                  <th className="border-r border-gray-400 p-2 w-24 text-center font-semibold">Qty</th>
+                  <th className="border-r border-gray-400 p-2 w-28 text-right font-semibold">Unit Price</th>
+                  <th className="border-r border-gray-400 p-2 w-20 text-center font-semibold">Tax %</th>
+                  <th className="border-r border-gray-400 p-2 w-28 text-right font-semibold">Taxable</th>
+                  <th className="border-r border-gray-400 p-2 w-28 text-right font-semibold">Subtotal</th>
+                  <th className="p-2 w-20 text-center font-semibold">Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -845,36 +866,36 @@ const SalesReturn = () => {
                     </td>
                   </tr>
                 ) : replacementItems.map((row, idx) => (
-                  <tr key={row.id} className="hover:bg-slate-50 border-b border-gray-200">
-                    <td className="p-2 border-r border-gray-200 text-center font-mono text-gray-500">{idx + 1}</td>
-                    <td className="p-2 border-r border-gray-200 font-mono text-gray-600">{row.itemCode}</td>
-                    <td className="p-2 border-r border-gray-200 font-semibold text-gray-800">{row.itemName}</td>
-                    <td className="p-0 border-r border-gray-200 w-24">
+                  <tr key={row.id} className="hover:bg-yellow-50 border-b border-gray-300 transition-colors">
+                    <td className="p-2 border-r border-gray-300 text-center font-mono text-gray-500 bg-gray-50">{idx + 1}</td>
+                    <td className="p-2 border-r border-gray-300 font-mono text-gray-600">{row.itemCode}</td>
+                    <td className="p-2 border-r border-gray-300 font-semibold text-gray-800">{row.itemName}</td>
+                    <td className="p-0 border-r border-gray-300 w-24">
                       <input
                         type="number"
                         min="1"
-                        className="w-full p-1.5 text-center font-bold outline-none border-none focus:bg-yellow-100"
+                        className="w-full p-2 text-center font-bold outline-none border-none focus:bg-yellow-100"
                         value={row.qty}
                         onChange={e => handleReplacementGridChange(row.id, 'qty', e.target.value)}
                       />
                     </td>
-                    <td className="p-0 border-r border-gray-200 w-28">
+                    <td className="p-0 border-r border-gray-300 w-28">
                       <input
                         type="number"
                         min="0"
                         step="0.01"
-                        className="w-full p-1.5 text-right font-mono outline-none border-none focus:bg-yellow-100"
+                        className="w-full p-2 text-right font-mono outline-none border-none focus:bg-yellow-100"
                         value={row.unitPrice}
                         onChange={e => handleReplacementGridChange(row.id, 'unitPrice', e.target.value)}
                       />
                     </td>
-                    <td className="p-2 border-r border-gray-200 text-center font-mono text-gray-600">{row.taxPercent.toFixed(1)}%</td>
-                    <td className="p-2 border-r border-gray-200 text-right font-mono text-gray-600">₹{row.taxableAmt.toFixed(2)}</td>
-                    <td className="p-2 border-r border-gray-200 text-right font-mono font-bold text-slate-800">₹{row.subtotal.toFixed(2)}</td>
-                    <td className="p-1 text-center">
+                    <td className="p-2 border-r border-gray-300 text-center font-mono text-gray-600">{row.taxPercent.toFixed(1)}%</td>
+                    <td className="p-2 border-r border-gray-300 text-right font-mono text-gray-600">₹{row.taxableAmt.toFixed(2)}</td>
+                    <td className="p-2 border-r border-gray-300 text-right font-mono font-bold text-slate-800">₹{row.subtotal.toFixed(2)}</td>
+                    <td className="p-1 text-center bg-gray-50">
                       <button
                         onClick={() => handleDeleteReplacementItem(row.id)}
-                        className="bg-red-50 hover:bg-red-100 text-red-600 px-2 py-1 rounded text-[10px] font-bold border border-red-200 shadow-sm"
+                        className="bg-red-50 hover:bg-red-100 text-red-600 px-2 py-1 rounded text-[10px] font-bold border border-red-200 shadow-sm transition-colors"
                       >
                         Delete
                       </button>
@@ -889,22 +910,8 @@ const SalesReturn = () => {
 
       {/* 4. Bottom Summary Stack and Action Footer */}
       <div className="flex justify-between items-end pt-2 pb-1 gap-4">
-        {/* Action Buttons Container */}
-        <div className="flex flex-col space-y-2 mb-1 ml-2">
-          <button 
-            id="save-credit-note-btn" 
-            onClick={handleSaveClick} 
-            className="bg-red-600 text-white font-bold px-6 py-2.5 rounded-md shadow-md border border-red-800 hover:bg-red-700 focus:ring-2 focus:ring-red-400 focus:outline-none transition-all flex items-center space-x-2"
-          >
-            <span>{returnType === 'Exchange (Replacement)' ? 'Confirm Exchange (CTRL+S)' : 'Confirm Return (CTRL+S)'}</span>
-          </button>
-          <button 
-            onClick={handleCancelClick} 
-            className="bg-gray-200 text-gray-800 font-bold px-6 py-2.5 rounded-md shadow-sm border border-gray-400 hover:bg-gray-300 transition-all text-center"
-          >
-            Cancel (ESC)
-          </button>
-        </div>
+        {/* Spacer for layout structure */}
+        <div className="flex-1"></div>
 
         {/* Financial Adjustments Pane (Exchanges only) */}
         {returnType === 'Exchange (Replacement)' && (
@@ -978,7 +985,7 @@ const SalesReturn = () => {
 
       {/* Invoice Search Modal */}
       {isInvoiceSearchOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40" onClick={() => setIsInvoiceSearchOpen(false)}>
+        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setIsInvoiceSearchOpen(false)}>
           <div className="bg-white shadow-2xl flex flex-col border border-gray-500 rounded w-1/2 max-h-[60vh] overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="bg-[#385386] text-white px-3 py-2 flex justify-between items-center shadow-sm">
               <span className="font-bold text-sm">Select Original Invoice</span>

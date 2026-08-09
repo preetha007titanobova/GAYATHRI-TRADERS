@@ -1,4 +1,5 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { useEffect } from 'react';
 import Layout from './components/Layout';
 
 // Modules
@@ -7,9 +8,11 @@ import LedgerMaster from './pages/LedgerMaster';
 import ItemMaster from './pages/ItemMaster';
 import Backup from './pages/Backup';
 import Quotation from './pages/Quotation';
+import QuotationRegister from './pages/QuotationRegister';
 import SalesOrder from './pages/SalesOrder';
 import SalesReturn from './pages/SalesReturn';
 import BarcodeGeneration from './pages/BarcodeGeneration';
+import BarcodeRegister from './pages/BarcodeRegister';
 import SalesRegister from './pages/SalesRegister';
 import SalesStatus from './pages/SalesStatus';
 import PurchaseBill from './pages/PurchaseBill';
@@ -30,19 +33,35 @@ import BalanceSheet from './pages/BalanceSheet';
 import StaffMaster from './pages/StaffMaster';
 import StaffAttendance from './pages/StaffAttendance';
 import ModernErpLayout from './pages/ModernErpLayout';
+import ModernPOSCheckout from './pages/ModernPOSCheckout';
+import { ThermalBillingForm } from './components/printing/ThermalBillingForm';
+import { OpeningCashStatus } from './pages/OpeningCashStatus';
+import Activation from './pages/Activation';
+import License from './pages/License';
 
 function App() {
+  useEffect(() => {
+    if ((window as any).api) {
+      (window as any).api.send('app-ready');
+    }
+  }, []);
+
   return (
     <Router>
       <Routes>
         <Route path="/" element={<Layout />}>
           <Route index element={<Navigate to="/sales-bill" replace />} />
           <Route path="pos" element={<Navigate to="/sales-bill" replace />} />
+          <Route path="sales-bill" element={<POSCheckout />} />
+          <Route path="pos-legacy" element={<POSCheckout />} />
+          <Route path="pos-modern" element={<ModernPOSCheckout />} />
           
           {/* Master */}
+          <Route path="opening-cash" element={<OpeningCashStatus />} />
           <Route path="ledger-master" element={<LedgerMaster />} />
           <Route path="item-master" element={<ItemMaster />} />
           <Route path="barcode-generation" element={<BarcodeGeneration />} />
+          <Route path="barcode-register" element={<BarcodeRegister />} />
           <Route path="backup" element={<Backup />} />
           
           {/* Admin & Staff */}
@@ -51,6 +70,7 @@ function App() {
           
           {/* Sales */}
           <Route path="quotation" element={<Quotation />} />
+          <Route path="quotation-register" element={<QuotationRegister />} />
           <Route path="sales-order" element={<SalesOrder />} />
           <Route path="sales-bill" element={<POSCheckout />} />
           <Route path="sales-return" element={<SalesReturn />} />
@@ -76,8 +96,12 @@ function App() {
           <Route path="trial-b-s" element={<TrialBS />} />
           <Route path="p-l-statment" element={<PLStatement />} />
           <Route path="balance-sheet" element={<BalanceSheet />} />
+          <Route path="license" element={<License />} />
         </Route>
+        <Route path="/pos-modern" element={<ModernPOSCheckout />} />
+        <Route path="/thermal-billing" element={<ThermalBillingForm />} />
         <Route path="/modern" element={<ModernErpLayout />} />
+        <Route path="/activation" element={<Activation />} />
       </Routes>
     </Router>
   );

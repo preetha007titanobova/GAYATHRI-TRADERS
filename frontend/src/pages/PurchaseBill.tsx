@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useOutletContext, useLocation, useNavigate } from 'react-router-dom';
 import type { ToolbarActions } from '../components/Layout';
 import { Plus, Trash2, Edit, Search } from 'lucide-react';
@@ -12,11 +12,13 @@ interface PurchaseItem {
   itemName: string;
   size: string;
   variety: string;
+  color?: string;
   category: string;
   itemDesc: string;
   hsn: string;
   factory: string;
   qty: number;
+  freeQty?: number;
   unitPrice: number;
   salesRate: number;
   mrp: number;
@@ -38,10 +40,17 @@ const PurchaseBill = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'split' | 'form-only' | 'table-only'>('split');
+  const [viewMode, setViewMode] = useState<'split' | 'form-only' | 'table-only'>('form-only');
   const [billSearchQuery, setBillSearchQuery] = useState('');
   const [sidebarTab, setSidebarTab] = useState<'bills' | 'items'>('bills');
   const [itemSearchQuery, setItemSearchQuery] = useState('');
+
+  // Dress Selection Modal state
+  const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+  const [modalSearchQuery, setModalSearchQuery] = useState('');
+  const [activeRowId, setActiveRowId] = useState<string | null>(null);
+  const [highlightedProductIndex, setHighlightedProductIndex] = useState(0);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   
   // Header State
   const [billNo, setBillNo] = useState('Loading...');
@@ -50,11 +59,78 @@ const PurchaseBill = () => {
   const [gstin, setGstin] = useState('');
   const [supplyPlace, setSupplyPlace] = useState('Tamil Nadu');
   const [vendorName, setVendorName] = useState('');
+  const [supplierInvoiceNo, setSupplierInvoiceNo] = useState('');
+  const [supplierInvoiceDate, setSupplierInvoiceDate] = useState(new Date().toISOString().split('T')[0]);
   
   const [vendors, setVendors] = useState<{id: string, name: string, gstin: string, state: string}[]>([]);
   const [dbProducts, setDbProducts] = useState<any[]>([]);
   const [savedBills, setSavedBills] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [scanInput, setScanInput] = useState('');
+  const scanInputRef = useRef<HTMLInputElement>(null);
+  const [isQuickAddModalOpen, setIsQuickAddModalOpen] = useState(false);
+  const [quickAddForm, setQuickAddForm] = useState({
+    barcode: '',
+    itemCode: '',
+    name: '',
+    size: 'L',
+    variety: 'Standard',
+    department: 'Mens',
+    purchaseRate: 0,
+    price: 0,
+    mrp: 0,
+    taxPercent: 18,
+    factory: '',
+    qty: 1
+  });
+
+  // Filter products for the modal search list
+  const modalFilteredProducts = useMemo(() => {
+    const q = modalSearchQuery.toLowerCase().trim();
+    if (!q) return dbProducts;
+    return dbProducts.filter(p => 
+      p.name?.toLowerCase().includes(q) ||
+      p.itemCode?.toLowerCase().includes(q) ||
+      p.barcode?.toLowerCase().includes(q) ||
+      p.variety?.toLowerCase().includes(q) ||
+      p.size?.toLowerCase().includes(q)
+    );
+  }, [dbProducts, modalSearchQuery]);
+
+  // Handle select product from modal
+  const selectProductFromModal = (prod: any) => {
+    if (!activeRowId) return;
+    updateItem(activeRowId, 'itemCode', prod.itemCode || '');
+    setIsProductModalOpen(false);
+    setModalSearchQuery('');
+  };
+
+  // Handle keyboard events in modal search
+  const handleModalKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightedProductIndex(prev => Math.min(prev + 1, modalFilteredProducts.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightedProductIndex(prev => Math.max(0, prev - 1));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (modalFilteredProducts[highlightedProductIndex]) {
+        selectProductFromModal(modalFilteredProducts[highlightedProductIndex]);
+      }
+    } else if (e.key === 'Escape') {
+      setIsProductModalOpen(false);
+    }
+  };
+
+  // Focus modal input on open
+  useEffect(() => {
+    if (isProductModalOpen) {
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 50);
+    }
+  }, [isProductModalOpen]);
 
   // Load vendors from Database on mount
   const fetchVendors = async () => {
@@ -75,16 +151,18 @@ const PurchaseBill = () => {
     }
   };
 
-  // Load products from DB on mount for local suggestion and fast search
-  const fetchProducts = async () => {
-    try {
-      const res = await fetch(`${Api}/products/search?q=`);
-      if (res.ok) {
-        const data = await res.json();
-        setDbProducts(data);
-      }
-    } catch (err) {
-      console.error("Error loading products", err);
+  const handleVendorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setVendorName(val);
+    
+    // Check if the typed value matches any vendor in the list
+    const foundVendor = vendors.find(v => v.name.toLowerCase() === val.toLowerCase());
+    if (foundVendor) {
+      setVendorId(foundVendor.id);
+      setGstin(foundVendor.gstin);
+      setSupplyPlace(foundVendor.state);
+    } else {
+      setVendorId('');
     }
   };
 
@@ -116,27 +194,234 @@ const PurchaseBill = () => {
     }
   };
 
+  // Fetch all products from DB for lookup and sidebar list
+  const fetchProducts = async () => {
+    try {
+      const res = await fetch(`${Api}/products/search?q=`);
+      if (res.ok) {
+        const data = await res.json();
+        setDbProducts(data);
+      }
+    } catch (err) {
+      console.error("Error fetching products", err);
+    }
+  };
+
+  // Auto-save/update product to the master catalog (Product database)
+  const saveProductToDb = async (item: PurchaseItem) => {
+    if (!item.itemCode || !item.itemCode.trim()) return;
+
+    try {
+      const checkRes = await fetch(`${Api}/products/barcode/${encodeURIComponent(item.itemCode.trim())}`);
+      let url = `${Api}/products`;
+      let method = 'POST';
+      let existingStock = 0;
+
+      if (checkRes.ok) {
+        const existingProduct = await checkRes.json();
+        if (existingProduct) {
+          url = `${Api}/products/${existingProduct.id || existingProduct._id}`;
+          method = 'PUT';
+          existingStock = existingProduct.stock || 0;
+        }
+      }
+
+      const payload = {
+        itemCode: item.itemCode.trim().toUpperCase(),
+        name: (item.itemDesc || item.itemName || item.itemCode).trim(),
+        barcode: item.itemCode.trim(),
+        size: item.size || '',
+        variety: item.variety || '',
+        department: item.category || 'None',
+        purchaseRate: Number(item.unitPrice) || 0,
+        price: Number(item.salesRate) || Number(item.unitPrice) || 0,
+        mrp: Number(item.mrp) || Number(item.unitPrice) || 0,
+        taxPercent: Number(item.taxPercent) || 18,
+        factory: item.factory || '',
+        stock: method === 'POST' ? 0 : existingStock,
+        uom: 'PCS'
+      };
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        fetchProducts();
+      }
+    } catch (err) {
+      console.error("Error auto-saving product to master:", err);
+    }
+  };
+
   useEffect(() => {
     fetchVendors();
-    fetchProducts();
     fetchNextVoucher();
     fetchSavedBills();
+    fetchProducts();
   }, []);
 
   // Parse state for editing bill passed from register
   useEffect(() => {
     const editBill = location.state?.editBill;
-    if (editBill && vendors.length > 0) {
+    if (editBill) {
       handleEditBill(editBill);
     }
-  }, [location.state, vendors]);
+  }, [location.state]);
+
+  useEffect(() => {
+    scanInputRef.current?.focus();
+  }, []);
+
+  // Global scanner listener: redirects focus to the barcode scanner field when user starts typing (and is not editing another input)
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      const activeElem = document.activeElement;
+      
+      // If the user is currently editing an input, select dropdown, or textarea, let them work normally.
+      if (
+        activeElem &&
+        (activeElem.tagName === 'INPUT' ||
+          activeElem.tagName === 'SELECT' ||
+          activeElem.tagName === 'TEXTAREA') &&
+        activeElem !== scanInputRef.current
+      ) {
+        return;
+      }
+
+      // Ignore common modifier key actions (Ctrl+C, Ctrl+V, Alt, etc.)
+      if (e.ctrlKey || e.altKey || e.metaKey || e.key === 'Shift' || e.key === 'Control' || e.key === 'Alt') {
+        return;
+      }
+
+      // Redirect focus to scanner input field
+      if (scanInputRef.current && document.activeElement !== scanInputRef.current) {
+        scanInputRef.current.focus();
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
+
+  const handleQuickAddSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickAddForm.name.trim()) {
+      setGlobalNotification({ msg: "Product Name is required.", type: 'error' });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      // 1. Save product to database Product Register
+      const response = await fetch(`${Api}/products`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          itemCode: quickAddForm.itemCode,
+          name: quickAddForm.name.trim(),
+          barcode: quickAddForm.barcode.trim(),
+          size: quickAddForm.size,
+          variety: quickAddForm.variety,
+          department: quickAddForm.department,
+          purchaseRate: quickAddForm.purchaseRate,
+          price: quickAddForm.price,
+          mrp: quickAddForm.mrp,
+          taxPercent: quickAddForm.taxPercent,
+          factory: quickAddForm.factory || '',
+          stock: 0, // Stock is incremented by the purchase bill save itself!
+          uom: 'PCS'
+        })
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to save product');
+      }
+
+      // 2. Add product to active bill items grid
+      const newItem: PurchaseItem = {
+        id: Math.random().toString(),
+        itemCode: quickAddForm.itemCode,
+        vendorItemCode: '',
+        itemName: quickAddForm.name.trim(),
+        size: quickAddForm.size,
+        variety: quickAddForm.variety,
+        color: '',
+        category: quickAddForm.department,
+        itemDesc: quickAddForm.name.trim(),
+        hsn: quickAddForm.barcode.trim(),
+        factory: quickAddForm.factory || '',
+        qty: Number(quickAddForm.qty) || 1,
+        freeQty: 0,
+        unitPrice: Number(quickAddForm.purchaseRate) || 0,
+        salesRate: Number(quickAddForm.price) || 0,
+        mrp: Number(quickAddForm.mrp) || 0,
+        discPercent: 0,
+        taxPercent: Number(quickAddForm.taxPercent) || 18,
+        cgstAmt: 0,
+        sgstAmt: 0,
+        igstAmt: 0,
+        total: 0
+      };
+
+      const calculated = calculateItemValues(newItem, supplyPlace);
+      setItems(prev => [...prev, calculated]);
+      
+      setGlobalNotification({
+        msg: `Product ${quickAddForm.name} registered and added to bill successfully!`,
+        type: 'success'
+      });
+      setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
+      
+      setIsQuickAddModalOpen(false);
+      fetchProducts();
+    } catch (err: any) {
+      console.error(err);
+      setGlobalNotification({ msg: `Error creating product: ${err.message}`, type: 'error' });
+      setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
+    } finally {
+      setLoading(false);
+      // Keep scanner focused
+      setTimeout(() => {
+        scanInputRef.current?.focus();
+      }, 100);
+    }
+  };
 
   // Modal State
   const [isVendorModalOpen, setIsVendorModalOpen] = useState(false);
   const [newVendorForm, setNewVendorForm] = useState({ name: '', gstin: '', state: 'Tamil Nadu' });
 
-  // Grid State
-  const [items, setItems] = useState<PurchaseItem[]>([]);
+  const createBlankRow = (): PurchaseItem => ({
+    id: Math.random().toString(36).substring(2, 15),
+    itemCode: '',
+    vendorItemCode: '',
+    itemName: '',
+    size: '',
+    variety: '',
+    category: 'None',
+    itemDesc: '',
+    hsn: '',
+    factory: '',
+    qty: 1,
+    freeQty: 0,
+    unitPrice: 0,
+    salesRate: 0,
+    mrp: 0,
+    discPercent: 0,
+    taxPercent: 18,
+    cgstAmt: 0,
+    sgstAmt: 0,
+    igstAmt: 0,
+    total: 0,
+    isManualItem: false
+  });
+
+  // Grid State - initialized with 1 default blank row
+  const [items, setItems] = useState<PurchaseItem[]>([createBlankRow()]);
   
   // Calculate Totals
   const subTotal = items.reduce((acc, curr) => acc + (curr.qty * curr.unitPrice), 0);
@@ -196,6 +481,167 @@ const PurchaseBill = () => {
     };
   };
 
+  const triggerScannerScan = async (code: string) => {
+    if (!code) return;
+
+    try {
+      setLoading(true);
+      const res = await fetch(`${Api}/products/barcode/${encodeURIComponent(code)}`);
+      if (!res.ok) {
+        if (res.status === 404) {
+          // Fetch next available system item code
+          try {
+            const codeRes = await fetch(`${Api}/products/next-code`);
+            let nextItemCode = 'ITM-1000';
+            if (codeRes.ok) {
+              const codeData = await codeRes.json();
+              if (codeData.itemCode) nextItemCode = codeData.itemCode;
+            }
+            setQuickAddForm({
+              barcode: code,
+              itemCode: nextItemCode,
+              name: '',
+              size: 'L',
+              variety: 'Standard',
+              department: 'Mens',
+              purchaseRate: 0,
+              price: 0,
+              mrp: 0,
+              taxPercent: 18,
+              factory: '',
+              qty: 1
+            });
+            setIsQuickAddModalOpen(true);
+          } catch (ce) {
+            console.error("Failed to fetch next sequence code:", ce);
+          }
+        } else {
+          setGlobalNotification({ msg: "Error fetching product.", type: 'error' });
+          setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
+        }
+        return;
+      }
+
+      const product = await res.json();
+      if (product) {
+        // Check if item already exists in purchase items
+        const existingItemIndex = items.findIndex(item => item.itemCode.toUpperCase() === product.itemCode.toUpperCase());
+        
+        if (existingItemIndex > -1) {
+          // Increment quantity
+          setItems(prev => prev.map((item, idx) => {
+            if (idx === existingItemIndex) {
+              const updatedQty = item.qty + 1;
+              return calculateItemValues({ ...item, qty: updatedQty }, supplyPlace);
+            }
+            return item;
+          }));
+          setGlobalNotification({
+            msg: `Increased quantity of ${product.name} to ${items[existingItemIndex].qty + 1}`,
+            type: 'success'
+          });
+          setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 2000);
+        } else {
+          // Add new row
+          const newItem: PurchaseItem = {
+            id: Math.random().toString(),
+            itemCode: product.itemCode,
+            vendorItemCode: product.vendorItemCode || '',
+            itemName: product.name,
+            size: product.size || '',
+            variety: product.variety || '',
+            category: product.department || 'None',
+            itemDesc: product.name,
+            hsn: product.barcode || '',
+            factory: product.factory || '',
+            qty: 1,
+            unitPrice: product.purchaseRate || 0,
+            salesRate: product.price || 0,
+            mrp: product.mrp || 0,
+            discPercent: 0,
+            taxPercent: product.taxPercent || 18,
+            cgstAmt: 0,
+            sgstAmt: 0,
+            igstAmt: 0,
+            total: 0
+          };
+          const calculated = calculateItemValues(newItem, supplyPlace);
+          setItems(prev => [...prev, calculated]);
+          setGlobalNotification({
+            msg: `Added product ${product.name} to purchase list`,
+            type: 'success'
+          });
+          setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 2000);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      setGlobalNotification({ msg: "Error searching barcode.", type: 'error' });
+      setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
+    } finally {
+      setLoading(false);
+      // Keep input focused
+      setTimeout(() => {
+        scanInputRef.current?.focus();
+      }, 100);
+    }
+  };
+
+  const handleBarcodeScan = async (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const code = scanInput.trim();
+      if (!code) return;
+      await triggerScannerScan(code);
+      setScanInput('');
+    }
+  };
+
+  // Global hardware barcode scanner keypress detector
+  const scannerBufferRef = useRef('');
+  const lastKeyTimeRef = useRef(0);
+
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      const activeElem = document.activeElement;
+
+      // Skip global intercept if they are typing inside the scan input itself
+      if (activeElem?.id === 'purchase-scan-input') {
+        return;
+      }
+
+      // Check if active element is a text input. If so, let them type normally.
+      // (Unless it is very fast scanner input, but standard inputs are bypassed)
+      const isInput = activeElem?.tagName === 'INPUT' || activeElem?.tagName === 'TEXTAREA' || activeElem?.tagName === 'SELECT';
+      if (isInput && scannerBufferRef.current.length === 0) {
+        // Let user type normally in normal input fields (except scan input)
+        return;
+      }
+
+      const currentTime = Date.now();
+      const timeDiff = currentTime - lastKeyTimeRef.current;
+      lastKeyTimeRef.current = currentTime;
+
+      if (timeDiff > 80 && scannerBufferRef.current.length < 5) {
+        scannerBufferRef.current = '';
+      }
+
+      if (e.key === 'Enter') {
+        if (scannerBufferRef.current.length >= 3) {
+          e.preventDefault();
+          const scannedCode = scannerBufferRef.current;
+          scannerBufferRef.current = '';
+          triggerScannerScan(scannedCode);
+        }
+      } else if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        scannerBufferRef.current += e.key;
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [vendorId, items, supplyPlace]);
+
   // Generate a unique sequential item code for a row
   const generateCodeForRow = async (rowId: string) => {
     try {
@@ -234,6 +680,11 @@ const PurchaseBill = () => {
       
       let updated = { ...item, [field]: value };
       
+      // Keep itemName and itemDesc in sync
+      if (field === 'itemDesc') {
+        updated.itemName = value;
+      }
+      
       // Auto-fill from DB products when itemCode changes
       if (field === 'itemCode') {
         const prod = dbProducts.find(p => p.itemCode?.toLowerCase() === value.trim().toLowerCase());
@@ -247,6 +698,8 @@ const PurchaseBill = () => {
           updated.taxPercent = prod.taxPercent || 18;
           updated.size = prod.size || '';
           updated.variety = prod.variety || '';
+          updated.color = '';
+          updated.freeQty = 0;
           updated.category = prod.department || 'None';
           updated.factory = prod.factory || '';
           updated.vendorItemCode = prod.vendorItemCode || '';
@@ -264,31 +717,47 @@ const PurchaseBill = () => {
   }, [supplyPlace]);
 
   const addRow = () => {
-    setItems([...items, {
-      id: Math.random().toString(),
-      itemCode: '', vendorItemCode: '', itemName: '', size: '', variety: '', category: 'None', itemDesc: '', hsn: '', factory: '', qty: 1, unitPrice: 0, salesRate: 0, mrp: 0, discPercent: 0,
-      taxPercent: 18, cgstAmt: 0, sgstAmt: 0, igstAmt: 0, total: 0, isManualItem: false
-    }]);
+    setItems(prev => [...prev, createBlankRow()]);
   };
 
   const removeRow = (id: string) => {
-    setItems(items.filter(item => item.id !== id));
+    setItems(prev => {
+      const filtered = prev.filter(item => item.id !== id);
+      return filtered.length === 0 ? [createBlankRow()] : filtered;
+    });
   };
 
   const clearForm = () => {
     setEditingId(null);
     fetchNextVoucher();
-    setItems([]);
+    setItems([createBlankRow()]);
     setVendorId('');
     setVendorName('');
     setGstin('');
     setSupplyPlace('Tamil Nadu');
+    setSupplierInvoiceNo('');
+    setSupplierInvoiceDate(new Date().toISOString().split('T')[0]);
     navigate('/purchase-bill', { state: null, replace: true });
+    setTimeout(() => {
+      scanInputRef.current?.focus();
+    }, 150);
   };
 
   // Keyboard navigation for fast data entry
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>, _idx?: number, _field?: string) => {
     if (e.key === 'Enter') {
+      if (_field === 'itemCode') {
+        const val = (e.target as HTMLInputElement).value.trim();
+        const found = dbProducts.find(p => p.itemCode?.toLowerCase() === val.toLowerCase() || p.barcode?.toLowerCase() === val.toLowerCase());
+        if (!found) {
+          e.preventDefault();
+          setActiveRowId(_idx !== undefined ? items[_idx].id : null);
+          setModalSearchQuery(val);
+          setHighlightedProductIndex(0);
+          setIsProductModalOpen(true);
+          return;
+        }
+      }
       e.preventDefault();
       const formElements = Array.from(
         document.querySelectorAll('table tbody input, table tbody select')
@@ -314,49 +783,96 @@ const PurchaseBill = () => {
   };
 
   // Handle Edit selection
-  const handleEditBill = (bill: any) => {
-    setEditingId(bill.id || bill._id);
-    setBillNo(bill.voucherNo);
-    setBillDate(bill.date ? bill.date.split('T')[0] : '');
-    setGstin(bill.supplierGstin || '');
-    setSupplyPlace(bill.type === 'Local' ? 'Tamil Nadu' : 'Other');
-    setVendorName(bill.supplierName);
-    
-    const foundVendor = vendors.find(v => v.name === bill.supplierName);
+  const handleEditBill = async (billInput: any) => {
+    if (!billInput) return;
+    let bill = billInput;
+    const bId = billInput.id || billInput._id || billInput.voucherNo;
+
+    if (bId) {
+      try {
+        const res = await fetch(`${Api}/purchase-bills/${encodeURIComponent(bId)}`);
+        if (res.ok) {
+          const fetched = await res.json();
+          if (fetched && (fetched.voucherNo || fetched.id || fetched._id)) {
+            bill = fetched;
+          }
+        }
+      } catch (err) {
+        console.warn("Could not fetch full purchase bill by ID, falling back to local object:", err);
+      }
+    }
+
+    setEditingId(bill.id || bill._id || bill.voucherNo);
+    setBillNo(bill.voucherNo || bill.billNo || '');
+
+    const rawDate = bill.date || bill.billDate || bill.createdAt;
+    setBillDate(rawDate ? String(rawDate).split('T')[0] : new Date().toISOString().split('T')[0]);
+
+    const sName = bill.supplierName || bill.vendorName || bill.buyerName || bill.supplier || bill.vendor || bill.accountName || '';
+    setVendorName(sName);
+
+    const sGstin = bill.supplierGstin || bill.vendorGstin || bill.gstin || bill.gstNo || '';
+    setGstin(sGstin);
+
+    const invNo = bill.supplierInvoiceNo || bill.invoiceNo || bill.billNo || bill.supplierBillNo || '';
+    setSupplierInvoiceNo(invNo && invNo !== 'N/A' ? invNo : '');
+
+    const rawInvDate = bill.supplierInvoiceDate || bill.invoiceDate || rawDate;
+    setSupplierInvoiceDate(rawInvDate ? String(rawInvDate).split('T')[0] : (rawDate ? String(rawDate).split('T')[0] : new Date().toISOString().split('T')[0]));
+
+    const isLocal = bill.type === 'Local' || bill.eType === 'Local' || bill.supplyPlace === 'Tamil Nadu' || bill.placeOfSupply === 'Tamil Nadu';
+    const currentSupplyPlace = isLocal ? 'Tamil Nadu' : 'Other State';
+    setSupplyPlace(currentSupplyPlace);
+
+    const foundVendor = vendors.find(v => v.name?.toLowerCase() === sName.toLowerCase());
     if (foundVendor) {
       setVendorId(foundVendor.id);
+      if (!sGstin && foundVendor.gstin) setGstin(foundVendor.gstin);
+    } else if (bill.vendorId) {
+      setVendorId(bill.vendorId);
     }
 
     if (bill.items && Array.isArray(bill.items)) {
       const mapped = bill.items.map((i: any) => {
         const prod = dbProducts.find(p => p.itemCode?.toLowerCase() === i.itemCode?.toLowerCase());
-        return {
-          id: i.id || Math.random().toString(),
-          itemCode: i.itemCode,
+        const rate = Number(i.rate || i.unitPrice || i.purchaseRate || prod?.purchaseRate || 0);
+        const salesRate = Number(i.sellingPrice || i.salesRate || prod?.price || rate);
+        const mrp = Number(i.mrp || prod?.mrp || salesRate || rate);
+        const qty = Number(i.qty || i.purchasedQty || 1);
+        const freeQty = Number(i.freeQty || 0);
+        const discPercent = Number(i.discPercent || i.discountPercent || 0);
+        const taxPercent = Number(i.taxPercent || i.taxRate || 18);
+
+        const rawItem: PurchaseItem = {
+          id: i.id || i._id || Math.random().toString(),
+          itemCode: i.itemCode || '',
           vendorItemCode: i.vendorItemCode || prod?.vendorItemCode || '',
-          itemName: i.itemName || i.itemDesc || i.itemCode,
-          size: i.size || '',
-          variety: i.variety || '',
-          category: i.category || 'None',
-          itemDesc: i.itemName || i.itemDesc || '',
-          hsn: i.hsn || '',
+          itemName: i.itemName || i.itemDesc || i.itemCode || '',
+          size: i.size || prod?.size || '',
+          variety: i.variety || prod?.variety || '',
+          category: i.category || i.department || prod?.department || 'None',
+          itemDesc: i.itemName || i.itemDesc || i.itemCode || '',
+          hsn: i.hsn || i.barcode || prod?.barcode || '',
           factory: i.factory || prod?.factory || '',
-          qty: i.qty || i.purchasedQty || 0,
-          unitPrice: i.rate || i.unitPrice || 0,
-          salesRate: i.salesRate || prod?.price || i.rate || i.unitPrice || 0,
-          mrp: i.mrp || prod?.mrp || i.rate || i.unitPrice || 0,
-          discPercent: i.discPercent || 0,
-          taxPercent: i.taxPercent || 18,
-          cgstAmt: i.cgst || 0,
-          sgstAmt: i.sgst || 0,
-          igstAmt: i.igst || 0,
-          total: i.total || 0,
+          qty: qty,
+          freeQty: freeQty,
+          unitPrice: rate,
+          salesRate: salesRate,
+          mrp: mrp,
+          discPercent: discPercent,
+          taxPercent: taxPercent,
+          cgstAmt: Number(i.cgst || i.cgstAmt || 0),
+          sgstAmt: Number(i.sgst || i.sgstAmt || 0),
+          igstAmt: Number(i.igst || i.igstAmt || 0),
+          total: Number(i.total || i.lineTotal || 0),
           isManualItem: !prod
         };
+
+        return calculateItemValues(rawItem, currentSupplyPlace);
       });
       setItems(mapped);
     }
-    setGlobalNotification({ msg: `Voucher ${bill.voucherNo} loaded for editing`, type: 'info' });
+    setGlobalNotification({ msg: `Voucher ${bill.voucherNo || ''} loaded for editing`, type: 'info' });
   };
 
   // Handle Delete selection
@@ -373,6 +889,7 @@ const PurchaseBill = () => {
           clearForm();
         }
         fetchSavedBills();
+        fetchProducts();
       } else {
         setGlobalNotification({ msg: 'Failed to delete: ' + data.error, type: 'error' });
       }
@@ -384,8 +901,8 @@ const PurchaseBill = () => {
 
   // Save/Update Handler
   const handleSaveBill = async () => {
-    if (!vendorId) {
-      return setGlobalNotification({ msg: 'Please select vendor.', type: 'error' });
+    if (!vendorName.trim()) {
+      return setGlobalNotification({ msg: 'Please enter vendor name.', type: 'error' });
     }
     if (items.length === 0) {
       return setGlobalNotification({ msg: 'Please add at least one item.', type: 'error' });
@@ -398,14 +915,18 @@ const PurchaseBill = () => {
     const payload = {
       voucherNo: billNo,
       date: billDate,
-      supplierInvoiceNo: 'N/A',
+      supplierInvoiceNo: supplierInvoiceNo || 'N/A',
+      supplierInvoiceDate: supplierInvoiceDate || null,
       supplierName: vendorName,
       supplierGstin: gstin,
+      vendorId: vendorId,
       taxableAmt: taxableTotal,
       cgst: totalCgst,
       sgst: totalSgst,
       igst: totalIgst,
       otherCharges: roundedOff,
+      discount: discTotal,
+      roundOff: roundedOff,
       netPayable: grandTotal,
       status: 'Paid',
       type: supplyPlace.toLowerCase() === 'tamil nadu' ? 'Local' : 'Central',
@@ -413,18 +934,21 @@ const PurchaseBill = () => {
       items: items.map(i => ({
         itemCode: i.itemCode.trim().toUpperCase(),
         vendorItemCode: i.vendorItemCode ? i.vendorItemCode.trim() : '',
-        itemName: i.itemDesc || i.itemCode,
+        itemName: i.itemName || i.itemDesc || i.itemCode,
         itemDesc: i.itemDesc,
         size: i.size,
         variety: i.variety,
+        color: i.color || '',
         category: i.category,
         factory: i.factory,
         qty: i.qty,
+        freeQty: i.freeQty || 0,
         rate: i.unitPrice,
-        salesRate: i.salesRate || i.unitPrice,
+        sellingPrice: i.salesRate || i.unitPrice,
         mrp: i.mrp || i.unitPrice,
         taxPercent: i.taxPercent,
         discPercent: i.discPercent,
+        discount: i.qty * i.unitPrice * (i.discPercent / 100),
         total: i.total
       }))
     };
@@ -447,8 +971,8 @@ const PurchaseBill = () => {
           type: 'success' 
         });
         clearForm();
-        fetchProducts(); 
         fetchSavedBills();
+        fetchProducts();
       } else {
         setGlobalNotification({ msg: 'Error saving purchase bill: ' + data.error, type: 'error' });
       }
@@ -489,7 +1013,7 @@ const PurchaseBill = () => {
       if (data.success) {
         setGlobalNotification({ msg: 'New vendor added to database successfully', type: 'success' });
         await fetchVendors();
-        setVendorId(data.ledger.id || data.ledger.ledgerCode);
+        setVendorId(data.ledger._id || data.ledger.id || data.ledger.ledgerCode);
         setIsVendorModalOpen(false);
         setNewVendorForm({ name: '', gstin: '', state: 'Tamil Nadu' });
       } else {
@@ -558,11 +1082,13 @@ const PurchaseBill = () => {
       itemName: prod.name || '',
       size: prod.size || '',
       variety: prod.variety || '',
+      color: '',
       category: prod.department || 'None',
       itemDesc: prod.name || '',
       hsn: prod.barcode || '',
       factory: prod.factory || '',
       qty: 1,
+      freeQty: 0,
       unitPrice: prod.purchaseRate || 0,
       salesRate: prod.price || 0,
       mrp: prod.mrp || 0,
@@ -583,14 +1109,31 @@ const PurchaseBill = () => {
 
   return (
     <div className="flex flex-col h-full bg-[#f0f9f4] relative overflow-hidden">
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          height: 6px;
+          width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: #f8fafc;
+          border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #cbd5e1;
+          border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: #94a3b8;
+        }
+      `}</style>
       
       {/* Header bar with layout switches */}
-      <div className="bg-gradient-to-r from-[#2b579a] to-[#3a75c4] text-white px-4 py-2 flex justify-between items-center shadow-md z-10 flex-shrink-0">
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white px-4 py-2 flex justify-between items-center shadow-md z-10 flex-shrink-0 border-b border-indigo-900/40">
         <span className="font-semibold text-lg tracking-wide flex items-center">
           Purchase Bill Entry 
-          <span className="font-light text-blue-200 text-sm ml-2">(Stock Inward Master)</span>
+          <span className="font-light text-slate-300 text-sm ml-2">(Stock Inward Master)</span>
           {editingId && (
-            <span className="text-xs font-bold text-red-600 bg-red-100 border border-red-200 px-2 py-0.5 rounded ml-3 shadow-sm">
+            <span className="text-xs font-black text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full ml-3 shadow-sm">
               EDIT MODE: {billNo}
             </span>
           )}
@@ -598,22 +1141,10 @@ const PurchaseBill = () => {
 
         <div className="flex items-center space-x-2">
           <button
-            onClick={() => setViewMode('split')}
-            className={`px-3 py-1 rounded text-xs font-semibold transition-colors shadow-sm ${viewMode === 'split' ? 'bg-blue-600 border border-blue-400 text-white' : 'bg-blue-800 hover:bg-blue-700 text-blue-100'}`}
+            onClick={() => setViewMode(viewMode === 'form-only' ? 'split' : 'form-only')}
+            className="px-4 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow transition-all border border-indigo-500 cursor-pointer"
           >
-            ◧ Split View
-          </button>
-          <button
-            onClick={() => setViewMode('form-only')}
-            className={`px-3 py-1 rounded text-xs font-semibold transition-colors shadow-sm ${viewMode === 'form-only' ? 'bg-blue-600 border border-blue-400 text-white' : 'bg-blue-800 hover:bg-blue-700 text-blue-100'}`}
-          >
-            ❌ Hide Table
-          </button>
-          <button
-            onClick={() => setViewMode('table-only')}
-            className={`px-3 py-1 rounded text-xs font-semibold transition-colors shadow-sm ${viewMode === 'table-only' ? 'bg-blue-600 border border-blue-400 text-white' : 'bg-blue-800 hover:bg-blue-700 text-blue-100'}`}
-          >
-            👁 View Full Table
+            <span>{viewMode === 'form-only' ? '📁 Show Item Catalog' : '📁 Hide Item Catalog'}</span>
           </button>
         </div>
       </div>
@@ -621,161 +1152,237 @@ const PurchaseBill = () => {
       <div className="flex-1 flex overflow-hidden">
         
         {/* Left Side: Purchase Bill Form */}
-        <div className={`${viewMode === 'table-only' ? 'hidden' : viewMode === 'form-only' ? 'w-full' : 'w-[64%]'} overflow-y-auto p-3 bg-white flex flex-col justify-between border-r border-gray-300`}>
+        <div className={`${viewMode === 'table-only' ? 'hidden' : viewMode === 'form-only' ? 'w-full' : 'w-[64%]'} overflow-y-auto p-3 bg-white flex flex-col justify-between border-r border-slate-200`}>
           <div>
-            {/* Reusable DataList for Item Auto-completion */}
-            <datalist id="item-catalog">
-              {dbProducts.map((p, idx) => (
-                <option key={p.id || idx} value={p.itemCode}>{p.name} {p.size ? `(${p.size})` : ''}</option>
-              ))}
-            </datalist>
-
             {/* Top Metadata Header inside form */}
-            <div className="bg-slate-50 p-3 border border-gray-300 shadow-sm rounded mb-2">
-              <div className="grid grid-cols-5 gap-3">
+            <div className="bg-white p-3 border border-slate-200 shadow-[0_2px_15px_rgba(0,0,0,0.02)] rounded-lg mb-3 space-y-2.5">
+              {/* Row 1 */}
+              <div className="grid grid-cols-3 gap-2.5">
                 <div>
-                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Voucher No</label>
-                  <input type="text" value={billNo} onChange={e => setBillNo(e.target.value)} className="w-full border border-gray-400 p-1.5 rounded text-sm bg-gray-50 font-bold focus:bg-white focus:outline-none" readOnly={!!editingId} />
+                  <label className="block text-[9px] font-black text-slate-500 uppercase tracking-wider mb-0.5">Voucher No</label>
+                  <input 
+                    type="text" 
+                    value={billNo} 
+                    onChange={e => setBillNo(e.target.value)} 
+                    className="w-full border border-slate-200 bg-slate-50/50 p-1.5 rounded-md text-xs font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all shadow-inner" 
+                    readOnly={!!editingId} 
+                  />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Date</label>
-                  <input type="date" value={billDate} onChange={e => setBillDate(e.target.value)} className="w-full border border-gray-400 p-1.5 rounded text-sm focus:border-blue-500 focus:outline-none bg-white" />
+                  <label className="block text-[9px] font-black text-slate-500 uppercase tracking-wider mb-0.5">Purchase Date</label>
+                  <input 
+                    type="date" 
+                    value={billDate} 
+                    onChange={e => setBillDate(e.target.value)} 
+                    className="w-full border border-slate-200 bg-white p-1.5 rounded-md text-xs focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold text-slate-800" 
+                  />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Vendor Name</label>
+                  <div className="flex justify-between items-center mb-0.5">
+                    <label className="block text-[9px] font-black text-slate-500 uppercase tracking-wider">Vendor Name</label>
+                    <button
+                      type="button"
+                      onClick={() => setIsVendorModalOpen(true)}
+                      className="text-[8px] font-extrabold text-blue-600 hover:text-blue-800 uppercase tracking-wider cursor-pointer"
+                    >
+                      + Save Vendor
+                    </button>
+                  </div>
+                  <input 
+                    type="text" 
+                    list="vendors-list" 
+                    value={vendorName} 
+                    onChange={handleVendorChange}
+                    placeholder="Type or select vendor name..."
+                    className="w-full border border-slate-200 bg-white p-1.5 rounded-md text-xs focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-bold text-slate-800 shadow-sm" 
+                  />
+                  <datalist id="vendors-list">
+                    {vendors.map(v => (
+                      <option key={v.id} value={v.name} />
+                    ))}
+                  </datalist>
+                </div>
+              </div>
+
+              {/* Row 2 */}
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-[9px] font-black text-slate-500 uppercase tracking-wider mb-0.5">Supplier Invoice Number</label>
+                  <input 
+                    type="text" 
+                    value={supplierInvoiceNo} 
+                    onChange={e => setSupplierInvoiceNo(e.target.value)} 
+                    placeholder="Enter Supplier Invoice Number..."
+                    className="w-full border border-slate-200 bg-white p-1.5 rounded-md text-xs focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all text-slate-800" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-[9px] font-black text-slate-500 uppercase tracking-wider mb-0.5">Supplier Invoice Date</label>
+                  <input 
+                    type="date" 
+                    value={supplierInvoiceDate} 
+                    onChange={e => setSupplierInvoiceDate(e.target.value)} 
+                    className="w-full border border-slate-200 bg-white p-1.5 rounded-md text-xs focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold text-slate-800" 
+                  />
+                </div>
+              </div>
+
+              {/* Row 3 */}
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-[9px] font-black text-slate-500 uppercase tracking-wider mb-0.5">GSTIN</label>
+                  <input 
+                    type="text" 
+                    value={gstin} 
+                    onChange={e => setGstin(e.target.value.toUpperCase())}
+                    placeholder="Enter supplier GSTIN (optional)..."
+                    className="w-full border border-slate-200 p-1.5 rounded-md text-xs bg-white text-slate-800 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-[9px] font-black text-slate-500 uppercase tracking-wider mb-0.5">Place of Supply</label>
                   <select 
-                    value={vendorId} 
-                    onChange={e => {
-                      if (e.target.value === 'NEW') {
-                        setIsVendorModalOpen(true);
-                      } else {
-                        setVendorId(e.target.value);
-                      }
-                    }} 
-                    className="w-full border border-gray-400 p-1.5 rounded text-sm focus:border-blue-500 focus:outline-none bg-white font-semibold text-gray-800"
+                    value={supplyPlace} 
+                    onChange={e => setSupplyPlace(e.target.value)}
+                    className="w-full border border-slate-200 p-1.5 rounded-md text-xs bg-white text-slate-800 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold"
                   >
-                    <option value="">-- Select Vendor --</option>
-                    {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-                    <option value="NEW" className="font-bold text-blue-600 bg-blue-50">+ Add New Vendor...</option>
+                    <option value="Tamil Nadu">Tamil Nadu (Local)</option>
+                    <option value="Other State">Other State (Central)</option>
                   </select>
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-gray-700 mb-1">GSTIN</label>
-                  <input type="text" value={gstin} readOnly className="w-full border border-gray-300 p-1.5 rounded text-sm bg-gray-200 text-gray-700 focus:outline-none" />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Place of Supply</label>
-                  <input type="text" value={supplyPlace} readOnly className="w-full border border-gray-300 p-1.5 rounded text-sm bg-gray-200 text-gray-700 focus:outline-none" />
                 </div>
               </div>
             </div>
 
-            {/* Main Items Grid */}
-            <div className="flex flex-col bg-white border border-gray-400 shadow-sm relative rounded overflow-hidden mb-2">
-              <div className="bg-[#d1e8e2] p-1 border-b border-gray-400 flex space-x-2">
-                <button onClick={addRow} className="flex items-center space-x-1 bg-white hover:bg-gray-50 border border-gray-400 px-3 py-1 text-xs font-bold text-gray-700 shadow-sm rounded transition-colors">
-                  <Plus size={12} className="text-green-600" /> <span>Add Row</span>
-                </button>
+            {/* Main Items Grid Container */}
+            <div className="flex flex-col bg-white border border-slate-200 shadow-[0_2px_10px_rgba(0,0,0,0.01)] relative overflow-hidden rounded-lg mb-2">
+              <div className="bg-gradient-to-r from-slate-50 to-indigo-50/30 p-2.5 border-b border-slate-200 flex items-center justify-between gap-4">
+                <div className="flex items-center space-x-2.5 flex-1 max-w-md">
+                  <label className="text-[11px] font-black text-slate-700 uppercase whitespace-nowrap tracking-wide">Scan Barcode / Code:</label>
+                  <input
+                    id="purchase-scan-input"
+                    ref={scanInputRef}
+                    type="text"
+                    value={scanInput}
+                    onChange={e => setScanInput(e.target.value)}
+                    onKeyDown={handleBarcodeScan}
+                    placeholder="Scan barcode or type code & Enter..."
+                    className="flex-1 border border-indigo-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 p-1.5 rounded-md text-xs font-mono font-bold bg-white focus:outline-none placeholder:font-sans placeholder:font-normal shadow-inner"
+                  />
+                </div>
+                <div className="flex items-center space-x-2">
+                  <button
+                    type="button"
+                    onClick={addRow}
+                    className="bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-extrabold text-xs px-3 py-1.5 rounded-md shadow flex items-center space-x-1 transition-all cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Add Item Row</span>
+                  </button>
+                  <div className="text-[10px] text-indigo-600 font-bold bg-indigo-50 border border-indigo-100 px-3 py-1.5 rounded-full animate-pulse">
+                    System Listening for Scans
+                  </div>
+                </div>
               </div>
 
-              <div className="overflow-x-auto max-h-[300px]">
+              <div className="overflow-x-auto max-h-[550px] custom-scrollbar">
                 <table className="w-full text-left text-xs border-collapse whitespace-nowrap min-w-max">
-                  <thead className="bg-[#2b579a] text-white sticky top-0 z-10">
+                  <thead className="bg-slate-900 text-white sticky top-0 z-10 border-b border-slate-800">
                     <tr>
-                      <th className="border-r border-gray-400 p-1.5 w-8 text-center font-semibold">S.No</th>
-                      <th className="border-r border-gray-400 p-1.5 w-48 font-semibold">Select Product (Master)</th>
-                      <th className="border-r border-gray-400 p-1.5 w-28 font-semibold">Our Item Code</th>
-                      <th className="border-r border-gray-400 p-1.5 w-28 font-semibold">Vendor Item Code</th>
-                      <th className="border-r border-gray-400 p-1.5 w-16 font-semibold">Dress Size</th>
-                      <th className="border-r border-gray-400 p-1.5 w-24 font-semibold">Variety</th>
-                      <th className="border-r border-gray-400 p-1.5 w-24 font-semibold">Category</th>
-                      <th className="border-r border-gray-400 p-1.5 font-semibold">Description</th>
-                      <th className="border-r border-gray-400 p-1.5 w-24 font-semibold">Factory</th>
-                      <th className="border-r border-gray-400 p-1.5 w-16 font-semibold text-right">Qty</th>
-                      <th className="border-r border-gray-400 p-1.5 w-20 font-semibold text-right">Unit Price</th>
-                      <th className="border-r border-gray-400 p-1.5 w-20 font-semibold text-right">Sales Price</th>
-                      <th className="border-r border-gray-400 p-1.5 w-20 font-semibold text-right">MRP</th>
-                      <th className="border-r border-gray-400 p-1.5 w-12 font-semibold text-right">Disc %</th>
-                      <th className="border-r border-gray-400 p-1.5 w-12 font-semibold text-right">Tax %</th>
-                      <th className="border-r border-gray-400 p-1.5 w-20 font-semibold text-right">Total Amt</th>
-                      <th className="p-1.5 w-8 text-center font-semibold">Del</th>
+                      <th className="border-r border-slate-800 p-2 text-center font-bold text-[10px] uppercase tracking-wider w-8">S.No</th>
+                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-28">Barcode</th>
+                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-48">Product Name</th>
+                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-28">Vendor Item Code</th>
+                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-16">Dress Size</th>
+                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-24">Variety</th>
+                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-20">Color</th>
+                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-24">Category</th>
+                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-16 text-right">Purchase Qty</th>
+                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-16 text-right">Free Qty</th>
+                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-20 text-right">Purchase Rate</th>
+                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-12 text-right">Discount %</th>
+                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-12 text-right">GST %</th>
+                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-20 text-right">MRP</th>
+                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-20 text-right">Selling Price</th>
+                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-20 text-right">Amount</th>
+                      <th className="p-2 w-8 text-center font-bold text-[10px] uppercase tracking-wider">Del</th>
                     </tr>
                   </thead>
                   <tbody>
                     {items.length === 0 && (
                       <tr>
-                        <td colSpan={16} className="p-6 text-center text-gray-400 italic">No items added. Use Enter key for quick navigation.</td>
+                        <td colSpan={17} className="p-6 text-gray-400 italic text-center">
+                          No items added.
+                        </td>
                       </tr>
                     )}
                     {items.map((item, idx) => (
-                      <tr key={item.id} className="border-b border-gray-300 hover:bg-yellow-50 focus-within:bg-blue-50 transition-colors">
-                        <td className="border-r border-gray-300 p-1 text-center text-gray-500 bg-gray-50">{idx + 1}</td>
-                        <td className="border-r border-gray-300 p-0 w-48">
-                          {item.isManualItem ? (
-                            <div className="flex items-center p-1 bg-white">
-                              <input 
-                                type="text" 
-                                value={item.itemName || ''} 
-                                onChange={e => updateItem(item.id, 'itemName', e.target.value)} 
-                                placeholder="Enter Item Name..."
-                                className="w-full bg-transparent focus:outline-none text-xs font-semibold text-gray-800"
-                              />
-                              <button 
-                                type="button"
-                                onClick={() => updateItem(item.id, 'isManualItem', false)} 
-                                className="text-blue-600 hover:text-blue-800 text-[10px] font-bold px-1.5 py-0.5 hover:bg-blue-50 rounded ml-1 transition-colors"
-                                title="Switch to master catalog selection list"
-                              >
-                                List
-                              </button>
-                            </div>
-                          ) : (
-                            <select
-                              value={item.itemCode || ''}
-                              onChange={e => {
-                                const code = e.target.value;
-                                if (code === 'MANUAL') {
-                                  updateItem(item.id, 'isManualItem', true);
-                                  updateItem(item.id, 'itemCode', '');
-                                  updateItem(item.id, 'itemName', '');
-                                } else if (!code) {
-                                  updateItem(item.id, 'itemCode', '');
-                                } else {
-                                  updateItem(item.id, 'itemCode', code);
-                                }
-                              }}
-                              className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-xs font-semibold text-gray-800"
-                            >
-                              <option value="">-- Select Product --</option>
-                              <option value="MANUAL" className="text-blue-600 font-bold bg-blue-50">+ Type Manually...</option>
-                              {dbProducts.map(p => (
-                                <option key={p.id} value={p.itemCode}>
-                                  {p.itemCode} - {p.name} {p.size ? `(${p.size})` : ''}
-                                </option>
-                              ))}
-                            </select>
-                          )}
-                        </td>
+                      <tr key={item.id} className="border-b border-slate-200 hover:bg-slate-50/50 focus-within:bg-indigo-50/50 transition-colors">
+                        <td className="border-r border-slate-200 p-2 text-center text-slate-500 font-medium">{idx + 1}</td>
                         <td className="border-r border-gray-300 p-0">
-                          <div className="flex items-center relative pr-1">
+                          <div className="flex items-center relative w-full h-full pr-1 min-w-[150px]">
                             <input 
                               type="text" 
-                              list="item-catalog"
                               value={item.itemCode} 
                               onChange={e => updateItem(item.id, 'itemCode', e.target.value)} 
-                              onKeyDown={e => handleKeyDown(e, idx, 'itemCode')}
-                              className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none uppercase pr-8 text-xs font-mono" 
-                              placeholder="ITM..." 
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') {
+                                  const val = (e.target as HTMLInputElement).value.trim();
+                                  const found = dbProducts.find(p => p.itemCode?.toLowerCase() === val.toLowerCase() || p.barcode?.toLowerCase() === val.toLowerCase());
+                                  if (!found && val) {
+                                    e.preventDefault();
+                                    setActiveRowId(item.id);
+                                    setModalSearchQuery(val);
+                                    setHighlightedProductIndex(0);
+                                    setIsProductModalOpen(true);
+                                    return;
+                                  }
+                                }
+                                handleKeyDown(e, idx, 'itemCode');
+                              }}
+                              onDoubleClick={() => {
+                                setActiveRowId(item.id);
+                                setModalSearchQuery(item.itemCode || '');
+                                setHighlightedProductIndex(0);
+                                setIsProductModalOpen(true);
+                              }}
+                              onBlur={() => {
+                                const latest = items.find(i => i.id === item.id);
+                                if (latest) saveProductToDb(latest);
+                              }}
+                              className="w-full p-1.5 pl-2 pr-10 bg-transparent focus:bg-white focus:outline-none font-mono font-bold text-indigo-700 text-xs" 
+                              placeholder="Barcode / Code..." 
                             />
                             <button
-                              onClick={() => generateCodeForRow(item.id)}
+                              onClick={() => {
+                                setActiveRowId(item.id);
+                                setModalSearchQuery(item.itemCode || '');
+                                setHighlightedProductIndex(0);
+                                setIsProductModalOpen(true);
+                              }}
                               type="button"
-                              className="absolute right-1 px-1 py-0.5 text-[9px] font-bold bg-blue-100 hover:bg-blue-200 active:bg-blue-300 text-blue-700 rounded transition-colors shadow-sm"
-                              title="Auto-generate item code"
+                              className="absolute right-1 px-1.5 py-0.5 text-[9px] font-bold bg-emerald-100 hover:bg-emerald-200 active:bg-emerald-300 text-emerald-700 rounded transition-colors shadow-sm"
+                              title="Search product table"
                             >
-                              Gen
+                              Find
                             </button>
                           </div>
+                        </td>
+                        <td className="border-r border-gray-300 p-0">
+                          <input 
+                            type="text" 
+                            value={item.itemName || item.itemDesc || ''} 
+                            onChange={e => {
+                              updateItem(item.id, 'itemName', e.target.value);
+                              updateItem(item.id, 'itemDesc', e.target.value);
+                            }} 
+                            onKeyDown={e => handleKeyDown(e, idx, 'itemDesc')}
+                            onBlur={() => {
+                              const latest = items.find(i => i.id === item.id);
+                              if (latest) saveProductToDb(latest);
+                            }}
+                            className="w-full p-1.5 pl-2 bg-transparent focus:bg-white focus:outline-none font-bold text-slate-800 text-xs" 
+                            placeholder="Enter product name..." 
+                          />
                         </td>
                         <td className="border-r border-gray-300 p-0">
                           <input 
@@ -783,6 +1390,10 @@ const PurchaseBill = () => {
                             value={item.vendorItemCode || ''} 
                             onChange={e => updateItem(item.id, 'vendorItemCode', e.target.value)} 
                             onKeyDown={e => handleKeyDown(e, idx, 'vendorItemCode')}
+                            onBlur={() => {
+                              const latest = items.find(i => i.id === item.id);
+                              if (latest) saveProductToDb(latest);
+                            }}
                             className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none font-mono" 
                             placeholder="Vendor Code" 
                           />
@@ -793,6 +1404,10 @@ const PurchaseBill = () => {
                             value={item.size} 
                             onChange={e => updateItem(item.id, 'size', e.target.value)} 
                             onKeyDown={e => handleKeyDown(e, idx, 'size')}
+                            onBlur={() => {
+                              const latest = items.find(i => i.id === item.id);
+                              if (latest) saveProductToDb(latest);
+                            }}
                             className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-center" 
                             placeholder="M, L..."
                           />
@@ -803,15 +1418,41 @@ const PurchaseBill = () => {
                             value={item.variety} 
                             onChange={e => updateItem(item.id, 'variety', e.target.value)} 
                             onKeyDown={e => handleKeyDown(e, idx, 'variety')}
+                            onBlur={() => {
+                              const latest = items.find(i => i.id === item.id);
+                              if (latest) saveProductToDb(latest);
+                            }}
                             className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none" 
-                            placeholder="Kurti, Jeans..."
+                            placeholder="Kurti..."
+                          />
+                        </td>
+                        <td className="border-r border-gray-300 p-0">
+                          <input 
+                            type="text" 
+                            value={item.color || ''} 
+                            onChange={e => updateItem(item.id, 'color', e.target.value)} 
+                            onKeyDown={e => handleKeyDown(e, idx, 'color')}
+                            onBlur={() => {
+                              const latest = items.find(i => i.id === item.id);
+                              if (latest) saveProductToDb(latest);
+                            }}
+                            className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none" 
+                            placeholder="Red..."
                           />
                         </td>
                         <td className="border-r border-gray-300 p-0">
                           <select
                             value={item.category}
-                            onChange={e => updateItem(item.id, 'category', e.target.value)}
+                            onChange={e => {
+                              updateItem(item.id, 'category', e.target.value);
+                              const latest = items.find(i => i.id === item.id);
+                              if (latest) saveProductToDb({ ...latest, category: e.target.value });
+                            }}
                             onKeyDown={e => handleKeyDown(e, idx, 'category')}
+                            onBlur={() => {
+                              const latest = items.find(i => i.id === item.id);
+                              if (latest) saveProductToDb(latest);
+                            }}
                             className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none"
                           >
                             <option value="None">None</option>
@@ -822,31 +1463,22 @@ const PurchaseBill = () => {
                         </td>
                         <td className="border-r border-gray-300 p-0">
                           <input 
-                            type="text" 
-                            value={item.itemDesc} 
-                            onChange={e => updateItem(item.id, 'itemDesc', e.target.value)} 
-                            onKeyDown={e => handleKeyDown(e, idx, 'itemDesc')}
-                            className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none" 
-                          />
-                        </td>
-                        <td className="border-r border-gray-300 p-0">
-                          <input 
-                            type="text" 
-                            value={item.factory} 
-                            onChange={e => updateItem(item.id, 'factory', e.target.value)} 
-                            onKeyDown={e => handleKeyDown(e, idx, 'factory')}
-                            className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none" 
-                            placeholder="Factory Name"
+                            type="number" 
+                            value={item.qty === 0 ? '' : item.qty} 
+                            onChange={e => updateItem(item.id, 'qty', Number(e.target.value))} 
+                            onKeyDown={e => handleKeyDown(e, idx, 'qty')}
+                            className="w-full p-1.5 bg-slate-50/50 focus:bg-white focus:outline-none text-right font-bold text-blue-900 border border-transparent focus:border-indigo-400" 
+                            min="1" 
                           />
                         </td>
                         <td className="border-r border-gray-300 p-0">
                           <input 
                             type="number" 
-                            value={item.qty === 0 ? '' : item.qty} 
-                            onChange={e => updateItem(item.id, 'qty', Number(e.target.value))} 
-                            onKeyDown={e => handleKeyDown(e, idx, 'qty')}
-                            className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-right font-bold text-blue-800" 
-                            min="1" 
+                            value={item.freeQty === 0 ? '' : item.freeQty} 
+                            onChange={e => updateItem(item.id, 'freeQty', Number(e.target.value))} 
+                            onKeyDown={e => handleKeyDown(e, idx, 'freeQty')}
+                            className="w-full p-1.5 bg-slate-50/50 focus:bg-white focus:outline-none text-right font-bold text-blue-900 border border-transparent focus:border-indigo-400" 
+                            min="0" 
                           />
                         </td>
                         <td className="border-r border-gray-300 p-0">
@@ -855,27 +1487,11 @@ const PurchaseBill = () => {
                             value={item.unitPrice === 0 ? '' : item.unitPrice} 
                             onChange={e => updateItem(item.id, 'unitPrice', Number(e.target.value))} 
                             onKeyDown={e => handleKeyDown(e, idx, 'unitPrice')}
-                            className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-right" 
-                          />
-                        </td>
-                        <td className="border-r border-gray-300 p-0">
-                          <input 
-                            type="number" 
-                            value={item.salesRate === 0 ? '' : item.salesRate} 
-                            onChange={e => updateItem(item.id, 'salesRate', Number(e.target.value))} 
-                            onKeyDown={e => handleKeyDown(e, idx, 'salesRate')}
-                            className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-right font-semibold text-indigo-700" 
-                            placeholder="0.00"
-                          />
-                        </td>
-                        <td className="border-r border-gray-300 p-0">
-                          <input 
-                            type="number" 
-                            value={item.mrp === 0 ? '' : item.mrp} 
-                            onChange={e => updateItem(item.id, 'mrp', Number(e.target.value))} 
-                            onKeyDown={e => handleKeyDown(e, idx, 'mrp')}
-                            className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-right text-gray-700" 
-                            placeholder="0.00"
+                            onBlur={() => {
+                              const latest = items.find(i => i.id === item.id);
+                              if (latest) saveProductToDb(latest);
+                            }}
+                            className="w-full p-1.5 bg-slate-50/50 focus:bg-white focus:outline-none text-right border border-transparent focus:border-indigo-400" 
                           />
                         </td>
                         <td className="border-r border-gray-300 p-0">
@@ -884,7 +1500,7 @@ const PurchaseBill = () => {
                             value={item.discPercent === 0 ? '' : item.discPercent} 
                             onChange={e => updateItem(item.id, 'discPercent', Number(e.target.value))} 
                             onKeyDown={e => handleKeyDown(e, idx, 'discPercent')}
-                            className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-right" 
+                            className="w-full p-1.5 bg-slate-50/50 focus:bg-white focus:outline-none text-right border border-transparent focus:border-indigo-400" 
                           />
                         </td>
                         <td className="border-r border-gray-300 p-0">
@@ -893,13 +1509,45 @@ const PurchaseBill = () => {
                             value={item.taxPercent} 
                             onChange={e => updateItem(item.id, 'taxPercent', Number(e.target.value))} 
                             onKeyDown={e => handleKeyDown(e, idx, 'taxPercent')}
+                            onBlur={() => {
+                              const latest = items.find(i => i.id === item.id);
+                              if (latest) saveProductToDb(latest);
+                            }}
                             className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-right text-gray-500" 
                           />
                         </td>
-                        <td className="border-r border-gray-300 p-1.5 text-right font-mono font-bold text-green-700 bg-gray-50">{item.total.toFixed(2)}</td>
-                        <td className="p-1 text-center bg-gray-50">
-                          <button onClick={() => removeRow(item.id)} className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-100 transition-colors">
-                            <Trash2 size={12} />
+                        <td className="border-r border-gray-300 p-0">
+                          <input 
+                            type="number" 
+                            value={item.mrp === 0 ? '' : item.mrp} 
+                            onChange={e => updateItem(item.id, 'mrp', Number(e.target.value))} 
+                            onKeyDown={e => handleKeyDown(e, idx, 'mrp')}
+                            onBlur={() => {
+                              const latest = items.find(i => i.id === item.id);
+                              if (latest) saveProductToDb(latest);
+                            }}
+                            className="w-full p-1.5 bg-slate-50/50 focus:bg-white focus:outline-none text-right border border-transparent focus:border-indigo-400" 
+                            placeholder="0.00"
+                          />
+                        </td>
+                        <td className="border-r border-gray-300 p-0">
+                          <input 
+                            type="number" 
+                            value={item.salesRate === 0 ? '' : item.salesRate} 
+                            onChange={e => updateItem(item.id, 'salesRate', Number(e.target.value))} 
+                            onKeyDown={e => handleKeyDown(e, idx, 'salesRate')}
+                            onBlur={() => {
+                              const latest = items.find(i => i.id === item.id);
+                              if (latest) saveProductToDb(latest);
+                            }}
+                            className="w-full p-1.5 bg-slate-50/50 focus:bg-white focus:outline-none text-right font-semibold text-indigo-700 border border-transparent focus:border-indigo-400" 
+                            placeholder="0.00"
+                          />
+                        </td>
+                        <td className="border-r border-slate-200 p-2 text-right font-mono font-bold text-emerald-600 bg-slate-50/10">{item.total.toFixed(2)}</td>
+                        <td className="p-2 text-center bg-slate-50/10">
+                          <button onClick={() => removeRow(item.id)} className="text-rose-500 hover:text-rose-700 p-1.5 rounded-full hover:bg-rose-50 active:scale-95 transition-all">
+                            <Trash2 size={14} />
                           </button>
                         </td>
                       </tr>
@@ -911,64 +1559,72 @@ const PurchaseBill = () => {
           </div>
 
           {/* Bottom Panel containing Action Buttons and Grand Total Card */}
-          <div className="flex items-center justify-between mt-2 p-2 bg-slate-50 border border-gray-300 rounded shadow-sm flex-shrink-0">
+          <div className="flex items-center justify-between mt-3 p-3 bg-white border border-slate-200 rounded-xl shadow-[0_-4px_20px_rgba(0,0,0,0.02)] flex-shrink-0">
             <div className="flex space-x-2">
               <button 
                 onClick={handleSaveBill}
                 disabled={loading}
-                className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded shadow flex items-center space-x-1.5 text-xs transition-colors"
+                className="px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold rounded-lg shadow-md hover:shadow-lg focus:ring-4 focus:ring-emerald-500/20 active:scale-95 transition-all duration-200 flex items-center space-x-2 text-xs"
               >
                 <span>{editingId ? '✓ Update Bill' : '💾 Save Bill'}</span>
               </button>
               
               <button 
                 onClick={clearForm}
-                className="px-4 py-2.5 bg-white border border-gray-300 text-gray-700 hover:bg-slate-100 font-semibold rounded shadow-sm text-xs transition-colors"
+                className="px-5 py-2.5 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 font-bold rounded-lg shadow-sm focus:ring-4 focus:ring-slate-100 active:scale-95 transition-all duration-200 text-xs"
               >
                 Clear / New
+              </button>
+
+              <button 
+                onClick={addRow}
+                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold rounded-lg shadow-sm focus:ring-4 focus:ring-blue-100 active:scale-95 transition-all duration-200 text-xs flex items-center space-x-1 cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ Add Item Row</span>
               </button>
 
               {editingId && (
                 <button 
                   onClick={() => handleDeleteBill(editingId, billNo)}
-                  className="px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded shadow-sm text-xs transition-colors"
+                  className="px-5 py-2.5 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white font-bold rounded-lg shadow-md focus:ring-4 focus:ring-red-500/20 active:scale-95 transition-all duration-200 text-xs"
                 >
                   Delete Bill
                 </button>
               )}
             </div>
 
-            <div className="w-[450px] bg-[#1e3f70] text-white p-3 border border-[#142d54] shadow-md rounded flex flex-col justify-between">
-              <div className="grid grid-cols-6 gap-2 text-xs font-bold text-right border-b border-[#2b579a] pb-2 mb-2">
+            <div className="w-[450px] bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white p-4 border border-slate-800 shadow-xl rounded-xl flex flex-col justify-between">
+              <div className="grid grid-cols-6 gap-2 text-xs font-bold text-right border-b border-slate-800 pb-2.5 mb-2.5">
                 <div>
-                  <span className="block text-[9px] uppercase tracking-wider text-blue-200 mb-1">Sub Total</span>
-                  ₹{subTotal.toFixed(2)}
+                  <span className="block text-[8px] uppercase tracking-wider text-slate-400 mb-1">Sub Total</span>
+                  ₹{subTotal.toFixed(0)}
                 </div>
                 <div>
-                  <span className="block text-[9px] uppercase tracking-wider text-blue-200 mb-1">Discount</span>
-                  - ₹{discTotal.toFixed(2)}
+                  <span className="block text-[8px] uppercase tracking-wider text-slate-400 mb-1">Discount</span>
+                  - ₹{discTotal.toFixed(0)}
                 </div>
                 <div>
-                  <span className="block text-[9px] uppercase tracking-wider text-blue-200 mb-1">CGST</span>
-                  ₹{totalCgst.toFixed(2)}
+                  <span className="block text-[8px] uppercase tracking-wider text-slate-400 mb-1">CGST</span>
+                  ₹{totalCgst.toFixed(0)}
                 </div>
                 <div>
-                  <span className="block text-[9px] uppercase tracking-wider text-blue-200 mb-1">SGST</span>
-                  ₹{totalSgst.toFixed(2)}
+                  <span className="block text-[8px] uppercase tracking-wider text-slate-400 mb-1">SGST</span>
+                  ₹{totalSgst.toFixed(0)}
                 </div>
                 <div>
-                  <span className="block text-[9px] uppercase tracking-wider text-blue-200 mb-1">IGST</span>
-                  ₹{totalIgst.toFixed(2)}
+                  <span className="block text-[8px] uppercase tracking-wider text-slate-400 mb-1">IGST</span>
+                  ₹{totalIgst.toFixed(0)}
                 </div>
                 <div>
-                  <span className="block text-[9px] uppercase tracking-wider text-blue-200 mb-1">Round Off</span>
+                  <span className="block text-[8px] uppercase tracking-wider text-slate-400 mb-1">Round Off</span>
                   {roundedOff > 0 ? '+' : ''}{roundedOff.toFixed(2)}
                 </div>
               </div>
               
               <div className="flex justify-between items-center px-1">
-                <span className="text-xs font-bold text-blue-200 uppercase tracking-widest">Grand Total</span>
-                <div className="text-2xl font-black text-yellow-300 drop-shadow-md">
+                <span className="text-xs font-extrabold text-indigo-300 uppercase tracking-widest">Grand Total</span>
+                <div className="text-3xl font-black text-yellow-400 drop-shadow-[0_2px_4px_rgba(0,0,0,0.4)]">
                   ₹ {grandTotal.toFixed(2)}
                 </div>
               </div>
@@ -976,161 +1632,77 @@ const PurchaseBill = () => {
           </div>
         </div>
 
-        {/* Right Side: Saved Bills / Item Master Sidebar Panel */}
-        <div className={`${viewMode === 'form-only' ? 'hidden' : viewMode === 'table-only' ? 'w-full' : 'w-[36%]'} bg-slate-100 p-3 flex flex-col overflow-hidden border-l border-gray-300`}>
-          <div className="flex-shrink-0 mb-2">
-            {/* Tabs */}
-            <div className="flex space-x-1 bg-slate-200 p-1 rounded-md border border-slate-300 mb-2">
-              <button
-                onClick={() => setSidebarTab('bills')}
-                className={`flex-1 text-center py-1 text-xs font-bold rounded transition-all ${
-                  sidebarTab === 'bills'
-                    ? 'bg-[#1e3f70] text-white shadow'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-300/50'
-                }`}
-              >
-                Saved Bills ({filteredBills.length})
-              </button>
-              <button
-                onClick={() => setSidebarTab('items')}
-                className={`flex-1 text-center py-1 text-xs font-bold rounded transition-all ${
-                  sidebarTab === 'items'
-                    ? 'bg-[#1e3f70] text-white shadow'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-300/50'
-                }`}
-              >
-                Item Master ({filteredProducts.length})
-              </button>
+        {/* Right Side: Item Master Sidebar Panel */}
+        <div className={`${viewMode === 'form-only' ? 'hidden' : viewMode === 'table-only' ? 'w-full' : 'w-[36%]'} bg-slate-50/50 p-3 flex flex-col overflow-hidden border-l border-slate-200`}>
+          <div className="flex-shrink-0 mb-2.5">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-xs font-black uppercase text-slate-700 tracking-wider">Item Master Catalog</span>
+              <span className="text-[10px] font-bold bg-indigo-50 border border-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full">
+                {filteredProducts.length} Items
+              </span>
             </div>
 
-            {/* Search Input depending on active tab */}
-            {sidebarTab === 'bills' ? (
-              <div className="relative">
-                <input 
-                  type="text" 
-                  placeholder="Search voucher, vendor..." 
-                  value={billSearchQuery}
-                  onChange={e => setBillSearchQuery(e.target.value)}
-                  className="w-full bg-white border border-slate-300 p-1.5 pl-8 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 transition-shadow"
-                />
-                <Search size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
-              </div>
-            ) : (
-              <div className="relative">
-                <input 
-                  type="text" 
-                  placeholder="Search code, name, category, variety..." 
-                  value={itemSearchQuery}
-                  onChange={e => setItemSearchQuery(e.target.value)}
-                  className="w-full bg-white border border-slate-300 p-1.5 pl-8 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 transition-shadow"
-                />
-                <Search size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
-              </div>
-            )}
+            {/* Search Input */}
+            <div className="relative">
+              <input 
+                type="text" 
+                placeholder="Search code, name, category, variety..." 
+                value={itemSearchQuery}
+                onChange={e => setItemSearchQuery(e.target.value)}
+                className="w-full bg-white border border-slate-200 p-2 pl-8 rounded-lg text-xs focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all shadow-sm"
+              />
+              <Search size={14} className="absolute left-2.5 top-3 text-slate-400" />
+            </div>
           </div>
 
           {/* Sidebar Content */}
-          <div className="flex-1 overflow-auto border border-slate-200 rounded bg-white">
-            {sidebarTab === 'bills' ? (
-              <table className="w-full text-left text-xs border-collapse whitespace-nowrap">
-                <thead className="bg-[#1e3f70] text-white sticky top-0 z-10">
+          <div className="flex-1 overflow-auto border border-slate-200 rounded-xl bg-white shadow-sm overflow-hidden custom-scrollbar">
+            <table className="w-full text-left text-xs border-collapse whitespace-nowrap">
+              <thead className="bg-slate-900 text-white sticky top-0 z-10 border-b border-slate-800">
+                <tr>
+                  <th className="p-2.5 font-bold uppercase tracking-wider text-[10px]">Item Code</th>
+                  <th className="p-2.5 font-bold uppercase tracking-wider text-[10px]">Item Name</th>
+                  <th className="p-2.5 font-bold uppercase tracking-wider text-[10px] text-right">Stock</th>
+                  <th className="p-2.5 font-bold uppercase tracking-wider text-[10px] text-center w-12">Add</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredProducts.length === 0 ? (
                   <tr>
-                    <th className="p-2 font-semibold">Vch No</th>
-                    <th className="p-2 font-semibold">Vendor</th>
-                    <th className="p-2 font-semibold text-right">Net Payable</th>
-                    <th className="p-2 font-semibold text-center w-16">Actions</th>
+                    <td colSpan={4} className="p-6 text-center text-slate-400 italic bg-slate-50">No products found.</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {filteredBills.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="p-6 text-center text-slate-400 italic bg-slate-50">No saved bills found.</td>
+                ) : (
+                  filteredProducts.map((prod) => (
+                    <tr 
+                      key={prod.id || prod._id} 
+                      className="border-b border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer"
+                      onClick={() => addProductFromMaster(prod)}
+                      title="Click to add to purchase bill"
+                    >
+                      <td className="p-2 font-mono text-slate-800">
+                        <div className="text-blue-600 font-bold">{prod.itemCode}</div>
+                        {prod.vendorItemCode && <div className="text-[10px] text-gray-400 font-medium">VC: {prod.vendorItemCode}</div>}
+                      </td>
+                      <td className="p-2 text-slate-800 max-w-[150px] truncate" title={prod.name}>
+                        <div>{prod.name}</div>
+                        {prod.size && <span className="text-[10px] text-gray-500 bg-gray-100 px-1 py-0.2 rounded border mr-1">Size {prod.size}</span>}
+                        {prod.variety && <span className="text-[10px] text-slate-500 italic">{prod.variety}</span>}
+                      </td>
+                      <td className="p-2 text-right font-mono font-bold text-gray-700">{prod.stock}</td>
+                      <td className="p-2 text-center h-[41px]" onClick={e => e.stopPropagation()}>
+                        <button
+                          onClick={() => addProductFromMaster(prod)}
+                          className="bg-green-100 hover:bg-green-200 active:bg-green-300 text-green-700 p-1.5 rounded transition-colors font-bold flex items-center justify-center w-6 h-6 mx-auto"
+                          title="Add Product to Bill"
+                        >
+                          +
+                        </button>
+                      </td>
                     </tr>
-                  ) : (
-                    filteredBills.map((bill) => (
-                      <tr 
-                        key={bill.id} 
-                        className={`border-b border-slate-200 hover:bg-slate-50 transition-colors ${editingId === bill.id ? 'bg-blue-50/50 font-semibold' : ''}`}
-                      >
-                        <td className="p-2 font-mono text-slate-700">
-                          {bill.voucherNo}
-                          <div className="text-[10px] text-slate-400 font-normal">{bill.date ? bill.date.split('T')[0] : ''}</div>
-                        </td>
-                        <td className="p-2 text-slate-800 max-w-[120px] truncate" title={bill.supplierName}>
-                          {bill.supplierName}
-                        </td>
-                        <td className="p-2 text-right font-mono text-slate-900 font-bold">
-                          ₹ {bill.netPayable?.toFixed(0) || '0'}
-                        </td>
-                        <td className="p-2 text-center flex items-center justify-center space-x-1.5 h-[41px]">
-                          <button 
-                            onClick={() => handleEditBill(bill)}
-                            className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-1 rounded transition-colors"
-                            title="Edit Purchase Bill"
-                          >
-                            <Edit size={14} />
-                          </button>
-                          <button 
-                            onClick={() => handleDeleteBill(bill.id, bill.voucherNo)}
-                            className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1 rounded transition-colors"
-                            title="Delete Purchase Bill"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            ) : (
-              <table className="w-full text-left text-xs border-collapse whitespace-nowrap">
-                <thead className="bg-[#1e3f70] text-white sticky top-0 z-10">
-                  <tr>
-                    <th className="p-2 font-semibold">Item Code</th>
-                    <th className="p-2 font-semibold">Item Name</th>
-                    <th className="p-2 font-semibold text-right">Stock</th>
-                    <th className="p-2 font-semibold text-center w-12">Add</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredProducts.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="p-6 text-center text-slate-400 italic bg-slate-50">No products found.</td>
-                    </tr>
-                  ) : (
-                    filteredProducts.map((prod) => (
-                      <tr 
-                        key={prod.id || prod._id} 
-                        className="border-b border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer"
-                        onClick={() => addProductFromMaster(prod)}
-                        title="Click to add to purchase bill"
-                      >
-                        <td className="p-2 font-mono text-slate-800">
-                          <div className="text-blue-600 font-bold">{prod.itemCode}</div>
-                          {prod.vendorItemCode && <div className="text-[10px] text-gray-400 font-medium">VC: {prod.vendorItemCode}</div>}
-                        </td>
-                        <td className="p-2 text-slate-800 max-w-[150px] truncate" title={prod.name}>
-                          <div>{prod.name}</div>
-                          {prod.size && <span className="text-[10px] text-gray-500 bg-gray-100 px-1 py-0.2 rounded border mr-1">Size {prod.size}</span>}
-                          {prod.variety && <span className="text-[10px] text-slate-500 italic">{prod.variety}</span>}
-                        </td>
-                        <td className="p-2 text-right font-mono font-bold text-gray-700">{prod.stock}</td>
-                        <td className="p-2 text-center h-[41px]" onClick={e => e.stopPropagation()}>
-                          <button
-                            onClick={() => addProductFromMaster(prod)}
-                            className="bg-green-100 hover:bg-green-200 active:bg-green-300 text-green-700 p-1.5 rounded transition-colors font-bold flex items-center justify-center w-6 h-6 mx-auto"
-                            title="Add Product to Bill"
-                          >
-                            +
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            )}
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
 
@@ -1199,6 +1771,214 @@ const PurchaseBill = () => {
           </div>
         </div>
       </Modal>
+      
+      {/* Dress Selection Modal */}
+      {isProductModalOpen && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center backdrop-blur-sm" style={{ backgroundColor: 'rgba(0, 0, 0, 0.45)', backdropFilter: 'blur(3px)' }} onClick={() => setIsProductModalOpen(false)}>
+          <div
+            className="bg-white shadow-2xl flex flex-col border border-gray-300 rounded-lg overflow-hidden w-full max-w-4xl h-[500px]"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="bg-[#2b579a] text-white px-4 py-3 flex justify-between items-center shadow-md">
+              <div className="flex items-center space-x-2">
+                <Search size={18} />
+                <span className="font-bold tracking-wide text-sm">Dress/Product Table Lookup</span>
+              </div>
+              <button onClick={() => setIsProductModalOpen(false)} className="text-white hover:text-red-300 font-bold focus:outline-none text-lg">
+                ✕
+              </button>
+            </div>
+
+            {/* Search Input and Help */}
+            <div className="p-3 bg-slate-100 border-b border-gray-300 flex items-center justify-between">
+              <div className="relative flex-1 max-w-lg">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  placeholder="Search by dress name, code, variety, size..."
+                  className="w-full pl-9 pr-3 py-1.5 border border-gray-300 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-sm text-gray-800 shadow-inner font-semibold"
+                  value={modalSearchQuery}
+                  onChange={e => {
+                    setModalSearchQuery(e.target.value);
+                    setHighlightedProductIndex(0);
+                  }}
+                  onKeyDown={handleModalKeyDown}
+                />
+              </div>
+              <div className="text-[11px] text-slate-600 bg-white border border-slate-200 rounded px-2.5 py-1.5 shadow-sm space-x-3 flex font-medium">
+                <span><kbd className="bg-slate-100 border border-slate-300 rounded px-1 text-[9px] font-bold">↑</kbd> <kbd className="bg-slate-100 border border-slate-300 rounded px-1 text-[9px] font-bold">↓</kbd> Navigate</span>
+                <span><kbd className="bg-slate-100 border border-slate-300 rounded px-1 text-[9px] font-bold">Enter</kbd> Select</span>
+                <span><kbd className="bg-slate-100 border border-slate-300 rounded px-1 text-[9px] font-bold">Esc</kbd> Close</span>
+              </div>
+            </div>
+
+            {/* List Table Headers */}
+            <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-slate-200 border-b border-slate-300 text-xs font-bold text-slate-700 uppercase tracking-wider">
+              <div className="col-span-2">Item Code</div>
+              <div className="col-span-4">Dress Name</div>
+              <div className="col-span-2">Variety</div>
+              <div className="col-span-1 text-center">Size</div>
+              <div className="col-span-1 text-center">Stock</div>
+              <div className="col-span-2 text-right">Price (₹)</div>
+            </div>
+
+            {/* List Body */}
+            <div className="overflow-y-auto flex-1 bg-white">
+              {modalFilteredProducts.map((p, idx) => (
+                <div
+                  key={p.id || idx}
+                  className={`grid grid-cols-12 gap-2 px-4 py-2.5 border-b border-slate-100 cursor-pointer items-center text-sm transition-colors ${idx === highlightedProductIndex ? 'bg-blue-100 text-blue-900 font-bold border-l-4 border-blue-600' : 'hover:bg-slate-50 text-slate-800'}`}
+                  onClick={() => selectProductFromModal(p)}
+                >
+                  <div className="col-span-2 font-mono font-bold text-blue-700">
+                    {p.itemCode || '-'}
+                  </div>
+                  <div className="col-span-4 font-semibold">
+                    {p.name}
+                  </div>
+                  <div className="col-span-2 text-xs font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100 w-fit">
+                    {p.variety || '-'}
+                  </div>
+                  <div className="col-span-1 text-center font-bold text-amber-700 bg-amber-50 px-1 py-0.5 rounded border border-amber-100 text-xs">
+                    {p.size || '-'}
+                  </div>
+                  <div className="col-span-1 text-center">
+                    <span className={`px-1.5 py-0.5 rounded-full text-xs font-bold ${p.stock > 10 ? 'bg-green-100 text-green-800' : p.stock > 0 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}`}>
+                      {p.stock}
+                    </span>
+                  </div>
+                  <div className="col-span-2 text-right font-mono font-extrabold text-slate-800">
+                    {Number(p.price || 0).toFixed(2)}
+                  </div>
+                </div>
+              ))}
+              {modalFilteredProducts.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-16 text-gray-400 italic">
+                  No matching dresses found in master catalog.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isQuickAddModalOpen && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center backdrop-blur-sm bg-black/40" onClick={() => setIsQuickAddModalOpen(false)}>
+          <div
+            className="bg-white shadow-2xl flex flex-col border border-gray-300 rounded-xl overflow-hidden w-full max-w-xl animate-in fade-in zoom-in-95 duration-155"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="bg-[#2b579a] text-white px-4 py-3 flex justify-between items-center shadow-md">
+              <span className="font-extrabold text-sm tracking-wide">Quick Register & Add New Product</span>
+              <button type="button" onClick={() => setIsQuickAddModalOpen(false)} className="text-white hover:text-red-300 font-bold focus:outline-none text-base">✕</button>
+            </div>
+
+            {/* Modal Form */}
+            <form onSubmit={handleQuickAddSubmit} className="p-4 space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-gray-700 font-bold mb-1">Barcode (Scanned)</label>
+                  <input type="text" value={quickAddForm.barcode} readOnly className="w-full border border-gray-300 p-2 rounded bg-gray-100 font-mono font-bold text-slate-700" />
+                </div>
+                <div>
+                  <label className="block text-gray-700 font-bold mb-1">System Item Code</label>
+                  <input type="text" value={quickAddForm.itemCode} readOnly className="w-full border border-gray-300 p-2 rounded bg-gray-100 font-mono font-bold text-slate-700" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-gray-700 font-bold mb-1">Product Name <span className="text-red-500">*</span></label>
+                <input
+                  type="text"
+                  required
+                  value={quickAddForm.name}
+                  onChange={e => setQuickAddForm(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="e.g. Silk Saree, Cotton Kurti..."
+                  className="w-full border border-indigo-300 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 p-2 rounded bg-white font-bold outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block text-gray-700 font-bold mb-1">Size</label>
+                  <input type="text" value={quickAddForm.size} onChange={e => setQuickAddForm(prev => ({ ...prev, size: e.target.value }))} className="w-full border border-gray-300 p-2 rounded outline-none font-semibold" />
+                </div>
+                <div>
+                  <label className="block text-gray-700 font-bold mb-1">Variety</label>
+                  <input type="text" value={quickAddForm.variety} onChange={e => setQuickAddForm(prev => ({ ...prev, variety: e.target.value }))} className="w-full border border-gray-300 p-2 rounded outline-none font-semibold" />
+                </div>
+                <div>
+                  <label className="block text-gray-700 font-bold mb-1">Category</label>
+                  <select value={quickAddForm.department} onChange={e => setQuickAddForm(prev => ({ ...prev, department: e.target.value }))} className="w-full border border-gray-300 p-2 rounded outline-none bg-white font-bold">
+                    <option value="None">None</option>
+                    <option value="Mens">Mens</option>
+                    <option value="Womens">Womens</option>
+                    <option value="Kids">Kids</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-4 gap-2">
+                <div>
+                  <label className="block text-gray-700 font-bold mb-1">Purchase Rate</label>
+                  <input type="number" step="0.01" value={quickAddForm.purchaseRate || ''} onChange={e => setQuickAddForm(prev => ({ ...prev, purchaseRate: Number(e.target.value) }))} className="w-full border border-gray-300 p-2 rounded outline-none text-right font-mono font-bold" />
+                </div>
+                <div>
+                  <label className="block text-gray-700 font-bold mb-1">Sales Rate</label>
+                  <input type="number" step="0.01" value={quickAddForm.price || ''} onChange={e => setQuickAddForm(prev => ({ ...prev, price: Number(e.target.value) }))} className="w-full border border-indigo-300 focus:border-indigo-650 p-2 rounded outline-none text-right font-mono text-indigo-700 font-bold" />
+                </div>
+                <div>
+                  <label className="block text-gray-700 font-bold mb-1">MRP</label>
+                  <input type="number" step="0.01" value={quickAddForm.mrp || ''} onChange={e => setQuickAddForm(prev => ({ ...prev, mrp: Number(e.target.value) }))} className="w-full border border-gray-300 p-2 rounded outline-none text-right font-mono text-gray-700 font-semibold" />
+                </div>
+                <div>
+                  <label className="block text-gray-700 font-bold mb-1">Tax %</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={quickAddForm.taxPercent || ''}
+                    onChange={e => setQuickAddForm(prev => ({ ...prev, taxPercent: Number(e.target.value) }))}
+                    className="w-full border border-gray-300 p-2 rounded outline-none text-right font-mono font-bold"
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div className="col-span-2">
+                  <label className="block text-gray-700 font-bold mb-1">Brand / Factory</label>
+                  <input type="text" value={quickAddForm.factory} onChange={e => setQuickAddForm(prev => ({ ...prev, factory: e.target.value }))} className="w-full border border-gray-300 p-2 rounded outline-none" placeholder="e.g. Rayon, Nike..." />
+                </div>
+                <div>
+                  <label className="block text-gray-700 font-bold mb-1 text-blue-900 font-extrabold">Purchase Qty</label>
+                  <input type="number" min="1" required value={quickAddForm.qty} onChange={e => setQuickAddForm(prev => ({ ...prev, qty: Number(e.target.value) }))} className="w-full border border-blue-400 p-2 rounded outline-none text-center font-extrabold text-blue-950 bg-blue-50/50" />
+                </div>
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-3 border-t border-gray-200 mt-4">
+                <button
+                  type="button"
+                  onClick={() => setIsQuickAddModalOpen(false)}
+                  className="px-4 py-2 border border-gray-300 rounded font-bold hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-bold transition-colors shadow-sm flex items-center space-x-1.5"
+                >
+                  {loading && <span className="animate-spin mr-1">⌛</span>}
+                  <span>Save & Add to Bill</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );

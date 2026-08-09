@@ -167,11 +167,15 @@ const DailyStockStatus = () => {
     );
   }, [filteredStock]);
 
+  const hasInward = useMemo(() => {
+    return filteredStock.some(item => (item.inwardToday || 0) > 0);
+  }, [filteredStock]);
+
   const downloadPDF = () => {
-    const doc = new jsPDF({ orientation: 'landscape' });
+    const doc = new jsPDF({ orientation: 'portrait' });
     doc.setFontSize(16);
     doc.setTextColor(43, 87, 154);
-    doc.text('Daily Stock Status Report', 14, 15);
+    doc.text('Daily Sales Report', 14, 15);
     
     doc.setFontSize(10);
     doc.setTextColor(100);
@@ -181,74 +185,57 @@ const DailyStockStatus = () => {
     // Calculate totals for PDF report from filtered stock
     const pdfTotals = filteredStock.reduce(
       (acc, item) => {
-        acc.opening += item.openingStock || 0;
         acc.inward += item.inwardToday || 0;
         acc.outward += item.outwardToday || 0;
         acc.returns += item.returnsToday || 0;
-        acc.closing += item.closingStock || 0;
-        acc.valuation += item.valuation || 0;
         return acc;
       },
-      { opening: 0, inward: 0, outward: 0, returns: 0, closing: 0, valuation: 0 }
+      { inward: 0, outward: 0, returns: 0 }
     );
 
-    doc.text(`Target Date: ${formattedDate} | Total Valuation: Rs. ${(pdfTotals.valuation || 0).toFixed(2)}`, 14, 22);
+    doc.text(`Target Date: ${formattedDate}`, 14, 22);
 
     const headers = [
       "Item Code", 
       "Product Name",
-      "Barcode",
       "Category",
       "Size",
-      "Unit", 
-      "Opening Qty", 
-      "Qty In (Pur)", 
-      "Qty Out (Sold)", 
-      "Returns",
-      "Closing Qty", 
-      "Pur. Rate (Rs.)", 
-      "Closing Val (Rs.)",
-      "Status",
-      "Payment Mode"
+      "Unit"
     ];
+    if (hasInward) {
+      headers.push("Qty In (Pur)");
+    }
+    headers.push("Qty Out (Sold)", "Returns");
     
     // Map over filteredStock items
-    const rows = filteredStock.map(item => [
-      item.itemCode || '',
-      item.name || '',
-      item.barcode || '',
-      item.category || '',
-      item.size || '',
-      item.uom || 'PCS',
-      item.openingStock || 0,
-      item.inwardToday || 0,
-      item.outwardToday || 0,
-      item.returnsToday || 0,
-      item.closingStock || 0,
-      (item.purchaseRate || 0).toFixed(2),
-      (item.valuation || 0).toFixed(2),
-      item.status || 'Inactive',
-      item.paymentMode || '-'
-    ]);
+    const rows = filteredStock.map(item => {
+      const row = [
+        item.itemCode || '',
+        item.name || '',
+        item.category || '',
+        item.size || '',
+        item.uom || 'PCS'
+      ];
+      if (hasInward) {
+        row.push((item.inwardToday || 0).toString());
+      }
+      row.push((item.outwardToday || 0).toString(), (item.returnsToday || 0).toString());
+      return row;
+    });
 
     // Summary Row
-    rows.push([
+    const totalRow = [
       'TOTAL',
-      `${inventory.length} Items`,
+      `${filteredStock.length} Items`,
       '',
-      '',
-      '',
-      '',
-      (pdfTotals.opening || 0).toString(),
-      (pdfTotals.inward || 0).toString(),
-      (pdfTotals.outward || 0).toString(),
-      (pdfTotals.returns || 0).toString(),
-      (pdfTotals.closing || 0).toString(),
-      '',
-      (pdfTotals.valuation || 0).toFixed(2),
       '',
       ''
-    ]);
+    ];
+    if (hasInward) {
+      totalRow.push((pdfTotals.inward || 0).toString());
+    }
+    totalRow.push((pdfTotals.outward || 0).toString(), (pdfTotals.returns || 0).toString());
+    rows.push(totalRow);
 
     autoTable(doc, {
       startY: 28,
@@ -256,7 +243,7 @@ const DailyStockStatus = () => {
       body: rows,
       theme: 'grid',
       headStyles: { fillColor: [43, 87, 154] },
-      styles: { fontSize: 7, cellPadding: 1.5 },
+      styles: { fontSize: 8, cellPadding: 2 },
       didParseCell: (data) => {
         if (data.row.index === rows.length - 1) {
           data.cell.styles.fontStyle = 'bold';
@@ -269,7 +256,7 @@ const DailyStockStatus = () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `Daily_Stock_Status_${formattedDate}.pdf`;
+    link.download = `Daily_Sales_Report_${formattedDate}.pdf`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -287,82 +274,65 @@ const DailyStockStatus = () => {
     const formattedDate = `${dd}-${mm}-${yyyy}`;
 
     try {
-      const doc = new jsPDF({ orientation: 'landscape' });
+      const doc = new jsPDF({ orientation: 'portrait' });
       doc.setFontSize(16);
       doc.setTextColor(43, 87, 154);
-      doc.text('Daily Stock Status Report (Complete)', 14, 15);
+      doc.text('Daily Sales Report', 14, 15);
       
       doc.setFontSize(10);
       doc.setTextColor(100);
       
       const pdfTotals = filteredStock.reduce(
         (acc, item) => {
-          acc.opening += item.openingStock || 0;
           acc.inward += item.inwardToday || 0;
           acc.outward += item.outwardToday || 0;
           acc.returns += item.returnsToday || 0;
-          acc.closing += item.closingStock || 0;
-          acc.valuation += item.valuation || 0;
           return acc;
         },
-        { opening: 0, inward: 0, outward: 0, returns: 0, closing: 0, valuation: 0 }
+        { inward: 0, outward: 0, returns: 0 }
       );
 
-      doc.text(`Target Date: ${formattedDate} | Total Valuation: Rs. ${(pdfTotals.valuation || 0).toFixed(2)}`, 14, 22);
+      doc.text(`Target Date: ${formattedDate}`, 14, 22);
 
       const headers = [
         "Item Code", 
         "Product Name", 
-        "Barcode",
         "Category",
         "Size",
-        "Unit", 
-        "Opening Qty", 
-        "Qty In (Pur)", 
-        "Qty Out (Sold)", 
-        "Returns",
-        "Closing Qty", 
-        "Pur. Rate (Rs.)", 
-        "Closing Val (Rs.)",
-        "Status",
-        "Payment Mode"
+        "Unit"
       ];
+      if (hasInward) {
+        headers.push("Qty In (Pur)");
+      }
+      headers.push("Qty Out (Sold)", "Returns");
       
-      const rows = filteredStock.map(item => [
-        item.itemCode || '',
-        item.name || '',
-        item.barcode || '',
-        item.category || '',
-        item.size || '',
-        item.uom || 'PCS',
-        item.openingStock || 0,
-        item.inwardToday || 0,
-        item.outwardToday || 0,
-        item.returnsToday || 0,
-        item.closingStock || 0,
-        (item.purchaseRate || 0).toFixed(2),
-        (item.valuation || 0).toFixed(2),
-        item.status || 'Inactive',
-        item.paymentMode || '-'
-      ]);
+      const rows = filteredStock.map(item => {
+        const row = [
+          item.itemCode || '',
+          item.name || '',
+          item.category || '',
+          item.size || '',
+          item.uom || 'PCS'
+        ];
+        if (hasInward) {
+          row.push((item.inwardToday || 0).toString());
+        }
+        row.push((item.outwardToday || 0).toString(), (item.returnsToday || 0).toString());
+        return row;
+      });
 
-      rows.push([
+      const totalRow = [
         'TOTAL',
         `${filteredStock.length} Items`,
         '',
         '',
-        '',
-        '',
-        (pdfTotals.opening || 0).toString(),
-        (pdfTotals.inward || 0).toString(),
-        (pdfTotals.outward || 0).toString(),
-        (pdfTotals.returns || 0).toString(),
-        (pdfTotals.closing || 0).toString(),
-        '',
-        (pdfTotals.valuation || 0).toFixed(2),
-        '',
         ''
-      ]);
+      ];
+      if (hasInward) {
+        totalRow.push((pdfTotals.inward || 0).toString());
+      }
+      totalRow.push((pdfTotals.outward || 0).toString(), (pdfTotals.returns || 0).toString());
+      rows.push(totalRow);
 
       autoTable(doc, {
         startY: 28,
@@ -370,7 +340,7 @@ const DailyStockStatus = () => {
         body: rows,
         theme: 'grid',
         headStyles: { fillColor: [43, 87, 154] },
-        styles: { fontSize: 7, cellPadding: 1.5 },
+        styles: { fontSize: 8, cellPadding: 2 },
         didParseCell: (data) => {
           if (data.row.index === rows.length - 1) {
             data.cell.styles.fontStyle = 'bold';
@@ -380,7 +350,7 @@ const DailyStockStatus = () => {
       });
 
       const pdfBase64 = doc.output('datauristring');
-      const filename = `Daily_Stock_Status_${dateStr.replace(/-/g, '_')}.pdf`;
+      const filename = `Daily_Sales_Report_${dateStr.replace(/-/g, '_')}.pdf`;
 
       const uploadRes = await fetch(`${Api}/products/upload-pdf`, {
         method: 'POST',
@@ -397,14 +367,13 @@ const DailyStockStatus = () => {
         pdfUrl = resJson.pdfUrl || '';
       }
 
-      const text = `*Sri Gayathri Traders - Daily Stock Status Report*\n` +
+      const text = `*Ithu Namma Kada - Daily Sales Report*\n` +
                    `*Date:* ${formattedDate}\n` +
                    `*Total Items:* ${filteredStock.length}\n` +
-                   `*Total Qty In (Pur):* ${totals.inward}\n` +
+                   (hasInward ? `*Total Qty In (Pur):* ${totals.inward}\n` : '') +
                    `*Total Qty Out (Sold):* ${totals.outward}\n` +
                    `*Total Qty Returned:* ${totals.returns}\n` +
-                   `*Total Closing Qty:* ${totals.closing}\n` +
-                   `*Total Closing Valuation:* Rs. ${(totals.valuation || 0).toFixed(2)}\n\n` +
+                   `*Total Sales Amount:* Rs. ${paymentSummary.total.toFixed(2)}\n\n` +
                    (pdfUrl ? `*Download PDF Report:* ${pdfUrl}\n\n` : '') +
                    `Generated automatically via Billing System.`;
 
@@ -419,9 +388,48 @@ const DailyStockStatus = () => {
     }
   };
 
+  const colSpanCount = hasInward ? 8 : 7;
+
   return (
     <div className="flex flex-col h-full bg-[#f0f9f4] p-2 overflow-hidden">
       
+      {/* DAILY SALES PAYMENT METHODS SUMMARY BANNER (TOP ROW) */}
+      <div className="bg-[#1e3f70] text-white p-3 border border-gray-400 shadow-sm rounded mb-2 flex flex-col space-y-2.5 text-xs print:hidden">
+        {/* Top Row: Title and Total Sales */}
+        <div className="flex justify-between items-center border-b border-blue-900/60 pb-2">
+          <span className="text-blue-200 font-extrabold uppercase tracking-wider text-[11px] flex items-center">
+            <FileText size={15} className="mr-1.5 text-blue-300" /> Daily Sales Payment Method Breakdown ({paymentSummary.count} Bills)
+          </span>
+          <div className="bg-yellow-400 text-slate-900 px-3 py-1 rounded font-black flex items-center space-x-1.5 shadow border border-yellow-500">
+            <span className="text-[10px] uppercase tracking-wider text-slate-800">Total Sales:</span>
+            <span className="font-mono text-sm font-extrabold">₹{paymentSummary.total.toFixed(2)}</span>
+          </div>
+        </div>
+
+        {/* Bottom Row: Breakdown tags */}
+        <div className="flex items-center space-x-2.5 font-semibold flex-wrap justify-end">
+          <div className="bg-emerald-50 border border-emerald-300 px-2.5 py-1 rounded-md text-emerald-800 flex items-center space-x-1">
+            <span>💵 Cash:</span>
+            <span className="font-mono font-bold text-sm text-emerald-950">₹{paymentSummary.cash.toFixed(2)}</span>
+          </div>
+
+          <div className="bg-blue-50 border border-blue-300 px-2.5 py-1 rounded-md text-blue-800 flex items-center space-x-1">
+            <span>📱 UPI / Online:</span>
+            <span className="font-mono font-bold text-sm text-blue-950">₹{paymentSummary.upi.toFixed(2)}</span>
+          </div>
+
+          <div className="bg-purple-50 border border-purple-300 px-2.5 py-1 rounded-md text-purple-800 flex items-center space-x-1">
+            <span>💳 Card / Bank:</span>
+            <span className="font-mono font-bold text-sm text-purple-950">₹{paymentSummary.card.toFixed(2)}</span>
+          </div>
+
+          <div className="bg-rose-50 border border-rose-300 px-2.5 py-1 rounded-md text-rose-800 flex items-center space-x-1">
+            <span>📜 Credit / Ledger:</span>
+            <span className="font-mono font-bold text-sm text-rose-950">₹{paymentSummary.credit.toFixed(2)}</span>
+          </div>
+        </div>
+      </div>
+
       {/* HEADER RIBBON */}
       <div className="bg-white p-3 border border-gray-400 shadow-sm rounded mb-2 flex-shrink-0 flex justify-between items-center print:hidden">
         
@@ -432,7 +440,7 @@ const DailyStockStatus = () => {
           </h5>
 
           <div className="flex items-center space-x-4 bg-gray-50 border border-gray-300 px-3 py-1.5 rounded-md shadow-sm">
-            <div className="flex items-center space-x-2 border-r border-gray-300 pr-4">
+            <div className="flex items-center space-x-2">
               <Search size={16} className="text-gray-400" />
               <input 
                 id="daily-stock-search-input"
@@ -442,28 +450,6 @@ const DailyStockStatus = () => {
                 onChange={e => setSearch(e.target.value)}
                 className="bg-transparent text-sm focus:outline-none w-48 placeholder-gray-400"
               />
-            </div>
-
-            <div className="flex items-center space-x-2 border-r border-gray-300 pr-4">
-              <input 
-                type="checkbox" 
-                id="salesOnly" 
-                checked={salesOnly} 
-                onChange={e => setSalesOnly(e.target.checked)}
-                className="w-4 h-4 text-blue-600 rounded cursor-pointer"
-              />
-              <label htmlFor="salesOnly" className="text-sm font-bold text-[#2b579a] cursor-pointer">Daily Activity Only</label>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <input 
-                type="checkbox" 
-                id="hideZero" 
-                checked={hideZero} 
-                onChange={e => setHideZero(e.target.checked)}
-                className="w-4 h-4 text-blue-600 rounded cursor-pointer"
-              />
-              <label htmlFor="hideZero" className="text-sm font-bold text-gray-700 cursor-pointer">Hide Zero Balances</label>
             </div>
           </div>
         </div>
@@ -496,42 +482,6 @@ const DailyStockStatus = () => {
 
       </div>
 
-      {/* DAILY SALES PAYMENT METHODS SUMMARY BANNER */}
-      <div className="bg-white p-2.5 border border-gray-400 shadow-sm rounded mb-2 flex items-center justify-between text-xs print:hidden">
-        <div className="flex items-center space-x-2 font-bold text-gray-700">
-          <span className="text-[#2b579a] font-extrabold uppercase tracking-wider text-[11px] flex items-center">
-            <FileText size={14} className="mr-1 text-blue-600" /> Daily Sales Payment Method Breakdown ({paymentSummary.count} Bills):
-          </span>
-        </div>
-
-        <div className="flex items-center space-x-2.5 font-semibold flex-wrap">
-          <div className="bg-emerald-50 border border-emerald-300 px-2.5 py-1 rounded-md text-emerald-800 flex items-center space-x-1">
-            <span>💵 Cash:</span>
-            <span className="font-mono font-bold text-sm">₹{paymentSummary.cash.toFixed(2)}</span>
-          </div>
-
-          <div className="bg-blue-50 border border-blue-300 px-2.5 py-1 rounded-md text-blue-800 flex items-center space-x-1">
-            <span>📱 UPI / Online:</span>
-            <span className="font-mono font-bold text-sm">₹{paymentSummary.upi.toFixed(2)}</span>
-          </div>
-
-          <div className="bg-purple-50 border border-purple-300 px-2.5 py-1 rounded-md text-purple-800 flex items-center space-x-1">
-            <span>💳 Card / Bank:</span>
-            <span className="font-mono font-bold text-sm">₹{paymentSummary.card.toFixed(2)}</span>
-          </div>
-
-          <div className="bg-rose-50 border border-rose-300 px-2.5 py-1 rounded-md text-rose-800 flex items-center space-x-1">
-            <span>📜 Credit / Ledger:</span>
-            <span className="font-mono font-bold text-sm">₹{paymentSummary.credit.toFixed(2)}</span>
-          </div>
-
-          <div className="bg-[#1e3f70] text-white px-3 py-1 rounded-md font-bold flex items-center space-x-1 shadow-inner">
-            <span className="text-[11px] uppercase tracking-wider text-blue-200">Total Sales:</span>
-            <span className="font-mono text-sm text-yellow-300 font-extrabold">₹{paymentSummary.total.toFixed(2)}</span>
-          </div>
-        </div>
-      </div>
-
       {/* DATA GRID */}
       <div className="flex-1 bg-white border border-gray-400 shadow-sm rounded flex flex-col overflow-hidden">
         <div className="flex-1 overflow-auto">
@@ -540,31 +490,24 @@ const DailyStockStatus = () => {
               <tr>
                 <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-24">Item Code</th>
                 <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-40">Product</th>
-                <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-28">Barcode</th>
                 <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-32">Category</th>
                 <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-20">Size</th>
                 <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-16 text-center">Unit</th>
-                <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-28 text-right bg-[#142d54]/20">Opening</th>
-                <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-24 text-right text-green-300">Inward</th>
+                {hasInward && <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-24 text-right text-green-300">Inward</th>}
                 <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-24 text-right text-amber-300">Sold</th>
                 <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-24 text-right text-red-300">Return</th>
-                <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-28 text-right bg-[#142d54]/20">Closing</th>
-                <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-20 text-center">Status</th>
-                <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-36">Payment Mode</th>
-                <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-28 text-right">Pur. Rate (₹)</th>
-                <th className="p-2 text-xs font-semibold w-32 text-right">Closing Val (₹)</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={15} className="p-12 text-center text-gray-500 font-bold">
+                  <td colSpan={colSpanCount} className="p-12 text-center text-gray-500 font-bold">
                     Loading daily stock status data...
                   </td>
                 </tr>
               ) : filteredStock.length === 0 ? (
                 <tr>
-                  <td colSpan={15} className="p-12 text-center text-gray-400">
+                  <td colSpan={colSpanCount} className="p-12 text-center text-gray-400">
                     <div className="flex flex-col items-center">
                       <PackageSearch size={32} className="mb-2 opacity-50" />
                       <p className="italic text-sm">No items found matching criteria.</p>
@@ -584,18 +527,15 @@ const DailyStockStatus = () => {
                     >
                       <td className="border-r border-gray-200 p-2 font-mono text-xs font-bold text-gray-600">{item.itemCode}</td>
                       <td className="border-r border-gray-200 p-2 text-gray-800">{item.name}</td>
-                      <td className="border-r border-gray-200 p-2 font-mono text-xs text-gray-600">{item.barcode || '-'}</td>
                       <td className="border-r border-gray-200 p-2 text-xs text-gray-700">{item.category || '-'}</td>
                       <td className="border-r border-gray-200 p-2 text-xs text-center text-gray-600">{item.size || '-'}</td>
                       <td className="border-r border-gray-200 p-2 text-xs text-center text-gray-500">{item.uom || 'PCS'}</td>
                       
-                      <td className="border-r border-gray-200 p-2 text-right font-mono text-sm text-gray-700 bg-gray-50/20">
-                        {item.openingStock}
-                      </td>
-                      
-                      <td className="border-r border-gray-200 p-2 text-right font-mono text-sm text-green-600 bg-green-50/20 font-bold">
-                        {item.inwardToday > 0 ? `+${item.inwardToday}` : ''}
-                      </td>
+                      {hasInward && (
+                        <td className="border-r border-gray-200 p-2 text-right font-mono text-sm text-green-600 bg-green-50/20 font-bold">
+                          {item.inwardToday > 0 ? `+${item.inwardToday}` : ''}
+                        </td>
+                      )}
                       
                       <td className="border-r border-gray-200 p-2 text-right font-mono text-sm text-amber-600 bg-amber-50/20 font-bold">
                         {item.outwardToday > 0 ? `${item.outwardToday}` : ''}
@@ -603,31 +543,6 @@ const DailyStockStatus = () => {
                       
                       <td className="border-r border-gray-200 p-2 text-right font-mono text-sm text-red-600 bg-red-50/20 font-bold">
                         {item.returnsToday > 0 ? `+${item.returnsToday}` : ''}
-                      </td>
-                      
-                      <td className="border-r border-gray-200 p-2 text-right font-mono text-sm text-blue-700 bg-blue-50/20 font-bold">
-                        {item.closingStock}
-                      </td>
-
-                      <td className="border-r border-gray-200 p-2 text-center text-xs">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide ${
-                          item.status === 'In Stock' ? 'bg-green-100 text-green-800' :
-                          item.status === 'Low Stock' ? 'bg-amber-100 text-amber-800' :
-                          item.status === 'Out of Stock' ? 'bg-red-100 text-red-800' :
-                          'bg-gray-100 text-gray-600'
-                        }`}>
-                          {item.status || 'In Stock'}
-                        </span>
-                      </td>
-
-                      <td className="border-r border-gray-200 p-2 text-xs text-gray-700 font-medium">{item.paymentMode || '-'}</td>
-                      
-                      <td className="border-r border-gray-200 p-2 text-right font-mono text-xs text-gray-600">
-                        {(item.purchaseRate || 0).toFixed(2)}
-                      </td>
-                      
-                      <td className="p-2 text-right font-mono font-bold text-gray-900 bg-gray-50/50">
-                        {(item.valuation || 0).toFixed(2)}
                       </td>
                     </tr>
                   );
@@ -641,21 +556,9 @@ const DailyStockStatus = () => {
         <div className="bg-[#1e3f70] border-t border-[#142d54] p-3 flex justify-between items-center text-white flex-shrink-0 z-20">
           <div className="text-sm font-bold text-blue-200 flex space-x-6">
             <span>Total Items: {filteredStock.length}</span>
-            <span>Total In (Pur): {totals.inward}</span>
-            <span>Total Out (Sold): {totals.outward}</span>
+            {hasInward && <span>Total Inward: {totals.inward}</span>}
+            <span>Total Sold: {totals.outward}</span>
             <span>Total Returned: {totals.returns}</span>
-          </div>
-
-          <div className="flex space-x-4 items-center">
-            <div className="flex items-center bg-[#142d54] px-4 py-1.5 rounded border border-[#0d1e38] shadow-inner">
-               <span className="text-xs font-bold text-blue-200 uppercase tracking-widest mr-3">Total Closing Qty</span>
-               <span className="font-mono text-lg font-black text-white">{totals.closing}</span>
-            </div>
-            
-            <div className="flex items-center bg-[#142d54] px-5 py-1.5 rounded border border-[#0d1e38] shadow-inner">
-               <span className="text-xs font-bold text-blue-200 uppercase tracking-widest mr-3">Total Closing Valuation</span>
-               <span className="font-mono text-xl font-black text-yellow-300">₹ {(totals.valuation || 0).toFixed(2)}</span>
-            </div>
           </div>
         </div>
 
