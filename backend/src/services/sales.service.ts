@@ -29,34 +29,6 @@ export const createSalesBill = async (data: any): Promise<any> => {
 
   const db = await getDb();
 
-  // Server-side Stock Validation: Ensure stock never goes negative
-  if (items && items.length > 0) {
-    for (const item of items) {
-      const qty = Number(item.qty) || 0;
-      if (qty <= 0) continue;
-
-      let product = null;
-      if (item.productId) {
-        product = await prisma.product.findUnique({ where: { id: item.productId } });
-      }
-      if (!product && item.itemDesc) {
-        product = await prisma.product.findFirst({
-          where: { OR: [{ itemCode: item.itemDesc }, { barcode: item.itemDesc }] }
-        });
-      }
-      if (!product && item.itemName) {
-        product = await prisma.product.findFirst({ where: { name: item.itemName } });
-      }
-
-      if (product) {
-        const availableStock = Number(product.stock) || 0;
-        if (availableStock < qty) {
-          throw new Error(`Insufficient stock for item "${product.name}". Available: ${availableStock}, Requested: ${qty}`);
-        }
-      }
-    }
-  }
-
   const billResult = await db.collection('SalesBill').insertOne({
     invoiceNo,
     invDate: new Date(invDate),

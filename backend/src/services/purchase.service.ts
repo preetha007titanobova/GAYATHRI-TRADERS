@@ -1,5 +1,5 @@
 import { ObjectId } from 'mongodb';
-import { prisma, getDb } from '../config/db';
+import { getDb } from '../config/db';
 
 export const getNextPurchaseVoucher = async (): Promise<string> => {
   const db = await getDb();
@@ -31,11 +31,11 @@ export const createPurchaseBill = async (data: any): Promise<any> => {
 
   // 1. Create the PurchaseBill
   const billDoc = {
-    voucherNo,
+    voucherNo: voucherNo || `PB-${Date.now()}`,
     date: date ? new Date(date) : new Date(),
     supplierInvoiceNo: supplierInvoiceNo || 'N/A',
-    supplierName,
-    supplierGstin,
+    supplierName: supplierName || 'General Supplier',
+    supplierGstin: supplierGstin || '',
     taxableAmt: Number(taxableAmt) || 0,
     cgst: Number(cgst) || 0,
     sgst: Number(sgst) || 0,
@@ -62,68 +62,64 @@ export const createPurchaseBill = async (data: any): Promise<any> => {
       const discPercent = Number(item.discPercent) || 0;
       const total = Number(item.total) || 0;
 
-      // Check if product exists in DB by itemCode
-      let product = null;
-      if (item.itemCode) {
-        product = await prisma.product.findFirst({
-          where: { itemCode: { equals: item.itemCode.trim(), mode: 'insensitive' } }
+      let product: any = null;
+      if (item.itemCode && item.itemCode.trim()) {
+        product = await db.collection('Product').findOne({
+          itemCode: { $regex: `^${item.itemCode.trim()}$`, $options: 'i' }
         });
       }
 
       let productId: ObjectId | null = null;
 
       if (product) {
-        productId = new ObjectId(product.id);
-        // Product exists: update stock, rate, size, variety, department
-        await prisma.product.update({
-          where: { id: product.id },
-          data: {
-            stock: {
-              increment: Math.round(qty)
-            },
-            purchaseRate: rate,
-            price: item.salesRate ? Number(item.salesRate) : product.price,
-            mrp: item.mrp ? Number(item.mrp) : product.mrp,
-            size: item.size || product.size,
-            variety: item.variety || product.variety,
-            department: item.category || item.department || product.department,
-            factory: item.factory || product.factory,
-            vendorItemCode: item.vendorItemCode || product.vendorItemCode,
+        productId = product._id;
+        const cleanBarcode = item.barcode && item.barcode.trim() !== '' ? item.barcode.trim() : (product.barcode || null);
+        await db.collection('Product').updateOne(
+          { _id: product._id },
+          {
+            $inc: { stock: Math.round(qty) },
+            $set: {
+              purchaseRate: rate,
+              price: item.salesRate ? Number(item.salesRate) : product.price,
+              mrp: item.mrp ? Number(item.mrp) : product.mrp,
+              barcode: cleanBarcode,
+              category: item.category || item.department || product.category || 'General',
+              vendorItemCode: item.vendorItemCode || product.vendorItemCode || '',
+              updatedAt: new Date()
+            }
           }
-        });
+        );
       } else {
-        // Product does not exist: create a new one
-        const newProduct = await prisma.product.create({
-          data: {
-            itemCode: item.itemCode,
-            name: item.itemName || item.itemDesc || item.itemCode,
-            barcode: item.itemCode, // Default barcode to itemCode
-            uom: 'Piece', // Default UOM
-            purchaseRate: rate,
-            price: Number(item.salesRate || rate),
-            mrp: Number(item.mrp || rate),
-            taxPercent: taxPercent,
-            stock: Math.round(qty),
-            department: item.category || item.department || 'None',
-            variety: item.variety || '',
-            size: item.size || '',
-            factory: item.factory || '',
-            vendorItemCode: item.vendorItemCode || ''
-          }
+        const cleanBarcode = item.barcode && item.barcode.trim() !== '' ? item.barcode.trim() : null;
+        const newProd = await db.collection('Product').insertOne({
+          itemCode: item.itemCode || `ITM-${Date.now()}`,
+          name: item.itemName || item.itemDesc || item.itemCode || 'Purchase Item',
+          barcode: cleanBarcode,
+          uom: 'PCS',
+          purchaseRate: rate,
+          price: Number(item.salesRate || rate),
+          mrp: Number(item.mrp || rate),
+          taxPercent: taxPercent,
+          stock: Math.round(qty),
+          category: item.category || item.department || 'General',
+          vendorItemCode: item.vendorItemCode || '',
+          createdAt: new Date(),
+          updatedAt: new Date()
         });
-        productId = new ObjectId(newProduct.id);
+        productId = newProd.insertedId;
       }
 
       itemsToInsert.push({
         purchaseBillId: purchaseBillId,
         productId: productId,
-        itemCode: item.itemCode,
-        itemName: item.itemName || item.itemDesc || item.itemCode,
+        itemCode: item.itemCode || '',
+        itemName: item.itemName || item.itemDesc || item.itemCode || 'Item',
         size: item.size || '',
         variety: item.variety || '',
         category: item.category || item.department || 'None',
         factory: item.factory || '',
         vendorItemCode: item.vendorItemCode || '',
+        weight: item.weight || '',
         qty: qty,
         rate: rate,
         taxPercent: taxPercent,
@@ -137,7 +133,7 @@ export const createPurchaseBill = async (data: any): Promise<any> => {
     }
   }
 
-  return { id: purchaseBillId.toString(), voucherNo };
+  return { id: purchaseBillId.toString(), voucherNo: billDoc.voucherNo };
 };
 
 export const searchPurchaseBills = async (q: string): Promise<any[]> => {
@@ -158,14 +154,12 @@ export const searchPurchaseBills = async (q: string): Promise<any[]> => {
     .sort({ createdAt: -1 })
     .toArray();
 
-  // Populate items for each bill
   const populatedBills = [];
   for (const bill of bills) {
     const items = await db.collection('PurchaseItem')
       .find({ purchaseBillId: bill._id })
       .toArray();
 
-    // Map _id to id for frontend compatibility
     populatedBills.push({
       ...bill,
       id: bill._id.toString(),
@@ -183,21 +177,26 @@ export const searchPurchaseBills = async (q: string): Promise<any[]> => {
 
 export const updatePurchaseBill = async (id: string, data: any): Promise<boolean> => {
   const db = await getDb();
-  const billId = new ObjectId(id);
+  let filter: any = {};
+  if (ObjectId.isValid(id)) {
+    filter = { $or: [{ _id: new ObjectId(id) }, { voucherNo: id }] };
+  } else {
+    filter = { voucherNo: id };
+  }
+
+  const existingBill = await db.collection('PurchaseBill').findOne(filter);
+  if (!existingBill) return false;
+  const billId = existingBill._id;
 
   // 1. Get old items to revert stock
   const oldItems = await db.collection('PurchaseItem').find({ purchaseBillId: billId }).toArray();
   for (const item of oldItems) {
     const qty = Number(item.qty) || 0;
     if (qty > 0 && item.productId) {
-      await prisma.product.update({
-        where: { id: item.productId.toString() },
-        data: {
-          stock: {
-            decrement: Math.round(qty)
-          }
-        }
-      });
+      await db.collection('Product').updateOne(
+        { _id: new ObjectId(item.productId.toString()) },
+        { $inc: { stock: -Math.round(qty) } }
+      );
     }
   }
 
@@ -215,11 +214,11 @@ export const updatePurchaseBill = async (id: string, data: any): Promise<boolean
     { _id: billId },
     {
       $set: {
-        voucherNo,
+        voucherNo: voucherNo || existingBill.voucherNo,
         date: date ? new Date(date) : new Date(),
         supplierInvoiceNo: supplierInvoiceNo || 'N/A',
-        supplierName,
-        supplierGstin,
+        supplierName: supplierName || existingBill.supplierName,
+        supplierGstin: supplierGstin || existingBill.supplierGstin,
         taxableAmt: Number(taxableAmt) || 0,
         cgst: Number(cgst) || 0,
         sgst: Number(sgst) || 0,
@@ -244,64 +243,63 @@ export const updatePurchaseBill = async (id: string, data: any): Promise<boolean
       const discPercent = Number(item.discPercent) || 0;
       const total = Number(item.total) || 0;
 
-      let product = null;
-      if (item.itemCode) {
-        product = await prisma.product.findFirst({
-          where: { itemCode: { equals: item.itemCode.trim(), mode: 'insensitive' } }
+      let product: any = null;
+      if (item.itemCode && item.itemCode.trim()) {
+        product = await db.collection('Product').findOne({
+          itemCode: { $regex: `^${item.itemCode.trim()}$`, $options: 'i' }
         });
       }
 
       let productId: ObjectId | null = null;
       if (product) {
-        productId = new ObjectId(product.id);
-        await prisma.product.update({
-          where: { id: product.id },
-          data: {
-            stock: {
-              increment: Math.round(qty)
-            },
-            purchaseRate: rate,
-            price: item.salesRate ? Number(item.salesRate) : product.price,
-            mrp: item.mrp ? Number(item.mrp) : product.mrp,
-            size: item.size || product.size,
-            variety: item.variety || product.variety,
-            department: item.category || item.department || product.department,
-            factory: item.factory || product.factory,
-            vendorItemCode: item.vendorItemCode || product.vendorItemCode,
+        productId = product._id;
+        const cleanBarcode = item.barcode && item.barcode.trim() !== '' ? item.barcode.trim() : (product.barcode || null);
+        await db.collection('Product').updateOne(
+          { _id: product._id },
+          {
+            $inc: { stock: Math.round(qty) },
+            $set: {
+              purchaseRate: rate,
+              price: item.salesRate ? Number(item.salesRate) : product.price,
+              mrp: item.mrp ? Number(item.mrp) : product.mrp,
+              barcode: cleanBarcode,
+              category: item.category || item.department || product.category || 'General',
+              vendorItemCode: item.vendorItemCode || product.vendorItemCode || '',
+              updatedAt: new Date()
+            }
           }
-        });
+        );
       } else {
-        const newProduct = await prisma.product.create({
-          data: {
-            itemCode: item.itemCode,
-            name: item.itemName || item.itemDesc || item.itemCode,
-            barcode: item.itemCode,
-            uom: 'Piece',
-            purchaseRate: rate,
-            price: Number(item.salesRate || rate),
-            mrp: Number(item.mrp || rate),
-            taxPercent: taxPercent,
-            stock: Math.round(qty),
-            department: item.category || item.department || 'None',
-            variety: item.variety || '',
-            size: item.size || '',
-            factory: item.factory || '',
-            vendorItemCode: item.vendorItemCode || ''
-          }
+        const cleanBarcode = item.barcode && item.barcode.trim() !== '' ? item.barcode.trim() : null;
+        const newProd = await db.collection('Product').insertOne({
+          itemCode: item.itemCode || `ITM-${Date.now()}`,
+          name: item.itemName || item.itemDesc || item.itemCode || 'Purchase Item',
+          barcode: cleanBarcode,
+          uom: 'PCS',
+          purchaseRate: rate,
+          price: Number(item.salesRate || rate),
+          mrp: Number(item.mrp || rate),
+          taxPercent: taxPercent,
+          stock: Math.round(qty),
+          category: item.category || item.department || 'General',
+          vendorItemCode: item.vendorItemCode || '',
+          createdAt: new Date(),
+          updatedAt: new Date()
         });
-        productId = new ObjectId(newProduct.id);
+        productId = newProd.insertedId;
       }
 
       itemsToInsert.push({
         purchaseBillId: billId,
         productId: productId,
-        itemCode: item.itemCode,
-        itemName: item.itemName || item.itemDesc || item.itemCode,
+        itemCode: item.itemCode || '',
+        itemName: item.itemName || item.itemDesc || item.itemCode || 'Item',
         size: item.size || '',
         variety: item.variety || '',
         category: item.category || item.department || 'None',
         factory: item.factory || '',
         vendorItemCode: item.vendorItemCode || '',
+        weight: item.weight || '',
         qty: qty,
         rate: rate,
         taxPercent: taxPercent,
@@ -320,28 +318,30 @@ export const updatePurchaseBill = async (id: string, data: any): Promise<boolean
 
 export const deletePurchaseBill = async (id: string): Promise<boolean> => {
   const db = await getDb();
-  const billId = new ObjectId(id);
+  let filter: any = {};
+  if (ObjectId.isValid(id)) {
+    filter = { $or: [{ _id: new ObjectId(id) }, { voucherNo: id }] };
+  } else {
+    filter = { voucherNo: id };
+  }
+
+  const existingBill = await db.collection('PurchaseBill').findOne(filter);
+  if (!existingBill) return false;
+  const billId = existingBill._id;
 
   // Revert stock changes
   const oldItems = await db.collection('PurchaseItem').find({ purchaseBillId: billId }).toArray();
   for (const item of oldItems) {
     const qty = Number(item.qty) || 0;
     if (qty > 0 && item.productId) {
-      await prisma.product.update({
-        where: { id: item.productId.toString() },
-        data: {
-          stock: {
-            decrement: Math.round(qty)
-          }
-        }
-      });
+      await db.collection('Product').updateOne(
+        { _id: new ObjectId(item.productId.toString()) },
+        { $inc: { stock: -Math.round(qty) } }
+      );
     }
   }
 
-  // Delete items
   await db.collection('PurchaseItem').deleteMany({ purchaseBillId: billId });
-
-  // Delete bill
   const result = await db.collection('PurchaseBill').deleteOne({ _id: billId });
   return result.deletedCount > 0;
 };
@@ -373,12 +373,12 @@ export const createPurchaseReturn = async (data: any): Promise<any> => {
   } = data;
 
   const returnDoc = {
-    returnNo,
+    returnNo: returnNo || `PR-${Date.now()}`,
     returnDate: returnDate ? new Date(returnDate) : new Date(),
-    originalInvoice,
-    customerName,
-    reason,
-    settlementMode,
+    originalInvoice: originalInvoice || 'N/A',
+    customerName: customerName || 'General Supplier',
+    reason: reason || '',
+    settlementMode: settlementMode || 'Cash',
     grossTotal: Number(grossTotal) || 0,
     cgst: Number(cgst) || 0,
     sgst: Number(sgst) || 0,
@@ -403,32 +403,27 @@ export const createPurchaseReturn = async (data: any): Promise<any> => {
       const discPercent = Number(item.discPercent) || 0;
       const totalAmt = Number(item.totalAmt) || 0;
 
-      // Decrement stock in DB since we are returning products to vendor
-      let product = null;
-      if (item.itemCode) {
-        product = await prisma.product.findFirst({
-          where: { itemCode: { equals: item.itemCode.trim(), mode: 'insensitive' } }
+      let product: any = null;
+      if (item.itemCode && item.itemCode.trim()) {
+        product = await db.collection('Product').findOne({
+          itemCode: { $regex: `^${item.itemCode.trim()}$`, $options: 'i' }
         });
       }
 
       let productId: ObjectId | null = null;
       if (product) {
-        productId = new ObjectId(product.id);
-        await prisma.product.update({
-          where: { id: product.id },
-          data: {
-            stock: {
-              decrement: Math.round(returnQty)
-            }
-          }
-        });
+        productId = product._id;
+        await db.collection('Product').updateOne(
+          { _id: product._id },
+          { $inc: { stock: -Math.round(returnQty) } }
+        );
       }
 
       itemsToInsert.push({
         purchaseReturnId: purchaseReturnId,
         productId: productId,
-        itemCode: item.itemCode,
-        itemName: item.itemName || item.itemDesc || item.itemCode,
+        itemCode: item.itemCode || '',
+        itemName: item.itemName || item.itemDesc || item.itemCode || 'Item',
         batchNo: item.batchNo || 'N/A',
         purchasedQty: Number(item.purchasedQty) || 0,
         returnQty: returnQty,
@@ -444,7 +439,7 @@ export const createPurchaseReturn = async (data: any): Promise<any> => {
     }
   }
 
-  return { id: purchaseReturnId.toString(), returnNo };
+  return { id: purchaseReturnId.toString(), returnNo: returnDoc.returnNo };
 };
 
 export const searchPurchaseReturns = async (q: string): Promise<any[]> => {
@@ -488,28 +483,30 @@ export const searchPurchaseReturns = async (q: string): Promise<any[]> => {
 
 export const updatePurchaseReturn = async (id: string, data: any): Promise<boolean> => {
   const db = await getDb();
-  const returnId = new ObjectId(id);
+  let filter: any = {};
+  if (ObjectId.isValid(id)) {
+    filter = { $or: [{ _id: new ObjectId(id) }, { returnNo: id }] };
+  } else {
+    filter = { returnNo: id };
+  }
 
-  // 1. Revert previous stock changes (increment stock)
+  const existingReturn = await db.collection('PurchaseReturn').findOne(filter);
+  if (!existingReturn) return false;
+  const returnId = existingReturn._id;
+
   const oldItems = await db.collection('PurchaseReturnItem').find({ purchaseReturnId: returnId }).toArray();
   for (const item of oldItems) {
     const returnQty = Number(item.returnQty) || 0;
     if (returnQty > 0 && item.productId) {
-      await prisma.product.update({
-        where: { id: item.productId.toString() },
-        data: {
-          stock: {
-            increment: Math.round(returnQty)
-          }
-        }
-      });
+      await db.collection('Product').updateOne(
+        { _id: new ObjectId(item.productId.toString()) },
+        { $inc: { stock: Math.round(returnQty) } }
+      );
     }
   }
 
-  // 2. Delete old items
   await db.collection('PurchaseReturnItem').deleteMany({ purchaseReturnId: returnId });
 
-  // 3. Update main record
   const {
     returnNo, returnDate, originalInvoice, customerName, reason,
     settlementMode, grossTotal, cgst, sgst, igst, roundOff, netReturnAmount, items
@@ -519,7 +516,7 @@ export const updatePurchaseReturn = async (id: string, data: any): Promise<boole
     { _id: returnId },
     {
       $set: {
-        returnNo,
+        returnNo: returnNo || existingReturn.returnNo,
         returnDate: returnDate ? new Date(returnDate) : new Date(),
         originalInvoice,
         customerName,
@@ -536,7 +533,6 @@ export const updatePurchaseReturn = async (id: string, data: any): Promise<boole
     }
   );
 
-  // 4. Insert new items and update stock
   if (items && items.length > 0) {
     const itemsToInsert = [];
     for (const item of items) {
@@ -548,31 +544,27 @@ export const updatePurchaseReturn = async (id: string, data: any): Promise<boole
       const discPercent = Number(item.discPercent) || 0;
       const totalAmt = Number(item.totalAmt) || 0;
 
-      let product = null;
-      if (item.itemCode) {
-        product = await prisma.product.findFirst({
-          where: { itemCode: { equals: item.itemCode.trim(), mode: 'insensitive' } }
+      let product: any = null;
+      if (item.itemCode && item.itemCode.trim()) {
+        product = await db.collection('Product').findOne({
+          itemCode: { $regex: `^${item.itemCode.trim()}$`, $options: 'i' }
         });
       }
 
       let productId: ObjectId | null = null;
       if (product) {
-        productId = new ObjectId(product.id);
-        await prisma.product.update({
-          where: { id: product.id },
-          data: {
-            stock: {
-              decrement: Math.round(returnQty)
-            }
-          }
-        });
+        productId = product._id;
+        await db.collection('Product').updateOne(
+          { _id: product._id },
+          { $inc: { stock: -Math.round(returnQty) } }
+        );
       }
 
       itemsToInsert.push({
         purchaseReturnId: returnId,
         productId: productId,
-        itemCode: item.itemCode,
-        itemName: item.itemName || item.itemDesc || item.itemCode,
+        itemCode: item.itemCode || '',
+        itemName: item.itemName || item.itemDesc || item.itemCode || 'Item',
         batchNo: item.batchNo || 'N/A',
         purchasedQty: Number(item.purchasedQty) || 0,
         returnQty: returnQty,
@@ -593,28 +585,29 @@ export const updatePurchaseReturn = async (id: string, data: any): Promise<boole
 
 export const deletePurchaseReturn = async (id: string): Promise<boolean> => {
   const db = await getDb();
-  const returnId = new ObjectId(id);
+  let filter: any = {};
+  if (ObjectId.isValid(id)) {
+    filter = { $or: [{ _id: new ObjectId(id) }, { returnNo: id }] };
+  } else {
+    filter = { returnNo: id };
+  }
 
-  // Revert stock changes
+  const existingReturn = await db.collection('PurchaseReturn').findOne(filter);
+  if (!existingReturn) return false;
+  const returnId = existingReturn._id;
+
   const oldItems = await db.collection('PurchaseReturnItem').find({ purchaseReturnId: returnId }).toArray();
   for (const item of oldItems) {
     const returnQty = Number(item.returnQty) || 0;
     if (returnQty > 0 && item.productId) {
-      await prisma.product.update({
-        where: { id: item.productId.toString() },
-        data: {
-          stock: {
-            increment: Math.round(returnQty)
-          }
-        }
-      });
+      await db.collection('Product').updateOne(
+        { _id: new ObjectId(item.productId.toString()) },
+        { $inc: { stock: Math.round(returnQty) } }
+      );
     }
   }
 
-  // Delete items
   await db.collection('PurchaseReturnItem').deleteMany({ purchaseReturnId: returnId });
-
-  // Delete return bill
   const result = await db.collection('PurchaseReturn').deleteOne({ _id: returnId });
   return result.deletedCount > 0;
 };

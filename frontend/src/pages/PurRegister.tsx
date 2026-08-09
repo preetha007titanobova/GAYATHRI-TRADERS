@@ -529,6 +529,7 @@ const PurRegister = () => {
                 <th className="border-r border-[#1e3f70] p-2.5 w-36">Voucher No</th>
                 <th className="border-r border-[#1e3f70] p-2.5 w-28 text-center">Date</th>
                 <th className="border-r border-[#1e3f70] p-2.5">Vendor Name</th>
+                <th className="border-r border-[#1e3f70] p-2.5 w-24 text-center bg-indigo-800">Total Weight</th>
                 <th className="border-r border-[#1e3f70] p-2.5 w-24 text-center bg-blue-800">Purchased Qty</th>
                 <th className="border-r border-[#1e3f70] p-2.5 w-28 text-center bg-amber-700">Returned Qty</th>
                 <th className="border-r border-[#1e3f70] p-2.5 w-28 text-center bg-emerald-700 font-bold">Net Stock Qty</th>
@@ -540,7 +541,7 @@ const PurRegister = () => {
             <tbody>
               {displayedData.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="p-16 text-center text-gray-500 bg-gray-50">
+                  <td colSpan={11} className="p-16 text-center text-gray-500 bg-gray-50">
                     <div className="flex flex-col items-center justify-center">
                        <FileText className="w-12 h-12 text-gray-300 mb-3" />
                        <p className="text-xl font-medium text-gray-400">No purchase records found</p>
@@ -554,6 +555,10 @@ const PurRegister = () => {
                   const retQty = row.returnedQty || 0;
                   const netStockQty = row.netQty ?? Math.max(0, purchasedQty - retQty);
                   const rStatus = row.returnStatus || (retQty > 0 ? (netStockQty <= 0 ? 'Fully Returned' : 'Partially Returned') : 'None');
+                  const totalWeightVal = row.items ? row.items.reduce((acc, curr) => {
+                    const w = parseFloat(String(curr.weight || '0').replace(/[^\d.]/g, ''));
+                    return acc + (isNaN(w) ? 0 : w * (curr.qty || 1));
+                  }, 0) : 0;
 
                   return (
                     <tr 
@@ -574,6 +579,9 @@ const PurRegister = () => {
                       <td className="border-r border-gray-300 p-2">
                         <div className="font-bold text-gray-800 text-xs">{row.supplierName}</div>
                         {row.supplierGstin && <div className="text-[10px] text-gray-400 font-mono mt-0.5">{row.supplierGstin}</div>}
+                      </td>
+                      <td className="border-r border-gray-300 p-2 text-center font-bold text-indigo-700 bg-indigo-50/20">
+                        {totalWeightVal > 0 ? `${totalWeightVal.toFixed(2)} Kg` : '-'}
                       </td>
                       <td className="border-r border-gray-300 p-2 text-center font-bold text-blue-700 bg-blue-50/20">{purchasedQty} Pcs</td>
                       <td className="border-r border-gray-300 p-2 text-center font-bold text-amber-700 bg-amber-50/30">

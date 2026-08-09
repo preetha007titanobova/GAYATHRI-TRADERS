@@ -229,10 +229,12 @@ const PurReturn = () => {
           state: supplierState
         });
 
-        const matchingReturns = savedReturns.filter(r =>
-          (r.originalInvoice === invoice.voucherNo || r.originalInvoice === invoice.id || r.originalInvoice === selectedInvoiceId) &&
-          (!editingReturnId || r.id !== editingReturnId)
-        );
+        const matchingReturns = savedReturns.filter(r => {
+          const rId = String(r.id || r._id || '');
+          const editId = String(editingReturnId || '');
+          const isSameInvoice = r.originalInvoice === invoice.voucherNo || r.originalInvoice === invoice.id || r.originalInvoice === selectedInvoiceId;
+          return isSameInvoice && (!editId || rId !== editId);
+        });
 
         const initialItems: ReturnItem[] = (invoice.items || []).map((item: any) => {
           let alreadyReturned = 0;
@@ -250,11 +252,10 @@ const PurReturn = () => {
           });
 
           const origQty = Number(item.purchasedQty || item.qty || 0);
-          const availableToReturn = Math.max(0, origQty - alreadyReturned);
 
           let initialReturnQty = 0;
           if (editingReturnId) {
-            const activeReturn = savedReturns.find(r => r.id === editingReturnId);
+            const activeReturn = savedReturns.find(r => String(r.id || r._id) === String(editingReturnId));
             if (activeReturn && activeReturn.items) {
               const matchedItem = activeReturn.items.find((i: any) => 
                 (item.itemCode && i.itemCode?.toLowerCase() === item.itemCode?.toLowerCase()) ||
@@ -271,7 +272,7 @@ const PurReturn = () => {
             itemCode: item.itemCode,
             itemDesc: item.itemName || item.itemDesc || '',
             batchNo: item.batchNo || 'N/A',
-            purchasedQty: availableToReturn,
+            purchasedQty: origQty,
             unitPrice: item.unitPrice || item.rate || 0,
             discPercent: item.discPercent || 0,
             taxPercent: item.taxPercent || 18,
@@ -301,9 +302,10 @@ const PurReturn = () => {
 
       // Validation
       if (field === 'returnQty') {
-        if (value > updated.purchasedQty) {
-          updated.error = 'Qty exceeds purchase';
-        } else if (value < 0) {
+        const numVal = Number(value) || 0;
+        if (numVal > updated.purchasedQty) {
+          updated.error = `Qty exceeds purchase (${updated.purchasedQty})`;
+        } else if (numVal < 0) {
           updated.error = 'Invalid Qty';
         } else {
           updated.error = undefined;

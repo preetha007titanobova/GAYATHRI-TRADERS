@@ -1,33 +1,82 @@
 import { PrismaClient } from '@prisma/client';
-import { MongoClient } from 'mongodb';
+import { MongoClient, Db } from 'mongodb';
 import dotenv from 'dotenv';
-import dns from 'dns';
-
-try {
-  dns.setServers(['8.8.8.8', '1.1.1.1', '8.8.4.4']);
-} catch (e) {
-  console.warn('Could not set custom DNS servers:', e);
-}
+import { spawn } from 'child_process';
+import path from 'path';
+import fs from 'fs';
 
 dotenv.config();
 
 export const prisma = new PrismaClient();
-export const mongoClient = new MongoClient(process.env.DATABASE_URL || 'mongodb://127.0.0.1:27017/ERP_DB');
 
+let mongoClientInstance: MongoClient | null = null;
+let dbInstance: Db | null = null;
 let isConnected = false;
+let mongodProcess: any = null;
 
-export async function getDb() {
-  if (!isConnected) {
-    try {
-      await mongoClient.connect();
-      isConnected = true;
-    } catch (e) {
-      console.error("MongoDB Connection Error:", e);
-      throw e;
-    }
+async function startPortableMongod() {
+  if (mongodProcess) return;
+  const mongodPath = path.resolve(__dirname, '../../bin/mongod.exe');
+  if (!fs.existsSync(mongodPath)) {
+    console.warn(`Local portable mongod.exe not found at ${mongodPath}`);
+    return;
   }
-  return mongoClient.db();
+
+  const dataDir = path.resolve(__dirname, '../../../mongodb_data');
+  if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
+  }
+
+  console.log("Launching local portable MongoDB engine from bin/mongod.exe...");
+  mongodProcess = spawn(mongodPath, [
+    '--dbpath', dataDir,
+    '--port', '27017',
+    '--bind_ip', '127.0.0.1'
+  ], { detached: true });
+
+  if (mongodProcess.unref) mongodProcess.unref();
+
+  // Wait 1.5 seconds for engine startup
+  await new Promise(r => setTimeout(r, 1500));
 }
+
+export async function getDb(): Promise<Db> {
+  if (dbInstance && isConnected) {
+    return dbInstance;
+  }
+
+  const defaultUrl = process.env.DATABASE_URL || 'mongodb://127.0.0.1:27017/GAYATHRI_ERP_DB';
+
+  // 1. Try standard connection to MongoDB on 27017
+  try {
+    const client = new MongoClient(defaultUrl, { serverSelectionTimeoutMS: 2000 });
+    await client.connect();
+    mongoClientInstance = client;
+    dbInstance = client.db('GAYATHRI_ERP_DB');
+    isConnected = true;
+    console.log("Connected to primary MongoDB server at:", defaultUrl);
+    return dbInstance;
+  } catch (err: any) {
+    console.warn("MongoDB on 27017 not running. Auto-starting local portable mongod.exe database engine...");
+  }
+
+  // 2. Auto-start local portable mongod.exe & retry connection
+  try {
+    await startPortableMongod();
+    const client = new MongoClient(defaultUrl, { serverSelectionTimeoutMS: 5000 });
+    await client.connect();
+    mongoClientInstance = client;
+    dbInstance = client.db('GAYATHRI_ERP_DB');
+    isConnected = true;
+    console.log("Successfully connected to local portable MongoDB engine at:", defaultUrl);
+    return dbInstance;
+  } catch (err2: any) {
+    console.error("Failed to connect to MongoDB engine:", err2.message);
+    throw err2;
+  }
+}
+
+export const mongoClient = new MongoClient(process.env.DATABASE_URL || 'mongodb://127.0.0.1:27017/GAYATHRI_ERP_DB');
 
 export async function setupDatabase() {
   try {
@@ -68,28 +117,6 @@ export async function setupDatabase() {
       console.warn("Prisma stock cleanup note:", pe);
     }
     console.log("Product database setup & stock non-negative sanitization ready");
-
-    // Seed sample product 100002 if missing
-    const existing = await db.collection('Product').findOne({
-      $or: [{ barcode: '100002' }, { itemCode: 'ITM-100002' }]
-    });
-
-    if (!existing) {
-      await db.collection('Product').insertOne({
-        itemCode: 'ITM-100002',
-        name: 'General Sample Product',
-        barcode: '100002',
-        uom: 'PCS',
-        purchaseRate: 100,
-        price: 150,
-        mrp: 150,
-        taxPercent: 18,
-        stock: 100,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      });
-      console.log('Seeded default barcode product 100002 (General Sample Product, Price: 150)');
-    }
   } catch (e: any) {
     console.log("Product database setup note:", e.message);
   }

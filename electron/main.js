@@ -62,7 +62,7 @@ function verifyLicenseOffline() {
 
 // 2. Spawn Local Portable MongoDB (mongod.exe)
 function startLocalMongo() {
-    const mongoDataDir = path.join(app.getPath('userData'), 'mongodb_data');
+    const mongoDataDir = path.join(app.getPath('userData'), 'gayathri_mongodb_data');
     if (!fs.existsSync(mongoDataDir)) {
         fs.mkdirSync(mongoDataDir, { recursive: true });
     }
@@ -91,7 +91,7 @@ function startLocalMongo() {
 // 3. Spawn Local Express Backend
 function startLocalBackend() {
     console.log('Spawning billing logic server...');
-    const localDbUrl = 'mongodb://127.0.0.1:27017/ERP_DB';
+    const localDbUrl = 'mongodb://127.0.0.1:27017/GAYATHRI_ERP_DB';
     const backendDir = path.join(__dirname, '..', 'backend');
 
     if (app.isPackaged) {

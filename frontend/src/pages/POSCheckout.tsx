@@ -920,40 +920,6 @@ const POSCheckout = () => {
     isSavingRef.current = true;
     setConfirmModalState({ isOpen: false, action: null });
 
-    // Stock Check: Ensure no item quantity exceeds available physical stock
-    for (const item of validItems) {
-      const match = availableProducts.find(p =>
-        p.name === item.itemName ||
-        (p.itemCode && p.itemCode === item.itemDesc) ||
-        (p.barcode && p.barcode === item.itemDesc)
-      );
-      if (match) {
-        const avail = typeof match.stock === 'number' ? match.stock : 0;
-        if (avail <= 0) {
-          isSavingRef.current = false;
-          if (setGlobalNotification) {
-            setGlobalNotification({
-              msg: `Cannot save bill! "${item.itemName}" is out of stock (Available: 0). Stock cannot go negative.`,
-              type: 'error'
-            });
-            setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
-          }
-          return;
-        }
-        if (item.qty > avail) {
-          isSavingRef.current = false;
-          if (setGlobalNotification) {
-            setGlobalNotification({
-              msg: `Cannot save bill! "${item.itemName}" requested quantity (${item.qty}) exceeds available stock (${avail}). Stock cannot go negative.`,
-              type: 'error'
-            });
-            setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
-          }
-          return;
-        }
-      }
-    }
-
     const payload = {
       invoiceNo, invDate, payDays, buyerName, address, eType,
       mobileNo, gstNo, printIn, invoiceFormat, totalQty, totalAmount,

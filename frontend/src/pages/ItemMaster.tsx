@@ -224,12 +224,14 @@ const ItemMaster = () => {
   const actionHandlers = useRef({
     onAdd: handleClear,
     onDelete: handleDelete,
+    onSave: handleSave,
   });
 
   useEffect(() => {
     actionHandlers.current = {
       onAdd: handleClear,
       onDelete: handleDelete,
+      onSave: handleSave,
     };
   });
 
@@ -238,6 +240,7 @@ const ItemMaster = () => {
       setToolbarActions({
         onAdd: () => actionHandlers.current.onAdd(),
         onDelete: () => actionHandlers.current.onDelete(),
+        onSave: () => actionHandlers.current.onSave(),
       });
     }
     return () => {

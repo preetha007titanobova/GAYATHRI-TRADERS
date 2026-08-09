@@ -122,8 +122,16 @@ export const getNextProductCode = async (): Promise<string> => {
 
 export const createProduct = async (data: Product): Promise<any> => {
   const db = await getDb();
-  return await db.collection('Product').insertOne({
+  const cleanBarcode = data.barcode && typeof data.barcode === 'string' && data.barcode.trim() !== '' ? data.barcode.trim() : null;
+  const cleanItemCode = data.itemCode && typeof data.itemCode === 'string' && data.itemCode.trim() !== '' ? data.itemCode.trim() : null;
+  const cleanVendorCode = data.vendorItemCode && typeof data.vendorItemCode === 'string' && data.vendorItemCode.trim() !== '' ? data.vendorItemCode.trim() : null;
+
+  const doc: any = {
     ...data,
+    name: data.name ? data.name.trim() : '',
+    itemCode: cleanItemCode,
+    vendorItemCode: cleanVendorCode,
+    barcode: cleanBarcode,
     purchaseRate: Number(data.purchaseRate) || 0,
     price: Number(data.price) || 0,
     mrp: Number(data.mrp) || 0,
@@ -131,17 +139,27 @@ export const createProduct = async (data: Product): Promise<any> => {
     stock: Math.max(0, Math.round(Number(data.stock) || 0)),
     createdAt: new Date(),
     updatedAt: new Date()
-  });
+  };
+
+  return await db.collection('Product').insertOne(doc);
 };
 
 export const updateProduct = async (id: string, data: any): Promise<boolean> => {
   const db = await getDb();
   const { id: _, _id, createdAt, updatedAt, ...updatableFields } = data;
+  const cleanBarcode = data.barcode && typeof data.barcode === 'string' && data.barcode.trim() !== '' ? data.barcode.trim() : null;
+  const cleanItemCode = data.itemCode && typeof data.itemCode === 'string' && data.itemCode.trim() !== '' ? data.itemCode.trim() : null;
+  const cleanVendorCode = data.vendorItemCode && typeof data.vendorItemCode === 'string' && data.vendorItemCode.trim() !== '' ? data.vendorItemCode.trim() : null;
+
   const result = await db.collection('Product').updateOne(
     { _id: new ObjectId(id as string) },
     {
       $set: {
         ...updatableFields,
+        name: data.name ? data.name.trim() : updatableFields.name,
+        itemCode: cleanItemCode,
+        vendorItemCode: cleanVendorCode,
+        barcode: cleanBarcode,
         purchaseRate: Number(data.purchaseRate) || 0,
         price: Number(data.price) || 0,
         mrp: Number(data.mrp) || 0,
