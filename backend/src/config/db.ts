@@ -77,21 +77,18 @@ export async function setupDatabase() {
     if (!existing) {
       await db.collection('Product').insertOne({
         itemCode: 'ITM-100002',
-        name: "Men's Shirt",
+        name: 'General Sample Product',
         barcode: '100002',
-        size: 'L',
-        department: 'Mens',
-        variety: 'Formal',
         uom: 'PCS',
-        purchaseRate: 450,
-        price: 799,
-        mrp: 799,
-        taxPercent: 5,
-        stock: 50,
+        purchaseRate: 100,
+        price: 150,
+        mrp: 150,
+        taxPercent: 18,
+        stock: 100,
         createdAt: new Date(),
         updatedAt: new Date()
       });
-      console.log("Seeded default barcode product 100002 (Men's Shirt, Size: L, Price: 799)");
+      console.log('Seeded default barcode product 100002 (General Sample Product, Price: 150)');
     }
   } catch (e: any) {
     console.log("Product database setup note:", e.message);

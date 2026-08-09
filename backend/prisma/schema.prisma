@@ -43,10 +43,6 @@ model Product {
   committedStock Int      @default(0) // Sales Orders hold this stock
   categoryId    String?   @db.ObjectId
   category      Category? @relation(fields: [categoryId], references: [id])
-  department    String?
-  variety       String?
-  size          String?
-  factory       String?
   vendorItemCode String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -194,10 +190,7 @@ model PurchaseItem {
   product        Product?     @relation(fields: [productId], references: [id])
   itemCode       String
   itemName       String
-  size           String?
-  variety        String?
   category       String?
-  factory        String?
   vendorItemCode String?
   qty            Float
   rate           Float
@@ -243,8 +236,6 @@ model SalesOrderItem {
   product      Product?   @relation(fields: [productId], references: [id])
   itemCode     String?
   itemName     String
-  color        String?
-  size         String?
   orderedQty   Float
   deliveredQty Float      @default(0)
   pendingQty   Float
@@ -311,10 +302,7 @@ model ShopSalesItem {
   product         Product?      @relation(fields: [productId], references: [id])
   itemCode        String
   itemName        String
-  size            String?
-  variety         String?
   category        String?
-  factory         String?
   vendorItemCode  String?
   qty             Float
   rate            Float

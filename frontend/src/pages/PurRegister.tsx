@@ -74,8 +74,7 @@ interface LineItem {
   rate: number;
   taxPercent: number;
   total: number;
-  size?: string;
-  variety?: string;
+  weight?: string;
   color?: string;
   category?: string;
   vendorItemCode?: string;
@@ -392,14 +391,12 @@ const PurRegister = () => {
     doc.text(`Invoice No: ${record.supplierInvoiceNo || 'N/A'} | Invoice Date: ${record.supplierInvoiceDate ? formatIndianDate(record.supplierInvoiceDate) : 'N/A'}`, 14, 31);
     doc.text(`Place of Supply: ${record.type === 'Local' ? 'Tamil Nadu' : 'Interstate'}`, 14, 36);
 
-    const headers = ["S.No", "Barcode", "Product Name", "Size", "Variety", "Color", "Qty", "Free Qty", "Rate", "GST", "Amount"];
+    const headers = ["S.No", "Barcode", "Product Name", "Weight", "Qty", "Free Qty", "Rate", "GST", "Amount"];
     const rows = record.items.map((it, idx) => [
       idx + 1,
       it.itemCode || '-',
       it.itemName || it.itemDesc || '-',
-      it.size || '-',
-      it.variety || '-',
-      it.color || '-',
+      it.weight || '-',
       it.qty,
       it.freeQty || 0,
       `₹${it.rate.toFixed(2)}`,
@@ -716,8 +713,7 @@ const PurRegister = () => {
                     <th className="p-2 w-28 font-bold">Barcode</th>
                     <th className="p-2 font-bold">Product</th>
                     <th className="p-2 w-24 font-bold">Vendor Code</th>
-                    <th className="p-2 w-16 font-bold">Size</th>
-                    <th className="p-2 w-24 font-bold">Variety</th>
+                    <th className="p-2 w-24 font-bold">Weight</th>
                     <th className="p-2 w-16 text-right font-bold bg-blue-900">Purchased</th>
                     <th className="p-2 w-16 text-right font-bold bg-amber-900">Returned</th>
                     <th className="p-2 w-16 text-right font-bold bg-emerald-900">Net Stock</th>
@@ -739,8 +735,7 @@ const PurRegister = () => {
                           {it.itemName || it.itemDesc || it.itemCode}
                         </td>
                         <td className="p-2 font-mono text-slate-650">{it.vendorItemCode || '-'}</td>
-                        <td className="p-2 text-center">{it.size || '-'}</td>
-                        <td className="p-2">{it.variety || '-'}</td>
+                        <td className="p-2 text-center">{it.weight || '-'}</td>
                         <td className="p-2 text-right font-mono font-bold text-blue-700 bg-blue-50/20">{it.qty} Pcs</td>
                         <td className="p-2 text-right font-mono font-bold text-amber-700 bg-amber-50/30">
                           {retQty > 0 ? `-${retQty} Pcs` : '0 Pcs'}

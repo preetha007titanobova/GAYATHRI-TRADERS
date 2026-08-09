@@ -199,7 +199,6 @@ const DailyStockStatus = () => {
       "Item Code", 
       "Product Name",
       "Category",
-      "Size",
       "Unit"
     ];
     if (hasInward) {
@@ -207,13 +206,11 @@ const DailyStockStatus = () => {
     }
     headers.push("Qty Out (Sold)", "Returns");
     
-    // Map over filteredStock items
     const rows = filteredStock.map(item => {
       const row = [
         item.itemCode || '',
         item.name || '',
         item.category || '',
-        item.size || '',
         item.uom || 'PCS'
       ];
       if (hasInward) {
@@ -223,11 +220,9 @@ const DailyStockStatus = () => {
       return row;
     });
 
-    // Summary Row
     const totalRow = [
       'TOTAL',
       `${filteredStock.length} Items`,
-      '',
       '',
       ''
     ];
@@ -298,7 +293,6 @@ const DailyStockStatus = () => {
         "Item Code", 
         "Product Name", 
         "Category",
-        "Size",
         "Unit"
       ];
       if (hasInward) {
@@ -311,7 +305,6 @@ const DailyStockStatus = () => {
           item.itemCode || '',
           item.name || '',
           item.category || '',
-          item.size || '',
           item.uom || 'PCS'
         ];
         if (hasInward) {
@@ -324,7 +317,6 @@ const DailyStockStatus = () => {
       const totalRow = [
         'TOTAL',
         `${filteredStock.length} Items`,
-        '',
         '',
         ''
       ];
@@ -388,7 +380,7 @@ const DailyStockStatus = () => {
     }
   };
 
-  const colSpanCount = hasInward ? 8 : 7;
+  const colSpanCount = hasInward ? 7 : 6;
 
   return (
     <div className="flex flex-col h-full bg-[#f0f9f4] p-2 overflow-hidden">
@@ -491,7 +483,6 @@ const DailyStockStatus = () => {
                 <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-24">Item Code</th>
                 <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-40">Product</th>
                 <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-32">Category</th>
-                <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-20">Size</th>
                 <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-16 text-center">Unit</th>
                 {hasInward && <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-24 text-right text-green-300">Inward</th>}
                 <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-24 text-right text-amber-300">Sold</th>
@@ -528,7 +519,6 @@ const DailyStockStatus = () => {
                       <td className="border-r border-gray-200 p-2 font-mono text-xs font-bold text-gray-600">{item.itemCode}</td>
                       <td className="border-r border-gray-200 p-2 text-gray-800">{item.name}</td>
                       <td className="border-r border-gray-200 p-2 text-xs text-gray-700">{item.category || '-'}</td>
-                      <td className="border-r border-gray-200 p-2 text-xs text-center text-gray-600">{item.size || '-'}</td>
                       <td className="border-r border-gray-200 p-2 text-xs text-center text-gray-500">{item.uom || 'PCS'}</td>
                       
                       {hasInward && (

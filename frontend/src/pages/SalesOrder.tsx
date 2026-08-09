@@ -10,8 +10,7 @@ interface SalesOrderItemLine {
   productId?: string;
   itemCode: string;
   itemDescription: string;
-  color: string;
-  size: string;
+  weight?: string;
   quantityOrdered: number | string;
   quantityFulfilled: number;
   unitPrice: number | string;
@@ -158,7 +157,7 @@ const printOrder = (order: any) => {
       </head>
       <body>
         <div class="header">
-          <h1 class="shop-name">ITHU NAMMA KADA</h1>
+          <h1 class="shop-name">BILLING SOFTWARE</h1>
           <div class="title">SALES ORDER</div>
         </div>
 
@@ -185,8 +184,7 @@ const printOrder = (order: any) => {
               <th style="width: 5%;" class="text-center">S.No</th>
               <th style="width: 15%;">Item Code</th>
               <th>Description</th>
-              <th style="width: 10%;">Color</th>
-              <th style="width: 10%;">Size</th>
+              <th style="width: 15%;">Weight (Net Wt)</th>
               <th style="width: 10%;" class="text-center">Qty Ordered</th>
               <th style="width: 12%;" class="text-right">Unit Price</th>
               <th style="width: 10%;" class="text-center">Disc %</th>
@@ -199,8 +197,7 @@ const printOrder = (order: any) => {
                 <td class="text-center">${idx + 1}</td>
                 <td>${item.itemCode || '-'}</td>
                 <td>${item.itemDescription || item.itemName || 'Unknown Item'}</td>
-                <td>${item.color || '-'}</td>
-                <td>${item.size || '-'}</td>
+                <td>${item.weight || '-'}</td>
                 <td class="text-center">${item.quantityOrdered || item.orderedQty}</td>
                 <td class="text-right">₹${Number(item.unitPrice).toFixed(2)}</td>
                 <td class="text-center">${item.discountPercentage || item.discount || 0}%</td>
@@ -538,8 +535,7 @@ const SalesOrder = () => {
       lineIndex: lineItems.length + 1,
       itemCode: '',
       itemDescription: '',
-      color: '',
-      size: '',
+      weight: '',
       quantityOrdered: 1,
       quantityFulfilled: 0,
       unitPrice: 0,
@@ -574,8 +570,7 @@ const SalesOrder = () => {
           updated.itemDescription = product.name || '';
           updated.unitPrice = product.price || 0;
           updated.taxRatePercentage = product.taxPercent || 18;
-          updated.size = product.size || '';
-          updated.color = product.variety || '';
+          updated.weight = product.weight || '';
         }
       }
 
@@ -768,7 +763,7 @@ Customer Name: ${customer.trim()}
 Mobile: ${cleanMobile}
 ${deliveryDate ? `Expected Delivery: ${new Date(deliveryDate).toLocaleDateString('en-IN')}\n` : ''}
 *Order Items:*
-${validItems.map((item, i) => `${i + 1}. ${item.itemDescription || item.itemCode} | Qty: ${item.quantityOrdered} | Size: ${item.size || '-'} | Rate: ₹${Number(item.unitPrice).toFixed(2)}`).join('\n')}
+${validItems.map((item, i) => `${i + 1}. ${item.itemDescription || item.itemCode} | Qty: ${item.quantityOrdered} | Wt: ${item.weight || '-'} | Rate: ₹${Number(item.unitPrice).toFixed(2)}`).join('\n')}
 
 Subtotal: ₹${summary.subtotal.toFixed(2)}
 Grand Total: ₹${summary.grandTotal.toFixed(2)}
@@ -1056,8 +1051,7 @@ Thank you!`;
                     <th className="p-2 w-10 text-center">S.No</th>
                     <th className="p-2 w-44">Item Code</th>
                     <th className="p-2">Item Description</th>
-                    <th className="p-2 w-28">Color</th>
-                    <th className="p-2 w-24">Size</th>
+                    <th className="p-2 w-28">Weight (Net Wt)</th>
                     <th className="p-2 w-24 text-center">Ordered Qty</th>
                     <th className="p-2 w-24 text-center bg-slate-50/50">Delivered</th>
                     <th className="p-2 w-28 text-right">Unit Price</th>
@@ -1135,20 +1129,10 @@ Thank you!`;
                         <td className="p-2">
                           <input 
                             type="text" 
-                            value={item.color}
-                            onChange={e => handleItemChange(item.lineId, 'color', e.target.value)}
+                            value={item.weight || ''}
+                            onChange={e => handleItemChange(item.lineId, 'weight', e.target.value)}
                             disabled={isReadOnly}
-                            placeholder="Color"
-                            className="w-full bg-transparent border border-slate-200 rounded px-2 py-1 focus:border-blue-500 outline-none"
-                          />
-                        </td>
-                        <td className="p-2">
-                          <input 
-                            type="text" 
-                            value={item.size}
-                            onChange={e => handleItemChange(item.lineId, 'size', e.target.value)}
-                            disabled={isReadOnly}
-                            placeholder="Size"
+                            placeholder="1kg, 500g..."
                             className="w-full bg-transparent border border-slate-200 rounded px-2 py-1 focus:border-blue-500 outline-none text-center"
                           />
                         </td>
@@ -1414,9 +1398,9 @@ Thank you!`;
             {/* List Table Headers */}
             <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-slate-200 border-b border-slate-300 text-xs font-bold text-slate-700 uppercase tracking-wider">
               <div className="col-span-2">Item Code</div>
-              <div className="col-span-4">Dress Name</div>
-              <div className="col-span-2">Variety</div>
-              <div className="col-span-1 text-center">Size</div>
+              <div className="col-span-4">Product Name</div>
+              <div className="col-span-2">Category</div>
+              <div className="col-span-1 text-center">Weight</div>
               <div className="col-span-1 text-center">Stock</div>
               <div className="col-span-2 text-right">Price (₹)</div>
             </div>
@@ -1436,10 +1420,10 @@ Thank you!`;
                     {p.name}
                   </div>
                   <div className="col-span-2 text-xs font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100 w-fit">
-                    {p.variety || '-'}
+                    {p.department || p.category || '-'}
                   </div>
                   <div className="col-span-1 text-center font-bold text-amber-700 bg-amber-50 px-1 py-0.5 rounded border border-amber-100 text-xs">
-                    {p.size || '-'}
+                    {p.weight || '-'}
                   </div>
                   <div className="col-span-1 text-center">
                     {(() => {
@@ -1479,7 +1463,7 @@ Thank you!`;
               ))}
               {modalFilteredProducts.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-16 text-gray-400 italic">
-                  No matching dresses found in master catalog.
+                  No matching products found in master catalog.
                 </div>
               )}
             </div>

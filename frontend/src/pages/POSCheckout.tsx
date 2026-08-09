@@ -1815,7 +1815,6 @@ const POSCheckout = () => {
               <th className="legacy-grid-header w-10">S.No</th>
               <th className="legacy-grid-header w-32">Barcode Number</th>
               <th className="legacy-grid-header">Item Name</th>
-              <th className="legacy-grid-header w-16">Size</th>
               <th className="legacy-grid-header w-16">Quantity</th>
               <th className="legacy-grid-header w-16">UOM</th>
               <th className="legacy-grid-header w-24">Rate</th>
@@ -1861,17 +1860,6 @@ const POSCheckout = () => {
                       <Search size={14} />
                     </button>
                   )}
-                </td>
-                <td className="legacy-grid-cell p-0">
-                  <input
-                    id={`grid-input-${idx}-2`}
-                    type="text"
-                    placeholder="Size"
-                    className="w-full h-full p-1 text-center border-none outline-none focus:bg-yellow-100 font-bold text-blue-900 bg-blue-50/30"
-                    value={row.size || ''}
-                    onChange={e => handleGridChange(row.id, 'size', e.target.value)}
-                    onKeyDown={e => handleKeyDown(e, idx, 2, row.id, row.itemName)}
-                  />
                 </td>
                 <td className="legacy-grid-cell p-0 relative">
                   {(() => {

@@ -134,7 +134,7 @@ const Activation = () => {
             <Shield className="w-7 h-7 text-indigo-400" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-white">ITHU NAMMA KADA</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-white">BILLING SOFTWARE</h1>
             <p className="text-xs text-slate-400 font-medium">Software Activation & Security Guard</p>
           </div>
         </div>

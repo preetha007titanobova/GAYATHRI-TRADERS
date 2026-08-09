@@ -1,13 +1,15 @@
 {
-  "name": "billing-system",
+  "name": "billing-software",
   "version": "1.0.0",
-  "description": "Secure POS Inventory Management System",
+  "description": "Billing Software - Secure POS Inventory Management System",
   "scripts": {
     "start": "concurrently \"npm run start:backend\" \"npm run start:frontend\"",
     "start:backend": "cd backend && npm run dev",
     "start:frontend": "cd frontend && npm run dev",
     "build:frontend": "cd frontend && npm run build",
+    "build:electron": "cd electron && npm run package",
     "build": "npm run build:frontend",
+    "package": "npm run build:frontend && cd electron && npm run package",
     "electron": "cd electron && npm start",
     "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install && cd ../electron && npm install"
   },

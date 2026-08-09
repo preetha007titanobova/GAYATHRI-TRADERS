@@ -1,11 +1,22 @@
 {
-  "name": "electron-app",
+  "name": "billing-software",
+  "productName": "Billing Software",
   "version": "1.0.0",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "electron": "electron .",
     "package": "electron-builder"
+  },
+  "build": {
+    "appId": "com.billingsoftware.app",
+    "productName": "Billing Software",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis"
+    }
   },
   "dependencies": {
     "node-machine-id": "^1.1.12"

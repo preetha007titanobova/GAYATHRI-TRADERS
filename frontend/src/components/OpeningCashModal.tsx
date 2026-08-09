@@ -9,7 +9,7 @@ interface OpeningCashModalProps {
 const DEFAULT_DENOMINATIONS: number[] = [500, 200, 100, 50, 20, 10, 5, 2, 1];
 
 export const OpeningCashModal: React.FC<OpeningCashModalProps> = ({ onSuccess }) => {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const todayStr = new Date().toISOString().split('T')[0];

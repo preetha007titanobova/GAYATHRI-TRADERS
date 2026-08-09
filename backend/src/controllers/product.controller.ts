@@ -31,7 +31,7 @@ export const searchItems = async (req: Request, res: Response) => {
 export const seedMockItems = async (req: Request, res: Response) => {
   try {
     const items = [
-      { itemCode: 'ITM-100002', name: "Men's Shirt", price: 799, mrp: 799, stock: 50, barcode: '100002', size: 'L', department: 'Mens', uom: 'PCS' },
+      { itemCode: 'ITM-100002', name: 'General Sample Product', price: 150, mrp: 150, stock: 100, barcode: '100002', uom: 'PCS' },
       { name: 'Almonds Premium 1kg', price: 15.99, stock: 100, barcode: 'A123' },
       { name: 'Walnuts Organic 500g', price: 12.50, stock: 50, barcode: 'W456' },
       { name: 'Cashews Roasted 250g', price: 8.00, stock: 200, barcode: 'C789' }
@@ -45,8 +45,7 @@ export const seedMockItems = async (req: Request, res: Response) => {
           name: item.name,
           price: item.price,
           stock: item.stock,
-          barcode: item.barcode,
-          size: item.size
+          barcode: item.barcode
         }
       });
     }

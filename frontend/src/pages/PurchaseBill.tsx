@@ -10,13 +10,10 @@ interface PurchaseItem {
   itemCode: string;
   vendorItemCode?: string;
   itemName: string;
-  size: string;
-  variety: string;
-  color?: string;
+  weight?: string;
   category: string;
   itemDesc: string;
   hsn: string;
-  factory: string;
   qty: number;
   freeQty?: number;
   unitPrice: number;
@@ -73,14 +70,12 @@ const PurchaseBill = () => {
     barcode: '',
     itemCode: '',
     name: '',
-    size: 'L',
-    variety: 'Standard',
-    department: 'Mens',
+    weight: '1kg',
+    department: '',
     purchaseRate: 0,
     price: 0,
     mrp: 0,
     taxPercent: 18,
-    factory: '',
     qty: 1
   });
 
@@ -230,14 +225,12 @@ const PurchaseBill = () => {
         itemCode: item.itemCode.trim().toUpperCase(),
         name: (item.itemDesc || item.itemName || item.itemCode).trim(),
         barcode: item.itemCode.trim(),
-        size: item.size || '',
-        variety: item.variety || '',
-        department: item.category || 'None',
+        weight: item.weight || '',
+        department: item.category || 'General',
         purchaseRate: Number(item.unitPrice) || 0,
         price: Number(item.salesRate) || Number(item.unitPrice) || 0,
         mrp: Number(item.mrp) || Number(item.unitPrice) || 0,
         taxPercent: Number(item.taxPercent) || 18,
-        factory: item.factory || '',
         stock: method === 'POST' ? 0 : existingStock,
         uom: 'PCS'
       };
@@ -323,14 +316,12 @@ const PurchaseBill = () => {
           itemCode: quickAddForm.itemCode,
           name: quickAddForm.name.trim(),
           barcode: quickAddForm.barcode.trim(),
-          size: quickAddForm.size,
-          variety: quickAddForm.variety,
+          weight: quickAddForm.weight || '',
           department: quickAddForm.department,
           purchaseRate: quickAddForm.purchaseRate,
           price: quickAddForm.price,
           mrp: quickAddForm.mrp,
           taxPercent: quickAddForm.taxPercent,
-          factory: quickAddForm.factory || '',
           stock: 0, // Stock is incremented by the purchase bill save itself!
           uom: 'PCS'
         })
@@ -347,13 +338,10 @@ const PurchaseBill = () => {
         itemCode: quickAddForm.itemCode,
         vendorItemCode: '',
         itemName: quickAddForm.name.trim(),
-        size: quickAddForm.size,
-        variety: quickAddForm.variety,
-        color: '',
-        category: quickAddForm.department,
+        weight: '',
+        category: quickAddForm.department || 'General',
         itemDesc: quickAddForm.name.trim(),
         hsn: quickAddForm.barcode.trim(),
-        factory: quickAddForm.factory || '',
         qty: Number(quickAddForm.qty) || 1,
         freeQty: 0,
         unitPrice: Number(quickAddForm.purchaseRate) || 0,
@@ -400,12 +388,10 @@ const PurchaseBill = () => {
     itemCode: '',
     vendorItemCode: '',
     itemName: '',
-    size: '',
-    variety: '',
-    category: 'None',
+    weight: '',
+    category: 'General',
     itemDesc: '',
     hsn: '',
-    factory: '',
     qty: 1,
     freeQty: 0,
     unitPrice: 0,
@@ -501,14 +487,12 @@ const PurchaseBill = () => {
               barcode: code,
               itemCode: nextItemCode,
               name: '',
-              size: 'L',
-              variety: 'Standard',
-              department: 'Mens',
+              weight: '1kg',
+              department: '',
               purchaseRate: 0,
               price: 0,
               mrp: 0,
               taxPercent: 18,
-              factory: '',
               qty: 1
             });
             setIsQuickAddModalOpen(true);
@@ -548,12 +532,10 @@ const PurchaseBill = () => {
             itemCode: product.itemCode,
             vendorItemCode: product.vendorItemCode || '',
             itemName: product.name,
-            size: product.size || '',
-            variety: product.variety || '',
-            category: product.department || 'None',
+            weight: product.weight || '',
+            category: product.department || 'General',
             itemDesc: product.name,
             hsn: product.barcode || '',
-            factory: product.factory || '',
             qty: 1,
             unitPrice: product.purchaseRate || 0,
             salesRate: product.price || 0,
@@ -696,12 +678,9 @@ const PurchaseBill = () => {
           updated.salesRate = prod.price || 0;
           updated.mrp = prod.mrp || 0;
           updated.taxPercent = prod.taxPercent || 18;
-          updated.size = prod.size || '';
-          updated.variety = prod.variety || '';
-          updated.color = '';
+          updated.weight = prod.weight || '';
           updated.freeQty = 0;
-          updated.category = prod.department || 'None';
-          updated.factory = prod.factory || '';
+          updated.category = prod.department || 'General';
           updated.vendorItemCode = prod.vendorItemCode || '';
         }
       }
@@ -848,12 +827,10 @@ const PurchaseBill = () => {
           itemCode: i.itemCode || '',
           vendorItemCode: i.vendorItemCode || prod?.vendorItemCode || '',
           itemName: i.itemName || i.itemDesc || i.itemCode || '',
-          size: i.size || prod?.size || '',
-          variety: i.variety || prod?.variety || '',
-          category: i.category || i.department || prod?.department || 'None',
+          weight: i.weight || prod?.weight || '',
+          category: i.category || i.department || prod?.department || 'General',
           itemDesc: i.itemName || i.itemDesc || i.itemCode || '',
           hsn: i.hsn || i.barcode || prod?.barcode || '',
-          factory: i.factory || prod?.factory || '',
           qty: qty,
           freeQty: freeQty,
           unitPrice: rate,
@@ -936,11 +913,8 @@ const PurchaseBill = () => {
         vendorItemCode: i.vendorItemCode ? i.vendorItemCode.trim() : '',
         itemName: i.itemName || i.itemDesc || i.itemCode,
         itemDesc: i.itemDesc,
-        size: i.size,
-        variety: i.variety,
-        color: i.color || '',
+        weight: i.weight || '',
         category: i.category,
-        factory: i.factory,
         qty: i.qty,
         freeQty: i.freeQty || 0,
         rate: i.unitPrice,
@@ -1080,13 +1054,10 @@ const PurchaseBill = () => {
       itemCode: prod.itemCode || '',
       vendorItemCode: prod.vendorItemCode || '',
       itemName: prod.name || '',
-      size: prod.size || '',
-      variety: prod.variety || '',
-      color: '',
-      category: prod.department || 'None',
+      weight: prod.weight || '',
+      category: prod.department || 'General',
       itemDesc: prod.name || '',
       hsn: prod.barcode || '',
-      factory: prod.factory || '',
       qty: 1,
       freeQty: 0,
       unitPrice: prod.purchaseRate || 0,
@@ -1292,9 +1263,7 @@ const PurchaseBill = () => {
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-28">Barcode</th>
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-48">Product Name</th>
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-28">Vendor Item Code</th>
-                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-16">Dress Size</th>
-                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-24">Variety</th>
-                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-20">Color</th>
+                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-24">Weight (Net Wt)</th>
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-24">Category</th>
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-16 text-right">Purchase Qty</th>
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-16 text-right">Free Qty</th>
@@ -1310,7 +1279,7 @@ const PurchaseBill = () => {
                   <tbody>
                     {items.length === 0 && (
                       <tr>
-                        <td colSpan={17} className="p-6 text-gray-400 italic text-center">
+                        <td colSpan={15} className="p-6 text-gray-400 italic text-center">
                           No items added.
                         </td>
                       </tr>
@@ -1401,65 +1370,29 @@ const PurchaseBill = () => {
                         <td className="border-r border-gray-300 p-0">
                           <input 
                             type="text" 
-                            value={item.size} 
-                            onChange={e => updateItem(item.id, 'size', e.target.value)} 
-                            onKeyDown={e => handleKeyDown(e, idx, 'size')}
+                            value={item.weight || ''} 
+                            onChange={e => updateItem(item.id, 'weight', e.target.value)} 
+                            onKeyDown={e => handleKeyDown(e, idx, 'weight')}
                             onBlur={() => {
                               const latest = items.find(i => i.id === item.id);
                               if (latest) saveProductToDb(latest);
                             }}
                             className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-center" 
-                            placeholder="M, L..."
+                            placeholder="1kg, 500g..."
                           />
                         </td>
                         <td className="border-r border-gray-300 p-0">
-                          <input 
-                            type="text" 
-                            value={item.variety} 
-                            onChange={e => updateItem(item.id, 'variety', e.target.value)} 
-                            onKeyDown={e => handleKeyDown(e, idx, 'variety')}
-                            onBlur={() => {
-                              const latest = items.find(i => i.id === item.id);
-                              if (latest) saveProductToDb(latest);
-                            }}
-                            className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none" 
-                            placeholder="Kurti..."
-                          />
-                        </td>
-                        <td className="border-r border-gray-300 p-0">
-                          <input 
-                            type="text" 
-                            value={item.color || ''} 
-                            onChange={e => updateItem(item.id, 'color', e.target.value)} 
-                            onKeyDown={e => handleKeyDown(e, idx, 'color')}
-                            onBlur={() => {
-                              const latest = items.find(i => i.id === item.id);
-                              if (latest) saveProductToDb(latest);
-                            }}
-                            className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none" 
-                            placeholder="Red..."
-                          />
-                        </td>
-                        <td className="border-r border-gray-300 p-0">
-                          <select
-                            value={item.category}
-                            onChange={e => {
-                              updateItem(item.id, 'category', e.target.value);
-                              const latest = items.find(i => i.id === item.id);
-                              if (latest) saveProductToDb({ ...latest, category: e.target.value });
-                            }}
+                          <input
+                            type="text"
+                            value={item.category || ''}
+                            onChange={e => updateItem(item.id, 'category', e.target.value)}
                             onKeyDown={e => handleKeyDown(e, idx, 'category')}
                             onBlur={() => {
                               const latest = items.find(i => i.id === item.id);
                               if (latest) saveProductToDb(latest);
                             }}
                             className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none"
-                          >
-                            <option value="None">None</option>
-                            <option value="Womens">Womens</option>
-                            <option value="Mens">Mens</option>
-                            <option value="Kids">Kids</option>
-                          </select>
+                          />
                         </td>
                         <td className="border-r border-gray-300 p-0">
                           <input 
@@ -1856,7 +1789,7 @@ const PurchaseBill = () => {
               ))}
               {modalFilteredProducts.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-16 text-gray-400 italic">
-                  No matching dresses found in master catalog.
+                  No matching products found in master catalog.
                 </div>
               )}
             </div>
@@ -1901,23 +1834,14 @@ const PurchaseBill = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-gray-700 font-bold mb-1">Size</label>
-                  <input type="text" value={quickAddForm.size} onChange={e => setQuickAddForm(prev => ({ ...prev, size: e.target.value }))} className="w-full border border-gray-300 p-2 rounded outline-none font-semibold" />
-                </div>
-                <div>
-                  <label className="block text-gray-700 font-bold mb-1">Variety</label>
-                  <input type="text" value={quickAddForm.variety} onChange={e => setQuickAddForm(prev => ({ ...prev, variety: e.target.value }))} className="w-full border border-gray-300 p-2 rounded outline-none font-semibold" />
+                  <label className="block text-gray-700 font-bold mb-1">Weight (Net Wt)</label>
+                  <input type="text" value={quickAddForm.weight || ''} onChange={e => setQuickAddForm(prev => ({ ...prev, weight: e.target.value }))} className="w-full border border-gray-300 p-2 rounded outline-none font-semibold" placeholder="e.g. 1kg, 500g..." />
                 </div>
                 <div>
                   <label className="block text-gray-700 font-bold mb-1">Category</label>
-                  <select value={quickAddForm.department} onChange={e => setQuickAddForm(prev => ({ ...prev, department: e.target.value }))} className="w-full border border-gray-300 p-2 rounded outline-none bg-white font-bold">
-                    <option value="None">None</option>
-                    <option value="Mens">Mens</option>
-                    <option value="Womens">Womens</option>
-                    <option value="Kids">Kids</option>
-                  </select>
+                  <input type="text" value={quickAddForm.department || ''} onChange={e => setQuickAddForm(prev => ({ ...prev, department: e.target.value }))} className="w-full border border-gray-300 p-2 rounded outline-none bg-white font-bold" />
                 </div>
               </div>
 
@@ -1947,11 +1871,7 @@ const PurchaseBill = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
-                <div className="col-span-2">
-                  <label className="block text-gray-700 font-bold mb-1">Brand / Factory</label>
-                  <input type="text" value={quickAddForm.factory} onChange={e => setQuickAddForm(prev => ({ ...prev, factory: e.target.value }))} className="w-full border border-gray-300 p-2 rounded outline-none" placeholder="e.g. Rayon, Nike..." />
-                </div>
+              <div className="grid grid-cols-1 gap-2">
                 <div>
                   <label className="block text-gray-700 font-bold mb-1 text-blue-900 font-extrabold">Purchase Qty</label>
                   <input type="number" min="1" required value={quickAddForm.qty} onChange={e => setQuickAddForm(prev => ({ ...prev, qty: Number(e.target.value) }))} className="w-full border border-blue-400 p-2 rounded outline-none text-center font-extrabold text-blue-950 bg-blue-50/50" />

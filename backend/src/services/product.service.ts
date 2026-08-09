@@ -42,9 +42,8 @@ export const searchItems = async (q: string): Promise<any[]> => {
           { name: regex },
           { itemCode: regex },
           { barcode: regex },
-          { variety: regex },
-          { department: regex },
-          { size: regex },
+          { category: regex },
+          { group: regex },
           { vendorItemCode: regex }
         ]
       }).limit(100).toArray();
@@ -61,9 +60,6 @@ export const searchItems = async (q: string): Promise<any[]> => {
           { name: { contains: q, mode: 'insensitive' } },
           { itemCode: { contains: q, mode: 'insensitive' } },
           { barcode: { contains: q, mode: 'insensitive' } },
-          { variety: { contains: q, mode: 'insensitive' } },
-          { department: { contains: q, mode: 'insensitive' } },
-          { size: { contains: q, mode: 'insensitive' } },
           { vendorItemCode: { contains: q, mode: 'insensitive' } }
         ]
       } : undefined,
@@ -83,7 +79,7 @@ export const searchItems = async (q: string): Promise<any[]> => {
         _id: id,
         barcode: item.barcode || '',
         itemCode: item.itemCode || '',
-        size: item.size || '',
+        category: item.category || item.group || 'General',
         price: Number(item.price) || 0,
         stock: Math.max(0, Number(item.stock) || 0)
       });

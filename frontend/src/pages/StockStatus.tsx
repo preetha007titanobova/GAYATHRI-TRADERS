@@ -320,8 +320,6 @@ const StockStatus = () => {
                 <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-24">Vendor Code</th>
                 <th className="border-r border-[#142d54] p-2 text-xs font-semibold">Item Name</th>
                 <th className="px-4 py-2.5 font-medium border-b border-slate-200">Category</th>
-                <th className="px-4 py-2.5 font-medium border-b border-slate-200">Variety</th>
-                <th className="px-4 py-2.5 font-medium border-b border-slate-200">Size</th>
                 <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-20 text-center">Unit</th>
                 <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-28 text-right">Available stock</th>
                 <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-28 text-right text-red-300">Damaged Stock</th>
@@ -332,13 +330,13 @@ const StockStatus = () => {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={isMultiSelectMode ? 12 : 11} className="p-12 text-center text-gray-500">
+                  <td colSpan={isMultiSelectMode ? 10 : 9} className="p-12 text-center text-gray-500">
                     Loading stock data...
                   </td>
                 </tr>
               ) : filteredStock.length === 0 ? (
                 <tr>
-                  <td colSpan={isMultiSelectMode ? 12 : 11} className="p-12 text-center text-gray-400">
+                  <td colSpan={isMultiSelectMode ? 10 : 9} className="p-12 text-center text-gray-400">
                     <div className="flex flex-col items-center">
                       <PackageSearch size={32} className="mb-2 opacity-50" />
                       <p className="italic text-sm">No items found matching criteria.</p>
@@ -390,9 +388,7 @@ const StockStatus = () => {
                       <td className="border-r border-gray-200 p-2 text-gray-800">
                         <div className="font-bold">{item.name} {item.group && <span className="text-[10px] font-normal text-gray-400 ml-2">({item.group})</span>}</div>
                       </td>
-                      <td className="border-r border-gray-200 p-2 text-xs text-center text-gray-500">{item.department}</td>
-                      <td className="border-r border-gray-200 p-2 text-xs text-center text-gray-500">{item.variety}</td>
-                      <td className="border-r border-gray-200 p-2 text-xs text-center text-gray-500">{item.size}</td>
+                      <td className="border-r border-gray-200 p-2 text-xs text-center text-gray-500">{item.department || item.group || 'General'}</td>
                       <td className="border-r border-gray-200 p-2 text-xs text-center text-gray-500">{item.uom || 'PCS'}</td>
                       <td className={`border-r border-gray-200 p-2 text-right font-mono font-black text-sm ${isLow ? 'text-red-600' : 'text-blue-700'}`}>
                         {isLow && <AlertTriangle size={12} className="inline mr-1 -mt-1 text-red-500" />}

@@ -13,7 +13,7 @@ interface Product {
   barcode?: string;
   department?: string;
   variety?: string;
-  size?: string;
+  weight?: string;
   mrp?: number;
   price?: number;
   uom?: string;
@@ -25,7 +25,7 @@ interface SavedBarcodeItem {
   barcodeValue: string;
   department: string;
   variety: string;
-  size: string;
+  weight: string;
   batchNo: string;
   mrp: number | '';
   salesPrice: number | '';
@@ -160,7 +160,7 @@ const BarcodeGeneration = () => {
   const [barcodeValue, setBarcodeValue] = useState('');
   const [department, setDepartment] = useState('');
   const [variety, setVariety] = useState('');
-  const [size, setSize] = useState('');
+  const [weight, setWeight] = useState('');
   const [mfgDate, setMfgDate] = useState('');
   const [expDate, setExpDate] = useState('');
   const [batchNo, setBatchNo] = useState('');
@@ -275,14 +275,14 @@ const BarcodeGeneration = () => {
     return [
       {
         id: '8901234567890-seed',
-        productName: 'POLO SHIRT XL',
+        productName: 'GENERAL SAMPLE PRODUCT',
         barcodeValue: '8901234567890',
-        department: 'Mens',
+        department: 'General',
         variety: 'Standard',
-        size: 'L',
+        weight: '1kg',
         batchNo: 'BATCH-1001',
-        mrp: 450,
-        salesPrice: 450,
+        mrp: 150,
+        salesPrice: 150,
         mfgDate: '2025-05-10',
         expDate: '',
         barcodeType: 'Code 128',
@@ -366,7 +366,7 @@ const BarcodeGeneration = () => {
       (p as any).vendorItemCode?.toLowerCase().includes(q) ||
       p.department?.toLowerCase().includes(q) ||
       p.variety?.toLowerCase().includes(q) ||
-      p.size?.toLowerCase().includes(q)
+      p.weight?.toLowerCase().includes(q)
     );
   }, [availableProducts, itemSearch]);
 
@@ -376,7 +376,7 @@ const BarcodeGeneration = () => {
     setBarcodeValue(prod.barcode || prod.itemCode || `BC-${Date.now().toString().slice(-6)}`);
     setDepartment(prod.department || 'General');
     setVariety(prod.variety || 'Standard');
-    setSize(prod.size || 'L');
+    setWeight(prod.weight || '1kg');
     setMrp(prod.mrp || prod.price || 0);
     setSalesPrice(prod.price || prod.mrp || 0);
     setBatchNo(`BATCH-${Math.floor(1000 + Math.random() * 9000)}`);
@@ -400,7 +400,7 @@ const BarcodeGeneration = () => {
     setBarcodeValue('');
     setDepartment('');
     setVariety('');
-    setSize('');
+    setWeight('');
     setMfgDate('');
     setExpDate('');
     setBatchNo('');
@@ -462,7 +462,7 @@ const BarcodeGeneration = () => {
       barcodeValue: barcodeValue.trim(),
       department: department.trim() || 'General',
       variety: variety.trim() || 'Standard',
-      size: size.trim() || 'L',
+      weight: weight.trim() || '1kg',
       batchNo: batchNo.trim() || `BATCH-${Math.floor(1000 + Math.random() * 9000)}`,
       mrp: mrp !== '' ? Number(mrp) : 0,
       salesPrice: salesPrice !== '' ? Number(salesPrice) : 0,
@@ -486,7 +486,7 @@ const BarcodeGeneration = () => {
           name: newItem.productName,
           department: newItem.department,
           variety: newItem.variety,
-          size: newItem.size,
+          weight: newItem.weight,
           price: newItem.salesPrice || newItem.mrp || 0,
           mrp: newItem.mrp || newItem.salesPrice || 0,
           stock: 100,
@@ -543,8 +543,8 @@ const BarcodeGeneration = () => {
           const prodText = (item.productName || '').substring(0, 18).toUpperCase();
           const isCustomVar = item.variety && !['standard', 'std', 'default', ''].includes(item.variety.trim().toLowerCase());
           const metaText = isCustomVar
-            ? `${item.variety.substring(0, 8)} | Size:${(item.size || 'L').substring(0, 4)}`
-            : `Size:${(item.size || 'L').substring(0, 6)}`;
+            ? `${item.variety.substring(0, 8)} | Wt:${(item.weight || '1kg').substring(0, 4)}`
+            : `Wt:${(item.weight || '1kg').substring(0, 6)}`;
           const pkdText = `pkd:${mfg}`;
           const mrpText = `MRP Rs.${saleVal}`;
           const bcVal = item.barcodeType === 'Code 39' ? `* ${item.barcodeValue} *` : item.barcodeValue;
@@ -724,7 +724,7 @@ const BarcodeGeneration = () => {
         <div class="print-label-inner" style="width: ${innerWidth}mm; height: ${innerHeight}mm; ${labelRotation !== 0 ? `transform: rotate(${labelRotation}deg); transform-origin: center;` : ''} display: flex; flex-direction: column; justify-content: flex-start; align-items: center; box-sizing: border-box; padding: ${marginTopMm !== undefined ? marginTopMm : 1}mm 1.2mm 0.5mm 1.2mm; background-color: #ffffff;">
           ${showShopHeader ? `<div class="header" style="font-size: 6pt; font-weight: 800; text-align: center; text-transform: uppercase; color: #000000 !important; line-height: 1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0.1px;">${shopName}</div>` : ''}
           <div class="product" style="font-size: 7.5pt; font-weight: 900; margin-top: 0.8mm; text-align: center; text-transform: uppercase; color: #000000 !important; line-height: 1.05; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${l.item.productName}</div>
-          ${showMetaLine ? `<div class="meta" style="font-size: 5.5pt; font-weight: 800; margin-top: 0.4mm; text-align: center; color: #000000 !important; line-height: 1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${l.item.variety && !['standard', 'std', 'default', ''].includes(l.item.variety.trim().toLowerCase()) ? l.item.variety + ' | ' : ''}Size : ${l.item.size || 'L'}</div>` : ''}
+          ${showMetaLine ? `<div class="meta" style="font-size: 5.5pt; font-weight: 800; margin-top: 0.4mm; text-align: center; color: #000000 !important; line-height: 1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${l.item.variety && !['standard', 'std', 'default', ''].includes(l.item.variety.trim().toLowerCase()) ? l.item.variety + ' | ' : ''}Wt : ${l.item.weight || '1kg'}</div>` : ''}
           ${(showDatesLine || showPriceLine) ? `
             <div class="dates-price" style="display: flex; justify-content: ${showDatesLine ? 'space-between' : 'center'}; align-items: baseline; font-size: 5pt; font-weight: 900; width: 100%; padding: 0; margin-top: 0.4mm; color: #000000 !important;">
               ${showDatesLine ? `<span>pkd : ${l.mfgFormatted}</span>` : ''}
@@ -853,7 +853,7 @@ const BarcodeGeneration = () => {
       barcodeValue,
       department: department || 'General',
       variety: variety || 'Standard',
-      size: size || 'L',
+      weight: weight || '1kg',
       batchNo,
       mrp,
       salesPrice,
@@ -903,8 +903,8 @@ const BarcodeGeneration = () => {
     ctx.font = 'bold 20px Arial';
     ctx.fillText(item.productName.toUpperCase(), 200, 70);
 
-    // Category | Variety | Size
-    const metaStr = `${item.department || 'General'} | ${item.variety || 'Standard'} | Size: ${item.size || 'L'}`;
+    // Category | Variety | Weight
+    const metaStr = `${item.department || 'General'} | ${item.variety || 'Standard'} | Wt: ${item.weight || '1kg'}`;
     ctx.fillStyle = '#475569';
     ctx.font = 'bold 14px Arial';
     ctx.fillText(metaStr, 200, 94);
@@ -980,7 +980,7 @@ const BarcodeGeneration = () => {
       b.barcodeValue.toLowerCase().includes(q) ||
       b.department.toLowerCase().includes(q) ||
       b.variety.toLowerCase().includes(q) ||
-      b.size.toLowerCase().includes(q) ||
+      b.weight.toLowerCase().includes(q) ||
       b.batchNo.toLowerCase().includes(q)
     );
   }, [savedBarcodes, tableSearch]);
@@ -998,7 +998,7 @@ const BarcodeGeneration = () => {
     return () => {
       if (setToolbarActions) setToolbarActions({});
     };
-  }, [setToolbarActions, productName, barcodeValue, department, variety, size, mrp, salesPrice, printCount]);
+  }, [setToolbarActions, productName, barcodeValue, department, variety, weight, mrp, salesPrice, printCount]);
 
   return (
     <div className="flex flex-col h-full bg-slate-100 relative overflow-y-auto space-y-4 p-3">
@@ -1047,13 +1047,12 @@ const BarcodeGeneration = () => {
             <div className="relative">
               <label className="font-bold text-slate-700 block mb-1 flex items-center justify-between">
                 <span>SELECT FROM ITEM MASTER SAVED LIST:</span>
-                <span className="text-[10px] text-blue-600 font-normal">Click item to auto-populate category, size & variety</span>
+                <span className="text-[10px] text-blue-600 font-normal">Click item to auto-populate category & weight</span>
               </label>
               <div className="relative">
                 <input
                   type="text"
                   className="w-full font-bold text-blue-900 bg-blue-50/70 border border-blue-300 py-1.5 px-3 pl-8 rounded focus:outline-none focus:bg-yellow-50 focus:border-blue-600"
-                  placeholder="🔍 Type product name, barcode, or code to search Item Master saved list..."
                   value={itemSearch}
                   onChange={e => {
                     setItemSearch(e.target.value);
@@ -1090,7 +1089,7 @@ const BarcodeGeneration = () => {
                         <div className="text-right">
                           <div className="font-bold text-emerald-700">₹{prod.price || prod.mrp || 0}</div>
                           <div className="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
-                            {prod.department || 'Mens'} | {prod.variety || 'Casual'} | Size: <strong>{prod.size || 'L'}</strong>
+                            {prod.department || 'General'} | {prod.variety || 'Standard'} | Wt: <strong>{prod.weight || '1kg'}</strong>
                           </div>
                         </div>
                       </div>
@@ -1111,7 +1110,6 @@ const BarcodeGeneration = () => {
                   className="w-full border border-slate-300 py-1.5 px-2.5 rounded font-bold text-slate-900 focus:border-blue-600 focus:outline-none"
                   value={productName}
                   onChange={e => setProductName(e.target.value)}
-                  placeholder="e.g. Men's Shirt"
                 />
               </div>
 
@@ -1127,11 +1125,10 @@ const BarcodeGeneration = () => {
                   className="w-full border border-slate-300 py-1.5 px-2.5 rounded font-mono font-bold text-blue-900 bg-yellow-50 focus:border-blue-600 focus:outline-none"
                   value={barcodeValue}
                   onChange={e => setBarcodeValue(e.target.value)}
-                  placeholder="e.g. 100002"
                 />
               </div>
 
-              {/* CATEGORY / DEPARTMENT, VARIETY, SIZE */}
+              {/* CATEGORY / DEPARTMENT, VARIETY, WEIGHT */}
               <div>
                 <label className="font-semibold text-slate-700 block mb-1">Category / Department</label>
                 <input
@@ -1139,7 +1136,6 @@ const BarcodeGeneration = () => {
                   className="w-full border border-slate-300 py-1.5 px-2.5 rounded text-slate-800 focus:border-blue-600 focus:outline-none"
                   value={department}
                   onChange={e => setDepartment(e.target.value)}
-                  placeholder="e.g. Mens, Womens, Kids"
                 />
               </div>
 
@@ -1150,18 +1146,16 @@ const BarcodeGeneration = () => {
                   className="w-full border border-slate-300 py-1.5 px-2.5 rounded text-slate-800 focus:border-blue-600 focus:outline-none"
                   value={variety}
                   onChange={e => setVariety(e.target.value)}
-                  placeholder="e.g. Formal, Casual, Cotton"
                 />
               </div>
 
               <div>
-                <label className="font-semibold text-slate-700 block mb-1">Size <span className="text-blue-600 font-bold">*</span></label>
+                <label className="font-semibold text-slate-700 block mb-1">Weight (Net Wt) <span className="text-blue-600 font-bold">*</span></label>
                 <input
                   type="text"
                   className="w-full border border-slate-300 py-1.5 px-2.5 rounded font-bold text-blue-900 bg-blue-50 focus:border-blue-600 focus:outline-none"
-                  value={size}
-                  onChange={e => setSize(e.target.value)}
-                  placeholder="e.g. L, M, S, XL, 42, 38"
+                  value={weight}
+                  onChange={e => setWeight(e.target.value)}
                 />
               </div>
 
@@ -1172,7 +1166,6 @@ const BarcodeGeneration = () => {
                   className="w-full border border-slate-300 py-1.5 px-2.5 rounded text-slate-800 uppercase focus:border-blue-600 focus:outline-none"
                   value={batchNo}
                   onChange={e => setBatchNo(e.target.value.toUpperCase())}
-                  placeholder="e.g. BATCH-1001"
                 />
               </div>
 
@@ -1206,7 +1199,6 @@ const BarcodeGeneration = () => {
                   className="w-full border border-slate-300 py-1.5 px-2.5 rounded font-bold text-slate-900 focus:border-blue-600 focus:outline-none"
                   value={mrp}
                   onChange={e => setMrp(e.target.value ? Number(e.target.value) : '')}
-                  placeholder="0.00"
                 />
               </div>
 
@@ -1218,7 +1210,6 @@ const BarcodeGeneration = () => {
                   className="w-full border border-slate-300 py-1.5 px-2.5 rounded font-bold text-emerald-700 focus:border-blue-600 focus:outline-none"
                   value={salesPrice}
                   onChange={e => setSalesPrice(e.target.value ? Number(e.target.value) : '')}
-                  placeholder="0.00"
                 />
               </div>
 
@@ -1539,7 +1530,7 @@ const BarcodeGeneration = () => {
                     barcodeValue,
                     department: department || 'General',
                     variety: variety || 'Standard',
-                    size: size || 'L',
+                    weight: weight || '1kg',
                     batchNo,
                     mrp,
                     salesPrice,
@@ -1633,13 +1624,13 @@ const BarcodeGeneration = () => {
                     )}
                     <div className="w-full text-center">
                       <h2 className="text-[9pt] font-black uppercase leading-tight truncate m-0 p-0 w-full text-black">
-                        {productName || 'POLO SHIRT XL'}
+                        {productName || 'GENERAL SAMPLE PRODUCT'}
                       </h2>
                     </div>
                     {showMetaLine && (
                       <div className="w-full text-center">
                         <span className="text-[5.5pt] font-bold leading-none m-0 p-0 text-slate-900 block truncate">
-                          {variety && !['standard', 'std', 'default', ''].includes(variety.trim().toLowerCase()) ? `${variety} | ` : ''}Size : <strong className="text-black font-extrabold">{size || 'L'}</strong>
+                          {variety && !['standard', 'std', 'default', ''].includes(variety.trim().toLowerCase()) ? `${variety} | ` : ''}Wt : <strong className="text-black font-extrabold">{weight || '1kg'}</strong>
                         </span>
                       </div>
                     )}
@@ -1694,13 +1685,13 @@ const BarcodeGeneration = () => {
                 )}
                 <div className="w-full text-center">
                   <h2 className="text-[14pt] font-black uppercase leading-tight truncate m-0 p-0 w-full text-black">
-                    {productName || 'POLO SHIRT XL'}
+                    {productName || 'GENERAL SAMPLE PRODUCT'}
                   </h2>
                 </div>
                 {showMetaLine && (
                   <div className="w-full text-center">
                     <span className="text-[9.5pt] font-bold leading-tight m-0 p-0 text-slate-900 block truncate">
-                      {variety && !['standard', 'std', 'default', ''].includes(variety.trim().toLowerCase()) ? `${variety} | ` : ''}Size : <strong className="text-black font-extrabold">{size || 'L'}</strong>
+                      {variety && !['standard', 'std', 'default', ''].includes(variety.trim().toLowerCase()) ? `${variety} | ` : ''}Wt : <strong className="text-black font-extrabold">{weight || '1kg'}</strong>
                     </span>
                   </div>
                 )}

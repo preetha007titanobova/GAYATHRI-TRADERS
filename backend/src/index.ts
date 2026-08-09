@@ -16,6 +16,8 @@ app.use(cors());
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json());
 
+app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
+
 // Mount API routes under /api/v1
 app.use('/api/v1', apiRouter);
 

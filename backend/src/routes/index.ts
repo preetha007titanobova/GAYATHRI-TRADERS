@@ -11,6 +11,10 @@ import shopSalesRoutes from './shopSales.route';
 
 const router = Router();
 
+router.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
 router.use('/ledgers', ledgerRoutes);
 router.use('/products', productRoutes);
 router.use('/sales', salesRoutes);

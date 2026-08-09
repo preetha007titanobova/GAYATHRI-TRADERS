@@ -437,7 +437,7 @@ const Layout = () => {
         emailFailed = true;
       }
 
-      const whatsappText = `*🧾 ${shopName || 'ITHU NAMMA KADA'} - CLOSE DAY REPORT*\n` +
+      const whatsappText = `*🧾 ${shopName || 'BILLING SOFTWARE'} - CLOSE DAY REPORT*\n` +
                            `📅 *Date:* ${formattedDate}\n` +
                            `----------------------------------------\n` +
                            `📦 *Total Items In Stock Master:* ${data.length}\n` +
@@ -1415,7 +1415,7 @@ const Layout = () => {
 
       {/* Dynamic Indian Date & Time Footer */}
       <div className="bg-[#2b579a] text-white border-t border-[#1d3f70] px-4 py-1.5 flex justify-between items-center text-xs font-bold shadow-inner z-10 flex-shrink-0">
-        <span>© Ithu Namma Kada - Professional Billing Counter System</span>
+        <span>© Billing Software - Professional Billing Counter System</span>
         <div className="flex items-center space-x-2 bg-slate-900/40 border border-indigo-400/20 px-3 py-1 rounded-lg text-yellow-350 font-mono tracking-wider shadow-inner">
           <Calendar size={12} className="text-yellow-400 mr-1" />
           <span>{indianTime}</span>

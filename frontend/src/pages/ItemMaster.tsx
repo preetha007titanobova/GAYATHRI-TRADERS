@@ -8,16 +8,13 @@ interface Product {
   vendorItemCode?: string;
   name: string;
   barcode: string;
+  category?: string;
   uom: string;
   purchaseRate: number;
   price: number;
   mrp: number;
   taxPercent: number;
   stock: number;
-  department?: string;
-  variety?: string;
-  size?: string;
-  factory?: string;
 }
 
 const ItemMaster = () => {
@@ -26,16 +23,13 @@ const ItemMaster = () => {
   const [vendorItemCode, setVendorItemCode] = useState('');
   const [itemName, setItemName] = useState('');
   const [barcode, setBarcode] = useState('');
+  const [category, setCategory] = useState('');
   const [uom, setUom] = useState('PCS');
   const [purchaseRate, setPurchaseRate] = useState<number | string>('');
   const [salesRate, setSalesRate] = useState<number | string>('');
   const [mrp, setMrp] = useState<number | string>('');
   const [taxPercent, setTaxPercent] = useState<number | string>(18);
   const [openingStock, setOpeningStock] = useState<number | string>('');
-  const [department, setDepartment] = useState('Womens');
-  const [variety, setVariety] = useState('');
-  const [size, setSize] = useState('');
-  const [factory, setFactory] = useState('');
 
   const [products, setProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -76,16 +70,13 @@ const ItemMaster = () => {
           vendorItemCode: p.vendorItemCode || '',
           name: p.name,
           barcode: p.barcode || '',
+          category: p.category || p.department || '',
           uom: p.uom || 'PCS',
           purchaseRate: p.purchaseRate || 0,
           price: p.price || 0,
           mrp: p.mrp || 0,
           taxPercent: p.taxPercent || 0,
-          stock: p.stock || 0,
-          department: p.department || '',
-          variety: p.variety || '',
-          size: p.size || '',
-          factory: p.factory || ''
+          stock: p.stock || 0
         })));
       }
     } catch (err) {
@@ -107,16 +98,13 @@ const ItemMaster = () => {
     setVendorItemCode('');
     setItemName('');
     setBarcode('');
+    setCategory('');
     setUom('PCS');
     setPurchaseRate(0);
     setSalesRate(0);
     setMrp(0);
     setTaxPercent(18);
     setOpeningStock(0);
-    setDepartment('Womens');
-    setVariety('');
-    setSize('');
-    setFactory('');
     fetchNextCode();
   };
 
@@ -126,16 +114,13 @@ const ItemMaster = () => {
     setVendorItemCode(product.vendorItemCode || '');
     setItemName(product.name || '');
     setBarcode(product.barcode || '');
+    setCategory(product.category || product.department || '');
     setUom(product.uom || 'PCS');
     setPurchaseRate(product.purchaseRate || 0);
     setSalesRate(product.price || 0);
     setMrp(product.mrp || 0);
     setTaxPercent(product.taxPercent || 18);
     setOpeningStock(product.stock || 0);
-    setDepartment(product.department || 'Womens');
-    setVariety(product.variety || '');
-    setSize(product.size || '');
-    setFactory(product.factory || '');
   };
 
   const handleDelete = async () => {
@@ -192,16 +177,13 @@ const ItemMaster = () => {
       vendorItemCode,
       name: itemName,
       barcode,
+      category,
       uom,
       purchaseRate,
       price: salesRate,
       mrp,
       taxPercent,
-      stock: openingStock,
-      department,
-      variety,
-      size,
-      factory
+      stock: openingStock
     };
 
     try {
@@ -270,7 +252,8 @@ const ItemMaster = () => {
         (p.name || '').toLowerCase().includes(q) ||
         (p.itemCode && p.itemCode.toLowerCase().includes(q)) ||
         (p.barcode && p.barcode.toLowerCase().includes(q)) ||
-        (p.vendorItemCode && p.vendorItemCode.toLowerCase().includes(q))
+        (p.vendorItemCode && p.vendorItemCode.toLowerCase().includes(q)) ||
+        (p.category && p.category.toLowerCase().includes(q))
       );
     });
   }, [products, searchQuery]);
@@ -316,7 +299,7 @@ const ItemMaster = () => {
       <div className="flex-1 flex overflow-hidden">
 
         {/* Left Side: Product Entry Form */}
-        <div className={`${viewMode === 'table-only' ? 'hidden' : viewMode === 'form-only' ? 'w-full' : 'w-[58%]'} overflow-y-auto p-6 border-r border-slate-200 bg-white flex flex-col justify-between`}>
+        <div className={`${viewMode === 'table-only' ? 'hidden' : viewMode === 'form-only' ? 'w-full' : 'w-[52%]'} overflow-y-auto p-6 border-r border-slate-200 bg-white flex flex-col justify-between`}>
           <div>
             <h2 className="text-slate-700 font-semibold text-base mb-4 pb-2 border-b border-slate-100">
               {selectedId ? 'Edit Product' : 'Add New Product'}
@@ -346,46 +329,31 @@ const ItemMaster = () => {
               <div className="flex flex-col">
                 <label className="text-xs font-medium text-slate-600 mb-1">Unit (UOM)</label>
                 <select className="px-3 py-1 bg-white border border-slate-300 rounded text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow" value={uom} onChange={e => setUom(e.target.value)}>
-                  <option>PCS</option>
-                  <option>Pair</option>
-                  <option>Set</option>
-                  <option>Pack</option>
+                  <option value="PCS">PCS</option>
+                  <option value="KG">KG</option>
+                  <option value="LTR">LTR</option>
+                  <option value="BOX">BOX</option>
+                  <option value="PKT">PKT</option>
+                  <option value="SET">SET</option>
+                  <option value="MTR">MTR</option>
+                  <option value="GRAM">GRAM</option>
+                  <option value="BOTTLE">BOTTLE</option>
+                  <option value="CAN">CAN</option>
+                  <option value="DOZEN">DOZEN</option>
                 </select>
               </div>
 
               <div className="flex flex-col">
-                <label className="text-xs font-medium text-slate-600 mb-1">Tax (%)</label>
+                <label className="text-xs font-medium text-slate-600 mb-1">Category</label>
+                <input type="text" placeholder="Category" className="px-3 py-1 bg-white border border-slate-300 rounded text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow" value={category} onChange={e => setCategory(e.target.value)} />
+              </div>
+
+              <div className="flex flex-col">
+                <label className="text-xs font-medium text-slate-600 mb-1">GST Tax (%)</label>
                 <div className="relative">
                   <input type="number" className="pr-6 pl-3 py-1 w-full bg-white border border-slate-300 rounded text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow" value={taxPercent} onChange={e => setTaxPercent(e.target.value)} />
                   <span className="absolute right-2 top-1.5 text-slate-400 text-xs">%</span>
                 </div>
-              </div>
-
-              <div className="col-span-3 border-b border-slate-100 my-1"></div>
-
-              <div className="flex flex-col">
-                <label className="text-xs font-medium text-slate-600 mb-1">Category</label>
-                <select className="px-3 py-1 bg-white border border-slate-300 rounded text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow" value={department} onChange={e => setDepartment(e.target.value)}>
-                  <option value="">None</option>
-                  <option value="Womens">Womens</option>
-                  <option value="Mens">Mens</option>
-                  <option value="Kids">Kids</option>
-                </select>
-              </div>
-
-              <div className="flex flex-col">
-                <label className="text-xs font-medium text-slate-600 mb-1">Variety</label>
-                <input type="text" className="px-3 py-1 bg-white border border-slate-300 rounded text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow" value={variety} onChange={e => setVariety(e.target.value)} />
-              </div>
-
-              <div className="flex flex-col">
-                <label className="text-xs font-medium text-slate-600 mb-1">Size</label>
-                <input type="text" className="px-3 py-1 bg-white border border-slate-300 rounded text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow" value={size} onChange={e => setSize(e.target.value)} />
-              </div>
-
-              <div className="flex flex-col col-span-3">
-                <label className="text-xs font-medium text-slate-600 mb-1">Factory / Brand Name</label>
-                <input type="text" className="px-3 py-1 bg-white border border-slate-300 rounded text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow" value={factory} onChange={e => setFactory(e.target.value)} />
               </div>
 
               <div className="col-span-3 border-b border-slate-100 my-1"></div>
@@ -450,7 +418,7 @@ const ItemMaster = () => {
         </div>
 
         {/* Right Side: Product Directory Grid */}
-        <div className={`${viewMode === 'form-only' ? 'hidden' : viewMode === 'table-only' ? 'w-full' : 'w-[42%]'} flex flex-col bg-white overflow-hidden p-6`}>
+        <div className={`${viewMode === 'form-only' ? 'hidden' : viewMode === 'table-only' ? 'w-full' : 'w-[48%]'} flex flex-col bg-white overflow-hidden p-6`}>
           <div className="flex justify-between items-center mb-4">
             <div className="flex items-center space-x-3">
               <div className="relative w-48">
@@ -459,6 +427,7 @@ const ItemMaster = () => {
                 </svg>
                 <input
                   type="text"
+                  placeholder="Search Item Name / Code..."
                   className="w-full pl-9 pr-3 py-1.5 bg-white border border-slate-300 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
@@ -471,13 +440,10 @@ const ItemMaster = () => {
             <table className="w-full text-left text-sm text-slate-600 border-collapse">
               <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
                 <tr>
-                  <th className="px-4 py-2.5 font-medium border-b border-slate-200">Our Item Code</th>
-                  <th className="px-4 py-2.5 font-medium border-b border-slate-200">Vendor Code</th>
+                  <th className="px-4 py-2.5 font-medium border-b border-slate-200">Item Code</th>
+                  <th className="px-4 py-2.5 font-medium border-b border-slate-200">Barcode</th>
                   <th className="px-4 py-2.5 font-medium border-b border-slate-200">Name</th>
                   <th className="px-4 py-2.5 font-medium border-b border-slate-200">Category</th>
-                  <th className="px-4 py-2.5 font-medium border-b border-slate-200">Variety</th>
-                  <th className="px-4 py-2.5 font-medium border-b border-slate-200">Size</th>
-                  <th className="px-4 py-2.5 font-medium border-b border-slate-200">Factory</th>
                   <th className="px-4 py-2.5 font-medium border-b border-slate-200">UOM</th>
                   <th className="px-4 py-2.5 font-medium text-right border-b border-slate-200">Stock</th>
                   <th className="px-4 py-2.5 font-medium text-right border-b border-slate-200">Purchase Rate</th>
@@ -496,17 +462,14 @@ const ItemMaster = () => {
                         onClick={() => handleRowClick(product)}
                       >
                         <td className="px-4 py-2.5 whitespace-nowrap text-blue-600 font-medium">{product.itemCode}</td>
-                        <td className="px-4 py-2.5 whitespace-nowrap text-slate-700 font-mono font-semibold">{product.vendorItemCode || '-'}</td>
+                        <td className="px-4 py-2.5 whitespace-nowrap text-slate-700 font-mono font-semibold">{product.barcode || '-'}</td>
                         <td className="px-4 py-2.5 whitespace-nowrap text-slate-800 font-medium">
                           <div>{product.name}</div>
                         </td>
-                        <td className="px-4 py-2.5 whitespace-nowrap">{product.department} </td>
-                         <td className="px-4 py-2.5 whitespace-nowrap">{product.variety} </td>
-                        <td className="px-4 py-2.5 whitespace-nowrap">{product.size}</td>
-                        <td className="px-4 py-2.5 whitespace-nowrap text-slate-500">{product.factory}</td>
+                        <td className="px-4 py-2.5 whitespace-nowrap">{product.category}</td>
                         <td className="px-4 py-2.5 whitespace-nowrap">{product.uom}</td>
                         <td className="px-4 py-2.5 whitespace-nowrap text-right">{product.stock}</td>
-                        <td className="px-4 py-2.5 whitespace-nowrap text-right">{product.purchaseRate}</td>
+                        <td className="px-4 py-2.5 whitespace-nowrap text-right">₹{product.purchaseRate?.toFixed(2) || '0.00'}</td>
                         <td className="px-4 py-2.5 whitespace-nowrap text-right">₹{product.price?.toFixed(2) || '0.00'}</td>
                         <td className="px-4 py-2.5 whitespace-nowrap text-right">₹{product.mrp?.toFixed(2) || '0.00'}</td>
                       </tr>
@@ -514,7 +477,7 @@ const ItemMaster = () => {
                   })
                 ) : (
                   <tr>
-                    <td colSpan={11} className="px-4 py-10 text-center text-slate-400">
+                    <td colSpan={9} className="px-4 py-10 text-center text-slate-400">
                       No products found.
                     </td>
                   </tr>

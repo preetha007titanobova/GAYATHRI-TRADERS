@@ -9,7 +9,7 @@ interface SavedBarcodeItem {
   barcodeValue: string;
   department: string;
   variety: string;
-  size: string;
+  weight: string;
   batchNo: string;
   mrp: number | '';
   salesPrice: number | '';
@@ -109,7 +109,7 @@ const BarcodeRegister = () => {
   const handleDirectTSPLPrint = async (item: SavedBarcodeItem) => {
     const code = item.barcodeValue || '100002';
     const name = (item.productName || 'Item').toUpperCase();
-    const sizeStr = item.size || 'L';
+    const weightStr = item.weight || '1kg';
     const mrpStr = item.mrp ? Number(item.mrp).toFixed(2) : '0.00';
     const count = item.printCount || 1;
 
@@ -126,15 +126,15 @@ CLS
 
 TEXT 100,10,"3",0,1,1,"${name.substring(0, 18)}"
 BARCODE 100,35,"128",40,1,0,2,4,"${code}"
-TEXT 100,85,"2",0,1,1,"Size: ${sizeStr}  MRP: Rs.${mrpStr}"
+TEXT 100,85,"2",0,1,1,"Wt: ${weightStr}  MRP: Rs.${mrpStr}"
 
 TEXT 420,10,"3",0,1,1,"${name.substring(0, 18)}"
 BARCODE 420,35,"128",40,1,0,2,4,"${code}"
-TEXT 420,85,"2",0,1,1,"Size: ${sizeStr}  MRP: Rs.${mrpStr}"
+TEXT 420,85,"2",0,1,1,"Wt: ${weightStr}  MRP: Rs.${mrpStr}"
 
 TEXT 740,10,"3",0,1,1,"${name.substring(0, 18)}"
 BARCODE 740,35,"128",40,1,0,2,4,"${code}"
-TEXT 740,85,"2",0,1,1,"Size: ${sizeStr}  MRP: Rs.${mrpStr}"
+TEXT 740,85,"2",0,1,1,"Wt: ${weightStr}  MRP: Rs.${mrpStr}"
 
 PRINT 1,${count}
 `;
@@ -247,8 +247,6 @@ PRINT 1,${count}
                   <th className="p-2.5 border-r border-slate-800">Barcode Number</th>
                   <th className="p-2.5 border-r border-slate-800">Product Name</th>
                   <th className="p-2.5 border-r border-slate-800">Category</th>
-                  <th className="p-2.5 border-r border-slate-800">Variety</th>
-                  <th className="p-2.5 border-r border-slate-800 text-center">Size</th>
                   <th className="p-2.5 border-r border-slate-800 text-right">MRP (₹)</th>
                   <th className="p-2.5 border-r border-slate-800 text-right">Sale Price (₹)</th>
                   <th className="p-2.5 border-r border-slate-800">Batch No</th>
@@ -259,7 +257,7 @@ PRINT 1,${count}
               <tbody className="divide-y divide-slate-200">
                 {filteredBarcodes.length === 0 ? (
                   <tr>
-                    <td colSpan={isSelectMultiple ? 12 : 11} className="p-12 text-center text-slate-400 italic bg-slate-50">
+                    <td colSpan={isSelectMultiple ? 10 : 9} className="p-12 text-center text-slate-400 italic bg-slate-50">
                       No saved barcodes found in register.
                     </td>
                   </tr>
@@ -289,10 +287,6 @@ PRINT 1,${count}
                         </td>
                         <td className="p-2.5 border-r border-slate-200 font-bold text-slate-900">{item.productName}</td>
                         <td className="p-2.5 border-r border-slate-200 text-slate-700">{item.department || 'General'}</td>
-                        <td className="p-2.5 border-r border-slate-200 text-slate-700">{item.variety || 'Standard'}</td>
-                        <td className="p-2.5 border-r border-slate-200 text-center font-bold text-blue-800 bg-blue-50/40">
-                          {item.size || 'L'}
-                        </td>
                         <td className="p-2.5 border-r border-slate-200 text-right font-mono text-slate-700">
                           ₹{Number(item.mrp || 0).toFixed(2)}
                         </td>

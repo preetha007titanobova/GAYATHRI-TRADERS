@@ -8,7 +8,7 @@ let mainWindow;
 let mongodProcess;
 let backendProcess;
 
-const LICENSE_PATH = path.join(process.env.PROGRAMDATA || 'C:\\ProgramData', 'IthuNammaKada', 'license.lic');
+const LICENSE_PATH = path.join(process.env.PROGRAMDATA || 'C:\\ProgramData', 'BillingSoftware', 'license.lic');
 const PUBLIC_KEY_PEM = `-----BEGIN PUBLIC KEY-----
 MCowBQYDK2VwAyEAGm7aeYXKDQtKBnuOGKHq+pz6uDP5L6mvfz9Dv0sgKu8=
 -----END PUBLIC KEY-----`;

@@ -226,7 +226,7 @@ const License: React.FC = () => {
               <div className="grid grid-cols-2 gap-4 text-xs font-medium text-gray-700">
                 <div>
                   <span className="text-gray-400 block text-[10px] uppercase">Shop Name</span>
-                  <span className="text-sm font-bold text-gray-900">{shopName || 'ITHU NAMMA KADA'}</span>
+                  <span className="text-sm font-bold text-gray-900">{shopName || 'Billing Software'}</span>
                 </div>
                 <div>
                   <span className="text-gray-400 block text-[10px] uppercase">Plan Type / Tier</span>
@@ -280,7 +280,7 @@ const License: React.FC = () => {
                     type="text"
                     value={customShopName}
                     onChange={(e) => setCustomShopName(e.target.value)}
-                    placeholder="e.g. Ithu Namma Kada"
+                    placeholder="e.g. Billing Software"
                     className="border border-gray-300 rounded px-3 py-2 text-xs text-gray-900 focus:outline-none focus:border-blue-500"
                   />
                 </div>
