@@ -97,7 +97,7 @@ function startLocalBackend() {
     if (app.isPackaged) {
         const prodBackendPath = path.join(__dirname, 'backend', 'index.js');
         backendProcess = fork(prodBackendPath, [], {
-            env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', PORT: 5000, DATABASE_URL: localDbUrl, NODE_ENV: 'production' }
+            env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', PORT: 5050, DATABASE_URL: localDbUrl, NODE_ENV: 'production' }
         });
     } else {
         const isWin = process.platform === 'win32';
@@ -105,7 +105,7 @@ function startLocalBackend() {
         backendProcess = spawn(cmd, ['ts-node-dev', '--respawn', '--transpile-only', 'src/index.ts'], {
             cwd: backendDir,
             shell: true,
-            env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', PORT: 5000, DATABASE_URL: localDbUrl, NODE_ENV: 'production' }
+            env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', PORT: 5050, DATABASE_URL: localDbUrl, NODE_ENV: 'production' }
         });
         if (backendProcess.stdout) {
             backendProcess.stdout.on('data', (d) => console.log('[Backend]', d.toString().trim()));
@@ -133,8 +133,8 @@ function createWindow() {
 
     // In dev mode (when not packaged), load main POS app
     const targetUrl = (app.isPackaged && !licenseStatus.valid) 
-        ? 'http://localhost:5000/activation' 
-        : 'http://localhost:5000';
+        ? 'http://localhost:5050/activation' 
+        : 'http://localhost:5050';
 
     const loadApp = () => {
         mainWindow.loadURL(targetUrl).catch((err) => {

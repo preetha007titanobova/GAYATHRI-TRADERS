@@ -1,3 +1,3 @@
-const Api = "http://localhost:5000/api/v1"
+const Api = "http://localhost:5050/api/v1"
 
 export default Api; 
