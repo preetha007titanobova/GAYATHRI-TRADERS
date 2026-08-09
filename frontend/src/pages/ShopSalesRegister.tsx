@@ -18,6 +18,8 @@ interface LineItem {
   size?: string;
   variety?: string;
   category?: string;
+  vendorItemCode?: string;
+  itemDesc?: string;
 }
 
 interface ShopSalesRecord {

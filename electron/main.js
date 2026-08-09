@@ -90,19 +90,31 @@ function startLocalMongo() {
 
 // 3. Spawn Local Express Backend
 function startLocalBackend() {
-    const backendPath = path.join(__dirname, '..', 'backend', 'src', 'index.ts'); // dev mode path
-    const prodBackendPath = path.join(__dirname, 'backend', 'index.js'); // prod compiled path
+    const devCompiledBackendPath = path.join(__dirname, '..', 'backend', 'dist', 'index.js');
+    const devTsBackendPath = path.join(__dirname, '..', 'backend', 'src', 'index.ts');
+    const prodBackendPath = path.join(__dirname, 'backend', 'index.js');
 
-    console.log('Spawning billing logic server...');
-    const localDbUrl = 'mongodb://127.0.0.1:27017/ERP_DB';
-
-    backendProcess = fork(app.isPackaged ? prodBackendPath : backendPath, [], {
+    let targetBackendPath = prodBackendPath;
+    let forkOpts = {
         env: {
             PORT: 5000,
-            DATABASE_URL: localDbUrl,
-            NODE_ENV: 'production'
+            DATABASE_URL: 'mongodb://127.0.0.1:27017/ERP_DB',
+            NODE_ENV: app.isPackaged ? 'production' : 'development'
         }
-    });
+    };
+
+    if (app.isPackaged) {
+        targetBackendPath = prodBackendPath;
+    } else if (fs.existsSync(devCompiledBackendPath)) {
+        targetBackendPath = devCompiledBackendPath;
+    } else {
+        targetBackendPath = devTsBackendPath;
+        forkOpts.execArgv = ['-r', 'ts-node/register'];
+    }
+
+    console.log('Spawning billing logic server at:', targetBackendPath);
+
+    backendProcess = fork(targetBackendPath, [], forkOpts);
 
     backendProcess.on('error', (err) => console.error('Backend logic server crashed:', err));
 }

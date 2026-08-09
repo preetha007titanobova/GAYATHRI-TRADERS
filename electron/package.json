@@ -1,10 +1,38 @@
 {
-  "name": "electron-app",
+  "name": "ithu-namma-kada-pos",
   "version": "1.0.0",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "package": "electron-builder"
+    "package": "electron-builder",
+    "build": "electron-builder --win"
+  },
+  "build": {
+    "appId": "com.ithunamnakada.pos",
+    "productName": "Ithu Namma Kada POS",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../backend/dist",
+        "to": "backend",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "../frontend/dist",
+        "to": "frontend",
+        "filter": ["**/*"]
+      }
+    ],
+    "win": {
+      "target": ["nsis", "portable"]
+    }
   },
   "dependencies": {
     "node-machine-id": "^1.1.12"

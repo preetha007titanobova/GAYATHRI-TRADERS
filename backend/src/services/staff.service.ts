@@ -236,13 +236,17 @@ const calculateBiometricMetrics = (
 export const processBiometricPunch = async (identifier: string, dateStr: string): Promise<any> => {
   const db = await getDb();
   
+  const orConditions: any[] = [
+    { staffCode: identifier },
+    { biometricId: identifier },
+    { biometricId2: identifier }
+  ];
+  if (ObjectId.isValid(identifier)) {
+    orConditions.push({ _id: new ObjectId(identifier) });
+  }
+
   let staff = await db.collection('Staff').findOne({
-    $or: [
-      { staffCode: identifier },
-      { biometricId: identifier },
-      { biometricId2: identifier },
-      { _id: ObjectId.isValid(identifier) ? new ObjectId(identifier) : null }
-    ],
+    $or: orConditions,
     status: 'Active'
   });
 
