@@ -11,6 +11,7 @@ interface PurchaseItem {
   vendorItemCode?: string;
   itemName: string;
   weight?: string;
+  unit?: string;
   category: string;
   itemDesc: string;
   hsn: string;
@@ -389,6 +390,7 @@ const PurchaseBill = () => {
     vendorItemCode: '',
     itemName: '',
     weight: '',
+    unit: 'g',
     category: 'General',
     itemDesc: '',
     hsn: '',
@@ -676,6 +678,7 @@ const PurchaseBill = () => {
           updated.mrp = prod.mrp || 0;
           updated.taxPercent = prod.taxPercent || 18;
           updated.weight = prod.weight || '';
+          updated.unit = prod.unit || 'g';
           updated.freeQty = 0;
           updated.category = prod.department || 'General';
           updated.vendorItemCode = prod.vendorItemCode || '';
@@ -825,6 +828,7 @@ const PurchaseBill = () => {
           vendorItemCode: i.vendorItemCode || prod?.vendorItemCode || '',
           itemName: i.itemName || i.itemDesc || i.itemCode || '',
           weight: i.weight || prod?.weight || '',
+          unit: i.unit || prod?.unit || 'g',
           category: i.category || i.department || prod?.department || 'General',
           itemDesc: i.itemName || i.itemDesc || i.itemCode || '',
           hsn: i.hsn || i.barcode || prod?.barcode || '',
@@ -911,6 +915,7 @@ const PurchaseBill = () => {
         itemName: i.itemName || i.itemDesc || i.itemCode,
         itemDesc: i.itemDesc || i.itemName || i.itemCode,
         weight: i.weight || '',
+        unit: i.unit || 'g',
         category: i.category || 'General',
         qty: Number(i.qty) || 0,
         freeQty: Number(i.freeQty) || 0,
@@ -1274,7 +1279,8 @@ const PurchaseBill = () => {
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-28">Barcode</th>
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-48">Product Name</th>
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-28">Vendor Item Code</th>
-                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-24">Weight (Net Wt)</th>
+                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-20">Weight / Val</th>
+                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-24">Unit</th>
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-24">Category</th>
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-16 text-right">Purchase Qty</th>
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-16 text-right">Free Qty</th>
@@ -1290,7 +1296,7 @@ const PurchaseBill = () => {
                   <tbody>
                     {items.length === 0 && (
                       <tr>
-                        <td colSpan={15} className="p-6 text-gray-400 italic text-center">
+                        <td colSpan={16} className="p-6 text-gray-400 italic text-center">
                           No items added.
                         </td>
                       </tr>
@@ -1388,9 +1394,47 @@ const PurchaseBill = () => {
                               const latest = items.find(i => i.id === item.id);
                               if (latest) saveProductToDb(latest);
                             }}
-                            className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-center" 
-                            placeholder="1kg, 500g..."
+                            className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-center font-semibold" 
+                            placeholder="e.g. 100, 5"
                           />
+                        </td>
+                        <td className="border-r border-gray-300 p-0">
+                          <select
+                            value={item.unit || 'g'}
+                            onChange={e => updateItem(item.id, 'unit', e.target.value)}
+                            onBlur={() => {
+                              const latest = items.find(i => i.id === item.id);
+                              if (latest) saveProductToDb(latest);
+                            }}
+                            className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-xs font-semibold text-slate-700 cursor-pointer"
+                          >
+                            <optgroup label="Weight">
+                              <option value="mg">mg</option>
+                              <option value="g">g</option>
+                              <option value="kg">kg</option>
+                              <option value="quintal">quintal</option>
+                              <option value="ton">ton</option>
+                            </optgroup>
+                            <optgroup label="Volume">
+                              <option value="ml">ml</option>
+                              <option value="litre">litre</option>
+                              <option value="kilolitre">kilolitre</option>
+                            </optgroup>
+                            <optgroup label="Length">
+                              <option value="mm">mm</option>
+                              <option value="cm">cm</option>
+                              <option value="metre">metre</option>
+                            </optgroup>
+                            <optgroup label="Count">
+                              <option value="piece">piece</option>
+                              <option value="box">box</option>
+                              <option value="packet">packet</option>
+                              <option value="bottle">bottle</option>
+                              <option value="can">can</option>
+                              <option value="dozen">dozen</option>
+                              <option value="pair">pair</option>
+                            </optgroup>
+                          </select>
                         </td>
                         <td className="border-r border-gray-300 p-0">
                           <input

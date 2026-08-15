@@ -64,31 +64,145 @@ const formatIndianDate = (dateInput?: string | Date) => {
   }
 };
 
-const parseWeightInGrams = (weightStr?: string): number => {
-  if (!weightStr) return 0;
+const parseMeasurement = (weightStr?: string, unitStr?: string) => {
+  if (!weightStr) return { val: 0, category: 'none', unit: '' };
   const str = String(weightStr).trim().toLowerCase();
-  const val = parseFloat(str.replace(/[^\d.]/g, ''));
-  if (isNaN(val) || val <= 0) return 0;
-  if (str.includes('kg')) {
-    return val * 1000;
+  let numVal = parseFloat(str.replace(/[^\d.]/g, ''));
+  if (isNaN(numVal) || numVal <= 0) return { val: 0, category: 'none', unit: '' };
+
+  let unit = (unitStr || '').trim().toLowerCase();
+  
+  if (!unit) {
+    if (str.includes('quintal')) unit = 'quintal';
+    else if (str.includes('kilolitre') || str.includes('kl')) unit = 'kilolitre';
+    else if (str.includes('litre') || str.includes('liter')) unit = 'litre';
+    else if (str.includes('ml')) unit = 'ml';
+    else if (str.includes('metre') || str.includes('meter')) unit = 'metre';
+    else if (str.includes('cm')) unit = 'cm';
+    else if (str.includes('mm')) unit = 'mm';
+    else if (str.includes('ton')) unit = 'ton';
+    else if (str.includes('kg')) unit = 'kg';
+    else if (str.includes('mg')) unit = 'mg';
+    else if (str.includes('g') && !str.includes('kg')) unit = 'g';
+    else if (str.includes('piece') || str.includes('pcs')) unit = 'piece';
+    else if (str.includes('box')) unit = 'box';
+    else if (str.includes('packet')) unit = 'packet';
+    else if (str.includes('bottle')) unit = 'bottle';
+    else if (str.includes('can')) unit = 'can';
+    else if (str.includes('dozen')) unit = 'dozen';
+    else if (str.includes('pair')) unit = 'pair';
+    else unit = 'g';
   }
-  return val;
+
+  // Weight Category (base: grams)
+  if (['mg', 'g', 'kg', 'quintal', 'ton'].includes(unit)) {
+    let grams = numVal;
+    if (unit === 'mg') grams = numVal / 1000;
+    else if (unit === 'g') grams = numVal;
+    else if (unit === 'kg') grams = numVal * 1000;
+    else if (unit === 'quintal') grams = numVal * 100000;
+    else if (unit === 'ton') grams = numVal * 1000000;
+    return { val: grams, category: 'weight', unit };
+  }
+
+  // Volume Category (base: ml)
+  if (['ml', 'litre', 'kilolitre'].includes(unit)) {
+    let ml = numVal;
+    if (unit === 'ml') ml = numVal;
+    else if (unit === 'litre') ml = numVal * 1000;
+    else if (unit === 'kilolitre') ml = numVal * 1000000;
+    return { val: ml, category: 'volume', unit };
+  }
+
+  // Length Category (base: mm)
+  if (['mm', 'cm', 'metre'].includes(unit)) {
+    let mm = numVal;
+    if (unit === 'mm') mm = numVal;
+    else if (unit === 'cm') mm = numVal * 10;
+    else if (unit === 'metre') mm = numVal * 1000;
+    return { val: mm, category: 'length', unit };
+  }
+
+  // Count Category
+  if (['piece', 'box', 'packet', 'bottle', 'can', 'dozen', 'pair'].includes(unit)) {
+    let count = numVal;
+    if (unit === 'dozen') count = numVal * 12;
+    else if (unit === 'pair') count = numVal * 2;
+    return { val: count, category: 'count', unit };
+  }
+
+  return { val: numVal, category: 'weight', unit: 'g' };
 };
 
-const formatTotalWeight = (items?: any[]): string => {
+const formatTotalMeasurement = (items?: any[]): string => {
   if (!items || items.length === 0) return '-';
-  let totalGrams = 0;
+
+  const categoryTotals: { [key: string]: number } = {
+    weight: 0,
+    volume: 0,
+    length: 0,
+    count: 0
+  };
+
   for (const item of items) {
     const qty = (Number(item.qty) || 0) + (Number(item.freeQty) || 0);
-    const g = parseWeightInGrams(item.weight);
-    totalGrams += g * (qty || 1);
+    const parsed = parseMeasurement(item.weight, item.unit);
+    if (parsed.category !== 'none' && parsed.val > 0) {
+      categoryTotals[parsed.category] += parsed.val * (qty || 1);
+    }
   }
-  if (totalGrams <= 0) return '-';
-  if (totalGrams >= 1000) {
-    const kg = totalGrams / 1000;
-    return Number.isInteger(kg) ? `${kg} Kg` : `${kg.toFixed(2)} Kg`;
+
+  const parts: string[] = [];
+
+  if (categoryTotals.weight > 0) {
+    const g = categoryTotals.weight;
+    if (g >= 1000000) {
+      const ton = g / 1000000;
+      parts.push(Number.isInteger(ton) ? `${ton} ton` : `${ton.toFixed(2)} ton`);
+    } else if (g >= 100000) {
+      const q = g / 100000;
+      parts.push(Number.isInteger(q) ? `${q} quintal` : `${q.toFixed(2)} quintal`);
+    } else if (g >= 1000) {
+      const kg = g / 1000;
+      parts.push(Number.isInteger(kg) ? `${kg} Kg` : `${kg.toFixed(2)} Kg`);
+    } else if (g >= 1) {
+      parts.push(`${Math.round(g)} g`);
+    } else {
+      parts.push(`${(g * 1000).toFixed(1)} mg`);
+    }
   }
-  return `${Math.round(totalGrams)} g`;
+
+  if (categoryTotals.volume > 0) {
+    const ml = categoryTotals.volume;
+    if (ml >= 1000000) {
+      const kl = ml / 1000000;
+      parts.push(Number.isInteger(kl) ? `${kl} kilolitre` : `${kl.toFixed(2)} kilolitre`);
+    } else if (ml >= 1000) {
+      const l = ml / 1000;
+      parts.push(Number.isInteger(l) ? `${l} litre` : `${l.toFixed(2)} litre`);
+    } else {
+      parts.push(`${Math.round(ml)} ml`);
+    }
+  }
+
+  if (categoryTotals.length > 0) {
+    const mm = categoryTotals.length;
+    if (mm >= 1000) {
+      const m = mm / 1000;
+      parts.push(Number.isInteger(m) ? `${m} metre` : `${m.toFixed(2)} metre`);
+    } else if (mm >= 10) {
+      const cm = mm / 10;
+      parts.push(Number.isInteger(cm) ? `${cm} cm` : `${cm.toFixed(1)} cm`);
+    } else {
+      parts.push(`${Math.round(mm)} mm`);
+    }
+  }
+
+  if (categoryTotals.count > 0) {
+    parts.push(`${categoryTotals.count} Pcs`);
+  }
+
+  return parts.length > 0 ? parts.join(', ') : '-';
 };
 
 // --- DATA STRUCTURES ---
@@ -639,7 +753,7 @@ const PurRegister = () => {
                   const retQty = row.returnedQty || 0;
                   const netStockQty = row.netQty ?? Math.max(0, purchasedQty - retQty);
                   const rStatus = row.returnStatus || (retQty > 0 ? (netStockQty <= 0 ? 'Fully Returned' : 'Partially Returned') : 'None');
-                  const formattedWeight = formatTotalWeight(row.items);
+                  const formattedWeight = formatTotalMeasurement(row.items);
 
                   return (
                     <tr 
