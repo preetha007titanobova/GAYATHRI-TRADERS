@@ -64,6 +64,33 @@ const formatIndianDate = (dateInput?: string | Date) => {
   }
 };
 
+const parseWeightInGrams = (weightStr?: string): number => {
+  if (!weightStr) return 0;
+  const str = String(weightStr).trim().toLowerCase();
+  const val = parseFloat(str.replace(/[^\d.]/g, ''));
+  if (isNaN(val) || val <= 0) return 0;
+  if (str.includes('kg')) {
+    return val * 1000;
+  }
+  return val;
+};
+
+const formatTotalWeight = (items?: any[]): string => {
+  if (!items || items.length === 0) return '-';
+  let totalGrams = 0;
+  for (const item of items) {
+    const qty = (Number(item.qty) || 0) + (Number(item.freeQty) || 0);
+    const g = parseWeightInGrams(item.weight);
+    totalGrams += g * (qty || 1);
+  }
+  if (totalGrams <= 0) return '-';
+  if (totalGrams >= 1000) {
+    const kg = totalGrams / 1000;
+    return Number.isInteger(kg) ? `${kg} Kg` : `${kg.toFixed(2)} Kg`;
+  }
+  return `${Math.round(totalGrams)} g`;
+};
+
 // --- DATA STRUCTURES ---
 interface LineItem {
   itemCode: string;
@@ -606,14 +633,13 @@ const PurRegister = () => {
                 </tr>
               ) : (
                 displayedData.map((row, idx) => {
-                  const purchasedQty = row.totalQty ?? (row.items ? row.items.reduce((acc, curr) => acc + (curr.qty || 0) + (curr.freeQty || 0), 0) : 0);
+                  const purchasedQty = row.items && row.items.length > 0 
+                    ? row.items.reduce((acc, curr) => acc + (Number(curr.qty) || 0) + (Number(curr.freeQty) || 0), 0)
+                    : (row.totalQty || 0);
                   const retQty = row.returnedQty || 0;
                   const netStockQty = row.netQty ?? Math.max(0, purchasedQty - retQty);
                   const rStatus = row.returnStatus || (retQty > 0 ? (netStockQty <= 0 ? 'Fully Returned' : 'Partially Returned') : 'None');
-                  const totalWeightVal = row.items ? row.items.reduce((acc, curr) => {
-                    const w = parseFloat(String(curr.weight || '0').replace(/[^\d.]/g, ''));
-                    return acc + (isNaN(w) ? 0 : w * (curr.qty || 1));
-                  }, 0) : 0;
+                  const formattedWeight = formatTotalWeight(row.items);
 
                   return (
                     <tr 
@@ -636,7 +662,7 @@ const PurRegister = () => {
                         {row.supplierGstin && <div className="text-[10px] text-gray-400 font-mono mt-0.5">{row.supplierGstin}</div>}
                       </td>
                       <td className="border-r border-gray-300 p-2 text-center font-bold text-indigo-700 bg-indigo-50/20">
-                        {totalWeightVal > 0 ? `${totalWeightVal.toFixed(2)} Kg` : '-'}
+                        {formattedWeight}
                       </td>
                       <td className="border-r border-gray-300 p-2 text-center font-bold text-blue-700 bg-blue-50/20">{purchasedQty} Pcs</td>
                       <td className="border-r border-gray-300 p-2 text-center font-bold text-amber-700 bg-amber-50/30">
