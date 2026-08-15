@@ -186,26 +186,76 @@ const PurRegister = () => {
 
   // Load Data on Mount
   useEffect(() => {
-    // Load Bills from DB
-    fetch(`${Api}/purchase-bills`)
-      .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data)) {
-          setAllData(data);
-          setDisplayedData(data);
-        }
-      })
-      .catch(err => console.error("Error loading purchase bills", err));
+    const fetchAllData = async () => {
+      try {
+        const [billsRes, returnsRes, suppliersRes] = await Promise.all([
+          fetch(`${Api}/purchase-bills`),
+          fetch(`${Api}/purchase-bills/returns`),
+          fetch(`${Api}/ledgers/search?group=Suppliers`)
+        ]);
 
-    // Load Suppliers for dropdown from DB Ledgers
-    fetch(`${Api}/ledgers/search?group=Suppliers`)
-      .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data)) {
-          setSuppliersList(['All', ...data.map((v: any) => v.accountName)]);
+        const billsData = billsRes.ok ? await billsRes.json() : [];
+        const returnsData = returnsRes.ok ? await returnsRes.json() : [];
+        const suppliersData = suppliersRes.ok ? await suppliersRes.json() : [];
+
+        if (Array.isArray(suppliersData)) {
+          setSuppliersList(['All', ...suppliersData.map((v: any) => v.accountName)]);
         }
-      })
-      .catch(err => console.error("Error loading suppliers list", err));
+
+        let combined: PurchaseRecord[] = [];
+        if (Array.isArray(billsData)) {
+          combined = [...billsData];
+        }
+
+        if (Array.isArray(returnsData)) {
+          const mappedReturns: PurchaseRecord[] = returnsData.map((ret: any) => ({
+            id: ret.id || ret._id,
+            isReturn: true,
+            date: ret.returnDate || ret.createdAt,
+            voucherNo: ret.returnNo,
+            supplierInvoiceNo: ret.originalInvoice || 'N/A',
+            supplierInvoiceDate: ret.returnDate,
+            supplierName: ret.customerName || 'General Supplier',
+            supplierGstin: ret.gstin || '',
+            taxableAmt: Number(ret.grossTotal) || 0,
+            cgst: Number(ret.cgst) || 0,
+            sgst: Number(ret.sgst) || 0,
+            igst: Number(ret.igst) || 0,
+            otherCharges: Number(ret.roundOff) || 0,
+            discount: 0,
+            roundOff: Number(ret.roundOff) || 0,
+            netPayable: -Math.abs(Number(ret.netReturnAmount) || 0),
+            status: 'Paid',
+            type: 'Local',
+            paymentMode: ret.settlementMode || 'Cash',
+            items: (ret.items || []).map((it: any) => ({
+              itemCode: it.itemCode || '',
+              itemName: it.itemName || it.itemDesc || it.itemCode || '',
+              itemDesc: it.itemDesc || it.itemName || '',
+              qty: -Math.abs(Number(it.returnQty) || 0),
+              freeQty: 0,
+              rate: Number(it.unitPrice) || 0,
+              taxPercent: Number(it.taxPercent) || 0,
+              total: -Math.abs(Number(it.totalAmt) || 0)
+            })),
+            totalQty: -(ret.items ? ret.items.reduce((a: number, c: any) => a + (Number(c.returnQty) || 0), 0) : 0),
+            returnedQty: ret.items ? ret.items.reduce((a: number, c: any) => a + (Number(c.returnQty) || 0), 0) : 0,
+            netQty: 0,
+            returnedAmt: Number(ret.netReturnAmount) || 0,
+            returnStatus: 'Fully Returned'
+          }));
+          combined = [...combined, ...mappedReturns];
+        }
+
+        combined.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        setAllData(combined);
+        setDisplayedData(combined);
+      } catch (err) {
+        console.error("Error loading purchase register data:", err);
+      }
+    };
+
+    fetchAllData();
   }, []);
 
   // --- ACTIONS ---
@@ -227,6 +277,8 @@ const PurRegister = () => {
       if (filters.purchaseType === 'Credit' && record.paymentMode !== 'Credit') return false;
       if (filters.purchaseType === 'Local' && record.type !== 'Local') return false;
       if (filters.purchaseType === 'Central' && record.type !== 'Central') return false;
+      if (filters.purchaseType === 'WithReturns' && (record.returnedQty || 0) <= 0) return false;
+      if (filters.purchaseType === 'ReturnsOnly' && !record.isReturn) return false;
 
       if (filters.query) {
         const q = filters.query.toLowerCase().trim();
@@ -498,6 +550,8 @@ const PurRegister = () => {
             <label className="block text-xs font-bold text-gray-700 mb-1 flex items-center"><Filter size={12} className="mr-1"/> Purchase Type</label>
             <select value={filters.purchaseType} onChange={e => setFilters({...filters, purchaseType: e.target.value})} className="w-full border border-gray-400 p-1.5 rounded text-sm focus:border-blue-500 bg-white">
               <option value="All">All Transactions</option>
+              <option value="WithReturns">Bills With Returns</option>
+              <option value="ReturnsOnly">Debit Notes / Returns Only</option>
               <option value="Cash">Cash Purchases</option>
               <option value="Credit">Credit Purchases</option>
               <option value="Local">Local (CGST/SGST)</option>

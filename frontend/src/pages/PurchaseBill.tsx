@@ -422,17 +422,14 @@ const PurchaseBill = () => {
   const roundedOff = Math.round(rawTotal) - rawTotal;
   const grandTotal = Math.round(rawTotal);
 
-  // Handle Vendor Change
+  // Handle Vendor Selection Change by Vendor ID
   useEffect(() => {
+    if (!vendorId) return;
     const vendor = vendors.find(v => v.id === vendorId);
     if (vendor) {
       setGstin(vendor.gstin);
       setSupplyPlace(vendor.state);
       setVendorName(vendor.name);
-    } else {
-      setGstin('');
-      setSupplyPlace('Tamil Nadu');
-      setVendorName('');
     }
   }, [vendorId, vendors]);
 
@@ -912,21 +909,29 @@ const PurchaseBill = () => {
         itemCode: i.itemCode.trim().toUpperCase(),
         vendorItemCode: i.vendorItemCode ? i.vendorItemCode.trim() : '',
         itemName: i.itemName || i.itemDesc || i.itemCode,
-        itemDesc: i.itemDesc,
+        itemDesc: i.itemDesc || i.itemName || i.itemCode,
         weight: i.weight || '',
-        category: i.category,
-        qty: i.qty,
-        freeQty: i.freeQty || 0,
-        rate: i.unitPrice,
-        sellingPrice: i.salesRate || i.unitPrice,
-        mrp: i.mrp || i.unitPrice,
-        taxPercent: i.taxPercent,
-        discPercent: i.discPercent,
-        discount: i.qty * i.unitPrice * (i.discPercent / 100),
-        total: i.total
+        category: i.category || 'General',
+        qty: Number(i.qty) || 0,
+        freeQty: Number(i.freeQty) || 0,
+        rate: Number(i.unitPrice) || 0,
+        unitPrice: Number(i.unitPrice) || 0,
+        sellingPrice: Number(i.salesRate) || Number(i.unitPrice) || 0,
+        salesRate: Number(i.salesRate) || Number(i.unitPrice) || 0,
+        mrp: Number(i.mrp) || Number(i.salesRate) || Number(i.unitPrice) || 0,
+        taxPercent: Number(i.taxPercent) || 0,
+        discPercent: Number(i.discPercent) || 0,
+        discount: (Number(i.qty) || 0) * (Number(i.unitPrice) || 0) * ((Number(i.discPercent) || 0) / 100),
+        cgstAmt: Number(i.cgstAmt) || 0,
+        sgstAmt: Number(i.sgstAmt) || 0,
+        igstAmt: Number(i.igstAmt) || 0,
+        barcode: i.hsn || i.itemCode.trim(),
+        hsn: i.hsn || i.itemCode.trim(),
+        total: Number(i.total) || 0
       }))
     };
 
+    setLoading(true);
     try {
       const url = editingId 
         ? `${Api}/purchase-bills/${editingId}` 
@@ -948,11 +953,13 @@ const PurchaseBill = () => {
         fetchSavedBills();
         fetchProducts();
       } else {
-        setGlobalNotification({ msg: 'Error saving purchase bill: ' + data.error, type: 'error' });
+        setGlobalNotification({ msg: 'Error saving purchase bill: ' + (data.error || 'Failed'), type: 'error' });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setGlobalNotification({ msg: 'Network error saving purchase bill.', type: 'error' });
+      setGlobalNotification({ msg: 'Network error saving purchase bill: ' + (err.message || 'Error'), type: 'error' });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -987,11 +994,15 @@ const PurchaseBill = () => {
       if (data.success) {
         setGlobalNotification({ msg: 'New vendor added to database successfully', type: 'success' });
         await fetchVendors();
-        setVendorId(data.ledger._id || data.ledger.id || data.ledger.ledgerCode);
+        setVendorName(newVendorForm.name);
+        if (newVendorForm.gstin) setGstin(newVendorForm.gstin);
+        if (newVendorForm.state) setSupplyPlace(newVendorForm.state);
+        const createdId = data.ledger?.id || data.ledger?._id || data.ledger?.ledgerCode || '';
+        if (createdId) setVendorId(createdId);
         setIsVendorModalOpen(false);
         setNewVendorForm({ name: '', gstin: '', state: 'Tamil Nadu' });
       } else {
-        setGlobalNotification({ msg: 'Failed to add vendor: ' + data.error, type: 'error' });
+        setGlobalNotification({ msg: 'Failed to add vendor: ' + (data.error || 'Error'), type: 'error' });
       }
     } catch (err) {
       console.error(err);

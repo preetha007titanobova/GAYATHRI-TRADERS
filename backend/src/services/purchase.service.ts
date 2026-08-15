@@ -1,6 +1,8 @@
 import { ObjectId } from 'mongodb';
 import { getDb } from '../config/db';
 
+const escapeRegex = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 export const getNextPurchaseVoucher = async (): Promise<string> => {
   const db = await getDb();
   const lastBill = await db.collection('PurchaseBill')
@@ -20,10 +22,110 @@ export const getNextPurchaseVoucher = async (): Promise<string> => {
   return `PB-${nextNum}`;
 };
 
+const populateBillWithReturns = async (db: any, bill: any) => {
+  const items = await db.collection('PurchaseItem')
+    .find({ purchaseBillId: bill._id })
+    .toArray();
+
+  // Find linked returns matching originalInvoice equal to bill.voucherNo OR bill.supplierInvoiceNo
+  const returns = await db.collection('PurchaseReturn')
+    .find({
+      $or: [
+        { originalInvoice: bill.voucherNo },
+        { originalInvoice: bill.supplierInvoiceNo }
+      ]
+    })
+    .toArray();
+
+  const returnIds = returns.map((r: any) => r._id);
+  const returnItems = returnIds.length > 0
+    ? await db.collection('PurchaseReturnItem').find({ purchaseReturnId: { $in: returnIds } }).toArray()
+    : [];
+
+  const returnQtyByItemCode: { [key: string]: number } = {};
+  for (const ri of returnItems) {
+    const code = (ri.itemCode || '').toUpperCase().trim();
+    if (code) {
+      returnQtyByItemCode[code] = (returnQtyByItemCode[code] || 0) + (Number(ri.returnQty) || 0);
+    }
+  }
+
+  let totalReturnedQty = 0;
+  let totalReturnedAmt = 0;
+
+  const returnSummaries = returns.map((r: any) => {
+    const rAmt = Number(r.netReturnAmount || r.grossTotal || 0);
+    totalReturnedAmt += rAmt;
+    const rItems = returnItems.filter((ri: any) => ri.purchaseReturnId.toString() === r._id.toString());
+    const rQty = rItems.reduce((acc: number, curr: any) => acc + (Number(curr.returnQty) || 0), 0);
+    totalReturnedQty += rQty;
+
+    return {
+      id: r._id.toString(),
+      returnNo: r.returnNo,
+      returnDate: r.returnDate ? new Date(r.returnDate).toISOString().split('T')[0] : '',
+      reason: r.reason || '',
+      netReturnAmount: rAmt,
+      itemsCount: rItems.length
+    };
+  });
+
+  const totalPurchasedQty = items.reduce((acc: number, curr: any) => acc + (Number(curr.qty) || 0) + (Number(curr.freeQty) || 0), 0);
+  const netQty = Math.max(0, totalPurchasedQty - totalReturnedQty);
+
+  let returnStatus: 'None' | 'Partially Returned' | 'Fully Returned' = 'None';
+  if (totalReturnedQty > 0) {
+    returnStatus = netQty <= 0 ? 'Fully Returned' : 'Partially Returned';
+  }
+
+  const mappedItems = items.map((item: any) => {
+    const code = (item.itemCode || '').toUpperCase().trim();
+    const itemRetQty = returnQtyByItemCode[code] || 0;
+    const itemPurchasedQty = (Number(item.qty) || 0) + (Number(item.freeQty) || 0);
+    const itemNetQty = Math.max(0, itemPurchasedQty - itemRetQty);
+
+    return {
+      ...item,
+      id: item._id.toString(),
+      purchaseBillId: item.purchaseBillId.toString(),
+      productId: item.productId ? item.productId.toString() : null,
+      returnedQty: itemRetQty,
+      netQty: itemNetQty
+    };
+  });
+
+  return {
+    ...bill,
+    id: bill._id.toString(),
+    totalQty: totalPurchasedQty,
+    returnedQty: totalReturnedQty,
+    netQty: netQty,
+    returnedAmt: totalReturnedAmt,
+    returnStatus: returnStatus,
+    returns: returnSummaries,
+    items: mappedItems
+  };
+};
+
+export const getPurchaseBillById = async (id: string): Promise<any | null> => {
+  const db = await getDb();
+  let filter: any = {};
+  if (ObjectId.isValid(id)) {
+    filter = { $or: [{ _id: new ObjectId(id) }, { voucherNo: id }] };
+  } else {
+    filter = { voucherNo: id };
+  }
+
+  const bill = await db.collection('PurchaseBill').findOne(filter);
+  if (!bill) return null;
+
+  return await populateBillWithReturns(db, bill);
+};
+
 export const createPurchaseBill = async (data: any): Promise<any> => {
   const {
-    voucherNo, date, supplierInvoiceNo, supplierName, supplierGstin,
-    taxableAmt, cgst, sgst, igst, otherCharges, netPayable,
+    voucherNo, date, supplierInvoiceNo, supplierInvoiceDate, supplierName, supplierGstin, vendorId,
+    taxableAmt, cgst, sgst, igst, otherCharges, discount, roundOff, netPayable,
     status, type, paymentMode, items
   } = data;
 
@@ -34,13 +136,17 @@ export const createPurchaseBill = async (data: any): Promise<any> => {
     voucherNo: voucherNo || `PB-${Date.now()}`,
     date: date ? new Date(date) : new Date(),
     supplierInvoiceNo: supplierInvoiceNo || 'N/A',
+    supplierInvoiceDate: supplierInvoiceDate ? new Date(supplierInvoiceDate) : null,
     supplierName: supplierName || 'General Supplier',
     supplierGstin: supplierGstin || '',
+    vendorId: vendorId || '',
     taxableAmt: Number(taxableAmt) || 0,
     cgst: Number(cgst) || 0,
     sgst: Number(sgst) || 0,
     igst: Number(igst) || 0,
     otherCharges: Number(otherCharges) || 0,
+    discount: Number(discount) || 0,
+    roundOff: Number(roundOff) || 0,
     netPayable: Number(netPayable) || 0,
     status: status || 'Paid',
     type: type || 'Local',
@@ -57,15 +163,25 @@ export const createPurchaseBill = async (data: any): Promise<any> => {
     const itemsToInsert = [];
     for (const item of items) {
       const qty = Number(item.qty || item.purchasedQty) || 0;
+      const freeQty = Number(item.freeQty) || 0;
+      const totalQty = qty + freeQty;
       const rate = Number(item.rate || item.unitPrice) || 0;
+      const sellingPrice = Number(item.sellingPrice ?? item.salesRate ?? rate) || rate;
+      const mrp = Number(item.mrp ?? sellingPrice) || sellingPrice;
       const taxPercent = Number(item.taxPercent) || 0;
       const discPercent = Number(item.discPercent) || 0;
+      const discountVal = Number(item.discount) || (qty * rate * (discPercent / 100));
       const total = Number(item.total) || 0;
+      const cgstAmt = Number(item.cgst || item.cgstAmt) || 0;
+      const sgstAmt = Number(item.sgst || item.sgstAmt) || 0;
+      const igstAmt = Number(item.igst || item.igstAmt) || 0;
+      const barcodeStr = item.barcode || item.hsn || '';
 
       let product: any = null;
       if (item.itemCode && item.itemCode.trim()) {
+        const escapedCode = escapeRegex(item.itemCode.trim());
         product = await db.collection('Product').findOne({
-          itemCode: { $regex: `^${item.itemCode.trim()}$`, $options: 'i' }
+          itemCode: { $regex: `^${escapedCode}$`, $options: 'i' }
         });
       }
 
@@ -73,15 +189,15 @@ export const createPurchaseBill = async (data: any): Promise<any> => {
 
       if (product) {
         productId = product._id;
-        const cleanBarcode = item.barcode && item.barcode.trim() !== '' ? item.barcode.trim() : (product.barcode || null);
+        const cleanBarcode = barcodeStr && barcodeStr.trim() !== '' ? barcodeStr.trim() : (product.barcode || null);
         await db.collection('Product').updateOne(
           { _id: product._id },
           {
-            $inc: { stock: Math.round(qty) },
+            $inc: { stock: Math.round(totalQty) },
             $set: {
               purchaseRate: rate,
-              price: item.salesRate ? Number(item.salesRate) : product.price,
-              mrp: item.mrp ? Number(item.mrp) : product.mrp,
+              price: sellingPrice,
+              mrp: mrp,
               barcode: cleanBarcode,
               category: item.category || item.department || product.category || 'General',
               vendorItemCode: item.vendorItemCode || product.vendorItemCode || '',
@@ -90,17 +206,17 @@ export const createPurchaseBill = async (data: any): Promise<any> => {
           }
         );
       } else {
-        const cleanBarcode = item.barcode && item.barcode.trim() !== '' ? item.barcode.trim() : null;
+        const cleanBarcode = barcodeStr && barcodeStr.trim() !== '' ? barcodeStr.trim() : null;
         const newProd = await db.collection('Product').insertOne({
           itemCode: item.itemCode || `ITM-${Date.now()}`,
           name: item.itemName || item.itemDesc || item.itemCode || 'Purchase Item',
           barcode: cleanBarcode,
           uom: 'PCS',
           purchaseRate: rate,
-          price: Number(item.salesRate || rate),
-          mrp: Number(item.mrp || rate),
+          price: sellingPrice,
+          mrp: mrp,
           taxPercent: taxPercent,
-          stock: Math.round(qty),
+          stock: Math.round(totalQty),
           category: item.category || item.department || 'General',
           vendorItemCode: item.vendorItemCode || '',
           createdAt: new Date(),
@@ -114,16 +230,28 @@ export const createPurchaseBill = async (data: any): Promise<any> => {
         productId: productId,
         itemCode: item.itemCode || '',
         itemName: item.itemName || item.itemDesc || item.itemCode || 'Item',
+        itemDesc: item.itemDesc || item.itemName || '',
         size: item.size || '',
         variety: item.variety || '',
         category: item.category || item.department || 'None',
         factory: item.factory || '',
         vendorItemCode: item.vendorItemCode || '',
         weight: item.weight || '',
+        barcode: barcodeStr,
+        hsn: barcodeStr,
         qty: qty,
+        freeQty: freeQty,
         rate: rate,
+        unitPrice: rate,
+        sellingPrice: sellingPrice,
+        salesRate: sellingPrice,
+        mrp: mrp,
         taxPercent: taxPercent,
         discPercent: discPercent,
+        discount: discountVal,
+        cgstAmt: cgstAmt,
+        sgstAmt: sgstAmt,
+        igstAmt: igstAmt,
         total: total
       });
     }
@@ -140,11 +268,12 @@ export const searchPurchaseBills = async (q: string): Promise<any[]> => {
   const db = await getDb();
   let query: any = {};
   if (q) {
+    const escapedQ = escapeRegex(q);
     query = {
       $or: [
-        { voucherNo: { $regex: q, $options: 'i' } },
-        { supplierName: { $regex: q, $options: 'i' } },
-        { supplierInvoiceNo: { $regex: q, $options: 'i' } }
+        { voucherNo: { $regex: escapedQ, $options: 'i' } },
+        { supplierName: { $regex: escapedQ, $options: 'i' } },
+        { supplierInvoiceNo: { $regex: escapedQ, $options: 'i' } }
       ]
     };
   }
@@ -156,20 +285,8 @@ export const searchPurchaseBills = async (q: string): Promise<any[]> => {
 
   const populatedBills = [];
   for (const bill of bills) {
-    const items = await db.collection('PurchaseItem')
-      .find({ purchaseBillId: bill._id })
-      .toArray();
-
-    populatedBills.push({
-      ...bill,
-      id: bill._id.toString(),
-      items: items.map(item => ({
-        ...item,
-        id: item._id.toString(),
-        purchaseBillId: item.purchaseBillId.toString(),
-        productId: item.productId ? item.productId.toString() : null
-      }))
-    });
+    const populated = await populateBillWithReturns(db, bill);
+    populatedBills.push(populated);
   }
 
   return populatedBills;
@@ -192,11 +309,21 @@ export const updatePurchaseBill = async (id: string, data: any): Promise<boolean
   const oldItems = await db.collection('PurchaseItem').find({ purchaseBillId: billId }).toArray();
   for (const item of oldItems) {
     const qty = Number(item.qty) || 0;
-    if (qty > 0 && item.productId) {
-      await db.collection('Product').updateOne(
-        { _id: new ObjectId(item.productId.toString()) },
-        { $inc: { stock: -Math.round(qty) } }
-      );
+    const freeQty = Number(item.freeQty) || 0;
+    const totalQty = qty + freeQty;
+    if (totalQty > 0) {
+      if (item.productId) {
+        await db.collection('Product').updateOne(
+          { _id: new ObjectId(item.productId.toString()) },
+          { $inc: { stock: -Math.round(totalQty) } }
+        );
+      } else if (item.itemCode && item.itemCode.trim()) {
+        const escapedCode = escapeRegex(item.itemCode.trim());
+        await db.collection('Product').updateOne(
+          { itemCode: { $regex: `^${escapedCode}$`, $options: 'i' } },
+          { $inc: { stock: -Math.round(totalQty) } }
+        );
+      }
     }
   }
 
@@ -205,8 +332,8 @@ export const updatePurchaseBill = async (id: string, data: any): Promise<boolean
 
   // 3. Update the PurchaseBill document
   const {
-    voucherNo, date, supplierInvoiceNo, supplierName, supplierGstin,
-    taxableAmt, cgst, sgst, igst, otherCharges, netPayable,
+    voucherNo, date, supplierInvoiceNo, supplierInvoiceDate, supplierName, supplierGstin, vendorId,
+    taxableAmt, cgst, sgst, igst, otherCharges, discount, roundOff, netPayable,
     status, type, paymentMode, items
   } = data;
 
@@ -217,13 +344,17 @@ export const updatePurchaseBill = async (id: string, data: any): Promise<boolean
         voucherNo: voucherNo || existingBill.voucherNo,
         date: date ? new Date(date) : new Date(),
         supplierInvoiceNo: supplierInvoiceNo || 'N/A',
+        supplierInvoiceDate: supplierInvoiceDate ? new Date(supplierInvoiceDate) : (existingBill.supplierInvoiceDate || null),
         supplierName: supplierName || existingBill.supplierName,
         supplierGstin: supplierGstin || existingBill.supplierGstin,
+        vendorId: vendorId || existingBill.vendorId || '',
         taxableAmt: Number(taxableAmt) || 0,
         cgst: Number(cgst) || 0,
         sgst: Number(sgst) || 0,
         igst: Number(igst) || 0,
         otherCharges: Number(otherCharges) || 0,
+        discount: Number(discount) || 0,
+        roundOff: Number(roundOff) || 0,
         netPayable: Number(netPayable) || 0,
         status: status || 'Paid',
         type: type || 'Local',
@@ -238,30 +369,40 @@ export const updatePurchaseBill = async (id: string, data: any): Promise<boolean
     const itemsToInsert = [];
     for (const item of items) {
       const qty = Number(item.qty || item.purchasedQty) || 0;
+      const freeQty = Number(item.freeQty) || 0;
+      const totalQty = qty + freeQty;
       const rate = Number(item.rate || item.unitPrice) || 0;
+      const sellingPrice = Number(item.sellingPrice ?? item.salesRate ?? rate) || rate;
+      const mrp = Number(item.mrp ?? sellingPrice) || sellingPrice;
       const taxPercent = Number(item.taxPercent) || 0;
       const discPercent = Number(item.discPercent) || 0;
+      const discountVal = Number(item.discount) || (qty * rate * (discPercent / 100));
       const total = Number(item.total) || 0;
+      const cgstAmt = Number(item.cgst || item.cgstAmt) || 0;
+      const sgstAmt = Number(item.sgst || item.sgstAmt) || 0;
+      const igstAmt = Number(item.igst || item.igstAmt) || 0;
+      const barcodeStr = item.barcode || item.hsn || '';
 
       let product: any = null;
       if (item.itemCode && item.itemCode.trim()) {
+        const escapedCode = escapeRegex(item.itemCode.trim());
         product = await db.collection('Product').findOne({
-          itemCode: { $regex: `^${item.itemCode.trim()}$`, $options: 'i' }
+          itemCode: { $regex: `^${escapedCode}$`, $options: 'i' }
         });
       }
 
       let productId: ObjectId | null = null;
       if (product) {
         productId = product._id;
-        const cleanBarcode = item.barcode && item.barcode.trim() !== '' ? item.barcode.trim() : (product.barcode || null);
+        const cleanBarcode = barcodeStr && barcodeStr.trim() !== '' ? barcodeStr.trim() : (product.barcode || null);
         await db.collection('Product').updateOne(
           { _id: product._id },
           {
-            $inc: { stock: Math.round(qty) },
+            $inc: { stock: Math.round(totalQty) },
             $set: {
               purchaseRate: rate,
-              price: item.salesRate ? Number(item.salesRate) : product.price,
-              mrp: item.mrp ? Number(item.mrp) : product.mrp,
+              price: sellingPrice,
+              mrp: mrp,
               barcode: cleanBarcode,
               category: item.category || item.department || product.category || 'General',
               vendorItemCode: item.vendorItemCode || product.vendorItemCode || '',
@@ -270,17 +411,17 @@ export const updatePurchaseBill = async (id: string, data: any): Promise<boolean
           }
         );
       } else {
-        const cleanBarcode = item.barcode && item.barcode.trim() !== '' ? item.barcode.trim() : null;
+        const cleanBarcode = barcodeStr && barcodeStr.trim() !== '' ? barcodeStr.trim() : null;
         const newProd = await db.collection('Product').insertOne({
           itemCode: item.itemCode || `ITM-${Date.now()}`,
           name: item.itemName || item.itemDesc || item.itemCode || 'Purchase Item',
           barcode: cleanBarcode,
           uom: 'PCS',
           purchaseRate: rate,
-          price: Number(item.salesRate || rate),
-          mrp: Number(item.mrp || rate),
+          price: sellingPrice,
+          mrp: mrp,
           taxPercent: taxPercent,
-          stock: Math.round(qty),
+          stock: Math.round(totalQty),
           category: item.category || item.department || 'General',
           vendorItemCode: item.vendorItemCode || '',
           createdAt: new Date(),
@@ -294,16 +435,28 @@ export const updatePurchaseBill = async (id: string, data: any): Promise<boolean
         productId: productId,
         itemCode: item.itemCode || '',
         itemName: item.itemName || item.itemDesc || item.itemCode || 'Item',
+        itemDesc: item.itemDesc || item.itemName || '',
         size: item.size || '',
         variety: item.variety || '',
         category: item.category || item.department || 'None',
         factory: item.factory || '',
         vendorItemCode: item.vendorItemCode || '',
         weight: item.weight || '',
+        barcode: barcodeStr,
+        hsn: barcodeStr,
         qty: qty,
+        freeQty: freeQty,
         rate: rate,
+        unitPrice: rate,
+        sellingPrice: sellingPrice,
+        salesRate: sellingPrice,
+        mrp: mrp,
         taxPercent: taxPercent,
         discPercent: discPercent,
+        discount: discountVal,
+        cgstAmt: cgstAmt,
+        sgstAmt: sgstAmt,
+        igstAmt: igstAmt,
         total: total
       });
     }
@@ -333,11 +486,21 @@ export const deletePurchaseBill = async (id: string): Promise<boolean> => {
   const oldItems = await db.collection('PurchaseItem').find({ purchaseBillId: billId }).toArray();
   for (const item of oldItems) {
     const qty = Number(item.qty) || 0;
-    if (qty > 0 && item.productId) {
-      await db.collection('Product').updateOne(
-        { _id: new ObjectId(item.productId.toString()) },
-        { $inc: { stock: -Math.round(qty) } }
-      );
+    const freeQty = Number(item.freeQty) || 0;
+    const totalQty = qty + freeQty;
+    if (totalQty > 0) {
+      if (item.productId) {
+        await db.collection('Product').updateOne(
+          { _id: new ObjectId(item.productId.toString()) },
+          { $inc: { stock: -Math.round(totalQty) } }
+        );
+      } else if (item.itemCode && item.itemCode.trim()) {
+        const escapedCode = escapeRegex(item.itemCode.trim());
+        await db.collection('Product').updateOne(
+          { itemCode: { $regex: `^${escapedCode}$`, $options: 'i' } },
+          { $inc: { stock: -Math.round(totalQty) } }
+        );
+      }
     }
   }
 

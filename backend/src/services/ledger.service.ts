@@ -3,9 +3,12 @@ import { prisma, getDb } from '../config/db';
 import { Ledger } from '../models/ledger.model';
 
 export const getNextLedgerCode = async (): Promise<string> => {
-  const lastLedger = await prisma.ledger.findFirst({
-    orderBy: { createdAt: 'desc' }
-  });
+  const db = await getDb();
+  const lastLedger = await db.collection('Ledger')
+    .find({ ledgerCode: { $regex: '^LDG-' } })
+    .sort({ createdAt: -1 })
+    .limit(1)
+    .next();
   
   let nextNum = 1;
   if (lastLedger && lastLedger.ledgerCode) {
@@ -15,7 +18,15 @@ export const getNextLedgerCode = async (): Promise<string> => {
       nextNum = currentNum + 1;
     }
   }
-  return `LDG-${nextNum.toString().padStart(3, '0')}`;
+
+  let code = `LDG-${nextNum.toString().padStart(3, '0')}`;
+  // Double check if code already exists, increment if necessary
+  while (await db.collection('Ledger').findOne({ ledgerCode: code })) {
+    nextNum++;
+    code = `LDG-${nextNum.toString().padStart(3, '0')}`;
+  }
+
+  return code;
 };
 
 export const searchLedgers = async (q: string, group?: string): Promise<Ledger[]> => {
@@ -46,8 +57,19 @@ export const searchLedgers = async (q: string, group?: string): Promise<Ledger[]
 
 export const createLedger = async (data: Ledger): Promise<any> => {
   const db = await getDb();
+  let code = data.ledgerCode;
+  if (!code || code.trim() === '') {
+    code = await getNextLedgerCode();
+  }
+
+  const existing = await db.collection('Ledger').findOne({ ledgerCode: code });
+  if (existing) {
+    code = await getNextLedgerCode();
+  }
+
   return await db.collection('Ledger').insertOne({
     ...data,
+    ledgerCode: code,
     openingBalance: Number(data.openingBalance) || 0,
     creditLimit: Number(data.creditLimit) || 0,
     defaultCreditPeriod: Number(data.defaultCreditPeriod) || 0,
