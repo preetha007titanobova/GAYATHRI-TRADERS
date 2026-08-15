@@ -91,6 +91,7 @@ interface PurchaseRecord {
   id: string;
   date: string;
   voucherNo: string;
+  isReturn?: boolean;
   supplierInvoiceNo: string;
   supplierInvoiceDate?: string;
   supplierName: string;
