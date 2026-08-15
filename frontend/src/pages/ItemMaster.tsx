@@ -24,7 +24,7 @@ const ItemMaster = () => {
   const [itemName, setItemName] = useState('');
   const [barcode, setBarcode] = useState('');
   const [category, setCategory] = useState('');
-  const [uom, setUom] = useState('PCS');
+  const [uom, setUom] = useState('piece');
   const [purchaseRate, setPurchaseRate] = useState<number | string>('');
   const [salesRate, setSalesRate] = useState<number | string>('');
   const [mrp, setMrp] = useState<number | string>('');
@@ -331,18 +331,33 @@ const ItemMaster = () => {
 
               <div className="flex flex-col">
                 <label className="text-xs font-medium text-slate-600 mb-1">Unit (UOM)</label>
-                <select className="px-3 py-1 bg-white border border-slate-300 rounded text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow" value={uom} onChange={e => setUom(e.target.value)}>
-                  <option value="PCS">PCS</option>
-                  <option value="KG">KG</option>
-                  <option value="LTR">LTR</option>
-                  <option value="BOX">BOX</option>
-                  <option value="PKT">PKT</option>
-                  <option value="SET">SET</option>
-                  <option value="MTR">MTR</option>
-                  <option value="GRAM">GRAM</option>
-                  <option value="BOTTLE">BOTTLE</option>
-                  <option value="CAN">CAN</option>
-                  <option value="DOZEN">DOZEN</option>
+                <select className="px-3 py-1 bg-white border border-slate-300 rounded text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow font-medium cursor-pointer" value={uom} onChange={e => setUom(e.target.value)}>
+                  <optgroup label="Weight">
+                    <option value="mg">mg</option>
+                    <option value="g">g</option>
+                    <option value="kg">kg</option>
+                    <option value="quintal">quintal</option>
+                    <option value="ton">ton</option>
+                  </optgroup>
+                  <optgroup label="Volume">
+                    <option value="ml">ml</option>
+                    <option value="litre">litre</option>
+                    <option value="kilolitre">kilolitre</option>
+                  </optgroup>
+                  <optgroup label="Length">
+                    <option value="mm">mm</option>
+                    <option value="cm">cm</option>
+                    <option value="metre">metre</option>
+                  </optgroup>
+                  <optgroup label="Count">
+                    <option value="piece">piece</option>
+                    <option value="box">box</option>
+                    <option value="packet">packet</option>
+                    <option value="bottle">bottle</option>
+                    <option value="can">can</option>
+                    <option value="dozen">dozen</option>
+                    <option value="pair">pair</option>
+                  </optgroup>
                 </select>
               </div>
 
