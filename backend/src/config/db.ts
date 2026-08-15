@@ -7,6 +7,10 @@ import fs from 'fs';
 
 dotenv.config();
 
+if (!process.env.DATABASE_URL) {
+  process.env.DATABASE_URL = 'mongodb://127.0.0.1:27017/GAYATHRI_ERP_DB';
+}
+
 export const prisma = new PrismaClient();
 
 let mongoClientInstance: MongoClient | null = null;
@@ -19,6 +23,8 @@ async function startPortableMongod() {
   const candidateMongodPaths = [
     path.resolve(__dirname, '../../bin/mongod.exe'),
     path.resolve(__dirname, '../../../electron/bin/mongod.exe'),
+    path.resolve(__dirname, '../../../../bin/mongod.exe'),
+    path.resolve(__dirname, '../../../../../bin/mongod.exe'),
     (process as any).resourcesPath ? path.resolve((process as any).resourcesPath, 'bin/mongod.exe') : ''
   ].filter(Boolean);
 

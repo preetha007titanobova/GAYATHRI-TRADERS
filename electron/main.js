@@ -105,6 +105,7 @@ function startLocalBackend() {
 
         backendProcess = fork(prodBackendPath, [], {
             cwd: backendCwd,
+            silent: true,
             env: { 
                 ...process.env, 
                 ELECTRON_RUN_AS_NODE: '1', 

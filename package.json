@@ -1,5 +1,6 @@
 {
-  "name": "billing-software",
+  "name": "gayathri-traders-billing",
+  "productName": "Gayathri Traders Billing",
   "version": "1.0.0",
   "description": "Billing Software - Secure POS Inventory Management System",
   "scripts": {
