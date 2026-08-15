@@ -16,7 +16,29 @@
     },
     "win": {
       "target": "nsis"
-    }
+    },
+    "extraResources": [
+      {
+        "from": "bin",
+        "to": "bin",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "../backend",
+        "to": "backend",
+        "filter": [
+          "dist/**/*",
+          "node_modules/**/*",
+          "package.json",
+          "prisma/**/*"
+        ]
+      },
+      {
+        "from": "../frontend/dist",
+        "to": "frontend/dist",
+        "filter": ["**/*"]
+      }
+    ]
   },
   "dependencies": {
     "node-machine-id": "^1.1.12"

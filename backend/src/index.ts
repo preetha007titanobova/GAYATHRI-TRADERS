@@ -22,7 +22,15 @@ app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().
 app.use('/api/v1', apiRouter);
 
 // Serve frontend static files from frontend/dist
-const frontendDistPath = path.resolve(__dirname, '../../frontend/dist');
+const possibleDistPaths = [
+  process.env.FRONTEND_DIST_PATH,
+  path.resolve(__dirname, '../../frontend/dist'),
+  path.resolve(__dirname, '../../../frontend/dist'),
+  (process as any).resourcesPath ? path.resolve((process as any).resourcesPath, 'frontend/dist') : ''
+].filter(Boolean) as string[];
+
+const frontendDistPath = possibleDistPaths.find(p => fs.existsSync(p)) || possibleDistPaths[0];
+console.log(`[Backend] Serving frontend static assets from: ${frontendDistPath}`);
 app.use(express.static(frontendDistPath));
 
 app.use((req, res, next) => {

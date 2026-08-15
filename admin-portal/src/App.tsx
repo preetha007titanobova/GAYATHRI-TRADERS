@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Lock, Key, RefreshCw, AlertTriangle, ShieldCheck, Download, 
-  Trash2, User, Phone, MapPin, CheckCircle, Ban, PlusCircle, Search, LogOut 
+  User, Phone, CheckCircle, Ban, PlusCircle, Search, LogOut 
 } from 'lucide-react';
 
 const API_BASE = 'http://localhost:5500/api';

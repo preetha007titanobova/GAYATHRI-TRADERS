@@ -212,6 +212,7 @@ interface LineItem {
   itemDesc: string;
   qty: number;
   freeQty?: number;
+  unit?: string;
   rate: number;
   taxPercent: number;
   total: number;

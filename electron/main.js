@@ -67,8 +67,6 @@ function startLocalMongo() {
         fs.mkdirSync(mongoDataDir, { recursive: true });
     }
 
-    // Path to the portable mongod.exe bundled in the application resources
-    // Place your portable mongod binary inside your packaging resources folder
     const mongodPath = app.isPackaged 
         ? path.join(process.resourcesPath, 'bin', 'mongod.exe')
         : path.join(__dirname, 'bin', 'mongod.exe');
@@ -78,7 +76,7 @@ function startLocalMongo() {
         return;
     }
 
-    console.log('Starting local database engine...');
+    console.log(`Starting local database engine from ${mongodPath}...`);
     mongodProcess = spawn(mongodPath, [
         '--dbpath', mongoDataDir,
         '--port', '27017',
@@ -95,10 +93,33 @@ function startLocalBackend() {
     const backendDir = path.join(__dirname, '..', 'backend');
 
     if (app.isPackaged) {
-        const prodBackendPath = path.join(__dirname, 'backend', 'index.js');
+        const prodBackendPath = path.join(process.resourcesPath, 'backend', 'dist', 'src', 'index.js');
+        const frontendDistPath = path.join(process.resourcesPath, 'frontend', 'dist');
+        const backendCwd = path.join(process.resourcesPath, 'backend');
+
+        console.log(`Launching packaged backend script from: ${prodBackendPath}`);
+        if (!fs.existsSync(prodBackendPath)) {
+            console.error(`Packaged backend entry file missing at: ${prodBackendPath}`);
+            return;
+        }
+
         backendProcess = fork(prodBackendPath, [], {
-            env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', PORT: 5050, DATABASE_URL: localDbUrl, NODE_ENV: 'production' }
+            cwd: backendCwd,
+            env: { 
+                ...process.env, 
+                ELECTRON_RUN_AS_NODE: '1', 
+                PORT: 5050, 
+                DATABASE_URL: localDbUrl, 
+                NODE_ENV: 'production',
+                FRONTEND_DIST_PATH: frontendDistPath
+            }
         });
+        if (backendProcess.stdout) {
+            backendProcess.stdout.on('data', (d) => console.log('[Backend]', d.toString().trim()));
+        }
+        if (backendProcess.stderr) {
+            backendProcess.stderr.on('data', (d) => console.error('[Backend Err]', d.toString().trim()));
+        }
     } else {
         const isWin = process.platform === 'win32';
         const cmd = isWin ? 'npx.cmd' : 'npx';
@@ -177,6 +198,19 @@ ipcMain.on('save-license', (event, licenseObject) => {
         app.exit();
     } catch (err) {
         event.reply('save-license-response', { success: false, error: err.message });
+    }
+});
+
+ipcMain.on('revoke-license', (event) => {
+    try {
+        if (fs.existsSync(LICENSE_PATH)) {
+            fs.unlinkSync(LICENSE_PATH);
+            console.log('Revoked local license file successfully:', LICENSE_PATH);
+        }
+        event.reply('revoke-license-response', { success: true });
+    } catch (err) {
+        console.error('Error removing local license file on revocation:', err);
+        event.reply('revoke-license-response', { success: false, error: err.message });
     }
 });
 

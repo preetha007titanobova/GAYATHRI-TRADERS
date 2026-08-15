@@ -6,10 +6,11 @@
     "start": "concurrently \"npm run start:backend\" \"npm run start:frontend\"",
     "start:backend": "cd backend && npm run dev",
     "start:frontend": "cd frontend && npm run dev",
+    "build:backend": "cd backend && npm run build",
     "build:frontend": "cd frontend && npm run build",
     "build:electron": "cd electron && npm run package",
-    "build": "npm run build:frontend",
-    "package": "npm run build:frontend && cd electron && npm run package",
+    "build": "npm run build:backend && npm run build:frontend",
+    "package": "npm run build:backend && npm run build:frontend && cd electron && npm run package",
     "electron": "cd electron && npm start",
     "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install && cd ../electron && npm install"
   },

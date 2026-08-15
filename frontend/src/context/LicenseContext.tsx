@@ -10,6 +10,7 @@ export interface LicenseFeatures {
   gst_reports: boolean;
   multiple_users: boolean;
   cloud_backup: boolean;
+  biometric: boolean;
 }
 
 interface LicenseContextType {
@@ -24,6 +25,7 @@ interface LicenseContextType {
   planType: string;
   machineId: string;
   isWhatsAppAllowed: boolean;
+  isBiometricAllowed: boolean;
 }
 
 const LicenseContext = createContext<LicenseContextType | null>(null);
@@ -107,12 +109,54 @@ export const LicenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
     checkLicense();
   }, []);
 
+  // Online verification sync to auto-disconnect if account was deleted or revoked in Admin Portal
+  useEffect(() => {
+    if (!licenseKey || !machineId || !navigator.onLine) return;
+
+    const LICENSE_SERVER_URL = (import.meta as any).env?.VITE_LICENSE_SERVER_URL || 'https://ithu-namma-kada-license-server.onrender.com';
+
+    const syncLicenseWithServer = async () => {
+      try {
+        const res = await fetch(`${LICENSE_SERVER_URL}/api/license/verify-status`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ licenseKey, machineId })
+        });
+
+        const data = await res.json();
+
+        // Account deleted on Admin Portal, suspended, or deactivated
+        if (!res.ok || data.active === false || data.success === false) {
+          console.warn('License revoked or account deleted on Admin Portal server. Revoking local activation...');
+          setIsActivated(false);
+          setFeatures(null);
+          setDaysRemaining(0);
+          localStorage.setItem('license_valid', 'false');
+          localStorage.setItem('license_days_remaining', '0');
+
+          if ((window as any).api) {
+            (window as any).api.send('revoke-license');
+          }
+        } else if (data.features) {
+          // Sync latest features from server (e.g., if WhatsApp feature was toggled off in Admin Portal)
+          setFeatures(data.features);
+        }
+      } catch (err) {
+        // Quietly fail network errors so app works smoothly offline when disconnected
+      }
+    };
+
+    syncLicenseWithServer();
+  }, [licenseKey, machineId, shopName]);
+
   const hasFeature = (feature: keyof LicenseFeatures): boolean => {
-    if (!isActivated || !features) return false;
+    if (!isActivated) return false;
+    if (!features) return true; // Fallback for legacy keys without feature map
     return !!features[feature];
   };
 
-  const isWhatsAppAllowed = isActivated && daysRemaining > 0;
+  const isWhatsAppAllowed = isActivated && daysRemaining > 0 && hasFeature('whatsapp_invoice');
+  const isBiometricAllowed = isActivated && daysRemaining > 0 && hasFeature('biometric');
 
   return (
     <LicenseContext.Provider value={{ 
@@ -126,7 +170,8 @@ export const LicenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
       expiresAt,
       planType,
       machineId,
-      isWhatsAppAllowed
+      isWhatsAppAllowed,
+      isBiometricAllowed
     }}>
       {children}
     </LicenseContext.Provider>

@@ -16,9 +16,15 @@ let mongodProcess: any = null;
 
 async function startPortableMongod() {
   if (mongodProcess) return;
-  const mongodPath = path.resolve(__dirname, '../../bin/mongod.exe');
-  if (!fs.existsSync(mongodPath)) {
-    console.warn(`Local portable mongod.exe not found at ${mongodPath}`);
+  const candidateMongodPaths = [
+    path.resolve(__dirname, '../../bin/mongod.exe'),
+    path.resolve(__dirname, '../../../electron/bin/mongod.exe'),
+    (process as any).resourcesPath ? path.resolve((process as any).resourcesPath, 'bin/mongod.exe') : ''
+  ].filter(Boolean);
+
+  const mongodPath = candidateMongodPaths.find(p => fs.existsSync(p));
+  if (!mongodPath) {
+    console.warn(`Local portable mongod.exe not found in candidates: ${candidateMongodPaths.join(', ')}`);
     return;
   }
 
@@ -27,7 +33,7 @@ async function startPortableMongod() {
     fs.mkdirSync(dataDir, { recursive: true });
   }
 
-  console.log("Launching local portable MongoDB engine from bin/mongod.exe...");
+  console.log(`Launching local portable MongoDB engine from ${mongodPath}...`);
   mongodProcess = spawn(mongodPath, [
     '--dbpath', dataDir,
     '--port', '27017',

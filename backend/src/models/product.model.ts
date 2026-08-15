@@ -1,6 +1,7 @@
 export interface Product {
   id?: string;
   itemCode?: string;
+  vendorItemCode?: string;
   name: string;
   barcode?: string;
   uom?: string;
