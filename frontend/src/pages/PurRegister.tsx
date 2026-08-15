@@ -913,13 +913,14 @@ const PurRegister = () => {
                 <thead className="bg-slate-900 text-white border-b border-slate-800">
                   <tr>
                     <th className="p-2 w-8 text-center font-bold">S.No</th>
-                    <th className="p-2 w-28 font-bold">Barcode</th>
+                    <th className="p-2 w-24 font-bold">Barcode</th>
                     <th className="p-2 font-bold">Product</th>
                     <th className="p-2 w-24 font-bold">Vendor Code</th>
-                    <th className="p-2 w-24 font-bold">Weight</th>
-                    <th className="p-2 w-16 text-right font-bold bg-blue-900">Purchased</th>
-                    <th className="p-2 w-16 text-right font-bold bg-amber-900">Returned</th>
-                    <th className="p-2 w-16 text-right font-bold bg-emerald-900">Net Stock</th>
+                    <th className="p-2 w-20 font-bold text-center">Weight / Val</th>
+                    <th className="p-2 w-16 font-bold text-center">Unit</th>
+                    <th className="p-2 w-20 text-right font-bold bg-blue-900">Purchased</th>
+                    <th className="p-2 w-20 text-right font-bold bg-amber-900">Returned</th>
+                    <th className="p-2 w-20 text-right font-bold bg-emerald-900">Net Stock</th>
                     <th className="p-2 w-20 text-right font-bold">Rate</th>
                     <th className="p-2 w-20 text-right font-bold">Selling Price</th>
                     <th className="p-2 w-16 text-right font-bold">GST</th>
@@ -930,6 +931,7 @@ const PurRegister = () => {
                   {selectedRecord.items.map((it, i) => {
                     const retQty = it.returnedQty || 0;
                     const netRemaining = it.netQty ?? Math.max(0, (it.qty || 0) - retQty);
+                    const unitStr = it.unit || 'Pcs';
                     return (
                       <tr key={i} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors">
                         <td className="p-2 text-center text-slate-450">{i + 1}</td>
@@ -938,13 +940,14 @@ const PurRegister = () => {
                           {it.itemName || it.itemDesc || it.itemCode}
                         </td>
                         <td className="p-2 font-mono text-slate-650">{it.vendorItemCode || '-'}</td>
-                        <td className="p-2 text-center">{it.weight || '-'}</td>
-                        <td className="p-2 text-right font-mono font-bold text-blue-700 bg-blue-50/20">{it.qty} Pcs</td>
+                        <td className="p-2 text-center font-mono font-bold text-slate-700">{it.weight || '-'}</td>
+                        <td className="p-2 text-center font-semibold text-indigo-700 bg-indigo-50/30">{unitStr}</td>
+                        <td className="p-2 text-right font-mono font-bold text-blue-700 bg-blue-50/20">{it.qty} {unitStr}</td>
                         <td className="p-2 text-right font-mono font-bold text-amber-700 bg-amber-50/30">
-                          {retQty > 0 ? `-${retQty} Pcs` : '0 Pcs'}
+                          {retQty > 0 ? `-${retQty} ${unitStr}` : `0 ${unitStr}`}
                         </td>
                         <td className="p-2 text-right font-mono font-extrabold text-emerald-800 bg-emerald-50/40">
-                          {netRemaining} Pcs
+                          {netRemaining} {unitStr}
                         </td>
                         <td className="p-2 text-right font-mono">₹{it.rate.toFixed(2)}</td>
                         <td className="p-2 text-right font-mono">₹{(it.sellingPrice || 0).toFixed(2)}</td>
