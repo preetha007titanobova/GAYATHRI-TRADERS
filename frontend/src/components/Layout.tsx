@@ -469,13 +469,11 @@ const Layout = () => {
       setGlobalNotification({ msg: `✓ Day closed! Report sent to owner's WhatsApp [${ownerWhatsApp}]`, type: 'success' });
       setIsCloseDayModalOpen(false);
 
-      if (isCloseRequested) {
-        setTimeout(() => {
-          if ((window as any).api) {
-            (window as any).api.send('app-close-confirmed');
-          }
-        }, 2000);
-      }
+      setTimeout(() => {
+        if ((window as any).api && typeof (window as any).api.send === 'function') {
+          (window as any).api.send('app-close-confirmed');
+        }
+      }, 2000);
     } catch (err: any) {
       console.error(err);
       setGlobalNotification({ msg: err.message || 'Error executing Close Day process.', type: 'error' });
@@ -1058,27 +1056,27 @@ const Layout = () => {
         </div>
       </div>
 
-      {/* Close Day Modal */}
+      {/* Confirm Application Exit / Close Day Modal */}
       {isCloseDayModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-[100] p-4">
-          <div className="bg-white border border-gray-400 shadow-2xl rounded-lg w-full max-w-md overflow-hidden">
+          <div className="bg-white border border-gray-400 shadow-2xl rounded-lg w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             <div className="bg-[#2b579a] text-white p-3 font-bold flex justify-between items-center">
               <span className="flex items-center space-x-2">
                 <Power size={18} />
-                <span>{isCloseRequested ? 'Confirm Application Exit' : 'Close Day Report & Exit'}</span>
+                <span className="text-base font-bold">Confirm Application Exit</span>
               </span>
               <button 
                 onClick={() => {
                   setIsCloseDayModalOpen(false);
                   setIsCloseRequested(false);
                 }}
-                className="text-white hover:text-red-300 font-bold focus:outline-none text-lg"
+                className="text-white hover:text-red-300 font-bold focus:outline-none text-xl cursor-pointer"
               >
                 ✕
               </button>
             </div>
             
-            <form onSubmit={handleCloseDay} className="p-4 space-y-4 text-left">
+            <form onSubmit={handleCloseDay} className="p-5 space-y-4 text-left">
               {!loading && isActivated && daysRemaining !== undefined && daysRemaining !== null && daysRemaining <= 4 && daysRemaining >= 0 && (
                 <div className="bg-red-100 border border-red-300 text-red-700 px-3.5 py-2.5 rounded-lg text-xs font-bold mb-3 shadow-xs">
                   <p className="flex items-center gap-1.5 text-sm mb-1 text-red-800 font-extrabold">⚠️ ATTENTION: LICENSE EXPIRING SOON</p>
@@ -1087,38 +1085,36 @@ const Layout = () => {
                   </p>
                 </div>
               )}
-              <p className="text-sm font-semibold text-gray-700">
-                {isCloseRequested 
-                  ? 'Would you like to send the daily stock status report via WhatsApp before exiting the application?' 
-                  : 'Are you sure you want to close the day? This will download the daily stock status PDF, email it to the owner, and open WhatsApp to share the status.'}
+              <p className="text-sm font-semibold text-gray-700 leading-snug">
+                Would you like to send the daily stock status report via WhatsApp before exiting the application?
               </p>
               
-              <div className="space-y-3 bg-gray-50 p-3 border border-gray-200 rounded">
+              <div className="space-y-3 bg-gray-50/80 p-3.5 border border-gray-200 rounded-lg">
                 <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Owner's WhatsApp Number</label>
+                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1 tracking-wider">Owner's WhatsApp Number</label>
                   <input 
                     type="tel"
                     required
                     value={ownerWhatsApp}
                     onChange={e => setOwnerWhatsApp(e.target.value)}
                     placeholder="e.g. +919876543210"
-                    className="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium bg-white text-black"
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium bg-white text-black"
                   />
                 </div>
                 
                 <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Owner's Email Address (Optional)</label>
+                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1 tracking-wider">Owner's Email Address</label>
                   <input 
                     type="email"
                     value={ownerEmail}
                     onChange={e => setOwnerEmail(e.target.value)}
-                    placeholder="e.g. owner@example.com (Optional)"
-                    className="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium bg-white text-black"
+                    placeholder="e.g. titanobovapvt@gmail.com"
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium bg-white text-black"
                   />
                 </div>
               </div>
               
-              <div className="flex flex-col space-y-2 pt-2">
+              <div className="flex flex-col space-y-2.5 pt-1">
                 <div className="flex space-x-3">
                   <button
                     type="button"
@@ -1126,35 +1122,31 @@ const Layout = () => {
                       setIsCloseDayModalOpen(false);
                       setIsCloseRequested(false);
                     }}
-                    className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 rounded text-sm transition-colors border border-gray-300"
+                    className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2.5 rounded-lg text-sm transition-colors border border-gray-300 cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={closeDayLoading}
-                    className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white font-bold py-2 rounded text-sm transition-colors border border-red-700 shadow"
+                    className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white font-bold py-2.5 rounded-lg text-sm transition-colors border border-red-700 shadow-md cursor-pointer"
                   >
-                    {closeDayLoading 
-                      ? 'Processing...' 
-                      : isCloseRequested 
-                        ? 'Send & Exit' 
-                        : 'Send & Close Day'}
+                    {closeDayLoading ? 'Processing...' : 'Send & Exit'}
                   </button>
                 </div>
-                {isCloseRequested && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if ((window as any).api) {
-                        (window as any).api.send('app-close-confirmed');
-                      }
-                    }}
-                    className="w-full bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 rounded text-sm transition-colors border border-gray-700 shadow"
-                  >
-                    Exit Without Sending
-                  </button>
-                )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCloseDayModalOpen(false);
+                    if ((window as any).api && typeof (window as any).api.send === 'function') {
+                      (window as any).api.send('app-close-confirmed');
+                    }
+                  }}
+                  className="w-full bg-[#475569] hover:bg-[#334155] text-white font-bold py-2.5 rounded-lg text-sm transition-colors border border-[#334155] shadow-md cursor-pointer"
+                >
+                  Exit Without Sending
+                </button>
               </div>
             </form>
           </div>
