@@ -185,7 +185,7 @@ const BarcodeGeneration = () => {
   const [barcodeHeightMm, setBarcodeHeightMm] = useState<number>(6);
   const [labelRotation, setLabelRotation] = useState<0 | 90 | 180 | 270>(0);
   const [startColumn, setStartColumn] = useState<number>(1);
-  const [marginLeftMm, setMarginLeftMm] = useState<number>(1.5);
+  const [marginLeftMm, setMarginLeftMm] = useState<number>(3);
   const [forcePortrait, setForcePortrait] = useState<boolean>(false);
   const [showShopHeader, setShowShopHeader] = useState<boolean>(true);
   const [showMetaLine, setShowMetaLine] = useState<boolean>(true);
@@ -203,7 +203,7 @@ const BarcodeGeneration = () => {
       setLabelHeightMm(25);
       setBarcodeHeightMm(6);
       setColsAcross(3);
-      setMarginLeftMm(1.5);
+      setMarginLeftMm(3);
       setLabelRotation(0);
       setForcePortrait(false);
       if (!printCount || printCount === 1) setPrintCount(3);
@@ -216,7 +216,7 @@ const BarcodeGeneration = () => {
       setLabelHeightMm(50);
       setBarcodeHeightMm(10);
       setColsAcross(3);
-      setMarginLeftMm(1.5);
+      setMarginLeftMm(3);
       setLabelRotation(0);
       setForcePortrait(false);
       if (!printCount || printCount === 1) setPrintCount(3);
@@ -229,7 +229,7 @@ const BarcodeGeneration = () => {
       setLabelHeightMm(25);
       setBarcodeHeightMm(6);
       setColsAcross(3);
-      setMarginLeftMm(1.5);
+      setMarginLeftMm(3);
       setLabelRotation(0);
       setForcePortrait(false);
       if (!printCount || printCount === 1) setPrintCount(3);
@@ -651,12 +651,9 @@ const BarcodeGeneration = () => {
             }
 
             if (showPriceLine) {
-              const mrpStr = `MRP Rs.${mrpVal}`;
-              const saleStr = `SALE Rs.${saleVal}`;
-              const combinedText = `${mrpStr}  ${saleStr}`;
-              const priceX = getXCenter(combinedText, 9);
-              tspl += `TEXT ${priceX},${priceY},"1",0,1,1,"${mrpStr}"\r\n`;
-              tspl += `TEXT ${priceX + (mrpStr.length * 8) + 12},${priceY - 2},"2",0,1,1,"${saleStr}"\r\n`;
+              const priceText = `MRP Rs.${mrpVal} SALE Rs.${saleVal}`;
+              const priceX = getXCenter(priceText, 8);
+              tspl += `TEXT ${priceX},${priceY},"1",0,1,1,"${priceText}"\r\n`;
             }
 
             const bcWidthDots = bType === '39' ? (item.barcodeValue.length + 2) * 13 : 160;
