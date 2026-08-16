@@ -2095,7 +2095,7 @@ const PurchaseBill = () => {
         </div>
       </Modal>
       
-      {/* Dress Selection Modal */}
+      {/* Product Selection Modal */}
       {isProductModalOpen && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center backdrop-blur-sm" style={{ backgroundColor: 'rgba(0, 0, 0, 0.45)', backdropFilter: 'blur(3px)' }} onClick={() => setIsProductModalOpen(false)}>
           <div
@@ -2106,7 +2106,7 @@ const PurchaseBill = () => {
             <div className="bg-[#2b579a] text-white px-4 py-3 flex justify-between items-center shadow-md">
               <div className="flex items-center space-x-2">
                 <Search size={18} />
-                <span className="font-bold tracking-wide text-sm">Dress/Product Table Lookup</span>
+                <span className="font-bold tracking-wide text-sm">Product Table Lookup</span>
               </div>
               <button onClick={() => setIsProductModalOpen(false)} className="text-white hover:text-red-300 font-bold focus:outline-none text-lg">
                 ✕
@@ -2120,7 +2120,7 @@ const PurchaseBill = () => {
                 <input
                   ref={searchInputRef}
                   type="text"
-                  placeholder="Search by dress name, code, variety, size..."
+                  placeholder="Search by product name, barcode, code, category..."
                   className="w-full pl-9 pr-3 py-1.5 border border-gray-300 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-sm text-gray-800 shadow-inner font-semibold"
                   value={modalSearchQuery}
                   onChange={e => {
@@ -2140,9 +2140,9 @@ const PurchaseBill = () => {
             {/* List Table Headers */}
             <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-slate-200 border-b border-slate-300 text-xs font-bold text-slate-700 uppercase tracking-wider">
               <div className="col-span-2">Item Code</div>
-              <div className="col-span-4">Dress Name</div>
-              <div className="col-span-2">Variety</div>
-              <div className="col-span-1 text-center">Size</div>
+              <div className="col-span-4">Product Name</div>
+              <div className="col-span-2">Category</div>
+              <div className="col-span-1 text-center">Unit</div>
               <div className="col-span-1 text-center">Stock</div>
               <div className="col-span-2 text-right">Price (₹)</div>
             </div>
@@ -2162,10 +2162,10 @@ const PurchaseBill = () => {
                     {p.name}
                   </div>
                   <div className="col-span-2 text-xs font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100 w-fit">
-                    {p.variety || '-'}
+                    {p.department || p.variety || '-'}
                   </div>
                   <div className="col-span-1 text-center font-bold text-amber-700 bg-amber-50 px-1 py-0.5 rounded border border-amber-100 text-xs">
-                    {p.size || '-'}
+                    {p.uom || p.unit || p.weight || p.size || '-'}
                   </div>
                   <div className="col-span-1 text-center">
                     <span className={`px-1.5 py-0.5 rounded-full text-xs font-bold ${p.stock > 10 ? 'bg-green-100 text-green-800' : p.stock > 0 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}`}>

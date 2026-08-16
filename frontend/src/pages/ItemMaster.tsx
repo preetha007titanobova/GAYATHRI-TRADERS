@@ -25,11 +25,49 @@ const ItemMaster = () => {
   const [barcode, setBarcode] = useState('');
   const [category, setCategory] = useState('');
   const [uom, setUom] = useState('piece');
+  const [inventoryType, setInventoryType] = useState<'Weight' | 'Volume' | 'Length' | 'Count'>('Count');
+  const [baseUnit, setBaseUnit] = useState('packet');
+  const [packagings, setPackagings] = useState<Array<{
+    id: string;
+    packagingName: string;
+    conversionFactor: number;
+    unit: string;
+    sellingPrice?: number;
+    purchaseRate?: number;
+    purchaseAllowed?: boolean;
+    salesAllowed?: boolean;
+    canBreak?: boolean;
+  }>>([]);
   const [purchaseRate, setPurchaseRate] = useState<number | string>('');
   const [salesRate, setSalesRate] = useState<number | string>('');
   const [mrp, setMrp] = useState<number | string>('');
   const [taxPercent, setTaxPercent] = useState<number | string>('');
   const [openingStock, setOpeningStock] = useState<number | string>('');
+
+  const addPackagingRow = () => {
+    setPackagings(prev => [
+      ...prev,
+      {
+        id: Math.random().toString(),
+        packagingName: 'Box',
+        conversionFactor: 24,
+        unit: baseUnit || uom || 'packet',
+        sellingPrice: 0,
+        purchaseRate: 0,
+        purchaseAllowed: true,
+        salesAllowed: true,
+        canBreak: true
+      }
+    ]);
+  };
+
+  const removePackagingRow = (id: string) => {
+    setPackagings(prev => prev.filter(p => p.id !== id));
+  };
+
+  const updatePackagingRow = (id: string, field: string, value: any) => {
+    setPackagings(prev => prev.map(p => p.id === id ? { ...p, [field]: value } : p));
+  };
 
   const [products, setProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -99,7 +137,10 @@ const ItemMaster = () => {
     setItemName('');
     setBarcode('');
     setCategory('');
-    setUom('PCS');
+    setUom('packet');
+    setInventoryType('Count');
+    setBaseUnit('packet');
+    setPackagings([]);
     setPurchaseRate(0);
     setSalesRate(0);
     setMrp(0);
@@ -115,7 +156,10 @@ const ItemMaster = () => {
     setItemName(product.name || '');
     setBarcode(product.barcode || '');
     setCategory(product.category || product.department || '');
-    setUom(product.uom || 'PCS');
+    setUom(product.uom || 'packet');
+    setInventoryType(product.inventoryType || 'Count');
+    setBaseUnit(product.baseUnit || product.uom || 'packet');
+    setPackagings(product.packagings || []);
     setPurchaseRate(product.purchaseRate || 0);
     setSalesRate(product.price || 0);
     setMrp(product.mrp || 0);
@@ -178,7 +222,10 @@ const ItemMaster = () => {
       name: itemName,
       barcode,
       category,
-      uom,
+      uom: baseUnit || uom,
+      inventoryType,
+      baseUnit: baseUnit || uom,
+      packagings,
       purchaseRate,
       price: salesRate,
       mrp,
@@ -374,7 +421,111 @@ const ItemMaster = () => {
                 </div>
               </div>
 
-              <div className="col-span-3 border-b border-slate-100 my-1"></div>
+              {/* INVENTORY & PACKAGING CONFIGURATION SECTION */}
+              <div className="col-span-3 border-t border-b border-slate-200 py-3 my-1 bg-slate-50/50 p-2.5 rounded-lg">
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="text-xs font-bold text-blue-900 uppercase tracking-wider flex items-center gap-1">
+                    📦 Inventory & Packaging Configuration
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={addPackagingRow}
+                    className="px-2 py-0.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-[11px] font-bold shadow-sm transition-colors cursor-pointer"
+                  >
+                    + Add Packaging Level (e.g. Box = 24 Packets)
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 mb-2">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-600 mb-0.5 block">Inventory Type</label>
+                    <select
+                      value={inventoryType}
+                      onChange={e => setInventoryType(e.target.value as any)}
+                      className="w-full px-2 py-1 bg-white border border-slate-300 rounded text-slate-800 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                    >
+                      <option value="Count">Count (Packet, Box, Piece, Bottle, Can)</option>
+                      <option value="Weight">Weight (g, kg, mg, ton)</option>
+                      <option value="Volume">Volume (ml, litre, kl)</option>
+                      <option value="Length">Length (mm, cm, metre)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-600 mb-0.5 block">Base Inventory Unit (Stock Unit)</label>
+                    <input
+                      type="text"
+                      value={baseUnit}
+                      onChange={e => {
+                        setBaseUnit(e.target.value);
+                        setUom(e.target.value);
+                      }}
+                      placeholder="e.g. packet, bottle, g, ml, piece"
+                      className="w-full px-2 py-1 bg-white border border-slate-300 rounded text-slate-800 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                {packagings.length > 0 && (
+                  <div className="space-y-2 mt-3 pt-2 border-t border-slate-200">
+                    <label className="text-[11px] font-bold text-slate-700 block">Configured Packaging Levels:</label>
+                    {packagings.map((pkg, pIdx) => (
+                      <div key={pkg.id || pIdx} className="bg-white p-2 border border-slate-300 rounded-md grid grid-cols-12 gap-1.5 items-center text-xs">
+                        <div className="col-span-3">
+                          <label className="text-[9px] font-bold text-slate-500 block">Packaging Name</label>
+                          <input
+                            type="text"
+                            value={pkg.packagingName}
+                            onChange={e => updatePackagingRow(pkg.id, 'packagingName', e.target.value)}
+                            placeholder="e.g. Box, Carton"
+                            className="w-full p-1 border border-slate-300 rounded font-bold"
+                          />
+                        </div>
+                        <div className="col-span-3">
+                          <label className="text-[9px] font-bold text-slate-500 block">Conversion ({baseUnit || 'Base Units'})</label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={pkg.conversionFactor}
+                            onChange={e => updatePackagingRow(pkg.id, 'conversionFactor', Number(e.target.value))}
+                            className="w-full p-1 border border-slate-300 rounded font-bold text-right font-mono text-blue-900"
+                          />
+                        </div>
+                        <div className="col-span-3">
+                          <label className="text-[9px] font-bold text-slate-500 block">Selling Price (₹)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={pkg.sellingPrice || ''}
+                            onChange={e => updatePackagingRow(pkg.id, 'sellingPrice', Number(e.target.value))}
+                            placeholder="₹ Price"
+                            className="w-full p-1 border border-slate-300 rounded font-bold text-right font-mono text-emerald-800"
+                          />
+                        </div>
+                        <div className="col-span-2 text-center">
+                          <label className="text-[9px] font-bold text-slate-500 block">Breakable?</label>
+                          <input
+                            type="checkbox"
+                            checked={pkg.canBreak !== false}
+                            onChange={e => updatePackagingRow(pkg.id, 'canBreak', e.target.checked)}
+                            className="w-3.5 h-3.5 accent-blue-600 cursor-pointer mt-1"
+                            title="Allow selling individual items from this package"
+                          />
+                        </div>
+                        <div className="col-span-1 text-center">
+                          <button
+                            type="button"
+                            onClick={() => removePackagingRow(pkg.id)}
+                            className="text-red-500 hover:text-red-700 font-bold text-sm cursor-pointer"
+                            title="Remove packaging level"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
               <div className="flex flex-col">
                 <label className="text-xs font-medium text-slate-600 mb-1">Purchase Rate</label>

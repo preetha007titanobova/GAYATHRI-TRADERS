@@ -22,6 +22,32 @@ interface StockItem {
   pendingOrderQty?: number;
 }
 
+const formatHumanStock = (stock: number, baseUnit?: string, packagings?: any[]) => {
+  const unitStr = baseUnit || 'Pcs';
+  if (!packagings || packagings.length === 0) {
+    return `${stock} ${unitStr}`;
+  }
+
+  const sortedPkg = [...packagings].sort((a, b) => (Number(b.conversionFactor) || 1) - (Number(a.conversionFactor) || 1));
+  let remaining = stock;
+  const parts: string[] = [];
+
+  for (const pkg of sortedPkg) {
+    const factor = Number(pkg.conversionFactor) || 1;
+    if (factor > 1 && remaining >= factor) {
+      const count = Math.floor(remaining / factor);
+      remaining = remaining % factor;
+      parts.push(`${count} ${pkg.packagingName}${count > 1 ? 's' : ''}`);
+    }
+  }
+
+  if (remaining > 0 || parts.length === 0) {
+    parts.push(`${remaining} ${unitStr}${remaining > 1 ? 's' : ''}`);
+  }
+
+  return parts.join(' + ');
+};
+
 const StockStatus = () => {
   const { setToolbarActions, setGlobalNotification } = useOutletContext<{
     setToolbarActions: (actions: ToolbarActions) => void;
@@ -392,10 +418,15 @@ const StockStatus = () => {
                       <td className="border-r border-gray-200 p-2 text-xs text-center text-gray-500">{item.uom || 'PCS'}</td>
                       <td className={`border-r border-gray-200 p-2 text-right font-mono font-black text-sm ${isLow ? 'text-red-600' : 'text-blue-700'}`}>
                         {isLow && <AlertTriangle size={12} className="inline mr-1 -mt-1 text-red-500" />}
-                        <div>{qty}</div>
+                        <div>{qty} {(item as any).baseUnit || item.uom || 'PCS'}</div>
+                        {(item as any).packagings && (item as any).packagings.length > 0 && (
+                          <div className="text-[10px] text-emerald-700 font-extrabold whitespace-nowrap leading-none mt-0.5">
+                            ({formatHumanStock(qty, (item as any).baseUnit || item.uom, (item as any).packagings)})
+                          </div>
+                        )}
                         {Number(item.pendingOrderQty) > 0 && (
                           <div className="text-[10px] text-amber-600 font-bold whitespace-nowrap leading-none mt-1">
-                            ({item.pendingOrderQty} {item.uom || 'PCS'} in sales order)
+                            ({item.pendingOrderQty} {(item as any).baseUnit || item.uom || 'PCS'} in sales order)
                           </div>
                         )}
                       </td>

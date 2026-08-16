@@ -13,6 +13,7 @@ interface ReturnItem {
   itemDesc: string;
   batchNo: string;
   purchasedQty: number;
+  netQty: number;
   returnQty: number;
   unitPrice: number;
   discPercent: number;
@@ -252,6 +253,7 @@ const PurReturn = () => {
           });
 
           const origQty = Number(item.purchasedQty || item.qty || 0);
+          const netQty = Math.max(0, origQty - alreadyReturned);
 
           let initialReturnQty = 0;
           if (editingReturnId) {
@@ -273,6 +275,7 @@ const PurReturn = () => {
             itemDesc: item.itemName || item.itemDesc || '',
             batchNo: item.batchNo || 'N/A',
             purchasedQty: origQty,
+            netQty: netQty,
             unitPrice: item.unitPrice || item.rate || 0,
             discPercent: item.discPercent || 0,
             taxPercent: item.taxPercent || 0,
@@ -603,7 +606,7 @@ const PurReturn = () => {
                 <th className="border-r border-blue-400/30 p-2.5 w-24 text-xs font-semibold">Item Code</th>
                 <th className="border-r border-blue-400/30 p-2.5 text-xs font-semibold">Item Description</th>
                 <th className="border-r border-blue-400/30 p-2.5 w-20 text-xs font-semibold">Batch No</th>
-                <th className="border-r border-blue-400/30 p-2.5 w-20 text-xs font-semibold text-right">Purchased<br />Qty</th>
+                <th className="border-r border-blue-400/30 p-2.5 w-20 text-xs font-semibold text-right">Net<br />Qty</th>
                 <th className="border-r border-blue-400/30 p-2.5 w-24 text-xs font-semibold text-right bg-blue-700/60">Return Qty</th>
                 <th className="border-r border-blue-400/30 p-2.5 w-24 text-xs font-semibold text-right">Purchase Rate</th>
                 <th className="border-r border-blue-400/30 p-2.5 w-16 text-xs font-semibold text-right">Disc %</th>
@@ -631,7 +634,7 @@ const PurReturn = () => {
                     <td className="border-r border-gray-200 p-2.5 bg-gray-50/50 text-gray-700 font-mono text-xs">{item.itemCode}</td>
                     <td className="border-r border-gray-200 p-2.5 bg-gray-50/50 text-gray-800 font-semibold">{item.itemDesc}</td>
                     <td className="border-r border-gray-200 p-2.5 bg-gray-50/50 text-gray-600 text-center font-medium">{item.batchNo}</td>
-                    <td className="border-r border-gray-200 p-2.5 bg-gray-100/50 text-right font-extrabold text-gray-600">{item.purchasedQty}</td>
+                    <td className="border-r border-gray-200 p-2.5 bg-gray-100/50 text-right font-extrabold text-gray-600">{item.netQty ?? item.purchasedQty}</td>
                     <td className={`border-r p-0 relative ${item.error ? 'border-red-500 border-2' : 'border-gray-200'}`}>
                       <input
                         type="number"

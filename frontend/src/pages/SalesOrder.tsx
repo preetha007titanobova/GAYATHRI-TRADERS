@@ -1364,7 +1364,7 @@ Thank you!`;
             <div className="bg-[#2b579a] text-white px-4 py-3 flex justify-between items-center shadow-md">
               <div className="flex items-center space-x-2">
                 <Search size={18} />
-                <span className="font-bold tracking-wide text-sm">Dress/Product Table Lookup</span>
+                <span className="font-bold tracking-wide text-sm">Product Table Lookup</span>
               </div>
               <button onClick={() => setIsProductModalOpen(false)} className="text-white hover:text-red-300 font-bold focus:outline-none text-lg">
                 ✕
@@ -1378,7 +1378,7 @@ Thank you!`;
                 <input
                   ref={searchInputRef}
                   type="text"
-                  placeholder="Search by dress name, code, variety, size..."
+                  placeholder="Search by product name, barcode, code, category..."
                   className="w-full pl-9 pr-3 py-1.5 border border-gray-300 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-sm text-gray-800 shadow-inner font-semibold"
                   value={modalSearchQuery}
                   onChange={e => {

@@ -845,7 +845,7 @@ const Quotation = () => {
                 <input
                   ref={searchInputRef}
                   type="text"
-                  placeholder="Search by dress name, code, variety, size..."
+                  placeholder="Search by product name, barcode, code, category..."
                   className="w-full pl-9 pr-3 py-1.5 border border-gray-300 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-sm text-gray-800 shadow-inner font-semibold"
                   value={modalSearchQuery}
                   onChange={e => {

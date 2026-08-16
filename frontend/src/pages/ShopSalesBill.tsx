@@ -1396,7 +1396,7 @@ const ShopSalesBill = () => {
             <div className="bg-[#2b579a] text-white px-4 py-3 flex justify-between items-center shadow-md">
               <div className="flex items-center space-x-2">
                 <Search size={18} />
-                <span className="font-bold tracking-wide text-sm">Dress/Product Table Lookup</span>
+                <span className="font-bold tracking-wide text-sm">Product Table Lookup</span>
               </div>
               <button onClick={() => setIsProductModalOpen(false)} className="text-white hover:text-red-300 font-bold focus:outline-none text-lg">
                 ✕
@@ -1429,9 +1429,9 @@ const ShopSalesBill = () => {
             {/* List Table Headers */}
             <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-slate-200 border-b border-slate-300 text-xs font-bold text-slate-700 uppercase tracking-wider">
               <div className="col-span-2">Item Code</div>
-              <div className="col-span-4">Dress Name</div>
-              <div className="col-span-2">Variety</div>
-              <div className="col-span-1 text-center">Size</div>
+              <div className="col-span-4">Product Name</div>
+              <div className="col-span-2">Category</div>
+              <div className="col-span-1 text-center">Unit</div>
               <div className="col-span-1 text-center">Stock</div>
               <div className="col-span-2 text-right">Price (₹)</div>
             </div>

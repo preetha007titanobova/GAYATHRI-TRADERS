@@ -43,7 +43,8 @@ const POSCheckout = () => {
   const [scannedFeedback, setScannedFeedback] = useState<{
     barcode: string;
     name: string;
-    size: string;
+    weight?: string;
+    size?: string;
     price: number;
     stock: number;
     uom?: string;
@@ -572,10 +573,19 @@ const POSCheckout = () => {
     return map;
   }, [availableProducts]);
 
+  const lastScanLockRef = React.useRef<{ code: string; time: number }>({ code: '', time: 0 });
+
   // Lightning fast scanner processing function
   const processBarcodeScan = async (scannedCode: string, targetRowId?: number) => {
     const cleanCode = scannedCode.trim();
     if (!cleanCode) return;
+
+    const now = Date.now();
+    if (lastScanLockRef.current.code.toLowerCase() === cleanCode.toLowerCase() && (now - lastScanLockRef.current.time) < 300) {
+      setRapidBarcode('');
+      return;
+    }
+    lastScanLockRef.current = { code: cleanCode, time: now };
 
     // 1. Instant local O(1) hash table lookup
     let product = barcodeMap.get(cleanCode.toLowerCase());
@@ -646,6 +656,7 @@ const POSCheckout = () => {
       setScannedFeedback({
         barcode: cleanCode,
         name: prodName,
+        weight: product.weight || product.uom || '-',
         size: prodSize,
         price: prodPrice,
         stock: updatedStock,
@@ -1549,7 +1560,7 @@ const POSCheckout = () => {
               </div>
               <div className="text-[11px] text-emerald-300 flex justify-between gap-2 mt-0.5">
                 <span>Barcode: <strong className="text-white">{scannedFeedback.barcode}</strong></span>
-                <span>Size: <strong className="text-yellow-200">{scannedFeedback.size}</strong></span>
+                <span>Weight: <strong className="text-yellow-200">{scannedFeedback.weight || scannedFeedback.uom || scannedFeedback.size || '-'}</strong></span>
                 <span>Stock: <strong className="text-emerald-300">{scannedFeedback.stock} (-1)</strong></span>
               </div>
             </div>
