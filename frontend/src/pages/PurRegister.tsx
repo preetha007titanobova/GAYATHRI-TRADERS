@@ -214,6 +214,10 @@ interface LineItem {
   qty: number;
   freeQty?: number;
   unit?: string;
+  baseUnit?: string;
+  unitsPerPack?: number;
+  conversionFactor?: number;
+  totalBaseQty?: number;
   rate: number;
   taxPercent: number;
   total: number;
@@ -907,6 +911,26 @@ const PurRegister = () => {
                   const formattedWeight = formatTotalMeasurement(row.items);
                   const isSelected = selectedIds.includes(row.id);
 
+                  const purchasedBaseTotal = row.items && row.items.length > 0
+                    ? row.items.reduce((acc, curr) => {
+                        const conv = Number(curr.unitsPerPack || curr.conversionFactor) > 0 ? Number(curr.unitsPerPack || curr.conversionFactor) : 1;
+                        return acc + (curr.totalBaseQty || (((Number(curr.qty) || 0) + (Number(curr.freeQty) || 0)) * conv));
+                      }, 0)
+                    : purchasedQty;
+
+                  const retBaseTotal = row.items && row.items.length > 0
+                    ? row.items.reduce((acc, curr) => {
+                        const conv = Number(curr.unitsPerPack || curr.conversionFactor) > 0 ? Number(curr.unitsPerPack || curr.conversionFactor) : 1;
+                        return acc + ((curr.returnedQty || 0) * conv);
+                      }, 0)
+                    : retQty;
+
+                  const netStockBaseQty = Math.max(0, purchasedBaseTotal - retBaseTotal);
+                  const firstItem = row.items && row.items[0];
+                  const pUnit = firstItem?.unit || 'box';
+                  const bUnit = firstItem?.baseUnit || 'packet';
+                  const isConverted = purchasedBaseTotal !== purchasedQty;
+
                   return (
                     <tr 
                       key={row.id} 
@@ -942,12 +966,14 @@ const PurRegister = () => {
                       <td className="border-r border-gray-300 p-2 text-center font-bold text-indigo-700 bg-indigo-50/20">
                         {formattedWeight}
                       </td>
-                      <td className="border-r border-gray-300 p-2 text-center font-bold text-blue-700 bg-blue-50/20">{purchasedQty} Pcs</td>
-                      <td className="border-r border-gray-300 p-2 text-center font-bold text-amber-700 bg-amber-50/30">
-                        {retQty > 0 ? `-${retQty} Pcs` : '0 Pcs'}
+                      <td className="border-r border-gray-300 p-2 text-center font-bold text-blue-700 bg-blue-50/20">
+                        {isConverted ? `${purchasedQty} ${pUnit} (${purchasedBaseTotal} ${bUnit})` : `${purchasedQty} ${pUnit}`}
                       </td>
-                      <td className="border-r border-gray-300 p-2 text-center font-extrabold text-emerald-800 bg-emerald-50/40 text-sm">
-                        {netStockQty} Pcs
+                      <td className="border-r border-gray-300 p-2 text-center font-bold text-amber-700 bg-amber-50/30">
+                        {retQty > 0 ? (isConverted ? `-${retQty} ${pUnit} (-${retBaseTotal} ${bUnit})` : `-${retQty} ${pUnit}`) : `0 ${pUnit}`}
+                      </td>
+                      <td className="border-r border-gray-300 p-2 text-center font-extrabold text-emerald-800 bg-emerald-50/40 text-xs">
+                        {isConverted ? `${netStockBaseQty} ${bUnit}` : `${netStockQty} ${pUnit}`}
                       </td>
                       <td className="border-r border-gray-300 p-2 text-center">
                         {rStatus === 'Fully Returned' ? (
@@ -1094,8 +1120,14 @@ const PurRegister = () => {
                 <tbody>
                   {selectedRecord.items.map((it, i) => {
                     const retQty = it.returnedQty || 0;
-                    const netRemaining = it.netQty ?? Math.max(0, (it.qty || 0) - retQty);
-                    const unitStr = it.unit || 'Pcs';
+                    const unitStr = it.unit || 'box';
+                    const baseUnitStr = it.baseUnit || 'packet';
+                    const convFactor = Number(it.unitsPerPack || it.conversionFactor) > 0 ? Number(it.unitsPerPack || it.conversionFactor) : 1;
+                    const purchasedBase = it.totalBaseQty || (((Number(it.qty) || 0) + (Number(it.freeQty) || 0)) * convFactor);
+                    const retBase = retQty * convFactor;
+                    const netBaseRemaining = Math.max(0, purchasedBase - retBase);
+                    const isConverted = convFactor > 1;
+
                     return (
                       <tr key={i} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors">
                         <td className="p-2 text-center text-slate-450">{i + 1}</td>
@@ -1105,13 +1137,17 @@ const PurRegister = () => {
                         </td>
                         <td className="p-2 font-mono text-slate-650">{it.vendorItemCode || '-'}</td>
                         <td className="p-2 text-center font-mono font-bold text-slate-700">{it.weight || '-'}</td>
-                        <td className="p-2 text-center font-semibold text-indigo-700 bg-indigo-50/30">{unitStr}</td>
-                        <td className="p-2 text-right font-mono font-bold text-blue-700 bg-blue-50/20">{it.qty} {unitStr}</td>
+                        <td className="p-2 text-center font-semibold text-indigo-700 bg-indigo-50/30">
+                          {isConverted ? `${unitStr} (${convFactor} ${baseUnitStr}/${unitStr})` : unitStr}
+                        </td>
+                        <td className="p-2 text-right font-mono font-bold text-blue-700 bg-blue-50/20">
+                          {isConverted ? `${it.qty} ${unitStr} (${purchasedBase} ${baseUnitStr})` : `${it.qty} ${unitStr}`}
+                        </td>
                         <td className="p-2 text-right font-mono font-bold text-amber-700 bg-amber-50/30">
-                          {retQty > 0 ? `-${retQty} ${unitStr}` : `0 ${unitStr}`}
+                          {retQty > 0 ? (isConverted ? `-${retQty} ${unitStr} (-${retBase} ${baseUnitStr})` : `-${retQty} ${unitStr}`) : `0 ${unitStr}`}
                         </td>
                         <td className="p-2 text-right font-mono font-extrabold text-emerald-800 bg-emerald-50/40">
-                          {netRemaining} {unitStr}
+                          {isConverted ? `${netBaseRemaining} ${baseUnitStr}` : `${it.netQty ?? Math.max(0, it.qty - retQty)} ${unitStr}`}
                         </td>
                         <td className="p-2 text-right font-mono">₹{it.rate.toFixed(2)}</td>
                         <td className="p-2 text-right font-mono">₹{(it.sellingPrice || 0).toFixed(2)}</td>

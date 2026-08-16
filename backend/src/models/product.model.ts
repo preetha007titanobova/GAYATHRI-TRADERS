@@ -17,8 +17,9 @@ export interface Product {
   name: string;
   barcode?: string;
   uom?: string;
-  inventoryType?: 'Weight' | 'Volume' | 'Length' | 'Count';
   baseUnit?: string;
+  conversionFactor?: number;
+  inventoryType?: 'Weight' | 'Volume' | 'Length' | 'Count';
   packagings?: ProductPackaging[];
   purchaseRate: number;
   price: number; // Sales Rate

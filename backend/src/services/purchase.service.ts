@@ -165,6 +165,8 @@ export const createPurchaseBill = async (data: any): Promise<any> => {
       const qty = Number(item.qty || item.purchasedQty) || 0;
       const freeQty = Number(item.freeQty) || 0;
       const totalQty = qty + freeQty;
+      const unitsPerPack = Number(item.unitsPerPack || item.conversionFactor) > 0 ? Number(item.unitsPerPack || item.conversionFactor) : 1;
+      const totalBaseQty = totalQty * unitsPerPack;
       const rate = Number(item.rate || item.unitPrice) || 0;
       const sellingPrice = Number(item.sellingPrice ?? item.salesRate ?? rate) || rate;
       const mrp = Number(item.mrp ?? sellingPrice) || sellingPrice;
@@ -193,12 +195,15 @@ export const createPurchaseBill = async (data: any): Promise<any> => {
         await db.collection('Product').updateOne(
           { _id: product._id },
           {
-            $inc: { stock: Math.round(totalQty) },
+            $inc: { stock: Math.round(totalBaseQty) },
             $set: {
               purchaseRate: rate,
               price: sellingPrice,
               mrp: mrp,
               barcode: cleanBarcode,
+              uom: item.unit || product.uom || 'box',
+              baseUnit: item.baseUnit || product.baseUnit || 'packet',
+              conversionFactor: unitsPerPack,
               category: item.category || item.department || product.category || '',
               vendorItemCode: item.vendorItemCode || product.vendorItemCode || '',
               mfgDate: item.mfgDate || product.mfgDate || '',
@@ -213,12 +218,14 @@ export const createPurchaseBill = async (data: any): Promise<any> => {
           itemCode: item.itemCode || `ITM-${Date.now()}`,
           name: item.itemName || item.itemDesc || item.itemCode || 'Purchase Item',
           barcode: cleanBarcode,
-          uom: 'PCS',
+          uom: item.unit || 'box',
+          baseUnit: item.baseUnit || 'packet',
+          conversionFactor: unitsPerPack,
           purchaseRate: rate,
           price: sellingPrice,
           mrp: mrp,
           taxPercent: taxPercent,
-          stock: Math.round(totalQty),
+          stock: Math.round(totalBaseQty),
           category: item.category || item.department || '',
           vendorItemCode: item.vendorItemCode || '',
           mfgDate: item.mfgDate || '',
@@ -241,7 +248,11 @@ export const createPurchaseBill = async (data: any): Promise<any> => {
         factory: item.factory || '',
         vendorItemCode: item.vendorItemCode || '',
         weight: item.weight || '',
-        unit: item.unit || '',
+        unit: item.unit || 'box',
+        baseUnit: item.baseUnit || 'packet',
+        unitsPerPack: unitsPerPack,
+        conversionFactor: unitsPerPack,
+        totalBaseQty: totalBaseQty,
         mfgDate: item.mfgDate || '',
         expDate: item.expDate || '',
         barcode: barcodeStr,
@@ -318,17 +329,20 @@ export const updatePurchaseBill = async (id: string, data: any): Promise<boolean
     const qty = Number(item.qty) || 0;
     const freeQty = Number(item.freeQty) || 0;
     const totalQty = qty + freeQty;
-    if (totalQty > 0) {
+    const oldConv = Number(item.unitsPerPack || item.conversionFactor) > 0 ? Number(item.unitsPerPack || item.conversionFactor) : 1;
+    const oldTotalBase = Number(item.totalBaseQty) || (totalQty * oldConv);
+
+    if (oldTotalBase > 0) {
       if (item.productId) {
         await db.collection('Product').updateOne(
           { _id: new ObjectId(item.productId.toString()) },
-          { $inc: { stock: -Math.round(totalQty) } }
+          { $inc: { stock: -Math.round(oldTotalBase) } }
         );
       } else if (item.itemCode && item.itemCode.trim()) {
         const escapedCode = escapeRegex(item.itemCode.trim());
         await db.collection('Product').updateOne(
           { itemCode: { $regex: `^${escapedCode}$`, $options: 'i' } },
-          { $inc: { stock: -Math.round(totalQty) } }
+          { $inc: { stock: -Math.round(oldTotalBase) } }
         );
       }
     }
@@ -378,6 +392,8 @@ export const updatePurchaseBill = async (id: string, data: any): Promise<boolean
       const qty = Number(item.qty || item.purchasedQty) || 0;
       const freeQty = Number(item.freeQty) || 0;
       const totalQty = qty + freeQty;
+      const unitsPerPack = Number(item.unitsPerPack || item.conversionFactor) > 0 ? Number(item.unitsPerPack || item.conversionFactor) : 1;
+      const totalBaseQty = totalQty * unitsPerPack;
       const rate = Number(item.rate || item.unitPrice) || 0;
       const sellingPrice = Number(item.sellingPrice ?? item.salesRate ?? rate) || rate;
       const mrp = Number(item.mrp ?? sellingPrice) || sellingPrice;
@@ -405,12 +421,15 @@ export const updatePurchaseBill = async (id: string, data: any): Promise<boolean
         await db.collection('Product').updateOne(
           { _id: product._id },
           {
-            $inc: { stock: Math.round(totalQty) },
+            $inc: { stock: Math.round(totalBaseQty) },
             $set: {
               purchaseRate: rate,
               price: sellingPrice,
               mrp: mrp,
               barcode: cleanBarcode,
+              uom: item.unit || product.uom || 'box',
+              baseUnit: item.baseUnit || product.baseUnit || 'packet',
+              conversionFactor: unitsPerPack,
               category: item.category || item.department || product.category || '',
               vendorItemCode: item.vendorItemCode || product.vendorItemCode || '',
               mfgDate: item.mfgDate || product.mfgDate || '',
@@ -425,12 +444,14 @@ export const updatePurchaseBill = async (id: string, data: any): Promise<boolean
           itemCode: item.itemCode || `ITM-${Date.now()}`,
           name: item.itemName || item.itemDesc || item.itemCode || 'Purchase Item',
           barcode: cleanBarcode,
-          uom: 'PCS',
+          uom: item.unit || 'box',
+          baseUnit: item.baseUnit || 'packet',
+          conversionFactor: unitsPerPack,
           purchaseRate: rate,
           price: sellingPrice,
           mrp: mrp,
           taxPercent: taxPercent,
-          stock: Math.round(totalQty),
+          stock: Math.round(totalBaseQty),
           category: item.category || item.department || '',
           vendorItemCode: item.vendorItemCode || '',
           mfgDate: item.mfgDate || '',
@@ -453,7 +474,13 @@ export const updatePurchaseBill = async (id: string, data: any): Promise<boolean
         factory: item.factory || '',
         vendorItemCode: item.vendorItemCode || '',
         weight: item.weight || '',
-        unit: item.unit || '',
+        unit: item.unit || 'box',
+        baseUnit: item.baseUnit || 'packet',
+        unitsPerPack: unitsPerPack,
+        conversionFactor: unitsPerPack,
+        totalBaseQty: totalBaseQty,
+        mfgDate: item.mfgDate || '',
+        expDate: item.expDate || '',
         barcode: barcodeStr,
         hsn: barcodeStr,
         qty: qty,
@@ -500,17 +527,19 @@ export const deletePurchaseBill = async (id: string): Promise<boolean> => {
     const qty = Number(item.qty) || 0;
     const freeQty = Number(item.freeQty) || 0;
     const totalQty = qty + freeQty;
-    if (totalQty > 0) {
+    const conv = Number(item.unitsPerPack || item.conversionFactor) > 0 ? Number(item.unitsPerPack || item.conversionFactor) : 1;
+    const totalBase = Number(item.totalBaseQty) || (totalQty * conv);
+    if (totalBase > 0) {
       if (item.productId) {
         await db.collection('Product').updateOne(
           { _id: new ObjectId(item.productId.toString()) },
-          { $inc: { stock: -Math.round(totalQty) } }
+          { $inc: { stock: -Math.round(totalBase) } }
         );
       } else if (item.itemCode && item.itemCode.trim()) {
         const escapedCode = escapeRegex(item.itemCode.trim());
         await db.collection('Product').updateOne(
           { itemCode: { $regex: `^${escapedCode}$`, $options: 'i' } },
-          { $inc: { stock: -Math.round(totalQty) } }
+          { $inc: { stock: -Math.round(totalBase) } }
         );
       }
     }
@@ -586,11 +615,14 @@ export const createPurchaseReturn = async (data: any): Promise<any> => {
       }
 
       let productId: ObjectId | null = null;
+      const conv = Number(item.unitsPerPack || item.conversionFactor || product?.conversionFactor) > 0 ? Number(item.unitsPerPack || item.conversionFactor || product?.conversionFactor) : 1;
+      const returnBaseQty = returnQty * conv;
+
       if (product) {
         productId = product._id;
         await db.collection('Product').updateOne(
           { _id: product._id },
-          { $inc: { stock: -Math.round(returnQty) } }
+          { $inc: { stock: -Math.round(returnBaseQty) } }
         );
       }
 
