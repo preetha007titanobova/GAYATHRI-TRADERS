@@ -557,11 +557,12 @@ const PurchaseBill = () => {
 
   // Recalculate item calculations helper
   const calculateItemValues = (item: PurchaseItem, currentSupplyPlace: string) => {
-    const qty = isNaN(item.qty) ? 0 : item.qty;
-    const freeQty = isNaN(item.freeQty || 0) ? 0 : (item.freeQty || 0);
-    const price = isNaN(item.unitPrice) ? 0 : item.unitPrice;
+    const qty = isNaN(Number(item.qty)) ? 0 : Number(item.qty);
+    const freeQty = isNaN(Number(item.freeQty || 0)) ? 0 : Number(item.freeQty || 0);
+    const price = isNaN(Number(item.unitPrice)) ? 0 : Number(item.unitPrice);
+    const discPercent = isNaN(Number(item.discPercent)) ? 0 : Number(item.discPercent);
     const baseVal = qty * price;
-    const afterDisc = baseVal - (baseVal * (item.discPercent / 100));
+    const afterDisc = baseVal - (baseVal * (discPercent / 100));
     
     const conv = Number(item.unitsPerPack) > 0 ? Number(item.unitsPerPack) : 1;
     const totalBaseQty = (qty + freeQty) * conv;
@@ -571,18 +572,21 @@ const PurchaseBill = () => {
     let igstAmt = 0;
     let cgstAmt = 0;
     let sgstAmt = 0;
+    const taxPercent = isNaN(Number(item.taxPercent)) ? 0 : Number(item.taxPercent);
 
     if (isInterstate) {
-      igstAmt = afterDisc * (item.taxPercent / 100);
+      igstAmt = afterDisc * (taxPercent / 100);
     } else {
-      cgstAmt = afterDisc * ((item.taxPercent / 2) / 100);
-      sgstAmt = afterDisc * ((item.taxPercent / 2) / 100);
+      cgstAmt = afterDisc * ((taxPercent / 2) / 100);
+      sgstAmt = afterDisc * ((taxPercent / 2) / 100);
     }
     
     const total = afterDisc + cgstAmt + sgstAmt + igstAmt;
 
     return {
       ...item,
+      qty,
+      freeQty,
       unitsPerPack: conv,
       totalBaseQty,
       cgstAmt,
@@ -1446,15 +1450,15 @@ const PurchaseBill = () => {
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-28">Barcode</th>
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-48">Product Name</th>
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-28">Vendor Item Code</th>
-                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-20">Weight / Val</th>
+                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-20 text-center bg-blue-950 text-blue-200">Purchase Qty</th>
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-24">Purchase Unit</th>
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-24">Base Unit</th>
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-20 text-center" title="Units Per Pack (Conversion Factor)">Pcs / Pack</th>
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-28 text-center bg-indigo-950 text-indigo-200">Base Stock Added</th>
+                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-20">Weight / Val</th>
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-24">Category</th>
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-24">Mfg Date</th>
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-24">Exp Date</th>
-                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-16 text-right">Purchase Qty</th>
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-16 text-right">Free Qty</th>
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-20 text-right">Purchase Rate</th>
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-12 text-right">Discount %</th>
@@ -1468,7 +1472,7 @@ const PurchaseBill = () => {
                   <tbody>
                     {items.length === 0 && (
                       <tr>
-                        <td colSpan={16} className="p-6 text-gray-400 italic text-center">
+                        <td colSpan={21} className="p-6 text-gray-400 italic text-center">
                           No items added.
                         </td>
                       </tr>
@@ -1556,18 +1560,15 @@ const PurchaseBill = () => {
                             placeholder="Vendor Code" 
                           />
                         </td>
-                        <td className="border-r border-gray-300 p-0">
+                        <td className="border-r border-gray-300 p-0 bg-blue-50/40">
                           <input 
-                            type="text" 
-                            value={item.weight || ''} 
-                            onChange={e => updateItem(item.id, 'weight', e.target.value)} 
-                            onKeyDown={e => handleKeyDown(e, idx, 'weight')}
-                            onBlur={() => {
-                              const latest = items.find(i => i.id === item.id);
-                              if (latest) saveProductToDb(latest);
-                            }}
-                            className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-center font-semibold" 
-                            placeholder="e.g. 100, 5"
+                            type="number" 
+                            value={item.qty === 0 ? '' : item.qty} 
+                            onChange={e => updateItem(item.id, 'qty', Number(e.target.value))} 
+                            onKeyDown={e => handleKeyDown(e, idx, 'qty')}
+                            className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-center font-black text-blue-900 border border-transparent focus:border-indigo-400 text-sm" 
+                            min="1" 
+                            placeholder="Qty"
                           />
                         </td>
                         <td className="border-r border-gray-300 p-0">
@@ -1654,6 +1655,20 @@ const PurchaseBill = () => {
                           </span>
                         </td>
                         <td className="border-r border-gray-300 p-0">
+                          <input 
+                            type="text" 
+                            value={item.weight || ''} 
+                            onChange={e => updateItem(item.id, 'weight', e.target.value)} 
+                            onKeyDown={e => handleKeyDown(e, idx, 'weight')}
+                            onBlur={() => {
+                              const latest = items.find(i => i.id === item.id);
+                              if (latest) saveProductToDb(latest);
+                            }}
+                            className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-center font-semibold" 
+                            placeholder="e.g. 100, 5"
+                          />
+                        </td>
+                        <td className="border-r border-gray-300 p-0">
                           <input
                             type="text"
                             value={item.category || ''}
@@ -1688,16 +1703,6 @@ const PurchaseBill = () => {
                               if (latest) saveProductToDb(latest);
                             }}
                             className="w-full p-1 bg-transparent focus:bg-white focus:outline-none text-[11px]" 
-                          />
-                        </td>
-                        <td className="border-r border-gray-300 p-0">
-                          <input 
-                            type="number" 
-                            value={item.qty === 0 ? '' : item.qty} 
-                            onChange={e => updateItem(item.id, 'qty', Number(e.target.value))} 
-                            onKeyDown={e => handleKeyDown(e, idx, 'qty')}
-                            className="w-full p-1.5 bg-slate-50/50 focus:bg-white focus:outline-none text-right font-bold text-blue-900 border border-transparent focus:border-indigo-400" 
-                            min="1" 
                           />
                         </td>
                         <td className="border-r border-gray-300 p-0">
