@@ -13,6 +13,8 @@ interface ReturnItem {
   itemDesc: string;
   batchNo: string;
   purchasedQty: number;
+  alreadyReturnedQty: number;
+  returnHistory: { returnNo: string; returnDate: string; reason: string; qty: number }[];
   netQty: number;
   returnQty: number;
   unitPrice: number;
@@ -218,10 +220,16 @@ const PurReturn = () => {
     };
   };
 
+  const [previousInvoiceReturns, setPreviousInvoiceReturns] = useState<any[]>([]);
+
   // Load items when invoice changes or when entering edit mode
   useEffect(() => {
     if (selectedInvoiceId) {
-      const invoice = invoices.find(inv => inv.id === selectedInvoiceId || inv.voucherNo === selectedInvoiceId);
+      const invoice = invoices.find(inv =>
+        inv.id === selectedInvoiceId ||
+        inv.voucherNo === selectedInvoiceId ||
+        inv.supplierInvoiceNo === selectedInvoiceId
+      );
       if (invoice) {
         const supplierState = invoice.type === 'Local' ? COMPANY_STATE : 'Other State';
         setVendorDetails({
@@ -230,23 +238,46 @@ const PurReturn = () => {
           state: supplierState
         });
 
+        const targetKeys = [
+          invoice.voucherNo,
+          invoice.invoiceNo,
+          invoice.supplierInvoiceNo,
+          invoice.id,
+          invoice._id,
+          selectedInvoiceId
+        ].filter(Boolean).map(k => String(k).trim().toLowerCase());
+
         const matchingReturns = savedReturns.filter(r => {
           const rId = String(r.id || r._id || '');
           const editId = String(editingReturnId || '');
-          const isSameInvoice = r.originalInvoice === invoice.voucherNo || r.originalInvoice === invoice.id || r.originalInvoice === selectedInvoiceId;
-          return isSameInvoice && (!editId || rId !== editId);
+          if (editId && rId === editId) return false;
+
+          const rInv = String(r.originalInvoice || r.invoiceNo || '').trim().toLowerCase();
+          return targetKeys.includes(rInv);
         });
 
+        setPreviousInvoiceReturns(matchingReturns);
+
         const initialItems: ReturnItem[] = (invoice.items || []).map((item: any) => {
+          const itemReturnLogs: { returnNo: string; returnDate: string; reason: string; qty: number }[] = [];
           let alreadyReturned = 0;
+
           matchingReturns.forEach(ret => {
             if (ret.items && Array.isArray(ret.items)) {
               ret.items.forEach((rItem: any) => {
-                if (
-                  (item.itemCode && rItem.itemCode?.toLowerCase() === item.itemCode?.toLowerCase()) ||
-                  (item.itemName && rItem.itemName?.toLowerCase() === (item.itemName || item.itemDesc)?.toLowerCase())
-                ) {
-                  alreadyReturned += Number(rItem.returnQty) || 0;
+                const codeMatch = item.itemCode && rItem.itemCode && rItem.itemCode.trim().toLowerCase() === item.itemCode.trim().toLowerCase();
+                const nameMatch = (item.itemName || item.itemDesc) && (rItem.itemName || rItem.itemDesc) &&
+                  (rItem.itemName || rItem.itemDesc).trim().toLowerCase() === (item.itemName || item.itemDesc).trim().toLowerCase();
+
+                if (codeMatch || nameMatch) {
+                  const retQty = Number(rItem.returnQty || rItem.qty) || 0;
+                  alreadyReturned += retQty;
+                  itemReturnLogs.push({
+                    returnNo: ret.returnNo || 'Debit Note',
+                    returnDate: ret.returnDate ? ret.returnDate.split('T')[0] : 'N/A',
+                    reason: ret.reason || 'Return',
+                    qty: retQty
+                  });
                 }
               });
             }
@@ -259,7 +290,7 @@ const PurReturn = () => {
           if (editingReturnId) {
             const activeReturn = savedReturns.find(r => String(r.id || r._id) === String(editingReturnId));
             if (activeReturn && activeReturn.items) {
-              const matchedItem = activeReturn.items.find((i: any) => 
+              const matchedItem = activeReturn.items.find((i: any) =>
                 (item.itemCode && i.itemCode?.toLowerCase() === item.itemCode?.toLowerCase()) ||
                 (item.itemName && i.itemName?.toLowerCase() === (item.itemName || item.itemDesc)?.toLowerCase())
               );
@@ -275,6 +306,8 @@ const PurReturn = () => {
             itemDesc: item.itemName || item.itemDesc || '',
             batchNo: item.batchNo || 'N/A',
             purchasedQty: origQty,
+            alreadyReturnedQty: alreadyReturned,
+            returnHistory: itemReturnLogs,
             netQty: netQty,
             unitPrice: item.unitPrice || item.rate || 0,
             discPercent: item.discPercent || 0,
@@ -293,6 +326,7 @@ const PurReturn = () => {
     } else {
       setVendorDetails({ name: '', gstin: '', state: '' });
       setItems([]);
+      setPreviousInvoiceReturns([]);
     }
   }, [selectedInvoiceId, invoices, editingReturnId, savedReturns]);
 
@@ -306,8 +340,8 @@ const PurReturn = () => {
       // Validation
       if (field === 'returnQty') {
         const numVal = Number(value) || 0;
-        if (numVal > updated.purchasedQty) {
-          updated.error = `Qty exceeds purchase (${updated.purchasedQty})`;
+        if (numVal > updated.netQty) {
+          updated.error = `Qty exceeds available (${updated.netQty})`;
         } else if (numVal < 0) {
           updated.error = 'Invalid Qty';
         } else {
@@ -574,6 +608,49 @@ const PurReturn = () => {
         </div>
       </div>
 
+      {/* Previous Returns Alert Banner & Return History Details */}
+      {previousInvoiceReturns.length > 0 && (
+        <div className="bg-amber-50 border-l-4 border-amber-500 rounded-xl p-3.5 mb-3 shadow-xs">
+          <div className="flex items-start justify-between">
+            <div className="flex items-start gap-3 w-full">
+              <div className="bg-amber-500 text-white p-1.5 rounded-lg flex items-center justify-center mt-0.5 shadow-sm">
+                <AlertCircle size={18} />
+              </div>
+              <div className="flex-1">
+                <h4 className="font-extrabold text-amber-900 text-xs uppercase tracking-wider">
+                  ⚠️ Multiple Returns Notice: This invoice has {previousInvoiceReturns.length} previous return(s)
+                </h4>
+                <p className="text-[11px] text-amber-800 font-semibold mt-0.5">
+                  Total {previousInvoiceReturns.reduce((sum, r) => sum + (r.items ? r.items.reduce((s: number, it: any) => s + (Number(it.returnQty || it.qty) || 0), 0) : 0), 0)} units returned across Debit Note(s): {previousInvoiceReturns.map(r => r.returnNo).join(', ')}.
+                </p>
+                <div className="mt-2.5 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                  {previousInvoiceReturns.map((ret, rIdx) => (
+                    <div key={rIdx} className="bg-white/90 border border-amber-200 rounded-lg p-2.5 text-xs shadow-2xs">
+                      <div className="flex justify-between items-center font-bold text-amber-950 mb-0.5">
+                        <span className="font-mono text-xs">{ret.returnNo}</span>
+                        <span className="text-[10px] text-amber-800">{ret.returnDate ? ret.returnDate.split('T')[0] : 'N/A'}</span>
+                      </div>
+                      <p className="text-[10.5px] text-slate-700 font-medium">Reason: <strong className="text-slate-900">{ret.reason || 'Damaged Items'}</strong></p>
+                      <div className="mt-1.5 pt-1 border-t border-amber-200/60 text-[10.5px] space-y-0.5">
+                        {ret.items?.map((rIt: any, iIdx: number) => (
+                          <div key={iIdx} className="flex justify-between text-slate-600">
+                            <span className="truncate max-w-[150px]">• {rIt.itemName || rIt.itemDesc}</span>
+                            <span className="font-mono font-bold text-rose-600">-{rIt.returnQty || rIt.qty} pcs</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-1.5 text-right font-mono font-bold text-emerald-700 text-[10.5px]">
+                        Refund: ₹{Number(ret.netReturnAmount || 0).toFixed(2)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Main Grid Area (Flex-1 stretches to take all remaining height) */}
       <div className="flex-1 flex flex-col bg-white border border-gray-200 shadow-md relative overflow-hidden mb-3 rounded-xl">
         <div className="bg-gradient-to-r from-teal-50/80 to-emerald-50/80 p-2 border-b border-gray-200 flex items-center justify-between gap-4">
@@ -606,7 +683,7 @@ const PurReturn = () => {
                 <th className="border-r border-blue-400/30 p-2.5 w-24 text-xs font-semibold">Item Code</th>
                 <th className="border-r border-blue-400/30 p-2.5 text-xs font-semibold">Item Description</th>
                 <th className="border-r border-blue-400/30 p-2.5 w-20 text-xs font-semibold">Batch No</th>
-                <th className="border-r border-blue-400/30 p-2.5 w-20 text-xs font-semibold text-right">Net<br />Qty</th>
+                <th className="border-r border-blue-400/30 p-2.5 w-24 text-xs font-semibold text-right">Net Qty<br /><span className="text-[10px] opacity-80">(Available)</span></th>
                 <th className="border-r border-blue-400/30 p-2.5 w-24 text-xs font-semibold text-right bg-blue-700/60">Return Qty</th>
                 <th className="border-r border-blue-400/30 p-2.5 w-24 text-xs font-semibold text-right">Purchase Rate</th>
                 <th className="border-r border-blue-400/30 p-2.5 w-16 text-xs font-semibold text-right">Disc %</th>
@@ -634,7 +711,19 @@ const PurReturn = () => {
                     <td className="border-r border-gray-200 p-2.5 bg-gray-50/50 text-gray-700 font-mono text-xs">{item.itemCode}</td>
                     <td className="border-r border-gray-200 p-2.5 bg-gray-50/50 text-gray-800 font-semibold">{item.itemDesc}</td>
                     <td className="border-r border-gray-200 p-2.5 bg-gray-50/50 text-gray-600 text-center font-medium">{item.batchNo}</td>
-                    <td className="border-r border-gray-200 p-2.5 bg-gray-100/50 text-right font-extrabold text-gray-600">{item.netQty ?? item.purchasedQty}</td>
+                    <td className="border-r border-gray-200 p-2 text-right bg-gray-100/50">
+                      <div className="font-extrabold text-slate-900 text-sm">{item.netQty}</div>
+                      <div className="text-[10px] text-slate-500 font-medium">Orig: {item.purchasedQty}</div>
+                      {item.alreadyReturnedQty > 0 && (
+                        <div
+                          className="mt-1 inline-flex items-center gap-1 text-[10px] font-extrabold text-amber-900 bg-amber-100 border border-amber-300 rounded px-1.5 py-0.5 cursor-help"
+                          title={`Item returned ${item.alreadyReturnedQty} pcs across ${item.returnHistory?.length} previous debit notes:\n` + item.returnHistory?.map(h => `• ${h.returnNo} (${h.returnDate}): ${h.qty} pcs [${h.reason}]`).join('\n')}
+                        >
+                          <span>↩️ Ret: {item.alreadyReturnedQty}</span>
+                          <span className="text-[9px] bg-amber-200 px-1 rounded text-amber-950 font-black">({item.returnHistory?.length}x)</span>
+                        </div>
+                      )}
+                    </td>
                     <td className={`border-r p-0 relative ${item.error ? 'border-red-500 border-2' : 'border-gray-200'}`}>
                       <input
                         type="number"
@@ -643,7 +732,7 @@ const PurReturn = () => {
                         className="w-full p-2.5 bg-yellow-50 focus:bg-white focus:outline-none text-right font-extrabold text-red-650 h-full placeholder:text-gray-300 transition-colors"
                         placeholder="0"
                         min="0"
-                        max={item.purchasedQty}
+                        max={item.netQty}
                       />
                       {item.error && <span className="absolute -bottom-4 right-0 text-[9px] text-red-650 font-bold bg-white px-1 shadow rounded z-20">{item.error}</span>}
                     </td>
