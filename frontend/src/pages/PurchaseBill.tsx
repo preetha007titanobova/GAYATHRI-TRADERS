@@ -797,6 +797,8 @@ const PurchaseBill = () => {
           updated.freeQty = 0;
           updated.category = prod.department || '';
           updated.vendorItemCode = prod.vendorItemCode || '';
+          if (prod.mfgDate) updated.mfgDate = String(prod.mfgDate).split('T')[0];
+          if (prod.expDate) updated.expDate = String(prod.expDate).split('T')[0];
         }
       }
 
@@ -947,6 +949,8 @@ const PurchaseBill = () => {
           category: i.category || i.department || prod?.department || '',
           itemDesc: i.itemName || i.itemDesc || i.itemCode || '',
           hsn: i.hsn || i.barcode || prod?.barcode || '',
+          mfgDate: i.mfgDate ? String(i.mfgDate).split('T')[0] : (prod?.mfgDate ? String(prod.mfgDate).split('T')[0] : ''),
+          expDate: i.expDate ? String(i.expDate).split('T')[0] : (prod?.expDate ? String(prod.expDate).split('T')[0] : ''),
           qty: qty,
           freeQty: freeQty,
           unitPrice: rate,
@@ -1045,6 +1049,8 @@ const PurchaseBill = () => {
         cgstAmt: Number(i.cgstAmt) || 0,
         sgstAmt: Number(i.sgstAmt) || 0,
         igstAmt: Number(i.igstAmt) || 0,
+        mfgDate: i.mfgDate || '',
+        expDate: i.expDate || '',
         barcode: i.hsn || i.itemCode.trim(),
         hsn: i.hsn || i.itemCode.trim(),
         total: Number(i.total) || 0

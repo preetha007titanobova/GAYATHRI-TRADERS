@@ -112,18 +112,14 @@ export const sendWhatsAppTextMessage = (rawPhone: string, text: string) => {
     };
   }
 
-  let phone = rawPhone.replace(/\D/g, '');
-  if (!phone) {
-    return { success: false, error: 'Please enter a valid mobile number for WhatsApp.' };
-  }
-
+  let phone = (rawPhone || '').replace(/\D/g, '');
   if (phone.length === 10) {
     phone = `91${phone}`;
   }
 
   const encodedText = encodeURIComponent(text);
-  const nativeAppUrl = `whatsapp://send?phone=${phone}&text=${encodedText}`;
-  const webAppUrl = `https://api.whatsapp.com/send?phone=${phone}&text=${encodedText}`;
+  const nativeAppUrl = phone ? `whatsapp://send?phone=${phone}&text=${encodedText}` : `whatsapp://send?text=${encodedText}`;
+  const webAppUrl = phone ? `https://api.whatsapp.com/send?phone=${phone}&text=${encodedText}` : `https://api.whatsapp.com/send?text=${encodedText}`;
 
   // Launch WhatsApp protocol link
   try {

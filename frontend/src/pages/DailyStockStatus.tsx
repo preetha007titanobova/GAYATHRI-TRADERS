@@ -5,6 +5,7 @@ import { Calendar, PackageSearch, Search, FileText } from 'lucide-react';
 import Api from '../Api';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { sendWhatsAppTextMessage } from '../utils/whatsappHelper';
 
 interface DailyStockItem {
   id: string;
@@ -359,19 +360,18 @@ const DailyStockStatus = () => {
         pdfUrl = resJson.pdfUrl || '';
       }
 
-      const text = `*Ithu Namma Kada - Daily Sales Report*\n` +
-                   `*Date:* ${formattedDate}\n` +
-                   `*Total Items:* ${filteredStock.length}\n` +
-                   (hasInward ? `*Total Qty In (Pur):* ${totals.inward}\n` : '') +
-                   `*Total Qty Out (Sold):* ${totals.outward}\n` +
-                   `*Total Qty Returned:* ${totals.returns}\n` +
-                   `*Total Sales Amount:* Rs. ${paymentSummary.total.toFixed(2)}\n\n` +
-                   (pdfUrl ? `*Download PDF Report:* ${pdfUrl}\n\n` : '') +
-                   `Generated automatically via Billing System.`;
+      const reportText = `*Ithu Namma Kada - Daily Sales Report*\n` +
+                         `*Date:* ${formattedDate}\n` +
+                         `*Total Items:* ${filteredStock.length}\n` +
+                         (hasInward ? `*Total Qty In (Pur):* ${totals.inward}\n` : '') +
+                         `*Total Qty Out (Sold):* ${totals.outward}\n` +
+                         `*Total Qty Returned:* ${totals.returns}\n` +
+                         `*Total Sales Amount:* Rs. ${paymentSummary.total.toFixed(2)}\n\n` +
+                         (pdfUrl ? `*Download PDF Report:* ${pdfUrl}\n\n` : '') +
+                         `Generated automatically via Billing System.`;
 
-      const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
-      window.open(url, '_blank');
-      setGlobalNotification({ msg: 'WhatsApp sharing opened successfully!', type: 'success' });
+      sendWhatsAppTextMessage('', reportText);
+      setGlobalNotification({ msg: 'WhatsApp sharing triggered successfully!', type: 'success' });
     } catch (err: any) {
       console.error(err);
       setGlobalNotification({ msg: 'Failed to generate PDF share link.', type: 'error' });

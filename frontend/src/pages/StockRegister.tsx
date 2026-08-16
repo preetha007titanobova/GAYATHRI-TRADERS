@@ -6,6 +6,7 @@ import Api from '../Api';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Modal from '../components/Modal';
+import { sendWhatsAppTextMessage } from '../utils/whatsappHelper';
 
 interface StockMove {
   id: string;
@@ -600,9 +601,8 @@ const StockRegister = () => {
                            `*Download PDF:* ${resData.pdfUrl}\n\n` +
                            `Generated automatically via Ithu Namma Kada Billing System.`;
 
-      const whatsappUrl = `https://api.whatsapp.com/send?phone=${ownerWhatsApp}&text=${encodeURIComponent(whatsappText)}`;
-      window.open(whatsappUrl, '_blank');
-      setGlobalNotification({ msg: 'WhatsApp Web/API link opened successfully!', type: 'success' });
+      sendWhatsAppTextMessage(ownerWhatsApp, whatsappText);
+      setGlobalNotification({ msg: 'WhatsApp share triggered successfully!', type: 'success' });
     } catch (err: any) {
       console.error(err);
       setGlobalNotification({ msg: err.message || 'Failed to share on WhatsApp.', type: 'error' });
@@ -671,9 +671,8 @@ const StockRegister = () => {
                            `*Download PDF:* ${resData.pdfUrl}\n\n` +
                            `Generated automatically via Ithu Namma Kada Billing System.`;
 
-      const whatsappUrl = `https://api.whatsapp.com/send?phone=${ownerWhatsApp}&text=${encodeURIComponent(whatsappText)}`;
-      window.open(whatsappUrl, '_blank');
-      setGlobalNotification({ msg: 'WhatsApp Web/API link opened successfully!', type: 'success' });
+      sendWhatsAppTextMessage(ownerWhatsApp, whatsappText);
+      setGlobalNotification({ msg: 'WhatsApp share triggered successfully!', type: 'success' });
     } catch (err: any) {
       console.error(err);
       setGlobalNotification({ msg: err.message || 'Failed to share on WhatsApp.', type: 'error' });
