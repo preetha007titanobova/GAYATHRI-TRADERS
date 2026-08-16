@@ -587,8 +587,20 @@ const POSCheckout = () => {
     }
     lastScanLockRef.current = { code: cleanCode, time: now };
 
-    // 1. Instant local O(1) hash table lookup
-    let product = barcodeMap.get(cleanCode.toLowerCase());
+    const lowerClean = cleanCode.toLowerCase();
+
+    // 1. Instant local lookup in barcodeMap and availableProducts
+    let product = barcodeMap.get(lowerClean);
+
+    if (!product) {
+      product = availableProducts.find(p => {
+        const b = p.barcode ? p.barcode.toString().trim().toLowerCase() : '';
+        const c = p.itemCode ? p.itemCode.toString().trim().toLowerCase() : '';
+        const v = p.vendorItemCode ? p.vendorItemCode.toString().trim().toLowerCase() : '';
+        const n = p.name ? p.name.toString().trim().toLowerCase() : '';
+        return b === lowerClean || c === lowerClean || v === lowerClean || n === lowerClean;
+      });
+    }
 
     // 2. High-speed API fallback if not found in local cache
     if (!product) {
@@ -600,10 +612,12 @@ const POSCheckout = () => {
           const resSearch = await fetch(`${Api}/products/search?q=${encodeURIComponent(cleanCode)}`);
           const data = await resSearch.json();
           if (Array.isArray(data) && data.length > 0) {
-            product = data.find((p: any) =>
-              (p.barcode && p.barcode.toString().trim().toLowerCase() === cleanCode.toLowerCase()) ||
-              (p.itemCode && p.itemCode.toString().trim().toLowerCase() === cleanCode.toLowerCase())
-            ) || data[0];
+            product = data.find((p: any) => {
+              const b = p.barcode ? p.barcode.toString().trim().toLowerCase() : '';
+              const c = p.itemCode ? p.itemCode.toString().trim().toLowerCase() : '';
+              const v = p.vendorItemCode ? p.vendorItemCode.toString().trim().toLowerCase() : '';
+              return b === lowerClean || c === lowerClean || v === lowerClean;
+            }) || data[0];
           }
         }
       } catch (err) {
@@ -612,55 +626,30 @@ const POSCheckout = () => {
     }
 
     if (product) {
-      const prodName = product.name || "Men's Shirt";
-      const prodSize = product.size || 'L';
-      const prodPrice = Number(product.price) || 799;
+      const prodName = product.name || "Sample Product";
+      const prodSize = product.size || '';
+      const prodPrice = Number(product.price || product.salesRate || product.mrp) || 0;
       const initialStock = typeof product.stock === 'number' ? product.stock : 0;
+      const prodUom = product.uom || 'PCS';
 
-      // Prevent negative stock: Check if stock is 0 or insufficient
-      if (initialStock <= 0) {
-        if (setGlobalNotification) {
-          setGlobalNotification({
-            msg: `❌ Cannot add "${prodName}"! Available stock is 0. Stock cannot go negative.`,
-            type: 'error'
-          });
-          setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
-        }
-        setRapidBarcode('');
-        return;
+      // Informative notification if stock is 0 or low, but DO NOT block billing
+      if (initialStock <= 0 && setGlobalNotification) {
+        setGlobalNotification({
+          msg: `⚠️ System Stock Warning: "${prodName}" is at 0 stock in Item Master.`,
+          type: 'info'
+        });
+        setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
       }
-
-      // Calculate total quantity of this barcode/product already added to the bill
-      let currentQtyInGrid = 0;
-      gridData.forEach(r => {
-        if (r.itemName === prodName || (r.itemDesc && r.itemDesc.trim().toLowerCase() === cleanCode.toLowerCase())) {
-          currentQtyInGrid += Number(r.qty || 0);
-        }
-      });
-
-      if (currentQtyInGrid + 1 > initialStock) {
-        if (setGlobalNotification) {
-          setGlobalNotification({
-            msg: `⚠️ Stock Limit Reached! Barcode "${cleanCode}" (${prodName}) has only ${initialStock} items in stock. Cannot add ${currentQtyInGrid + 1} items.`,
-            type: 'error'
-          });
-          setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
-        }
-        setRapidBarcode('');
-        return;
-      }
-
-      const updatedStock = Math.max(0, initialStock - (currentQtyInGrid + 1));
 
       // Update Live Scanned Item Banner Feedback
       setScannedFeedback({
         barcode: cleanCode,
         name: prodName,
-        weight: product.weight || product.uom || '-',
+        weight: product.weight || prodUom || '-',
         size: prodSize,
         price: prodPrice,
-        stock: updatedStock,
-        uom: product.uom || 'PCS',
+        stock: initialStock,
+        uom: prodUom,
         dept: product.department || product.variety || ''
       });
 
@@ -668,38 +657,51 @@ const POSCheckout = () => {
       let activeRowIdx = 0;
       setGridData(prev => {
         let newGrid = [...prev];
-        const existingIdx = newGrid.findIndex(r =>
-          r.itemName === prodName || (r.itemDesc && r.itemDesc.trim().toLowerCase() === cleanCode.toLowerCase())
+
+        // Check if an ALREADY POPULATED row exists for this product (excluding the current empty target row)
+        const existingPopulatedIdx = newGrid.findIndex(r =>
+          r.id !== targetRowId &&
+          r.itemName.trim() !== '' &&
+          ((r.itemName && r.itemName.trim().toLowerCase() === prodName.trim().toLowerCase()) ||
+           (r.itemDesc && r.itemDesc.trim().toLowerCase() === cleanCode.toLowerCase()))
         );
 
-        if (existingIdx !== -1) {
-          // Increment quantity by 1
-          const row = { ...newGrid[existingIdx] };
+        if (existingPopulatedIdx !== -1) {
+          // Increment quantity on existing populated row
+          const row = { ...newGrid[existingPopulatedIdx] };
+          row.itemName = prodName;
+          row.itemDesc = product.barcode || cleanCode;
+          row.uom = prodUom;
+          row.rate = row.rate || prodPrice;
           row.qty = Number(row.qty || 0) + 1;
           row.size = prodSize;
           const baseAmount = row.qty * row.rate;
           row.discAmt = Number(((baseAmount * row.discPercent) / 100).toFixed(2));
           row.amount = Number((baseAmount - row.discAmt).toFixed(2));
-          newGrid[existingIdx] = row;
-          activeRowIdx = existingIdx;
+          newGrid[existingPopulatedIdx] = row;
+          activeRowIdx = existingPopulatedIdx;
         } else {
-          // Find empty row or replace row
+          // Find target row or first empty row
           let targetIdx = targetRowId ? newGrid.findIndex(r => r.id === targetRowId) : -1;
           if (targetIdx === -1) {
             targetIdx = newGrid.findIndex(r => !r.itemName.trim());
           }
 
+          const existingQty = targetIdx !== -1 ? Number(newGrid[targetIdx].qty || 0) : 0;
+          const finalQty = existingQty > 0 ? existingQty : 1;
+          const baseAmt = finalQty * prodPrice;
+
           const newRow: GridRow = {
             id: targetIdx !== -1 ? newGrid[targetIdx].id : Date.now(),
             itemName: prodName,
-            itemDesc: cleanCode,
+            itemDesc: product.barcode || cleanCode,
             size: prodSize,
-            uom: product.uom || 'PCS',
+            uom: prodUom,
             rate: prodPrice,
-            qty: 1,
+            qty: finalQty,
             discPercent: 0,
             discAmt: 0,
-            amount: prodPrice
+            amount: Number(baseAmt.toFixed(2))
           };
 
           if (targetIdx !== -1) {
@@ -711,7 +713,7 @@ const POSCheckout = () => {
           }
         }
 
-        // Always maintain an empty trailing row for the next manual entry/scan
+        // Always maintain an empty trailing row for the next scan
         const lastRow = newGrid[newGrid.length - 1];
         if (lastRow.itemName.trim() !== '') {
           newGrid.push({
@@ -742,16 +744,19 @@ const POSCheckout = () => {
 
       if (setGlobalNotification) {
         setGlobalNotification({
-          msg: `✓ Barcode ${cleanCode}: Added ${prodName} | Size: ${prodSize} | Price: ₹${prodPrice} | Stock Reduced to ${updatedStock}`,
+          msg: `✓ ${cleanCode}: Added ${prodName} | Price: ₹${prodPrice}`,
           type: 'success'
         });
-        setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
+        setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 2500);
       }
     } else {
+      // Product not found -> Open item search modal so user can pick item in 1 click
       if (setGlobalNotification) {
-        setGlobalNotification({ msg: `❌ Barcode not found: ${cleanCode}`, type: 'error' });
-        setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3000);
+        setGlobalNotification({ msg: `⚠️ Barcode "${cleanCode}" not matched. Opening search...`, type: 'error' });
+        setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 2500);
       }
+      const targetRow = targetRowId || gridData[0]?.id || 1;
+      openSearchModal(targetRow);
     }
     setRapidBarcode('');
   };
@@ -1278,6 +1283,23 @@ const POSCheckout = () => {
         if (row.id !== id) return row;
 
         let updatedRow = { ...row, [field]: field === 'itemName' || field === 'itemDesc' || field === 'uom' ? value : Number(value) };
+
+        // Real-time Barcode Matching on typing itemDesc
+        if (field === 'itemDesc' && value.trim()) {
+          const clean = value.trim().toLowerCase();
+          const match = barcodeMap.get(clean) || availableProducts.find(p => {
+            const b = p.barcode ? p.barcode.toString().trim().toLowerCase() : '';
+            const c = p.itemCode ? p.itemCode.toString().trim().toLowerCase() : '';
+            const v = p.vendorItemCode ? p.vendorItemCode.toString().trim().toLowerCase() : '';
+            return b === clean || c === clean || v === clean;
+          });
+          if (match) {
+            updatedRow.itemName = match.name || updatedRow.itemName;
+            updatedRow.uom = match.uom || 'PCS';
+            updatedRow.rate = Number(match.price || match.salesRate || match.mrp) || updatedRow.rate;
+            if (updatedRow.qty === 0) updatedRow.qty = 1;
+          }
+        }
 
         // Real-time Stock Notification Warning on Manual Qty Input
         if (field === 'qty') {

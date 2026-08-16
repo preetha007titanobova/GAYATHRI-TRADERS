@@ -4,15 +4,32 @@ import { Product } from '../models/product.model';
 
 export const getProductByBarcode = async (barcode: string): Promise<any> => {
   try {
+    const cleanCode = (barcode || '').trim();
+    if (!cleanCode) return null;
+
     const db = await getDb();
+    const regex = new RegExp(`^${cleanCode}$`, 'i');
     let product: any = await db.collection('Product').findOne({
-      $or: [{ barcode: barcode }, { itemCode: barcode }, { vendorItemCode: barcode }]
+      $or: [
+        { barcode: cleanCode },
+        { barcode: regex },
+        { itemCode: cleanCode },
+        { itemCode: regex },
+        { vendorItemCode: cleanCode },
+        { vendorItemCode: regex },
+        { name: regex }
+      ]
     });
     if (!product) {
       try {
         product = await prisma.product.findFirst({
           where: {
-            OR: [{ barcode: barcode }, { itemCode: barcode }, { vendorItemCode: barcode }]
+            OR: [
+              { barcode: { equals: cleanCode, mode: 'insensitive' } },
+              { itemCode: { equals: cleanCode, mode: 'insensitive' } },
+              { vendorItemCode: { equals: cleanCode, mode: 'insensitive' } },
+              { name: { equals: cleanCode, mode: 'insensitive' } }
+            ]
           }
         });
       } catch (e) {
