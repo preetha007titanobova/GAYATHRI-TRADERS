@@ -50,6 +50,8 @@ export const createSalesBill = async (data: any): Promise<any> => {
     shippingAddress,
     salesman,
     paymentMode: paymentMode || 'Cash',
+    cashAmount: Number(data.cashAmount) || 0,
+    upiAmount: Number(data.upiAmount) || 0,
     fromSalesOrderId: fromSalesOrderId ? new ObjectId(fromSalesOrderId as string) : null,
     createdAt: new Date(),
     updatedAt: new Date()
@@ -238,6 +240,8 @@ export const updateSalesBill = async (id: string, data: any): Promise<boolean> =
         shippingAddress,
         salesman,
         paymentMode: paymentMode || 'Cash',
+        cashAmount: Number(data.cashAmount) || 0,
+        upiAmount: Number(data.upiAmount) || 0,
         updatedAt: new Date()
       }
     }

@@ -226,8 +226,10 @@ const SalesRegister = () => {
       // Payment Mode Dropdown filter
       if (selectedPaymentMode !== 'all') {
         const pMode = (rec.paymentMode || rec.refundMethod || 'Cash').toLowerCase();
-        if (selectedPaymentMode === 'cash' && !pMode.includes('cash')) return false;
-        if (selectedPaymentMode === 'upi' && !pMode.includes('upi') && !pMode.includes('online')) return false;
+        const hasSplit = pMode.includes('split') || (rec.cashAmount > 0 && rec.upiAmount > 0);
+        if (selectedPaymentMode === 'split' && !hasSplit) return false;
+        if (selectedPaymentMode === 'cash' && !pMode.includes('cash') && !(hasSplit && rec.cashAmount > 0)) return false;
+        if (selectedPaymentMode === 'upi' && !pMode.includes('upi') && !pMode.includes('online') && !(hasSplit && rec.upiAmount > 0)) return false;
         if (selectedPaymentMode === 'card' && !pMode.includes('card') && !pMode.includes('bank')) return false;
         if (selectedPaymentMode === 'credit' && !pMode.includes('credit') && !pMode.includes('ledger')) return false;
       }
@@ -671,6 +673,7 @@ const SalesRegister = () => {
               <option value="all">All Payment Modes</option>
               <option value="cash">💵 Cash Pay</option>
               <option value="upi">📱 UPI / Online Pay</option>
+              <option value="split">⚡ Split (Cash + UPI)</option>
               <option value="card">💳 Card / Bank</option>
               <option value="credit">📜 Credit / Ledger</option>
             </select>
@@ -891,7 +894,9 @@ const SalesRegister = () => {
                         <td className="border-r border-gray-300 p-1.5 text-center">
                           {(() => {
                             const mode = rec.paymentMode || 'Cash';
-                            if (mode.includes('UPI') || mode.includes('Online')) {
+                            if (mode.includes('Split') || (rec.cashAmount > 0 && rec.upiAmount > 0)) {
+                              return <span className="bg-purple-100 text-purple-800 text-[10px] font-extrabold px-2 py-0.5 rounded border border-purple-300">⚡ Split</span>;
+                            } else if (mode.includes('UPI') || mode.includes('Online')) {
                               return <span className="bg-blue-100 text-blue-800 text-[10px] font-extrabold px-2 py-0.5 rounded border border-blue-300">📱 UPI / Online</span>;
                             } else if (mode.includes('Card')) {
                               return <span className="bg-purple-100 text-purple-800 text-[10px] font-extrabold px-2 py-0.5 rounded border border-purple-300">💳 Card</span>;
