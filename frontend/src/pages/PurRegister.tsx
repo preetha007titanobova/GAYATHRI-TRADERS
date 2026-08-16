@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import type { ToolbarActions } from '../components/Layout';
-import { Search, Calendar, Filter, FileText, AlertCircle, Eye, Edit, Trash2 } from 'lucide-react';
+import { Search, Calendar, Filter, FileText, AlertCircle, Eye, Edit, Trash2, CheckSquare } from 'lucide-react';
 import Modal from '../components/Modal';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -294,6 +294,99 @@ const PurRegister = () => {
   // Modal State
   const [selectedRecord, setSelectedRecord] = useState<PurchaseRecord | null>(null);
 
+  // Multi-Select & Bulk Delete State
+  const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkDeleteModalOpen, setBulkDeleteModalOpen] = useState(false);
+  const [bulkConfirmText, setBulkConfirmText] = useState('');
+  const [deletingBulk, setDeletingBulk] = useState(false);
+
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds(prev =>
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectAll = () => {
+    if (selectedIds.length === displayedData.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(displayedData.map(d => d.id));
+    }
+  };
+
+  const toggleMultiSelectMode = () => {
+    if (isMultiSelectMode) {
+      setIsMultiSelectMode(false);
+      setSelectedIds([]);
+    } else {
+      setIsMultiSelectMode(true);
+    }
+  };
+
+  const fetchAllPurchaseRecords = async () => {
+    try {
+      const [billsRes, returnsRes] = await Promise.all([
+        fetch(`${Api}/purchase-bills`),
+        fetch(`${Api}/purchase-bills/returns`)
+      ]);
+
+      const billsData = billsRes.ok ? await billsRes.json() : [];
+      const returnsData = returnsRes.ok ? await returnsRes.json() : [];
+
+      let combined: PurchaseRecord[] = [];
+      if (Array.isArray(billsData)) {
+        combined = [...billsData];
+      }
+
+      if (Array.isArray(returnsData)) {
+        const mappedReturns: PurchaseRecord[] = returnsData.map((ret: any) => ({
+          id: ret.id || ret._id,
+          isReturn: true,
+          date: ret.returnDate || ret.createdAt,
+          voucherNo: ret.returnNo,
+          supplierInvoiceNo: ret.originalInvoice || 'N/A',
+          supplierInvoiceDate: ret.returnDate,
+          supplierName: ret.customerName || 'General Supplier',
+          supplierGstin: ret.gstin || '',
+          taxableAmt: Number(ret.grossTotal) || 0,
+          cgst: Number(ret.cgst) || 0,
+          sgst: Number(ret.sgst) || 0,
+          igst: Number(ret.igst) || 0,
+          otherCharges: Number(ret.roundOff) || 0,
+          discount: 0,
+          roundOff: Number(ret.roundOff) || 0,
+          netPayable: -Math.abs(Number(ret.netReturnAmount) || 0),
+          status: 'Paid',
+          type: 'Local',
+          paymentMode: ret.settlementMode || 'Cash',
+          items: (ret.items || []).map((it: any) => ({
+            itemCode: it.itemCode || '',
+            itemName: it.itemName || it.itemDesc || it.itemCode || '',
+            itemDesc: it.itemDesc || it.itemName || '',
+            qty: -Math.abs(Number(it.returnQty) || 0),
+            freeQty: 0,
+            rate: Number(it.unitPrice) || 0,
+            taxPercent: Number(it.taxPercent) || 0,
+            total: -Math.abs(Number(it.totalAmt) || 0)
+          })),
+          totalQty: -(ret.items ? ret.items.reduce((a: number, c: any) => a + (Number(c.returnQty) || 0), 0) : 0),
+          returnedQty: ret.items ? ret.items.reduce((a: number, c: any) => a + (Number(c.returnQty) || 0), 0) : 0,
+          netQty: 0,
+          returnedAmt: Number(ret.netReturnAmount) || 0,
+          returnStatus: 'Fully Returned'
+        }));
+        combined = [...combined, ...mappedReturns];
+      }
+
+      combined.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      setAllData(combined);
+      setDisplayedData(combined);
+    } catch (err) {
+      console.error("Error loading purchase register data:", err);
+    }
+  };
+
   const handleEditBill = (record: PurchaseRecord) => {
     setSelectedRecord(null);
     navigate('/purchase-bill', { state: { editBill: record } });
@@ -302,28 +395,47 @@ const PurRegister = () => {
   const handleDeleteBill = async (id: string) => {
     if (!window.confirm("Are you sure you want to delete this purchase bill? This will revert the physical stock of all items.")) return;
     try {
-      const res = await fetch(`${Api}/purchase-bills/${id}`, {
+      const record = allData.find(r => r.id === id);
+      const url = record?.isReturn ? `${Api}/purchase-bills/returns/${id}` : `${Api}/purchase-bills/${id}`;
+      const res = await fetch(url, {
         method: 'DELETE'
       });
       const data = await res.json();
       if (data.success) {
         setGlobalNotification({ msg: "Purchase Bill deleted successfully!", type: 'success' });
         setSelectedRecord(null);
-        // Reload bills
-        fetch(`${Api}/purchase-bills`)
-          .then(res => res.json())
-          .then(data => {
-            if (Array.isArray(data)) {
-              setAllData(data);
-              setDisplayedData(data);
-            }
-          });
+        setSelectedIds(prev => prev.filter(i => i !== id));
+        await fetchAllPurchaseRecords();
       } else {
         setGlobalNotification({ msg: "Failed to delete: " + data.error, type: 'error' });
       }
     } catch (err) {
       console.error(err);
       setGlobalNotification({ msg: "Network error deleting purchase bill.", type: 'error' });
+    }
+  };
+
+  const handleConfirmBulkDelete = async () => {
+    if (bulkConfirmText.trim().toUpperCase() !== 'CONFIRM DELETE') return;
+    setDeletingBulk(true);
+    try {
+      const deletePromises = selectedIds.map(id => {
+        const record = allData.find(r => r.id === id);
+        const url = record?.isReturn ? `${Api}/purchase-bills/returns/${id}` : `${Api}/purchase-bills/${id}`;
+        return fetch(url, { method: 'DELETE' });
+      });
+      await Promise.all(deletePromises);
+      setGlobalNotification({ msg: `Successfully deleted ${selectedIds.length} purchase record(s). Stock levels updated.`, type: 'success' });
+      setSelectedIds([]);
+      setIsMultiSelectMode(false);
+      await fetchAllPurchaseRecords();
+    } catch (err) {
+      console.error(err);
+      setGlobalNotification({ msg: 'Error performing bulk deletion.', type: 'error' });
+    } finally {
+      setDeletingBulk(false);
+      setBulkDeleteModalOpen(false);
+      setBulkConfirmText('');
     }
   };
 
@@ -657,14 +769,40 @@ const PurRegister = () => {
             Purchase Register
           </h2>
           <div className="flex space-x-2">
-            <button onClick={() => setQuickDate('Today')} className="text-xs bg-gray-100 hover:bg-gray-200 border border-gray-300 px-2 py-1 rounded">Today</button>
-            <button onClick={() => setQuickDate('ThisMonth')} className="text-xs bg-gray-100 hover:bg-gray-200 border border-gray-300 px-2 py-1 rounded">This Month</button>
-            <button onClick={() => setQuickDate('ThisFY')} className="text-xs bg-gray-100 hover:bg-gray-200 border border-gray-300 px-2 py-1 rounded">This FY</button>
-            <button onClick={downloadPDF} className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1 rounded shadow border border-emerald-800 transition-colors">Download PDF</button>
+            <button onClick={() => setQuickDate('Today')} className="text-xs bg-gray-100 hover:bg-gray-200 border border-gray-300 px-2 py-1 rounded cursor-pointer">Today</button>
+            <button onClick={() => setQuickDate('ThisMonth')} className="text-xs bg-gray-100 hover:bg-gray-200 border border-gray-300 px-2 py-1 rounded cursor-pointer">This Month</button>
+            <button onClick={() => setQuickDate('ThisFY')} className="text-xs bg-gray-100 hover:bg-gray-200 border border-gray-300 px-2 py-1 rounded cursor-pointer">This FY</button>
+            
+            <button
+              onClick={toggleMultiSelectMode}
+              className={`text-xs px-2.5 py-1 rounded shadow border transition-colors flex items-center gap-1 font-bold cursor-pointer ${
+                isMultiSelectMode
+                  ? 'bg-amber-500 hover:bg-amber-600 text-white border-amber-600'
+                  : 'bg-[#2b579a] hover:bg-[#1f3f6f] text-white border-blue-900'
+              }`}
+            >
+              <CheckSquare size={13} />
+              <span>{isMultiSelectMode ? 'Cancel Selection' : 'Select Multiple'}</span>
+            </button>
+
+            {selectedIds.length > 0 && (
+              <button
+                onClick={() => {
+                  setBulkConfirmText('');
+                  setBulkDeleteModalOpen(true);
+                }}
+                className="text-xs bg-red-600 hover:bg-red-700 text-white font-bold px-3 py-1 rounded shadow border border-red-800 transition-colors flex items-center gap-1 cursor-pointer animate-in fade-in duration-150"
+              >
+                <Trash2 size={13} />
+                <span>Bulk Delete ({selectedIds.length})</span>
+              </button>
+            )}
+
+            <button onClick={downloadPDF} className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1 rounded shadow border border-emerald-800 transition-colors cursor-pointer">Download PDF</button>
             <button 
               onClick={handleShareWhatsApp} 
               disabled={sharing}
-              className="text-xs bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-bold px-3 py-1 rounded shadow border border-green-800 transition-colors flex items-center"
+              className="text-xs bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-bold px-3 py-1 rounded shadow border border-green-800 transition-colors flex items-center cursor-pointer"
             >
               <svg className="w-4 h-4 mr-1.5 fill-current" viewBox="0 0 24 24">
                 <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.455L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.625 1.451 5.403.002 9.803-4.394 9.806-9.799.002-2.618-1.016-5.079-2.865-6.93C16.368 2.025 13.91 1.006 11.298 1.006c-5.408 0-9.81 4.398-9.813 9.802-.002 1.83.479 3.618 1.393 5.17l-.997 3.642 3.734-.978zM17.15 13.563c-.3-.15-1.771-.875-2.04-.972-.269-.099-.465-.148-.659.15-.195.297-.753.971-.922 1.168-.169.197-.337.221-.637.072-.3-.15-1.264-.467-2.408-1.486-.89-.794-1.49-1.775-1.665-2.072-.175-.297-.019-.458.131-.606.134-.133.3-.347.449-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.659-1.591-.903-2.176-.237-.573-.478-.495-.659-.504-.17-.008-.365-.01-.56-.01s-.51.074-.777.363c-.266.289-1.016.992-1.016 2.42 0 1.427 1.039 2.805 1.182 2.996.143.19 2.043 3.12 4.949 4.377.691.299 1.23.478 1.651.611.693.22 1.325.189 1.822.115.556-.083 1.771-.724 2.019-1.422.25-.698.25-1.299.176-1.422-.075-.123-.269-.197-.569-.347z"/>
@@ -722,6 +860,17 @@ const PurRegister = () => {
           <table className="w-full text-left text-sm border-collapse whitespace-nowrap min-w-max">
             <thead className="bg-[#2b579a] text-white sticky top-0 z-10 shadow-sm text-xs font-semibold">
               <tr>
+                {isMultiSelectMode && (
+                  <th className="border-r border-[#1e3f70] p-2.5 w-10 text-center">
+                    <input
+                      type="checkbox"
+                      checked={displayedData.length > 0 && selectedIds.length === displayedData.length}
+                      onChange={handleSelectAll}
+                      className="w-4 h-4 rounded cursor-pointer accent-blue-400"
+                      title="Select / Deselect All"
+                    />
+                  </th>
+                )}
                 <th className="border-r border-[#1e3f70] p-2.5 w-12 text-center">S.No</th>
                 <th className="border-r border-[#1e3f70] p-2.5 w-36">Voucher No</th>
                 <th className="border-r border-[#1e3f70] p-2.5 w-28 text-center">Date</th>
@@ -738,7 +887,7 @@ const PurRegister = () => {
             <tbody>
               {displayedData.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="p-16 text-center text-gray-500 bg-gray-50">
+                  <td colSpan={isMultiSelectMode ? 12 : 11} className="p-16 text-center text-gray-500 bg-gray-50">
                     <div className="flex flex-col items-center justify-center">
                        <FileText className="w-12 h-12 text-gray-300 mb-3" />
                        <p className="text-xl font-medium text-gray-400">No purchase records found</p>
@@ -755,12 +904,25 @@ const PurRegister = () => {
                   const netStockQty = row.netQty ?? Math.max(0, purchasedQty - retQty);
                   const rStatus = row.returnStatus || (retQty > 0 ? (netStockQty <= 0 ? 'Fully Returned' : 'Partially Returned') : 'None');
                   const formattedWeight = formatTotalMeasurement(row.items);
+                  const isSelected = selectedIds.includes(row.id);
 
                   return (
                     <tr 
                       key={row.id} 
-                      className="border-b border-gray-300 hover:bg-slate-50 transition-colors even:bg-gray-50/30 text-xs"
+                      className={`border-b border-gray-300 transition-colors text-xs ${
+                        isSelected ? 'bg-blue-50/90 font-medium' : 'hover:bg-slate-50 even:bg-gray-50/30'
+                      }`}
                     >
+                      {isMultiSelectMode && (
+                        <td className="border-r border-gray-300 p-2 text-center">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleToggleSelect(row.id)}
+                            className="w-4 h-4 rounded cursor-pointer accent-blue-600"
+                          />
+                        </td>
+                      )}
                       <td className="border-r border-gray-300 p-2 text-center text-gray-500">{idx + 1}</td>
                       <td 
                         className="border-r border-gray-300 p-2 font-mono text-blue-700 font-bold hover:underline cursor-pointer"
@@ -1062,6 +1224,54 @@ const PurRegister = () => {
           </div>
         )}
       </Modal>
+
+      {/* BULK DELETE CONFIRMATION MODAL */}
+      {bulkDeleteModalOpen && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => { setBulkDeleteModalOpen(false); setBulkConfirmText(''); }}>
+          <div className="bg-white rounded-lg shadow-2xl border border-gray-300 w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150" onClick={e => e.stopPropagation()}>
+            <div className="bg-red-600 text-white px-4 py-3 flex justify-between items-center font-bold">
+              <span className="flex items-center gap-2">
+                <Trash2 size={18} />
+                Bulk Delete Confirmation ({selectedIds.length} Selected)
+              </span>
+              <button onClick={() => { setBulkDeleteModalOpen(false); setBulkConfirmText(''); }} className="text-white hover:text-red-200 text-lg font-bold leading-none cursor-pointer">✕</button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="bg-red-50 border-l-4 border-red-500 p-3 text-red-800 text-xs rounded">
+                <p className="font-bold mb-1">⚠️ Warning: Irreversible Action!</p>
+                <p>You are about to delete <strong>{selectedIds.length}</strong> purchase record(s). This will automatically adjust physical stock levels and ledger balances for all items in these vouchers.</p>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  Type <span className="font-mono text-red-600 bg-red-100 px-1 py-0.5 rounded">CONFIRM DELETE</span> to confirm:
+                </label>
+                <input
+                  type="text"
+                  value={bulkConfirmText}
+                  onChange={(e) => setBulkConfirmText(e.target.value)}
+                  placeholder="CONFIRM DELETE"
+                  className="w-full border border-gray-300 p-2 rounded text-sm font-mono focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none"
+                />
+              </div>
+              <div className="flex justify-end space-x-2 pt-2 border-t border-gray-200">
+                <button
+                  onClick={() => { setBulkDeleteModalOpen(false); setBulkConfirmText(''); }}
+                  className="px-4 py-1.5 text-xs font-bold border border-gray-300 rounded text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  disabled={bulkConfirmText.trim().toUpperCase() !== 'CONFIRM DELETE' || deletingBulk}
+                  onClick={handleConfirmBulkDelete}
+                  className="px-4 py-1.5 text-xs font-bold bg-red-600 hover:bg-red-700 disabled:bg-gray-300 text-white rounded transition-colors shadow flex items-center gap-1 cursor-pointer"
+                >
+                  {deletingBulk ? 'Deleting...' : `Confirm Bulk Delete (${selectedIds.length})`}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
