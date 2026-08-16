@@ -934,10 +934,10 @@ const POSCheckout = () => {
 
   const handleSaveClick = () => {
     // Filter out empty rows
-    const validItems = gridData.filter(row => row.itemName && row.qty > 0 && row.rate > 0);
+    const validItems = gridData.filter(row => row.itemName && row.itemName.trim() !== '' && Number(row.qty) > 0);
     if (validItems.length === 0) {
       if (setGlobalNotification) {
-        setGlobalNotification({ msg: "Please add at least one valid item to the grid before saving.", type: 'error' });
+        setGlobalNotification({ msg: "Please add at least one item with Quantity > 0 before saving.", type: 'error' });
         setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
       }
       return;

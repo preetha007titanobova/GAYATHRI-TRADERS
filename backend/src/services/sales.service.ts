@@ -60,84 +60,40 @@ export const createSalesBill = async (data: any): Promise<any> => {
   if (items && items.length > 0) {
     const itemsToInsert = [];
     for (const item of items) {
-      let productId = item.productId ? new ObjectId(item.productId as string) : null;
-      let product = null;
-      if (productId) {
-        product = await prisma.product.findUnique({
-          where: { id: productId.toString() }
-        });
-      }
-      if (!product && item.itemDesc) {
-        product = await prisma.product.findFirst({
-          where: {
-            OR: [
+      let productId = item.productId ? (typeof item.productId === 'string' && ObjectId.isValid(item.productId) ? new ObjectId(item.productId) : item.productId) : null;
+      let product: any = null;
+
+      try {
+        if (productId) {
+          product = await db.collection('Product').findOne({ _id: productId });
+        }
+        if (!product && item.itemDesc) {
+          product = await db.collection('Product').findOne({
+            $or: [
               { itemCode: item.itemDesc },
               { barcode: item.itemDesc }
             ]
-          }
-        });
-      }
-      if (!product && item.itemName) {
-        product = await prisma.product.findFirst({
-          where: { name: item.itemName }
-        });
+          });
+        }
+        if (!product && item.itemName) {
+          product = await db.collection('Product').findOne({ name: item.itemName });
+        }
+
+        const qty = Number(item.qty) || 0;
+        if (product && qty > 0) {
+          productId = product._id;
+          const currentStock = Number(product.stock) || 0;
+          const updatedStock = Math.max(0, currentStock - Math.round(qty));
+          await db.collection('Product').updateOne(
+            { _id: product._id },
+            { $set: { stock: updatedStock, updatedAt: new Date() } }
+          );
+        }
+      } catch (itemErr) {
+        console.error("Error updating product stock during sales bill save:", itemErr);
       }
 
       const qty = Number(item.qty) || 0;
-      if (product) {
-        productId = new ObjectId(product.id);
-        if (qty > 0) {
-          const currentStock = Number(product.stock) || 0;
-          const updatedStock = Math.max(0, currentStock - Math.round(qty));
-          await prisma.product.update({
-            where: { id: product.id },
-            data: { stock: updatedStock }
-          });
-          await db.collection('Product').updateOne(
-            { _id: new ObjectId(product.id) },
-            { $set: { stock: updatedStock } }
-          );
-        }
-      } else {
-        if (qty > 0 && item.itemName) {
-          const p = await db.collection('Product').findOne({ name: item.itemName });
-          if (p) {
-            const currentStock = Number(p.stock) || 0;
-            const updatedStock = Math.max(0, currentStock - Math.round(qty));
-            await db.collection('Product').updateOne(
-              { _id: p._id },
-              { $set: { stock: updatedStock } }
-            );
-          }
-        }
-      }
-
-      // If this bill is generated from a Sales Order, update unfulfilled quantity
-      if (fromSalesOrderId) {
-        const orderItem = await prisma.salesOrderItem.findFirst({
-          where: {
-            salesOrderId: fromSalesOrderId,
-            OR: [
-              { productId: productId?.toString() },
-              { itemCode: item.itemCode || item.itemDesc },
-              { itemName: item.itemName }
-            ]
-          }
-        });
-
-        if (orderItem) {
-          const newDelivered = Math.min(orderItem.orderedQty, orderItem.deliveredQty + qty);
-          const newPending = Math.max(0, orderItem.orderedQty - newDelivered);
-          await prisma.salesOrderItem.update({
-            where: { id: orderItem.id },
-            data: {
-              deliveredQty: newDelivered,
-              pendingQty: newPending
-            }
-          });
-        }
-      }
-
       itemsToInsert.push({
         salesBillId: billResult.insertedId,
         itemName: item.itemName,
@@ -152,7 +108,9 @@ export const createSalesBill = async (data: any): Promise<any> => {
         productId: productId
       });
     }
-    await db.collection('SalesItem').insertMany(itemsToInsert);
+    if (itemsToInsert.length > 0) {
+      await db.collection('SalesItem').insertMany(itemsToInsert);
+    }
   }
 
   // Update overall Sales Order status based on all items' remaining pending quantities
@@ -258,55 +216,40 @@ export const updateSalesBill = async (id: string, data: any): Promise<boolean> =
   if (items && items.length > 0) {
     const itemsToInsert = [];
     for (const item of items) {
-      let productId = item.productId ? new ObjectId(item.productId as string) : null;
-      let product = null;
-      if (productId) {
-        product = await prisma.product.findUnique({
-          where: { id: productId.toString() }
-        });
-      }
-      if (!product && item.itemDesc) {
-        product = await prisma.product.findFirst({
-          where: {
-            OR: [
+      let productId = item.productId ? (typeof item.productId === 'string' && ObjectId.isValid(item.productId) ? new ObjectId(item.productId) : item.productId) : null;
+      let product: any = null;
+
+      try {
+        if (productId) {
+          product = await db.collection('Product').findOne({ _id: productId });
+        }
+        if (!product && item.itemDesc) {
+          product = await db.collection('Product').findOne({
+            $or: [
               { itemCode: item.itemDesc },
               { barcode: item.itemDesc }
             ]
-          }
-        });
-      }
-      if (!product && item.itemName) {
-        product = await prisma.product.findFirst({
-          where: { name: item.itemName }
-        });
+          });
+        }
+        if (!product && item.itemName) {
+          product = await db.collection('Product').findOne({ name: item.itemName });
+        }
+
+        const qty = Number(item.qty) || 0;
+        if (product && qty > 0) {
+          productId = product._id;
+          const currentStock = Number(product.stock) || 0;
+          const updatedStock = Math.max(0, currentStock - Math.round(qty));
+          await db.collection('Product').updateOne(
+            { _id: product._id },
+            { $set: { stock: updatedStock, updatedAt: new Date() } }
+          );
+        }
+      } catch (itemErr) {
+        console.error("Error updating product stock during sales bill update:", itemErr);
       }
 
       const qty = Number(item.qty) || 0;
-      if (product) {
-        productId = new ObjectId(product.id);
-        if (qty > 0) {
-          await prisma.product.updateMany({
-            where: { id: product.id },
-            data: {
-              stock: {
-                decrement: Math.round(qty)
-              }
-            }
-          });
-        }
-      } else {
-        if (qty > 0 && item.itemName) {
-          await prisma.product.updateMany({
-            where: { name: item.itemName },
-            data: {
-              stock: {
-                decrement: Math.round(qty)
-              }
-            }
-          });
-        }
-      }
-
       itemsToInsert.push({
         salesBillId: billId,
         itemName: item.itemName,
@@ -321,7 +264,9 @@ export const updateSalesBill = async (id: string, data: any): Promise<boolean> =
         productId: productId
       });
     }
-    await db.collection('SalesItem').insertMany(itemsToInsert);
+    if (itemsToInsert.length > 0) {
+      await db.collection('SalesItem').insertMany(itemsToInsert);
+    }
   }
 
   return true;

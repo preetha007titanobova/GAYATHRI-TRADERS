@@ -718,8 +718,8 @@ const BarcodeGeneration = () => {
 
     itemsToPrint.forEach(item => {
       const numLabels = Number(item.printCount) || 1;
-      const mfgFormatted = item.mfgDate ? `${item.mfgDate.substring(8, 10)}/${item.mfgDate.substring(5, 7)}/${item.mfgDate.substring(0, 4)}` : '10/05/2025';
-      const expFormatted = item.expDate ? `${item.expDate.substring(8, 10)}/${item.expDate.substring(5, 7)}/${item.expDate.substring(0, 4)}` : '10/05/2026';
+      const mfgFormatted = item.mfgDate ? `${item.mfgDate.substring(8, 10)}/${item.mfgDate.substring(5, 7)}/${item.mfgDate.substring(2, 4)}` : '10/05/25';
+      const expFormatted = item.expDate ? `${item.expDate.substring(8, 10)}/${item.expDate.substring(5, 7)}/${item.expDate.substring(2, 4)}` : '10/05/26';
       const mrpFormatted = Number(item.mrp || 0).toFixed(2);
       const saleFormatted = Number(item.salesPrice || item.mrp || 0).toFixed(2);
       const barcodeSvg = getBarcodeSVGString(item.barcodeValue || '8901234567890', item.barcodeType || 'Code 128');
@@ -742,8 +742,8 @@ const BarcodeGeneration = () => {
           <div class="product" style="font-size: 5.5pt; font-weight: 800; margin-top: 0.3mm; text-align: center; text-transform: uppercase; color: #000000 !important; line-height: 1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${l.item.productName}</div>
           ${showMetaLine ? `<div class="meta" style="font-size: 4.2pt; font-weight: 700; margin-top: 0.2mm; text-align: center; color: #000000 !important; line-height: 1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${l.item.variety && !['standard', 'std', 'default', ''].includes(l.item.variety.trim().toLowerCase()) ? l.item.variety + ' | ' : ''}Wt : ${l.item.weight || '1kg'}</div>` : ''}
           ${showDatesLine ? `
-            <div class="dates" style="font-size: 4.2pt; font-weight: 700; margin-top: 0.2mm; text-align: center; color: #000000 !important; line-height: 1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-              pkd: ${l.mfgFormatted}${l.expFormatted ? ` &nbsp; exp: ${l.expFormatted}` : ''}
+            <div class="dates" style="font-size: 4.2pt; font-weight: 700; margin-top: 0.2mm; text-align: center; color: #000000 !important; line-height: 1; width: 100%; white-space: nowrap; overflow: hidden;">
+              pkd: ${l.mfgFormatted} &nbsp; exp: ${l.expFormatted}
             </div>
           ` : ''}
           ${showPriceLine ? `
@@ -1660,8 +1660,7 @@ const BarcodeGeneration = () => {
                     {showDatesLine && (
                       <div className="w-full text-center">
                         <span className="text-[4.2pt] font-extrabold leading-none m-0 p-0 text-black block truncate">
-                          pkd: {mfgDate ? `${mfgDate.substring(8, 10)}/${mfgDate.substring(5, 7)}/${mfgDate.substring(2, 4)}` : '10/05/25'}
-                          {expDate ? `  exp: ${expDate.substring(8, 10)}/${expDate.substring(5, 7)}/${expDate.substring(2, 4)}` : ''}
+                          pkd: {mfgDate ? `${mfgDate.substring(8, 10)}/${mfgDate.substring(5, 7)}/${mfgDate.substring(2, 4)}` : '10/05/25'} &nbsp; exp: {expDate ? `${expDate.substring(8, 10)}/${expDate.substring(5, 7)}/${expDate.substring(2, 4)}` : '10/05/26'}
                         </span>
                       </div>
                     )}
