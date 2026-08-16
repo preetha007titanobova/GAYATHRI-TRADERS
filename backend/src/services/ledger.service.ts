@@ -80,11 +80,13 @@ export const createLedger = async (data: Ledger): Promise<any> => {
 
 export const updateLedger = async (id: string, data: Ledger): Promise<boolean> => {
   const db = await getDb();
+  const filter: any = ObjectId.isValid(id) ? { $or: [{ _id: new ObjectId(id) }, { _id: id }] } : { _id: id };
+  const { id: _, _id: __, ...updateFields } = data as any;
   const result = await db.collection('Ledger').updateOne(
-    { _id: new ObjectId(id as string) },
+    filter,
     {
       $set: {
-        ...data,
+        ...updateFields,
         openingBalance: Number(data.openingBalance) || 0,
         creditLimit: Number(data.creditLimit) || 0,
         defaultCreditPeriod: Number(data.defaultCreditPeriod) || 0,
@@ -97,7 +99,8 @@ export const updateLedger = async (id: string, data: Ledger): Promise<boolean> =
 
 export const deleteLedger = async (id: string): Promise<boolean> => {
   const db = await getDb();
-  const result = await db.collection('Ledger').deleteOne({ _id: new ObjectId(id as string) });
+  const filter: any = ObjectId.isValid(id) ? { $or: [{ _id: new ObjectId(id) }, { _id: id }] } : { _id: id };
+  const result = await db.collection('Ledger').deleteOne(filter);
   return result.deletedCount > 0;
 };
 

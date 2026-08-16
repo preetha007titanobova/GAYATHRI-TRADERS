@@ -383,6 +383,110 @@ const PurchaseBill = () => {
   // Modal State
   const [isVendorModalOpen, setIsVendorModalOpen] = useState(false);
   const [newVendorForm, setNewVendorForm] = useState({ name: '', gstin: '', state: 'Tamil Nadu' });
+  const [vendorModalTab, setVendorModalTab] = useState<'list' | 'add' | 'edit'>('list');
+  const [vendorSearchQuery, setVendorSearchQuery] = useState('');
+  const [editingVendorId, setEditingVendorId] = useState<string | null>(null);
+  const [editingVendorForm, setEditingVendorForm] = useState({ name: '', gstin: '', state: 'Tamil Nadu' });
+  const [deletingVendorId, setDeletingVendorId] = useState<string | null>(null);
+
+  const filteredModalVendors = useMemo(() => {
+    const q = vendorSearchQuery.toLowerCase().trim();
+    if (!q) return vendors;
+    return vendors.filter(v =>
+      v.name.toLowerCase().includes(q) ||
+      (v.gstin && v.gstin.toLowerCase().includes(q)) ||
+      (v.state && v.state.toLowerCase().includes(q))
+    );
+  }, [vendors, vendorSearchQuery]);
+
+  const handleSelectVendor = (v: { id: string, name: string, gstin: string, state: string }) => {
+    setVendorId(v.id);
+    setVendorName(v.name);
+    setGstin(v.gstin || '');
+    setSupplyPlace(v.state || 'Tamil Nadu');
+    setIsVendorModalOpen(false);
+    setVendorSearchQuery('');
+  };
+
+  const handleStartEditVendor = (v: { id: string, name: string, gstin: string, state: string }) => {
+    setEditingVendorId(v.id);
+    setEditingVendorForm({
+      name: v.name,
+      gstin: v.gstin || '',
+      state: v.state || 'Tamil Nadu'
+    });
+    setVendorModalTab('edit');
+  };
+
+  const handleSaveEditedVendor = async () => {
+    if (!editingVendorId || !editingVendorForm.name.trim()) {
+      return setGlobalNotification({ msg: 'Vendor Name is required.', type: 'error' });
+    }
+    setLoading(true);
+    try {
+      const payload = {
+        accountName: editingVendorForm.name.trim(),
+        accountGroup: 'Suppliers',
+        gstNo: editingVendorForm.gstin.trim().toUpperCase(),
+        state: editingVendorForm.state.trim()
+      };
+
+      const res = await fetch(`${Api}/ledgers/${editingVendorId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+
+      if (res.ok && (data.success || data.message)) {
+        setGlobalNotification({ msg: 'Vendor updated successfully!', type: 'success' });
+        await fetchVendors();
+
+        if (vendorId === editingVendorId || vendorName.toLowerCase() === editingVendorForm.name.toLowerCase()) {
+          setVendorName(editingVendorForm.name.trim());
+          setGstin(editingVendorForm.gstin.trim().toUpperCase());
+          setSupplyPlace(editingVendorForm.state.trim());
+        }
+        setVendorModalTab('list');
+        setEditingVendorId(null);
+      } else {
+        setGlobalNotification({ msg: 'Failed to update vendor: ' + (data.error || 'Error'), type: 'error' });
+      }
+    } catch (err) {
+      console.error(err);
+      setGlobalNotification({ msg: 'Network error updating vendor', type: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteVendor = async (id: string, name: string) => {
+    if (!window.confirm(`Are you sure you want to delete vendor "${name}"? This action cannot be undone.`)) return;
+    setDeletingVendorId(id);
+    try {
+      const res = await fetch(`${Api}/ledgers/${id}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      if (res.ok && (data.success || data.message)) {
+        setGlobalNotification({ msg: `Vendor "${name}" deleted successfully!`, type: 'success' });
+        await fetchVendors();
+
+        if (vendorId === id || vendorName.toLowerCase() === name.toLowerCase()) {
+          setVendorId('');
+          setVendorName('');
+          setGstin('');
+        }
+      } else {
+        setGlobalNotification({ msg: 'Failed to delete vendor: ' + (data.error || 'Error'), type: 'error' });
+      }
+    } catch (err) {
+      console.error(err);
+      setGlobalNotification({ msg: 'Network error deleting vendor', type: 'error' });
+    } finally {
+      setDeletingVendorId(null);
+    }
+  };
 
   const createBlankRow = (): PurchaseItem => ({
     id: Math.random().toString(36).substring(2, 15),
@@ -1167,13 +1271,29 @@ const PurchaseBill = () => {
                 <div>
                   <div className="flex justify-between items-center mb-0.5">
                     <label className="block text-[9px] font-black text-slate-500 uppercase tracking-wider">Vendor Name</label>
-                    <button
-                      type="button"
-                      onClick={() => setIsVendorModalOpen(true)}
-                      className="text-[8px] font-extrabold text-blue-600 hover:text-blue-800 uppercase tracking-wider cursor-pointer"
-                    >
-                      + Save Vendor
-                    </button>
+                    <div className="flex items-center space-x-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setVendorModalTab('add');
+                          setIsVendorModalOpen(true);
+                        }}
+                        className="text-[8px] font-extrabold text-blue-600 hover:text-blue-800 uppercase tracking-wider cursor-pointer"
+                      >
+                        + Add Vendor
+                      </button>
+                      <span className="text-slate-300 text-[9px]">|</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setVendorModalTab('list');
+                          setIsVendorModalOpen(true);
+                        }}
+                        className="text-[8px] font-extrabold text-indigo-600 hover:text-indigo-800 uppercase tracking-wider cursor-pointer flex items-center gap-0.5"
+                      >
+                        📋 See All Vendors ({vendors.length})
+                      </button>
+                    </div>
                   </div>
                   <input 
                     type="text" 
@@ -1697,67 +1817,278 @@ const PurchaseBill = () => {
 
       </div>
 
-      {/* Add Vendor Custom Modal */}
+      {/* Vendor Management Custom Modal */}
       <Modal
         isOpen={isVendorModalOpen}
         onClose={() => {
           setIsVendorModalOpen(false);
-          setVendorId('');
+          setVendorSearchQuery('');
+          setEditingVendorId(null);
         }}
-        title="Add New Vendor"
+        title="Vendor Directory & Management"
       >
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-1">Vendor Name <span className="text-red-500">*</span></label>
-            <input 
-              type="text" 
-              value={newVendorForm.name}
-              onChange={e => setNewVendorForm({...newVendorForm, name: e.target.value})}
-              className="w-full border border-gray-400 p-2 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
-              placeholder="e.g. Acme Corporation"
-              autoFocus
-            />
+        <div className="space-y-3">
+          {/* Modal Header Tabs */}
+          <div className="flex border-b border-gray-200 justify-between items-center pb-2">
+            <div className="flex space-x-2">
+              <button
+                type="button"
+                onClick={() => setVendorModalTab('list')}
+                className={`px-3 py-1.5 text-xs font-bold rounded-t-md transition-all cursor-pointer ${
+                  vendorModalTab === 'list'
+                    ? 'bg-[#2b579a] text-white shadow-sm'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                📋 See All Vendors ({vendors.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setVendorModalTab('add');
+                  setNewVendorForm({ name: '', gstin: '', state: 'Tamil Nadu' });
+                }}
+                className={`px-3 py-1.5 text-xs font-bold rounded-t-md transition-all cursor-pointer ${
+                  vendorModalTab === 'add'
+                    ? 'bg-[#2b579a] text-white shadow-sm'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                + Add New Vendor
+              </button>
+              {vendorModalTab === 'edit' && (
+                <span className="px-3 py-1.5 text-xs font-bold bg-amber-500 text-white rounded-t-md">
+                  ✏️ Edit Vendor Details
+                </span>
+              )}
+            </div>
           </div>
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-1">GSTIN</label>
-            <input 
-              type="text" 
-              value={newVendorForm.gstin}
-              onChange={e => setNewVendorForm({...newVendorForm, gstin: e.target.value.toUpperCase()})}
-              className="w-full border border-gray-400 p-2 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none uppercase"
-              placeholder="e.g. 29ABCDE1234F2Z5"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-1">State / Place of Supply</label>
-            <input 
-              type="text" 
-              value={newVendorForm.state}
-              onChange={e => setNewVendorForm({...newVendorForm, state: e.target.value})}
-              className="w-full border border-gray-400 p-2 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
-              placeholder="e.g. Tamil Nadu"
-            />
-          </div>
-          
-          <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 mt-6">
-            <button 
-              onClick={() => {
-                setIsVendorModalOpen(false);
-                setVendorId('');
-              }}
-              disabled={loading}
-              className="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50 font-semibold disabled:opacity-50"
-            >
-              Cancel
-            </button>
-            <button 
-              onClick={handleSaveNewVendor}
-              disabled={loading}
-              className="px-4 py-2 bg-[#2b579a] text-white rounded hover:bg-blue-800 font-semibold shadow-sm disabled:opacity-50"
-            >
-              {loading ? 'Saving...' : 'Save Vendor'}
-            </button>
-          </div>
+
+          {/* TAB 1: SEE ALL VENDORS LIST */}
+          {vendorModalTab === 'list' && (
+            <div className="space-y-3">
+              <div className="relative">
+                <input
+                  type="text"
+                  value={vendorSearchQuery}
+                  onChange={e => setVendorSearchQuery(e.target.value)}
+                  placeholder="Search vendor name, GSTIN, state..."
+                  className="w-full border border-gray-300 p-2 pl-8 rounded text-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                  autoFocus
+                />
+                <Search size={14} className="absolute left-2.5 top-2.5 text-gray-400" />
+              </div>
+
+              <div className="max-h-[320px] overflow-y-auto border border-gray-200 rounded">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead className="bg-slate-100 text-slate-700 sticky top-0 font-bold border-b border-gray-200">
+                    <tr>
+                      <th className="p-2 w-8 text-center">S.No</th>
+                      <th className="p-2">Vendor Name</th>
+                      <th className="p-2 w-32">GSTIN</th>
+                      <th className="p-2 w-28">State</th>
+                      <th className="p-2 w-32 text-center">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredModalVendors.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="p-8 text-center text-gray-400 italic">
+                          No vendors found. Click "+ Add New Vendor" to create one.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredModalVendors.map((v, idx) => {
+                        const isCurrentSelected = vendorId === v.id || vendorName.toLowerCase() === v.name.toLowerCase();
+                        return (
+                          <tr
+                            key={v.id || idx}
+                            className={`border-b border-gray-100 hover:bg-slate-50 transition-colors ${
+                              isCurrentSelected ? 'bg-blue-50/80 font-semibold' : ''
+                            }`}
+                          >
+                            <td className="p-2 text-center text-gray-400">{idx + 1}</td>
+                            <td className="p-2 font-bold text-slate-800">
+                              <div className="flex items-center space-x-1.5">
+                                <span>{v.name}</span>
+                                {isCurrentSelected && (
+                                  <span className="text-[9px] bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded font-black">
+                                    SELECTED
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="p-2 font-mono text-slate-600">{v.gstin || '-'}</td>
+                            <td className="p-2 text-slate-600">{v.state || 'Tamil Nadu'}</td>
+                            <td className="p-2 text-center">
+                              <div className="flex items-center justify-center space-x-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleSelectVendor(v)}
+                                  className="px-2 py-0.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-[10px] font-bold shadow-sm cursor-pointer"
+                                  title="Select for purchase bill"
+                                >
+                                  Select
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleStartEditVendor(v)}
+                                  className="p-1 text-indigo-600 hover:text-indigo-900 hover:bg-indigo-50 rounded transition-colors cursor-pointer"
+                                  title="Edit Vendor Name / Details"
+                                >
+                                  <Edit size={14} />
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={deletingVendorId === v.id}
+                                  onClick={() => handleDeleteVendor(v.id, v.name)}
+                                  className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded transition-colors cursor-pointer disabled:opacity-50"
+                                  title="Delete Vendor"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex justify-end pt-2 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => setIsVendorModalOpen(false)}
+                  className="px-4 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded font-bold text-xs cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 2: ADD NEW VENDOR */}
+          {vendorModalTab === 'add' && (
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  Vendor Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newVendorForm.name}
+                  onChange={e => setNewVendorForm({ ...newVendorForm, name: e.target.value })}
+                  className="w-full border border-gray-300 p-2 rounded text-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none font-bold"
+                  placeholder="e.g. Acme Textiles Ltd"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">GSTIN</label>
+                <input
+                  type="text"
+                  value={newVendorForm.gstin}
+                  onChange={e => setNewVendorForm({ ...newVendorForm, gstin: e.target.value.toUpperCase() })}
+                  className="w-full border border-gray-300 p-2 rounded text-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none uppercase font-mono"
+                  placeholder="e.g. 33ABCDE1234F1Z5"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">State / Place of Supply</label>
+                <input
+                  type="text"
+                  value={newVendorForm.state}
+                  onChange={e => setNewVendorForm({ ...newVendorForm, state: e.target.value })}
+                  className="w-full border border-gray-300 p-2 rounded text-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                  placeholder="e.g. Tamil Nadu"
+                />
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-3 border-t border-gray-200 mt-4">
+                <button
+                  type="button"
+                  onClick={() => setVendorModalTab('list')}
+                  className="px-4 py-1.5 border border-gray-300 rounded text-gray-700 hover:bg-gray-50 text-xs font-bold cursor-pointer"
+                >
+                  Back to List
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveNewVendor}
+                  disabled={loading}
+                  className="px-4 py-1.5 bg-[#2b579a] hover:bg-blue-800 text-white rounded text-xs font-bold shadow-sm disabled:opacity-50 cursor-pointer"
+                >
+                  {loading ? 'Saving...' : 'Save & Select Vendor'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 3: EDIT VENDOR */}
+          {vendorModalTab === 'edit' && (
+            <div className="space-y-3">
+              <div className="bg-amber-50 border-l-4 border-amber-500 p-2.5 text-amber-800 text-xs rounded mb-3">
+                Edit Vendor details for <strong>{editingVendorForm.name}</strong>. Updating will automatically sync vendor name across catalog entries.
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  Vendor Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={editingVendorForm.name}
+                  onChange={e => setEditingVendorForm({ ...editingVendorForm, name: e.target.value })}
+                  className="w-full border border-indigo-300 p-2 rounded text-xs focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 outline-none font-bold"
+                  placeholder="e.g. Updated Vendor Name"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">GSTIN</label>
+                <input
+                  type="text"
+                  value={editingVendorForm.gstin}
+                  onChange={e => setEditingVendorForm({ ...editingVendorForm, gstin: e.target.value.toUpperCase() })}
+                  className="w-full border border-gray-300 p-2 rounded text-xs focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 outline-none uppercase font-mono"
+                  placeholder="e.g. 33ABCDE1234F1Z5"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">State / Place of Supply</label>
+                <input
+                  type="text"
+                  value={editingVendorForm.state}
+                  onChange={e => setEditingVendorForm({ ...editingVendorForm, state: e.target.value })}
+                  className="w-full border border-gray-300 p-2 rounded text-xs focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 outline-none"
+                  placeholder="e.g. Tamil Nadu"
+                />
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-3 border-t border-gray-200 mt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVendorModalTab('list');
+                    setEditingVendorId(null);
+                  }}
+                  className="px-4 py-1.5 border border-gray-300 rounded text-gray-700 hover:bg-gray-50 text-xs font-bold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveEditedVendor}
+                  disabled={loading}
+                  className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-bold shadow-sm disabled:opacity-50 cursor-pointer"
+                >
+                  {loading ? 'Updating...' : 'Update Vendor Details'}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </Modal>
       
