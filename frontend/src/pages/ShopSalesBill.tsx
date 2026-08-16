@@ -736,7 +736,8 @@ const ShopSalesBill = () => {
             customerName: shopName,
             subTotal: taxableTotal,
             totalAmount: grandTotal,
-            gridData: items.map(i => ({ itemName: i.itemName, qty: i.qty, rate: i.unitPrice, amount: i.total }))
+            gridData: items.map(i => ({ itemName: i.itemName, qty: i.qty, rate: i.unitPrice, amount: i.total })),
+            receiptTitle: 'SALES INVOICE'
           });
         } catch (pErr) {
           console.error("Auto print error:", pErr);

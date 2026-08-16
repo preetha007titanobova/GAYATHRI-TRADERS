@@ -1094,7 +1094,10 @@ const POSCheckout = () => {
       sgst: sgst,
       totalAmount: netAmount,
       storeName: shopName,
-      storePhone: localStorage.getItem('close_day_whatsapp') || undefined
+      storePhone: localStorage.getItem('close_day_whatsapp') || undefined,
+      gstNo: gstNo || localStorage.getItem('shop_gstin') || undefined,
+      salesman: salesman || undefined,
+      receiptTitle: 'SALES INVOICE'
     });
 
     setTimeout(() => {

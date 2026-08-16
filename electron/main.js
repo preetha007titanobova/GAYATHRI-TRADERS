@@ -334,6 +334,38 @@ async function resolveActivePrinter(printers) {
     return printers[0] ? printers[0].name : '';
 }
 
+async function resolveReceiptPrinter(printers, requestedName) {
+    if (!printers || printers.length === 0) return '';
+
+    // 1. Check requestedName if explicitly provided and matches a connected printer
+    if (requestedName) {
+        const exact = printers.find(p => p.name.toLowerCase().trim() === requestedName.toLowerCase().trim());
+        if (exact) return exact.name;
+        const partial = printers.find(p => p.name.toLowerCase().includes(requestedName.toLowerCase().trim()));
+        if (partial) return partial.name;
+    }
+
+    // 2. Check saved preference in localStorage / electron store if not a barcode printer
+    const saved = getSavedPrinterPreference();
+    if (saved && !saved.toUpperCase().includes('TSC') && !saved.toUpperCase().includes('BARCODE')) {
+        const savedMatch = printers.find(p => p.name.toLowerCase().trim() === saved.toLowerCase().trim());
+        if (savedMatch) return savedMatch.name;
+    }
+
+    // 3. Auto-detect dedicated receipt / invoice thermal printer (e.g. RP3200 plus)
+    const receiptP = printers.find(p => {
+        const n = p.name.toUpperCase();
+        return n.includes('RP3200') || n.includes('RP32') || n.includes('RP') || n.includes('POS') || n.includes('RECEIPT') || n.includes('80MM') || n.includes('58MM') || n.includes('RONGTA') || n.includes('TVS') || n.includes('EPSON') || n.includes('EVERYCOM') || n.includes('THERMAL');
+    });
+    if (receiptP) return receiptP.name;
+
+    // 4. Default system printer fallback
+    const defaultP = printers.find(p => p.isDefault);
+    if (defaultP) return defaultP.name;
+
+    return printers[0] ? printers[0].name : '';
+}
+
 function spoolRawToWindowsPrinter(printerName, rawContent) {
     return new Promise((resolve) => {
         if (process.platform !== 'win32') {
@@ -504,27 +536,400 @@ ipcMain.on('print-tspl-raw', async (event, tsplPayload, options) => {
 });
 
 ipcMain.on('print-html', (event, htmlContent, options) => {
+    let tempPath = null;
     try {
         const targetPrinter = options?.printerName || getSavedPrinterPreference();
+        tempPath = path.join(app.getPath('temp'), `html_print_${Date.now()}.html`);
+        fs.writeFileSync(tempPath, htmlContent, 'utf8');
+
         const printWin = new BrowserWindow({
             show: false,
             webPreferences: { nodeIntegration: false, contextIsolation: true }
         });
-        printWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
+
+        printWin.loadFile(tempPath);
+
         printWin.webContents.on('did-finish-load', () => {
-            printWin.webContents.print({
-                silent: options?.showDialog ? false : true,
-                printBackground: true,
-                deviceName: targetPrinter || '',
-                landscape: !!options?.landscape
-            }, (success, failureReason) => {
-                event.reply('print-response', { success, error: failureReason });
-                printWin.close();
-            });
+            setTimeout(() => {
+                printWin.webContents.print({
+                    silent: options?.showDialog ? false : true,
+                    printBackground: true,
+                    deviceName: targetPrinter || '',
+                    landscape: !!options?.landscape
+                }, (success, failureReason) => {
+                    if (tempPath && fs.existsSync(tempPath)) {
+                        try { fs.unlinkSync(tempPath); } catch {}
+                    }
+                    event.reply('print-response', { success, error: failureReason });
+                    printWin.close();
+                });
+            }, 150);
         });
     } catch (err) {
+        if (tempPath && fs.existsSync(tempPath)) {
+            try { fs.unlinkSync(tempPath); } catch {}
+        }
         console.error('print-html error:', err);
         event.reply('print-response', { success: false, error: err.message });
+    }
+});
+
+function generateThermalReceiptHTML(payload) {
+    const rawStore = payload.storeName || '';
+    const storeName = (!rawStore || rawStore.toUpperCase().includes('TRADES')) ? 'SRI GAYATHRI TRADERS' : rawStore;
+    const storeMobile = payload.storeMobile || '';
+    const gstNo = payload.gstNo || '';
+    const salesman = payload.salesman || '';
+    const invoiceNo = payload.invoiceNo || 'N/A';
+    const date = payload.date || new Date().toLocaleDateString('en-IN');
+    const customerName = payload.customerName || 'CASH CUSTOMER';
+    const paymentMode = payload.paymentMode || 'Cash';
+    const items = payload.items || [];
+    const subTotal = Number(payload.subTotal || 0).toFixed(2);
+    const cgstAmount = Number(payload.cgstAmount || 0).toFixed(2);
+    const sgstAmount = Number(payload.sgstAmount || 0).toFixed(2);
+    const roundOff = Number(payload.roundOff || 0).toFixed(2);
+    const netAmount = Number(payload.netAmount || 0).toFixed(2);
+    const receiptTitle = payload.receiptTitle || 'SALES INVOICE';
+
+    let itemRows = items.map((item, idx) => `
+        <tr>
+            <td style="text-align: left; padding: 3px 0; font-weight: 700;">${idx + 1}. ${item.itemName}</td>
+            <td style="text-align: center; padding: 3px 0; font-weight: 700;">${item.qty}</td>
+            <td style="text-align: right; padding: 3px 0; font-weight: 700;">${Number(item.rate).toFixed(2)}</td>
+            <td style="text-align: right; padding: 3px 0; font-weight: 900;">${Number(item.amount).toFixed(2)}</td>
+        </tr>
+    `).join('');
+
+    return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    @page { size: 80mm auto; margin: 0mm !important; }
+    @media print {
+      html, body {
+        width: 72mm !important;
+        max-width: 72mm !important;
+        margin: 0 auto !important;
+        padding: 0 !important;
+        background: #ffffff !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+      .no-print { display: none !important; }
+    }
+    * {
+      box-sizing: border-box;
+      font-family: 'Courier New', Courier, monospace !important;
+      color: #000000 !important;
+      font-weight: 700 !important;
+      -webkit-font-smoothing: none !important;
+      text-rendering: optimizeLegibility !important;
+      word-wrap: break-word !important;
+      overflow-wrap: break-word !important;
+    }
+    html, body {
+      width: 72mm !important;
+      max-width: 72mm !important;
+      margin: 0 auto !important;
+      padding: 2mm 3mm !important;
+      font-size: 11px;
+      background: #ffffff !important;
+      line-height: 1.3;
+    }
+    .receipt-print-container {
+      width: 100%;
+      max-width: 72mm;
+      margin: 0 auto !important;
+      padding: 0 2mm !important;
+    }
+    .text-center { text-align: center; }
+    .text-right { text-align: right; }
+    .bold { font-weight: 900 !important; }
+    .divider { border-top: 2px dashed #000000; margin: 4px 0; }
+    .store-title { font-size: 16px; font-weight: 900 !important; text-align: center; text-transform: uppercase; letter-spacing: 0.5px; }
+    .tax-title { font-size: 12px; font-weight: 900 !important; text-align: center; margin-top: 2px; }
+    table { width: 100%; border-collapse: collapse; margin: 4px 0; table-layout: fixed; }
+    th { border-bottom: 2px dashed #000000; border-top: 2px dashed #000000; padding: 4px 0; font-size: 11px; font-weight: 900 !important; }
+    td { font-size: 11px; font-weight: 700 !important; word-wrap: break-word; overflow-wrap: break-word; }
+  </style>
+</head>
+<body>
+  <div class="receipt-print-container">
+    <div class="store-title">${storeName}</div>
+    <div class="tax-title">*** ${receiptTitle} ***</div>
+    ${storeMobile ? `<div class="text-center bold" style="margin-top: 2px;">Ph: ${storeMobile}</div>` : ''}
+    ${gstNo ? `<div class="text-center bold">GSTIN: ${gstNo}</div>` : ''}
+    <div class="divider"></div>
+    <div>Inv No  : <span class="bold">${invoiceNo}</span></div>
+    <div>Date    : <span class="bold">${date}</span></div>
+    <div>Customer: <span class="bold">${customerName}</span></div>
+    <div>Pay Mode: <span class="bold">${paymentMode}</span></div>
+    ${salesman ? `<div>Salesman: <span class="bold">${salesman}</span></div>` : ''}
+    <div class="divider"></div>
+    <table>
+      <thead>
+        <tr>
+          <th style="text-align: left; width: 44%;">Item</th>
+          <th style="text-align: center; width: 14%;">Qty</th>
+          <th style="text-align: right; width: 21%;">Rate</th>
+          <th style="text-align: right; width: 21%;">Amt</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${itemRows}
+      </tbody>
+    </table>
+    <div class="divider"></div>
+    <div style="display: flex; justify-content: space-between;">
+      <span>Subtotal:</span>
+      <span class="bold">₹${subTotal}</span>
+    </div>
+    ${Number(cgstAmount) > 0 ? `<div style="display: flex; justify-content: space-between;"><span>CGST:</span><span class="bold">₹${cgstAmount}</span></div>` : ''}
+    ${Number(sgstAmount) > 0 ? `<div style="display: flex; justify-content: space-between;"><span>SGST:</span><span class="bold">₹${sgstAmount}</span></div>` : ''}
+    ${Number(roundOff) !== 0 ? `<div style="display: flex; justify-content: space-between;"><span>Round Off:</span><span class="bold">₹${roundOff}</span></div>` : ''}
+    <div class="divider"></div>
+    <div style="display: flex; justify-content: space-between; font-size: 15px; font-weight: 900;">
+      <span>NET TOTAL:</span>
+      <span class="bold">₹${netAmount}</span>
+    </div>
+    <div class="divider"></div>
+    <div class="text-center bold" style="margin-top: 8px; font-size: 11px;">
+      Thank you for purchasing!<br>Visit again!
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
+function formatTwoColumns(leftText, rightText, width = 48) {
+    const left = String(leftText || '');
+    const right = String(rightText || '');
+    const spaceCount = width - left.length - right.length;
+    if (spaceCount < 1) {
+        return left.substring(0, width - right.length - 1) + ' ' + right;
+    }
+    return left + ' '.repeat(spaceCount) + right;
+}
+
+function formatTableLine(itemNum, itemName, qty, rate, amt, width = 48) {
+    const colItem = (itemNum + '. ' + itemName).padEnd(24).substring(0, 24);
+    const colQty = String(qty).padStart(5).substring(0, 5);
+    const colRate = Number(rate).toFixed(2).padStart(9).substring(0, 9);
+    const colAmt = Number(amt).toFixed(2).padStart(10).substring(0, 10);
+    return colItem + colQty + colRate + colAmt;
+}
+
+function generateESCPOSReceiptBuffer(payload) {
+    const rawStore = payload.storeName || '';
+    const storeName = (!rawStore || rawStore.toUpperCase().includes('TRADES')) ? 'SRI GAYATHRI TRADERS' : rawStore.toUpperCase();
+    const storeMobile = payload.storeMobile || '';
+    const gstNo = payload.gstNo || '';
+    const invoiceNo = payload.invoiceNo || 'N/A';
+    const date = payload.date || new Date().toLocaleDateString('en-IN');
+    const customerName = payload.customerName || 'CASH CUSTOMER';
+    const paymentMode = payload.paymentMode || 'Cash';
+    const salesman = payload.salesman || '';
+    const items = payload.items || [];
+    const subTotal = Number(payload.subTotal || 0).toFixed(2);
+    const cgstAmount = Number(payload.cgstAmount || 0).toFixed(2);
+    const sgstAmount = Number(payload.sgstAmount || 0).toFixed(2);
+    const roundOff = Number(payload.roundOff || 0).toFixed(2);
+    const netAmount = Number(payload.netAmount || 0).toFixed(2);
+    const receiptTitle = (payload.receiptTitle || 'SALES INVOICE').toUpperCase();
+
+    const parts = [];
+
+    // 1. Initialize printer: ESC @ (0x1B 0x40)
+    parts.push(Buffer.from([0x1b, 0x40]));
+
+    // 2. Select Code Page CP437: ESC t 0 (0x1B 0x74 0x00)
+    parts.push(Buffer.from([0x1b, 0x74, 0x00]));
+
+    // 3. Store Name Header (Centered, Double Height + Double Width + Bold)
+    parts.push(Buffer.from([0x1b, 0x61, 0x01])); // Center align
+    parts.push(Buffer.from([0x1d, 0x21, 0x11])); // Double width & height
+    parts.push(Buffer.from([0x1b, 0x45, 0x01])); // Bold ON
+    parts.push(Buffer.from(`${storeName}\n`, 'ascii'));
+
+    // Reset Font size to Normal: GS ! 0 (0x1D 0x21 0x00)
+    parts.push(Buffer.from([0x1d, 0x21, 0x00]));
+
+    // Title: *** SALES INVOICE ***
+    parts.push(Buffer.from(`*** ${receiptTitle} ***\n`, 'ascii'));
+
+    // Close Day Owner's Phone BELOW Title Line!
+    if (storeMobile) {
+        parts.push(Buffer.from(`Ph: ${storeMobile}\n`, 'ascii'));
+    }
+    if (gstNo) {
+        parts.push(Buffer.from(`GSTIN: ${gstNo}\n`, 'ascii'));
+    }
+    parts.push(Buffer.from([0x1b, 0x45, 0x00])); // Bold OFF
+
+    // 4. Left Align Details (ESC a 0)
+    parts.push(Buffer.from([0x1b, 0x61, 0x00]));
+    parts.push(Buffer.from('------------------------------------------------\n', 'ascii'));
+    parts.push(Buffer.from(`Inv No  : ${invoiceNo}\n`, 'ascii'));
+    parts.push(Buffer.from(`Date    : ${date}\n`, 'ascii'));
+    parts.push(Buffer.from(`Customer: ${customerName}\n`, 'ascii'));
+    parts.push(Buffer.from(`Pay Mode: ${paymentMode}\n`, 'ascii'));
+    if (salesman) {
+        parts.push(Buffer.from(`Salesman: ${salesman}\n`, 'ascii'));
+    }
+    parts.push(Buffer.from('------------------------------------------------\n', 'ascii'));
+
+    // 5. Table Header
+    const headerLine = 'Item                    Qty     Rate       Amt  \n';
+    parts.push(Buffer.from([0x1b, 0x45, 0x01])); // Bold ON
+    parts.push(Buffer.from(headerLine, 'ascii'));
+    parts.push(Buffer.from([0x1b, 0x45, 0x00])); // Bold OFF
+    parts.push(Buffer.from('------------------------------------------------\n', 'ascii'));
+
+    // 6. Item Rows
+    items.forEach((item, idx) => {
+        const itemNum = idx + 1;
+        const name = item.itemName || 'Item';
+        
+        if (name.length <= 22) {
+            const line = formatTableLine(itemNum, name, item.qty, item.rate, item.amount, 48) + '\n';
+            parts.push(Buffer.from(line, 'ascii'));
+        } else {
+            const line1 = formatTableLine(itemNum, name.substring(0, 22), item.qty, item.rate, item.amount, 48) + '\n';
+            const line2 = '   ' + name.substring(22) + '\n';
+            parts.push(Buffer.from(line1, 'ascii'));
+            parts.push(Buffer.from(line2, 'ascii'));
+        }
+    });
+
+    parts.push(Buffer.from('------------------------------------------------\n', 'ascii'));
+
+    // 7. Totals & Tax Summary
+    parts.push(Buffer.from(formatTwoColumns('Subtotal:', `Rs.${subTotal}`, 48) + '\n', 'ascii'));
+    if (Number(cgstAmount) > 0) {
+        parts.push(Buffer.from(formatTwoColumns('CGST:', `Rs.${cgstAmount}`, 48) + '\n', 'ascii'));
+    }
+    if (Number(sgstAmount) > 0) {
+        parts.push(Buffer.from(formatTwoColumns('SGST:', `Rs.${sgstAmount}`, 48) + '\n', 'ascii'));
+    }
+    if (Number(roundOff) !== 0) {
+        parts.push(Buffer.from(formatTwoColumns('Round Off:', `Rs.${roundOff}`, 48) + '\n', 'ascii'));
+    }
+
+    parts.push(Buffer.from('------------------------------------------------\n', 'ascii'));
+
+    // Grand Net Total (Double Height + Bold)
+    parts.push(Buffer.from([0x1d, 0x21, 0x01])); // Double Height
+    parts.push(Buffer.from([0x1b, 0x45, 0x01])); // Bold ON
+    parts.push(Buffer.from(formatTwoColumns('NET TOTAL:', `Rs.${netAmount}`, 48) + '\n', 'ascii'));
+    parts.push(Buffer.from([0x1d, 0x21, 0x00])); // Reset size
+    parts.push(Buffer.from([0x1b, 0x45, 0x00])); // Bold OFF
+
+    parts.push(Buffer.from('------------------------------------------------\n', 'ascii'));
+
+    // 8. Footer (Centered)
+    parts.push(Buffer.from([0x1b, 0x61, 0x01]));
+    parts.push(Buffer.from('Thank you for purchasing!\nVisit again!\n\n\n\n', 'ascii'));
+
+    // 9. Auto Paper Cut (GS V A 0: 0x1D 0x56 0x41 0x00)
+    parts.push(Buffer.from([0x1d, 0x56, 0x41, 0x00]));
+
+    return Buffer.concat(parts);
+}
+
+ipcMain.on('print-receipt', async (event, data) => {
+    let tempPath = null;
+    let printWin = null;
+    try {
+        const payload = data?.payload || data;
+        const config = data?.config || {};
+        const printers = await getSystemPrinters();
+        
+        const targetPrinter = await resolveReceiptPrinter(printers, config?.printerName);
+
+        console.log(`[Invoice Spooler] Printing Tax Invoice receipt to target printer: "${targetPrinter || 'Default System Printer'}"...`);
+
+        // Mode A: Try Direct Win32 Hardware ESC/POS RAW Spooling First (Guarantees solid dark print with auto-cut on thermal printers!)
+        if (targetPrinter && process.platform === 'win32') {
+            try {
+                const escposBuffer = generateESCPOSReceiptBuffer(payload);
+                const rawResult = await spoolRawToWindowsPrinter(targetPrinter, escposBuffer);
+                if (rawResult && rawResult.success) {
+                    console.log(`[Invoice Spooler] ESC/POS Direct Win32 RAW Spool succeeded on "${targetPrinter}"!`);
+                    event.reply('print-receipt-response', { success: true, targetPrinter, mode: 'raw-escpos' });
+                    return;
+                } else {
+                    console.warn(`[Invoice Spooler] ESC/POS Direct RAW Spool attempt returned:`, rawResult);
+                }
+            } catch (rawErr) {
+                console.warn(`[Invoice Spooler] ESC/POS RAW Spool error, falling back to HTML renderer:`, rawErr);
+            }
+        }
+
+        // Mode B: HTML Window Spooling Fallback
+        const htmlReceipt = generateThermalReceiptHTML(payload);
+        
+        tempPath = path.join(app.getPath('temp'), `receipt_${Date.now()}.html`);
+        fs.writeFileSync(tempPath, htmlReceipt, 'utf8');
+
+        printWin = new BrowserWindow({
+            show: false,
+            webPreferences: { nodeIntegration: false, contextIsolation: true }
+        });
+
+        printWin.loadFile(tempPath);
+
+        printWin.webContents.on('did-finish-load', () => {
+            setTimeout(() => {
+                const printOpts = {
+                    silent: true,
+                    printBackground: true,
+                    margins: { marginType: 'none' }
+                };
+
+                if (targetPrinter) {
+                    printOpts.deviceName = targetPrinter;
+                }
+
+                printWin.webContents.print(printOpts, (success, failureReason) => {
+                    console.log(`[Invoice Spooler] Silent print result on "${targetPrinter}": success=${success}, reason=${failureReason}`);
+                    
+                    if (!success) {
+                        console.warn(`[Invoice Spooler] Silent print on "${targetPrinter}" failed (${failureReason}). Prompting interactive printer dialog...`);
+                        
+                        printWin.webContents.print({ silent: false, printBackground: true }, (fbSuccess, fbReason) => {
+                            if (tempPath && fs.existsSync(tempPath)) {
+                                try { fs.unlinkSync(tempPath); } catch {}
+                            }
+                            event.reply('print-receipt-response', { success: fbSuccess, error: fbReason, targetPrinter });
+                            if (printWin && !printWin.isDestroyed()) printWin.close();
+                        });
+                    } else {
+                        if (tempPath && fs.existsSync(tempPath)) {
+                            try { fs.unlinkSync(tempPath); } catch {}
+                        }
+                        event.reply('print-receipt-response', { success: true, targetPrinter });
+                        if (printWin && !printWin.isDestroyed()) printWin.close();
+                    }
+                });
+            }, 200);
+        });
+    } catch (err) {
+        if (tempPath && fs.existsSync(tempPath)) {
+            try { fs.unlinkSync(tempPath); } catch {}
+        }
+        if (printWin && !printWin.isDestroyed()) printWin.close();
+        console.error('[Invoice Spooler] print-receipt error:', err);
+        event.reply('print-receipt-response', { success: false, error: err.message });
+    }
+});
+
+ipcMain.on('print-escpos', async (event, data) => {
+    try {
+        ipcMain.emit('print-receipt', event, data);
+    } catch (err) {
+        event.reply('print-escpos-response', { success: false, error: err.message });
     }
 });
 

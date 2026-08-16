@@ -29,6 +29,8 @@ export interface ReceiptPayload {
   receiptTitle?: string;
   footerNote?: string;
   favourDiscount?: number;
+  gstNo?: string;
+  salesman?: string;
 }
 
 export interface PrinterConfig {
