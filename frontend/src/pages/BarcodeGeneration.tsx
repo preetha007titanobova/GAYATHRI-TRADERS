@@ -277,7 +277,7 @@ const BarcodeGeneration = () => {
         id: '8901234567890-seed',
         productName: 'GENERAL SAMPLE PRODUCT',
         barcodeValue: '8901234567890',
-        department: 'General',
+        department: '',
         variety: 'Standard',
         weight: '1kg',
         batchNo: 'BATCH-1001',
@@ -374,7 +374,7 @@ const BarcodeGeneration = () => {
   const handleSelectProduct = (prod: Product) => {
     setProductName(prod.name);
     setBarcodeValue(prod.barcode || prod.itemCode || `BC-${Date.now().toString().slice(-6)}`);
-    setDepartment(prod.department || 'General');
+    setDepartment(prod.department || '');
     setVariety(prod.variety || 'Standard');
     setWeight(prod.weight || '1kg');
     setMrp(prod.mrp || prod.price || 0);
@@ -460,7 +460,7 @@ const BarcodeGeneration = () => {
       id: `${barcodeValue.trim()}-${Date.now()}`,
       productName: productName.trim(),
       barcodeValue: barcodeValue.trim(),
-      department: department.trim() || 'General',
+      department: department.trim() || '',
       variety: variety.trim() || 'Standard',
       weight: weight.trim() || '1kg',
       batchNo: batchNo.trim() || `BATCH-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -851,7 +851,7 @@ const BarcodeGeneration = () => {
       id: Date.now().toString(),
       productName,
       barcodeValue,
-      department: department || 'General',
+      department: department || '',
       variety: variety || 'Standard',
       weight: weight || '1kg',
       batchNo,
@@ -904,7 +904,7 @@ const BarcodeGeneration = () => {
     ctx.fillText(item.productName.toUpperCase(), 200, 70);
 
     // Category | Variety | Weight
-    const metaStr = `${item.department || 'General'} | ${item.variety || 'Standard'} | Wt: ${item.weight || '1kg'}`;
+    const metaStr = `${item.department || ''} | ${item.variety || 'Standard'} | Wt: ${item.weight || '1kg'}`;
     ctx.fillStyle = '#475569';
     ctx.font = 'bold 14px Arial';
     ctx.fillText(metaStr, 200, 94);
@@ -1089,7 +1089,7 @@ const BarcodeGeneration = () => {
                         <div className="text-right">
                           <div className="font-bold text-emerald-700">₹{prod.price || prod.mrp || 0}</div>
                           <div className="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
-                            {prod.department || 'General'} | {prod.variety || 'Standard'} | Wt: <strong>{prod.weight || '1kg'}</strong>
+                            {prod.department || ''} | {prod.variety || 'Standard'} | Wt: <strong>{prod.weight || '1kg'}</strong>
                           </div>
                         </div>
                       </div>
@@ -1528,7 +1528,7 @@ const BarcodeGeneration = () => {
                     id: Date.now().toString(),
                     productName,
                     barcodeValue,
-                    department: department || 'General',
+                    department: department || '',
                     variety: variety || 'Standard',
                     weight: weight || '1kg',
                     batchNo,

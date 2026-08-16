@@ -388,7 +388,7 @@ const StockStatus = () => {
                       <td className="border-r border-gray-200 p-2 text-gray-800">
                         <div className="font-bold">{item.name} {item.group && <span className="text-[10px] font-normal text-gray-400 ml-2">({item.group})</span>}</div>
                       </td>
-                      <td className="border-r border-gray-200 p-2 text-xs text-center text-gray-500">{item.department || item.group || 'General'}</td>
+                      <td className="border-r border-gray-200 p-2 text-xs text-center text-gray-500">{item.department || item.group || '-'}</td>
                       <td className="border-r border-gray-200 p-2 text-xs text-center text-gray-500">{item.uom || 'PCS'}</td>
                       <td className={`border-r border-gray-200 p-2 text-right font-mono font-black text-sm ${isLow ? 'text-red-600' : 'text-blue-700'}`}>
                         {isLow && <AlertTriangle size={12} className="inline mr-1 -mt-1 text-red-500" />}

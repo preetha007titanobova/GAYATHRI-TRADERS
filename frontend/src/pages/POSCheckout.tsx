@@ -650,7 +650,7 @@ const POSCheckout = () => {
         price: prodPrice,
         stock: updatedStock,
         uom: product.uom || 'PCS',
-        dept: product.department || product.variety || 'General'
+        dept: product.department || product.variety || ''
       });
 
       // Update grid table

@@ -199,7 +199,7 @@ export const createPurchaseBill = async (data: any): Promise<any> => {
               price: sellingPrice,
               mrp: mrp,
               barcode: cleanBarcode,
-              category: item.category || item.department || product.category || 'General',
+              category: item.category || item.department || product.category || '',
               vendorItemCode: item.vendorItemCode || product.vendorItemCode || '',
               updatedAt: new Date()
             }
@@ -217,7 +217,7 @@ export const createPurchaseBill = async (data: any): Promise<any> => {
           mrp: mrp,
           taxPercent: taxPercent,
           stock: Math.round(totalQty),
-          category: item.category || item.department || 'General',
+          category: item.category || item.department || '',
           vendorItemCode: item.vendorItemCode || '',
           createdAt: new Date(),
           updatedAt: new Date()
@@ -405,7 +405,7 @@ export const updatePurchaseBill = async (id: string, data: any): Promise<boolean
               price: sellingPrice,
               mrp: mrp,
               barcode: cleanBarcode,
-              category: item.category || item.department || product.category || 'General',
+              category: item.category || item.department || product.category || '',
               vendorItemCode: item.vendorItemCode || product.vendorItemCode || '',
               updatedAt: new Date()
             }
@@ -423,7 +423,7 @@ export const updatePurchaseBill = async (id: string, data: any): Promise<boolean
           mrp: mrp,
           taxPercent: taxPercent,
           stock: Math.round(totalQty),
-          category: item.category || item.department || 'General',
+          category: item.category || item.department || '',
           vendorItemCode: item.vendorItemCode || '',
           createdAt: new Date(),
           updatedAt: new Date()

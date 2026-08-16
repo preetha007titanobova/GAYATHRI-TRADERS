@@ -54,7 +54,7 @@ const Quotation = () => {
     quantity: 1,
     unitPrice: '',
     discountPercent: '',
-    taxRate: 18
+    taxRate: 0
   }]);
 
   const [availableProducts, setAvailableProducts] = useState<any[]>([]);
@@ -227,7 +227,7 @@ const Quotation = () => {
       quantity: 1,
       unitPrice: '',
       discountPercent: '',
-      taxRate: 18
+      taxRate: 0
     }]);
   };
 

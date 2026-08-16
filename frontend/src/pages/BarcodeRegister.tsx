@@ -286,7 +286,7 @@ PRINT 1,${count}
                           {item.barcodeValue}
                         </td>
                         <td className="p-2.5 border-r border-slate-200 font-bold text-slate-900">{item.productName}</td>
-                        <td className="p-2.5 border-r border-slate-200 text-slate-700">{item.department || 'General'}</td>
+                        <td className="p-2.5 border-r border-slate-200 text-slate-700">{item.department || '-'}</td>
                         <td className="p-2.5 border-r border-slate-200 text-right font-mono text-slate-700">
                           ₹{Number(item.mrp || 0).toFixed(2)}
                         </td>

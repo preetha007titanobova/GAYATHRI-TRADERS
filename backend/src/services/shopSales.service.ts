@@ -80,7 +80,7 @@ export const createShopSalesBill = async (data: any): Promise<any> => {
               price: item.salesRate ? Number(item.salesRate) : product.price,
               mrp: item.mrp ? Number(item.mrp) : product.mrp,
               barcode: cleanBarcode,
-              category: item.category || item.department || product.category || 'General',
+              category: item.category || item.department || product.category || '',
               vendorItemCode: item.vendorItemCode || product.vendorItemCode || '',
               updatedAt: new Date()
             }
@@ -98,7 +98,7 @@ export const createShopSalesBill = async (data: any): Promise<any> => {
           mrp: Number(item.mrp || rate),
           taxPercent: taxPercent,
           stock: -Math.round(qty),
-          category: item.category || item.department || 'General',
+          category: item.category || item.department || '',
           vendorItemCode: item.vendorItemCode || '',
           createdAt: new Date(),
           updatedAt: new Date()
@@ -246,7 +246,7 @@ export const updateShopSalesBill = async (id: string, data: any): Promise<boolea
               price: item.salesRate ? Number(item.salesRate) : product.price,
               mrp: item.mrp ? Number(item.mrp) : product.mrp,
               barcode: cleanBarcode,
-              category: item.category || item.department || product.category || 'General',
+              category: item.category || item.department || product.category || '',
               vendorItemCode: item.vendorItemCode || product.vendorItemCode || '',
               updatedAt: new Date()
             }
@@ -264,7 +264,7 @@ export const updateShopSalesBill = async (id: string, data: any): Promise<boolea
           mrp: Number(item.mrp || rate),
           taxPercent: taxPercent,
           stock: -Math.round(qty),
-          category: item.category || item.department || 'General',
+          category: item.category || item.department || '',
           vendorItemCode: item.vendorItemCode || '',
           createdAt: new Date(),
           updatedAt: new Date()

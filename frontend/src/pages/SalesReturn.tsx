@@ -108,7 +108,7 @@ const SalesReturn = () => {
                 returnQty: item.returnQty,
                 unitPrice: item.unitPrice,
                 taxableAmt: item.taxableAmt || (item.returnQty * item.unitPrice),
-                taxPercent: item.taxPercent || 18,
+                taxPercent: item.taxPercent || 0,
                 disposition: item.disposition || 'Return to Warehouse',
                 subtotal: item.subtotal,
                 _originalTaxable: item.taxableAmt || (item.returnQty * item.unitPrice)

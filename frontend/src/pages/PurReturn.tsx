@@ -275,7 +275,7 @@ const PurReturn = () => {
             purchasedQty: origQty,
             unitPrice: item.unitPrice || item.rate || 0,
             discPercent: item.discPercent || 0,
-            taxPercent: item.taxPercent || 18,
+            taxPercent: item.taxPercent || 0,
             returnQty: initialReturnQty,
             taxableAmt: 0,
             cgstAmt: 0,

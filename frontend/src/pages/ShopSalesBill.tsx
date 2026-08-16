@@ -293,7 +293,7 @@ const ShopSalesBill = () => {
               vendorItemCode: product.vendorItemCode || '',
               itemName: product.name,
               weight: product.weight || '',
-              category: product.department || 'General',
+              category: product.department || '',
               itemDesc: product.name,
               hsn: product.barcode || '',
               qty: 1,
@@ -301,7 +301,7 @@ const ShopSalesBill = () => {
               salesRate: product.price || 0,
               mrp: product.mrp || 0,
               discPercent: 0,
-              taxPercent: product.taxPercent || 18,
+              taxPercent: product.taxPercent || 0,
               cgstAmt: 0,
               sgstAmt: 0,
               igstAmt: 0,
@@ -520,9 +520,9 @@ const ShopSalesBill = () => {
           updated.unitPrice = prod.purchaseRate || 0; // standard purchase rate
           updated.salesRate = prod.price || 0;
           updated.mrp = prod.mrp || 0;
-          updated.taxPercent = prod.taxPercent || 18;
+          updated.taxPercent = prod.taxPercent || 0;
           updated.weight = prod.weight || '';
-          updated.category = prod.department || 'General';
+          updated.category = prod.department || '';
           updated.vendorItemCode = prod.vendorItemCode || '';
         }
       }
@@ -540,8 +540,8 @@ const ShopSalesBill = () => {
   const addRow = () => {
     setItems([...items, {
       id: Math.random().toString(),
-      itemCode: '', vendorItemCode: '', itemName: '', weight: '', category: 'General', itemDesc: '', hsn: '', qty: 1, unitPrice: 0, salesRate: 0, mrp: 0, discPercent: 0,
-      taxPercent: 18, cgstAmt: 0, sgstAmt: 0, igstAmt: 0, total: 0, isManualItem: false
+      itemCode: '', vendorItemCode: '', itemName: '', weight: '', category: '', itemDesc: '', hsn: '', qty: 1, unitPrice: 0, salesRate: 0, mrp: 0, discPercent: 0,
+      taxPercent: 0, cgstAmt: 0, sgstAmt: 0, igstAmt: 0, total: 0, isManualItem: false
     }]);
   };
 
@@ -632,7 +632,7 @@ const ShopSalesBill = () => {
           salesRate: i.salesRate || prod?.price || i.rate || 0,
           mrp: i.mrp || prod?.mrp || i.rate || 0,
           discPercent: i.discPercent || 0,
-          taxPercent: i.taxPercent || 18,
+          taxPercent: i.taxPercent || 0,
           cgstAmt: i.cgst || 0,
           sgstAmt: i.sgst || 0,
           igstAmt: i.igst || 0,
@@ -837,7 +837,7 @@ const ShopSalesBill = () => {
       vendorItemCode: prod.vendorItemCode || '',
       itemName: prod.name || '',
       weight: prod.weight || '',
-      category: prod.department || 'General',
+      category: prod.department || '',
       itemDesc: prod.name || '',
       hsn: prod.barcode || '',
       qty: 1,
@@ -845,7 +845,7 @@ const ShopSalesBill = () => {
       salesRate: prod.price || 0,
       mrp: prod.mrp || 0,
       discPercent: 0,
-      taxPercent: prod.taxPercent || 18,
+      taxPercent: prod.taxPercent || 0,
       cgstAmt: 0,
       sgstAmt: 0,
       igstAmt: 0,
@@ -1010,10 +1010,11 @@ const ShopSalesBill = () => {
                         </td>
                         <td className="border-r border-gray-300 p-0">
                           <select
-                            value={item.category || 'General'}
+                            value={item.category || ''}
                             onChange={e => updateItem(item.id, 'category', e.target.value)}
                             className="w-full p-1 bg-transparent focus:bg-white focus:outline-none text-xs"
                           >
+                            <option value="">Select Category</option>
                             <option value="General">General</option>
                             <option value="Groceries">Groceries</option>
                             <option value="Hardware">Hardware</option>

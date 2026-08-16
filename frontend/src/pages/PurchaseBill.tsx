@@ -76,7 +76,7 @@ const PurchaseBill = () => {
     purchaseRate: 0,
     price: 0,
     mrp: 0,
-    taxPercent: 18,
+    taxPercent: 0,
     qty: 1
   });
 
@@ -227,11 +227,11 @@ const PurchaseBill = () => {
         name: (item.itemDesc || item.itemName || item.itemCode).trim(),
         barcode: item.itemCode.trim(),
         weight: item.weight || '',
-        department: item.category || 'General',
+        department: item.category || '',
         purchaseRate: Number(item.unitPrice) || 0,
         price: Number(item.salesRate) || Number(item.unitPrice) || 0,
         mrp: Number(item.mrp) || Number(item.unitPrice) || 0,
-        taxPercent: Number(item.taxPercent) || 18,
+        taxPercent: Number(item.taxPercent) || 0,
         stock: method === 'POST' ? 0 : existingStock,
         uom: 'PCS'
       };
@@ -340,7 +340,7 @@ const PurchaseBill = () => {
         vendorItemCode: '',
         itemName: quickAddForm.name.trim(),
         weight: '',
-        category: quickAddForm.department || 'General',
+        category: quickAddForm.department || '',
         itemDesc: quickAddForm.name.trim(),
         hsn: quickAddForm.barcode.trim(),
         qty: Number(quickAddForm.qty) || 1,
@@ -349,7 +349,7 @@ const PurchaseBill = () => {
         salesRate: Number(quickAddForm.price) || 0,
         mrp: Number(quickAddForm.mrp) || 0,
         discPercent: 0,
-        taxPercent: Number(quickAddForm.taxPercent) || 18,
+        taxPercent: Number(quickAddForm.taxPercent) || 0,
         cgstAmt: 0,
         sgstAmt: 0,
         igstAmt: 0,
@@ -391,7 +391,7 @@ const PurchaseBill = () => {
     itemName: '',
     weight: '',
     unit: 'g',
-    category: 'General',
+    category: '',
     itemDesc: '',
     hsn: '',
     qty: 1,
@@ -400,7 +400,7 @@ const PurchaseBill = () => {
     salesRate: 0,
     mrp: 0,
     discPercent: 0,
-    taxPercent: 18,
+    taxPercent: 0,
     cgstAmt: 0,
     sgstAmt: 0,
     igstAmt: 0,
@@ -491,7 +491,7 @@ const PurchaseBill = () => {
               purchaseRate: 0,
               price: 0,
               mrp: 0,
-              taxPercent: 18,
+              taxPercent: 0,
               qty: 1
             });
             setIsQuickAddModalOpen(true);
@@ -532,7 +532,7 @@ const PurchaseBill = () => {
             vendorItemCode: product.vendorItemCode || '',
             itemName: product.name,
             weight: product.weight || '',
-            category: product.department || 'General',
+            category: product.department || '',
             itemDesc: product.name,
             hsn: product.barcode || '',
             qty: 1,
@@ -540,7 +540,7 @@ const PurchaseBill = () => {
             salesRate: product.price || 0,
             mrp: product.mrp || 0,
             discPercent: 0,
-            taxPercent: product.taxPercent || 18,
+            taxPercent: product.taxPercent ?? 0,
             cgstAmt: 0,
             sgstAmt: 0,
             igstAmt: 0,
@@ -676,11 +676,11 @@ const PurchaseBill = () => {
           updated.unitPrice = prod.purchaseRate || 0;
           updated.salesRate = prod.price || 0;
           updated.mrp = prod.mrp || 0;
-          updated.taxPercent = prod.taxPercent || 18;
+          updated.taxPercent = prod.taxPercent ?? 0;
           updated.weight = prod.weight || '';
           updated.unit = prod.unit || 'g';
           updated.freeQty = 0;
-          updated.category = prod.department || 'General';
+          updated.category = prod.department || '';
           updated.vendorItemCode = prod.vendorItemCode || '';
         }
       }
@@ -820,7 +820,7 @@ const PurchaseBill = () => {
         const qty = Number(i.qty || i.purchasedQty || 1);
         const freeQty = Number(i.freeQty || 0);
         const discPercent = Number(i.discPercent || i.discountPercent || 0);
-        const taxPercent = Number(i.taxPercent || i.taxRate || 18);
+        const taxPercent = Number(i.taxPercent ?? i.taxRate ?? 0);
 
         const rawItem: PurchaseItem = {
           id: i.id || i._id || Math.random().toString(),
@@ -829,7 +829,7 @@ const PurchaseBill = () => {
           itemName: i.itemName || i.itemDesc || i.itemCode || '',
           weight: i.weight || prod?.weight || '',
           unit: i.unit || prod?.unit || 'g',
-          category: i.category || i.department || prod?.department || 'General',
+          category: i.category || i.department || prod?.department || '',
           itemDesc: i.itemName || i.itemDesc || i.itemCode || '',
           hsn: i.hsn || i.barcode || prod?.barcode || '',
           qty: qty,
@@ -916,7 +916,7 @@ const PurchaseBill = () => {
         itemDesc: i.itemDesc || i.itemName || i.itemCode,
         weight: i.weight || '',
         unit: i.unit || 'g',
-        category: i.category || 'General',
+        category: i.category || '',
         qty: Number(i.qty) || 0,
         freeQty: Number(i.freeQty) || 0,
         rate: Number(i.unitPrice) || 0,
@@ -1071,7 +1071,7 @@ const PurchaseBill = () => {
       vendorItemCode: prod.vendorItemCode || '',
       itemName: prod.name || '',
       weight: prod.weight || '',
-      category: prod.department || 'General',
+      category: prod.department || '',
       itemDesc: prod.name || '',
       hsn: prod.barcode || '',
       qty: 1,
@@ -1080,7 +1080,7 @@ const PurchaseBill = () => {
       salesRate: prod.price || 0,
       mrp: prod.mrp || 0,
       discPercent: 0,
-      taxPercent: prod.taxPercent || 18,
+      taxPercent: prod.taxPercent ?? 0,
       cgstAmt: 0,
       sgstAmt: 0,
       igstAmt: 0,
@@ -1494,7 +1494,7 @@ const PurchaseBill = () => {
                         <td className="border-r border-gray-300 p-0">
                           <input 
                             type="number" 
-                            value={item.taxPercent} 
+                            value={item.taxPercent === 0 ? '' : item.taxPercent} 
                             onChange={e => updateItem(item.id, 'taxPercent', Number(e.target.value))} 
                             onKeyDown={e => handleKeyDown(e, idx, 'taxPercent')}
                             onBlur={() => {
@@ -1502,6 +1502,7 @@ const PurchaseBill = () => {
                               if (latest) saveProductToDb(latest);
                             }}
                             className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-right text-gray-500" 
+                            placeholder="0"
                           />
                         </td>
                         <td className="border-r border-gray-300 p-0">

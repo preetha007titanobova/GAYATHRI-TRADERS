@@ -425,7 +425,7 @@ const SalesOrder = () => {
         unitPrice: item.unitPrice || 0,
         discountPercentage: item.discount || item.discountPercentage || 0,
         taxableAmount: item.lineTotal || item.taxableAmount || 0,
-        taxRatePercentage: item.tax || item.taxRatePercentage || 18,
+        taxRatePercentage: item.tax || item.taxRatePercentage || 0,
         cgstAmount: 0,
         sgstAmount: 0,
         igstAmount: 0,
@@ -541,7 +541,7 @@ const SalesOrder = () => {
       unitPrice: 0,
       discountPercentage: 0,
       taxableAmount: 0,
-      taxRatePercentage: 18,
+      taxRatePercentage: 0,
       cgstAmount: 0,
       sgstAmount: 0,
       igstAmount: 0,
@@ -569,7 +569,7 @@ const SalesOrder = () => {
           updated.itemCode = product.itemCode || '';
           updated.itemDescription = product.name || '';
           updated.unitPrice = product.price || 0;
-          updated.taxRatePercentage = product.taxPercent || 18;
+          updated.taxRatePercentage = product.taxPercent || 0;
           updated.weight = product.weight || '';
         }
       }

@@ -79,7 +79,7 @@ export const searchItems = async (q: string): Promise<any[]> => {
         _id: id,
         barcode: item.barcode || '',
         itemCode: item.itemCode || '',
-        category: item.category || item.group || 'General',
+        category: item.category || item.group || '',
         price: Number(item.price) || 0,
         stock: Math.max(0, Number(item.stock) || 0)
       });

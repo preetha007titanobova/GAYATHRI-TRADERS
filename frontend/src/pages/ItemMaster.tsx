@@ -28,7 +28,7 @@ const ItemMaster = () => {
   const [purchaseRate, setPurchaseRate] = useState<number | string>('');
   const [salesRate, setSalesRate] = useState<number | string>('');
   const [mrp, setMrp] = useState<number | string>('');
-  const [taxPercent, setTaxPercent] = useState<number | string>(18);
+  const [taxPercent, setTaxPercent] = useState<number | string>('');
   const [openingStock, setOpeningStock] = useState<number | string>('');
 
   const [products, setProducts] = useState<Product[]>([]);
@@ -103,7 +103,7 @@ const ItemMaster = () => {
     setPurchaseRate(0);
     setSalesRate(0);
     setMrp(0);
-    setTaxPercent(18);
+    setTaxPercent('');
     setOpeningStock(0);
     fetchNextCode();
   };
@@ -119,7 +119,7 @@ const ItemMaster = () => {
     setPurchaseRate(product.purchaseRate || 0);
     setSalesRate(product.price || 0);
     setMrp(product.mrp || 0);
-    setTaxPercent(product.taxPercent || 18);
+    setTaxPercent(product.taxPercent || 0);
     setOpeningStock(product.stock || 0);
   };
 
