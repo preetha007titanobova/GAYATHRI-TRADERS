@@ -323,11 +323,13 @@ export const getDailyStockStatus = async (dateStr: string): Promise<any[]> => {
     for (const item of productPurchases) {
       if (item.purchaseBill) {
         const purchaseDate = new Date(item.purchaseBill.date);
+        const conv = Number(item.unitsPerPack || item.conversionFactor) > 0 ? Number(item.unitsPerPack || item.conversionFactor) : 1;
+        const baseQty = item.totalBaseQty || (((Number(item.qty) || 0) + (Number(item.freeQty) || 0)) * conv);
         if (purchaseDate >= startOfDay && purchaseDate <= endOfDay) {
-          inwardToday += item.qty || 0;
-          purchasesToday += item.qty || 0;
+          inwardToday += baseQty;
+          purchasesToday += baseQty;
         } else if (purchaseDate > endOfDay) {
-          inwardAfterToday += item.qty || 0;
+          inwardAfterToday += baseQty;
         }
       }
     }
@@ -422,7 +424,7 @@ export const getDailyStockStatus = async (dateStr: string): Promise<any[]> => {
       barcode: product.barcode || '',
       category: product.department || '',
       size: product.size || '',
-      uom: product.uom || 'PCS',
+      uom: product.baseUnit || product.uom || product.unit || 'PCS',
       purchaseRate: Number(product.purchaseRate) || 0,
       price: Number(product.price) || 0,
       openingStock,
