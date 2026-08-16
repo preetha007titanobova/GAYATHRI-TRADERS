@@ -153,23 +153,16 @@ export const updateSalesBill = async (id: string, data: any): Promise<boolean> =
     const qty = Number(item.qty) || 0;
     if (qty > 0) {
       if (item.productId) {
-        await prisma.product.updateMany({
-          where: { id: item.productId.toString() },
-          data: {
-            stock: {
-              increment: Math.round(qty)
-            }
-          }
-        });
+        const prodId = typeof item.productId === 'string' && ObjectId.isValid(item.productId) ? new ObjectId(item.productId) : item.productId;
+        await db.collection('Product').updateOne(
+          { _id: prodId },
+          { $inc: { stock: Math.round(qty) } }
+        );
       } else if (item.itemName) {
-        await prisma.product.updateMany({
-          where: { name: item.itemName },
-          data: {
-            stock: {
-              increment: Math.round(qty)
-            }
-          }
-        });
+        await db.collection('Product').updateOne(
+          { name: item.itemName },
+          { $inc: { stock: Math.round(qty) } }
+        );
       }
     }
   }
@@ -282,23 +275,16 @@ export const deleteSalesBill = async (id: string): Promise<boolean> => {
     const qty = Number(item.qty) || 0;
     if (qty > 0) {
       if (item.productId) {
-        await prisma.product.updateMany({
-          where: { id: item.productId.toString() },
-          data: {
-            stock: {
-              increment: Math.round(qty)
-            }
-          }
-        });
+        const prodId = typeof item.productId === 'string' && ObjectId.isValid(item.productId) ? new ObjectId(item.productId) : item.productId;
+        await db.collection('Product').updateOne(
+          { _id: prodId },
+          { $inc: { stock: Math.round(qty) } }
+        );
       } else if (item.itemName) {
-        await prisma.product.updateMany({
-          where: { name: item.itemName },
-          data: {
-            stock: {
-              increment: Math.round(qty)
-            }
-          }
-        });
+        await db.collection('Product').updateOne(
+          { name: item.itemName },
+          { $inc: { stock: Math.round(qty) } }
+        );
       }
     }
   }
@@ -439,19 +425,10 @@ export const createSalesReturn = async (data: any): Promise<any> => {
           );
         } else {
           // Default or Return to Warehouse: increment normal stock
-          await prisma.product.updateMany({
-            where: {
-              OR: [
-                { itemCode: item.itemCode },
-                { name: item.itemName }
-              ]
-            },
-            data: {
-              stock: {
-                increment: item.returnQty
-              }
-            }
-          });
+          await db.collection('Product').updateMany(
+            { $or: [{ itemCode: item.itemCode }, { name: item.itemName }] },
+            { $inc: { stock: item.returnQty } }
+          );
         }
       }
     }
@@ -462,19 +439,10 @@ export const createSalesReturn = async (data: any): Promise<any> => {
     for (const repItem of replacementItems) {
       const qty = Number(repItem.qty) || 0;
       if (qty > 0 && (repItem.itemCode || repItem.itemName)) {
-        await prisma.product.updateMany({
-          where: {
-            OR: [
-              { itemCode: repItem.itemCode },
-              { name: repItem.itemName }
-            ]
-          },
-          data: {
-            stock: {
-              decrement: qty
-            }
-          }
-        });
+        await db.collection('Product').updateMany(
+          { $or: [{ itemCode: repItem.itemCode }, { name: repItem.itemName }] },
+          { $inc: { stock: -qty } }
+        );
       }
     }
   }
@@ -556,19 +524,10 @@ export const updateSalesReturn = async (id: string, data: any): Promise<boolean>
           { $inc: { damagedStock: -item.returnQty } }
         );
       } else {
-        await prisma.product.updateMany({
-          where: {
-            OR: [
-              { itemCode: item.itemCode },
-              { name: item.itemName }
-            ]
-          },
-          data: {
-            stock: {
-              decrement: item.returnQty
-            }
-          }
-        });
+        await db.collection('Product').updateMany(
+          { $or: [{ itemCode: item.itemCode }, { name: item.itemName }] },
+          { $inc: { stock: -item.returnQty } }
+        );
       }
     }
   }
@@ -578,19 +537,10 @@ export const updateSalesReturn = async (id: string, data: any): Promise<boolean>
     for (const repItem of oldReturn.replacementItems) {
       const qty = Number(repItem.qty) || 0;
       if (qty > 0 && (repItem.itemCode || repItem.itemName)) {
-        await prisma.product.updateMany({
-          where: {
-            OR: [
-              { itemCode: repItem.itemCode },
-              { name: repItem.itemName }
-            ]
-          },
-          data: {
-            stock: {
-              increment: qty
-            }
-          }
-        });
+        await db.collection('Product').updateMany(
+          { $or: [{ itemCode: repItem.itemCode }, { name: repItem.itemName }] },
+          { $inc: { stock: qty } }
+        );
       }
     }
   }
@@ -683,19 +633,10 @@ export const updateSalesReturn = async (id: string, data: any): Promise<boolean>
             { $inc: { damagedStock: item.returnQty } }
           );
         } else {
-          await prisma.product.updateMany({
-            where: {
-              OR: [
-                { itemCode: item.itemCode },
-                { name: item.itemName }
-              ]
-            },
-            data: {
-              stock: {
-                increment: item.returnQty
-              }
-            }
-          });
+          await db.collection('Product').updateMany(
+            { $or: [{ itemCode: item.itemCode }, { name: item.itemName }] },
+            { $inc: { stock: item.returnQty } }
+          );
         }
       }
     }
@@ -706,19 +647,10 @@ export const updateSalesReturn = async (id: string, data: any): Promise<boolean>
     for (const repItem of replacementItems) {
       const qty = Number(repItem.qty) || 0;
       if (qty > 0 && (repItem.itemCode || repItem.itemName)) {
-        await prisma.product.updateMany({
-          where: {
-            OR: [
-              { itemCode: repItem.itemCode },
-              { name: repItem.itemName }
-            ]
-          },
-          data: {
-            stock: {
-              decrement: qty
-            }
-          }
-        });
+        await db.collection('Product').updateMany(
+          { $or: [{ itemCode: repItem.itemCode }, { name: repItem.itemName }] },
+          { $inc: { stock: -qty } }
+        );
       }
     }
   }
@@ -772,19 +704,10 @@ export const deleteSalesReturn = async (id: string): Promise<boolean> => {
           { $inc: { damagedStock: -item.returnQty } }
         );
       } else {
-        await prisma.product.updateMany({
-          where: {
-            OR: [
-              { itemCode: item.itemCode },
-              { name: item.itemName }
-            ]
-          },
-          data: {
-            stock: {
-              decrement: item.returnQty
-            }
-          }
-        });
+        await db.collection('Product').updateMany(
+          { $or: [{ itemCode: item.itemCode }, { name: item.itemName }] },
+          { $inc: { stock: -item.returnQty } }
+        );
       }
     }
   }
@@ -794,19 +717,10 @@ export const deleteSalesReturn = async (id: string): Promise<boolean> => {
     for (const repItem of salesReturn.replacementItems) {
       const qty = Number(repItem.qty) || 0;
       if (qty > 0 && (repItem.itemCode || repItem.itemName)) {
-        await prisma.product.updateMany({
-          where: {
-            OR: [
-              { itemCode: repItem.itemCode },
-              { name: repItem.itemName }
-            ]
-          },
-          data: {
-            stock: {
-              increment: qty
-            }
-          }
-        });
+        await db.collection('Product').updateMany(
+          { $or: [{ itemCode: repItem.itemCode }, { name: repItem.itemName }] },
+          { $inc: { stock: qty } }
+        );
       }
     }
   }

@@ -1,16 +1,17 @@
 import { Request, Response } from 'express';
-import { prisma } from '../config/db';
+import { prisma, getDb } from '../config/db';
 
 export const exportBackup = async (req: Request, res: Response) => {
   try {
+    const db = await getDb();
     const backup = {
       timestamp: new Date().toISOString(),
-      users: await prisma.user.findMany(),
-      categories: await prisma.category.findMany(),
-      products: await prisma.product.findMany(),
-      ledgers: await prisma.ledger.findMany(),
-      salesBills: await prisma.salesBill.findMany(),
-      salesItems: await prisma.salesItem.findMany()
+      users: await db.collection('User').find({}).toArray(),
+      categories: await db.collection('Category').find({}).toArray(),
+      products: await db.collection('Product').find({}).toArray(),
+      ledgers: await db.collection('Ledger').find({}).toArray(),
+      salesBills: await db.collection('SalesBill').find({}).toArray(),
+      salesItems: await db.collection('SalesItem').find({}).toArray()
     };
     
     res.setHeader('Content-disposition', `attachment; filename=ERP_Backup_${new Date().toISOString().split('T')[0]}.json`);
@@ -25,24 +26,23 @@ export const exportBackup = async (req: Request, res: Response) => {
 export const restoreBackup = async (req: Request, res: Response) => {
   try {
     const { users, categories, products, ledgers, salesBills, salesItems } = req.body;
+    const db = await getDb();
     
-    await prisma.$transaction(async (tx) => {
-      // 1. Wipe current collections
-      await tx.salesItem.deleteMany();
-      await tx.salesBill.deleteMany();
-      await tx.product.deleteMany();
-      await tx.category.deleteMany();
-      await tx.ledger.deleteMany();
-      await tx.user.deleteMany();
-      
-      // 2. Insert data from backup (if present)
-      if (users && users.length > 0) await tx.user.createMany({ data: users });
-      if (categories && categories.length > 0) await tx.category.createMany({ data: categories });
-      if (products && products.length > 0) await tx.product.createMany({ data: products });
-      if (ledgers && ledgers.length > 0) await tx.ledger.createMany({ data: ledgers });
-      if (salesBills && salesBills.length > 0) await tx.salesBill.createMany({ data: salesBills });
-      if (salesItems && salesItems.length > 0) await tx.salesItem.createMany({ data: salesItems });
-    });
+    // 1. Wipe current collections
+    await db.collection('SalesItem').deleteMany({});
+    await db.collection('SalesBill').deleteMany({});
+    await db.collection('Product').deleteMany({});
+    await db.collection('Category').deleteMany({});
+    await db.collection('Ledger').deleteMany({});
+    await db.collection('User').deleteMany({});
+    
+    // 2. Insert data from backup (if present)
+    if (users && users.length > 0) await db.collection('User').insertMany(users);
+    if (categories && categories.length > 0) await db.collection('Category').insertMany(categories);
+    if (products && products.length > 0) await db.collection('Product').insertMany(products);
+    if (ledgers && ledgers.length > 0) await db.collection('Ledger').insertMany(ledgers);
+    if (salesBills && salesBills.length > 0) await db.collection('SalesBill').insertMany(salesBills);
+    if (salesItems && salesItems.length > 0) await db.collection('SalesItem').insertMany(salesItems);
 
     res.json({ success: true, message: 'Database restored successfully' });
   } catch (error: any) {

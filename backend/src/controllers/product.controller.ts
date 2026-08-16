@@ -37,17 +37,13 @@ export const seedMockItems = async (req: Request, res: Response) => {
       { name: 'Cashews Roasted 250g', price: 8.00, stock: 200, barcode: 'C789' }
     ];
     
+    const db = await (await import('../config/db')).getDb();
     for (const item of items) {
-      await prisma.product.upsert({
-        where: { barcode: item.barcode },
-        update: {},
-        create: {
-          name: item.name,
-          price: item.price,
-          stock: item.stock,
-          barcode: item.barcode
-        }
-      });
+      await db.collection('Product').updateOne(
+        { barcode: item.barcode },
+        { $setOnInsert: item },
+        { upsert: true }
+      );
     }
     res.json({ success: true, message: 'Mock data seeded' });
   } catch (error: any) {

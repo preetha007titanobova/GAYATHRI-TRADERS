@@ -120,14 +120,6 @@ export async function setupDatabase() {
       { stock: { $lt: 0 } },
       { $set: { stock: 0 } }
     );
-    try {
-      await prisma.product.updateMany({
-        where: { stock: { lt: 0 } },
-        data: { stock: 0 }
-      });
-    } catch (pe) {
-      console.warn("Prisma stock cleanup note:", pe);
-    }
     console.log("Product database setup & stock non-negative sanitization ready");
   } catch (e: any) {
     console.log("Product database setup note:", e.message);

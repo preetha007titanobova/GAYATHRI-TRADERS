@@ -12,20 +12,13 @@ export const getStatistics = async (req: Request, res: Response) => {
       return { count, lastEntry };
     };
 
-    const getPrismaStats = async (modelName: 'product' | 'category' | 'user') => {
-      const count = await (prisma[modelName] as any).count();
-      const last = await (prisma[modelName] as any).findFirst({ orderBy: { createdAt: 'desc' } });
-      const lastEntry = last && last.createdAt ? new Date(last.createdAt).toISOString().split('T')[0] : '--';
-      return { count, lastEntry };
-    };
-
     const stats = [
       { id: 1, type: 'Sales Bills', route: '/sales-register', ...(await getStats('SalesBill')) },
       { id: 2, type: 'Sales Returns', route: '/sales-register', ...(await getStats('SalesReturn')) },
       { id: 3, type: 'Sales Orders', route: '/sales-register', ...(await getStats('SalesOrder')) },
       { id: 4, type: 'Quotations', route: '/sales-register', ...(await getStats('Quotation')) },
       { id: 5, type: 'Ledgers', route: '/view-ledger', ...(await getStats('Ledger')) },
-      { id: 6, type: 'Item Master', route: '/item-master', ...(await getPrismaStats('product')) },
+      { id: 6, type: 'Item Master', route: '/item-master', ...(await getStats('Product')) },
       { id: 7, type: 'Bank Book', route: '/bank-book', count: 0, lastEntry: '--' },
       { id: 8, type: 'Cash Book', route: '/cash-book', count: 0, lastEntry: '--' },
       { id: 9, type: 'Journal Entries', route: '/journal-entry', count: 0, lastEntry: '--' },
@@ -40,6 +33,7 @@ export const getStatistics = async (req: Request, res: Response) => {
 
 export const getDashboardStatistics = async (req: Request, res: Response) => {
   try {
+    const db = await getDb();
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     const todayEnd = new Date();
@@ -49,30 +43,26 @@ export const getDashboardStatistics = async (req: Request, res: Response) => {
     monthStart.setDate(1);
     monthStart.setHours(0, 0, 0, 0);
 
-    const openOrders = await (prisma as any).salesOrder?.findMany({ where: { status: 'Open' } }) || [];
-    const partialOrders = await (prisma as any).salesOrder?.findMany({ where: { status: 'Partial' } }) || [];
-    const completedOrdersCount = await (prisma as any).salesOrder?.count({ where: { status: 'Completed' } }) || 0;
-    const cancelledOrdersCount = await (prisma as any).salesOrder?.count({ where: { status: 'Cancelled' } }) || 0;
+    const openOrders = await db.collection('SalesOrder').find({ status: 'Open' }).toArray();
+    const partialOrders = await db.collection('SalesOrder').find({ status: 'Partial' }).toArray();
+    const completedOrdersCount = await db.collection('SalesOrder').countDocuments({ status: 'Completed' });
+    const cancelledOrdersCount = await db.collection('SalesOrder').countDocuments({ status: 'Cancelled' });
 
     // Pending Delivery Amount: sum of balanceAmount for Open and Partial orders
     const pendingDeliveryAmount = [...openOrders, ...partialOrders].reduce((sum, o: any) => sum + (o.balanceAmount || 0), 0);
 
-    const todaysOrdersCount = await (prisma as any).salesOrder?.count({
-      where: {
-        createdAt: {
-          gte: todayStart,
-          lte: todayEnd
-        }
+    const todaysOrdersCount = await db.collection('SalesOrder').countDocuments({
+      createdAt: {
+        $gte: todayStart,
+        $lte: todayEnd
       }
-    }) || 0;
+    });
 
-    const thisMonthsOrdersCount = await (prisma as any).salesOrder?.count({
-      where: {
-        createdAt: {
-          gte: monthStart
-        }
+    const thisMonthsOrdersCount = await db.collection('SalesOrder').countDocuments({
+      createdAt: {
+        $gte: monthStart
       }
-    }) || 0;
+    });
 
     res.json({
       totalOpenOrders: openOrders.length,
