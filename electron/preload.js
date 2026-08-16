@@ -14,7 +14,8 @@ contextBridge.exposeInMainWorld('api', {
             'print-tspl-raw',
             'print-receipt',
             'print-escpos',
-            'get-printers'
+            'get-printers',
+            'app-close-confirmed'
         ];
         if (validChannels.includes(channel)) {
             ipcRenderer.send(channel, ...args);
@@ -32,7 +33,8 @@ contextBridge.exposeInMainWorld('api', {
             'print-response',
             'print-escpos-response',
             'print-receipt-response',
-            'get-printers-response'
+            'get-printers-response',
+            'app-close-requested'
         ];
         if (validChannels.includes(channel)) {
             ipcRenderer.on(channel, (event, ...args) => func(event, ...args));

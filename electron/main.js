@@ -177,6 +177,20 @@ app.whenReady().then(() => {
     createWindow();
 });
 
+    let isClosingApp = false;
+
+    mainWindow.on('close', (e) => {
+        if (!isClosingApp) {
+            e.preventDefault();
+            mainWindow.webContents.send('app-close-requested');
+        }
+    });
+
+    ipcMain.on('app-close-confirmed', () => {
+        isClosingApp = true;
+        if (mainWindow) mainWindow.close();
+    });
+
 // IPC communication endpoints for React
 ipcMain.on('get-machine-id', (event) => {
     event.reply('machine-id-response', getHardwareId());

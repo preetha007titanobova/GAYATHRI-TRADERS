@@ -7,7 +7,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import PrinterStatus from './PrinterStatus';
 import { OpeningCashModal } from './OpeningCashModal';
-import { sendWhatsAppTextMessage } from '../utils/whatsappHelper';
+import { sendWhatsAppTextMessage, getRegisteredShopName } from '../utils/whatsappHelper';
 
 export type ToolbarActions = {
   onAdd?: () => void;
@@ -151,8 +151,17 @@ const Layout = () => {
   const [isCloseDayModalOpen, setIsCloseDayModalOpen] = useState(false);
   const [isCloseRequested, setIsCloseRequested] = useState(false);
   const [closeDayLoading, setCloseDayLoading] = useState(false);
-  const [ownerWhatsApp, setOwnerWhatsApp] = useState(() => localStorage.getItem('close_day_whatsapp') || '');
+  const [ownerWhatsApp, setOwnerWhatsApp] = useState(() => localStorage.getItem('close_day_whatsapp') || localStorage.getItem('registered_mobile') || '');
   const [ownerEmail, setOwnerEmail] = useState(() => localStorage.getItem('close_day_email') || '');
+
+  useEffect(() => {
+    if ((window as any).api && typeof (window as any).api.receive === 'function') {
+      (window as any).api.receive('app-close-requested', () => {
+        setIsCloseRequested(true);
+        setIsCloseDayModalOpen(true);
+      });
+    }
+  }, []);
   const [isOwnerSettingsModalOpen, setIsOwnerSettingsModalOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   
@@ -437,7 +446,8 @@ const Layout = () => {
         emailFailed = true;
       }
 
-      const whatsappText = `*🧾 ${shopName || 'BILLING SOFTWARE'} - CLOSE DAY REPORT*\n` +
+      const activeShopName = getRegisteredShopName();
+      const whatsappText = `*🧾 ${activeShopName} - CLOSE DAY REPORT*\n` +
                            `📅 *Date:* ${formattedDate}\n` +
                            `----------------------------------------\n` +
                            `📦 *Total Items In Stock Master:* ${data.length}\n` +
@@ -450,8 +460,8 @@ const Layout = () => {
                            (pdfUrl ? `📄 *Download Full PDF Report:* ${pdfUrl}\n\n` : '') +
                            (emailFailed 
                              ? `⚠️ *Email Status:* PDF report generate complete.\n\n`
-                             : `✅ *Email Status:* PDF report generated & emailed to ${ownerEmail}.\n\n`) +
-                           `Generated automatically via Billing System.`;
+                             : (ownerEmail ? `✅ *Email Status:* PDF report generated & emailed to ${ownerEmail}.\n\n` : '')) +
+                           `Generated automatically via ${activeShopName} Billing System.`;
 
       // Dispatch Close Day summary to owner's WhatsApp number
       sendWhatsAppTextMessage(ownerWhatsApp, whatsappText);
@@ -1097,13 +1107,12 @@ const Layout = () => {
                 </div>
                 
                 <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Owner's Email Address</label>
+                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Owner's Email Address (Optional)</label>
                   <input 
                     type="email"
-                    required
                     value={ownerEmail}
                     onChange={e => setOwnerEmail(e.target.value)}
-                    placeholder="e.g. owner@example.com"
+                    placeholder="e.g. owner@example.com (Optional)"
                     className="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium bg-white text-black"
                   />
                 </div>
@@ -1197,13 +1206,12 @@ const Layout = () => {
                 </div>
                 
                 <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Owner's Email Address</label>
+                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Owner's Email Address (Optional)</label>
                   <input 
                     type="email"
                     name="email"
-                    required
                     defaultValue={ownerEmail}
-                    placeholder="e.g. owner@example.com"
+                    placeholder="e.g. owner@example.com (Optional)"
                     className="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium bg-white text-black"
                   />
                 </div>
