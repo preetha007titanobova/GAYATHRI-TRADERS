@@ -155,6 +155,7 @@ function getBarcodeSVGString(text: string, type: string = 'Code 128'): string {
 const BarcodeGeneration = () => {
   const navigate = useNavigate();
   const { shopName } = useLicense();
+  const effectiveShopName = shopName || 'GAYATHRI TRADERS';
   // --- Form States ---
   const [productName, setProductName] = useState('');
   const [barcodeValue, setBarcodeValue] = useState('');
@@ -549,7 +550,7 @@ const BarcodeGeneration = () => {
           const labelWidthDots = Math.round(labelWidthMm * 8);
           const labelHeightDots = Math.round(labelHeightMm * 8);
 
-          const shopText = (shopName || '').substring(0, 18).toUpperCase();
+          const shopText = (effectiveShopName || 'GAYATHRI TRADERS').substring(0, 18).toUpperCase();
           const prodText = (item.productName || '').substring(0, 18).toUpperCase();
           const isCustomVar = item.variety && !['standard', 'std', 'default', ''].includes(item.variety.trim().toLowerCase());
           const metaText = isCustomVar
@@ -732,7 +733,7 @@ const BarcodeGeneration = () => {
     const renderLabelContent = (l: (typeof rawLabels)[0]) => `
       <div class="print-label-outer" style="width: ${labelWidthMm}mm; height: ${labelHeightMm}mm; position: relative; overflow: hidden; display: flex; justify-content: center; align-items: center; box-sizing: border-box; padding: 0;">
         <div class="print-label-inner" style="width: ${innerWidth}mm; height: ${innerHeight}mm; ${labelRotation !== 0 ? `transform: rotate(${labelRotation}deg); transform-origin: center;` : ''} display: flex; flex-direction: column; justify-content: flex-start; align-items: center; box-sizing: border-box; padding: ${marginTopMm !== undefined ? marginTopMm : 1}mm 1.2mm 0.5mm 1.2mm; background-color: #ffffff;">
-          ${showShopHeader ? `<div class="header" style="font-size: 6pt; font-weight: 800; text-align: center; text-transform: uppercase; color: #000000 !important; line-height: 1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0.1px;">${shopName}</div>` : ''}
+          ${showShopHeader ? `<div class="header" style="font-size: 6pt; font-weight: 800; text-align: center; text-transform: uppercase; color: #000000 !important; line-height: 1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0.1px;">${effectiveShopName}</div>` : ''}
           <div class="product" style="font-size: 7.5pt; font-weight: 900; margin-top: 0.8mm; text-align: center; text-transform: uppercase; color: #000000 !important; line-height: 1.05; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${l.item.productName}</div>
           ${showMetaLine ? `<div class="meta" style="font-size: 5.5pt; font-weight: 800; margin-top: 0.4mm; text-align: center; color: #000000 !important; line-height: 1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${l.item.variety && !['standard', 'std', 'default', ''].includes(l.item.variety.trim().toLowerCase()) ? l.item.variety + ' | ' : ''}Wt : ${l.item.weight || '1kg'}</div>` : ''}
           ${(showDatesLine || showPriceLine) ? `
@@ -898,7 +899,7 @@ const BarcodeGeneration = () => {
     ctx.fillStyle = '#1e3a8a';
     ctx.font = 'bold 18px Arial';
     ctx.textAlign = 'center';
-    ctx.fillText(shopName, 200, 32);
+    ctx.fillText(effectiveShopName, 200, 32);
 
     // Line separator
     ctx.strokeStyle = '#e2e8f0';
@@ -1630,7 +1631,7 @@ const BarcodeGeneration = () => {
                     {showShopHeader && (
                       <div className="w-full text-center">
                         <h1 className="text-[6.5pt] font-extrabold uppercase leading-none m-0 p-0 whitespace-nowrap tracking-tight text-black">
-                          {shopName}
+                          {effectiveShopName}
                         </h1>
                       </div>
                     )}

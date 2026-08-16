@@ -39,6 +39,8 @@ const POSCheckout = () => {
   const [buyerName, setBuyerName] = useState(billToEdit?.buyerName || incomingPayload?.buyerName || orderToConvert?.buyerName || '');
   const [salesman, setSalesman] = useState('');
   const [paymentMode, setPaymentMode] = useState('Cash');
+  const [cashAmount, setCashAmount] = useState<number | string>('');
+  const [upiAmount, setUpiAmount] = useState<number | string>('');
   const [rapidBarcode, setRapidBarcode] = useState('');
   const [scannedFeedback, setScannedFeedback] = useState<{
     barcode: string;
@@ -744,7 +746,7 @@ const POSCheckout = () => {
 
       if (setGlobalNotification) {
         setGlobalNotification({
-          msg: `✓ ${cleanCode}: Added ${prodName} | Price: ₹${prodPrice}`,
+          msg: `✓ Barcode ${cleanCode}: Added ${prodName} | Price: ₹${prodPrice} | Stock Reduced to ${updatedStock}`,
           type: 'success'
         });
         setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 2500);
@@ -955,6 +957,8 @@ const POSCheckout = () => {
       favourDiscount: Number(favourDiscount) || 0,
       cgst, sgst, roundOff, netAmount,
       salesman, paymentMode,
+      cashAmount: paymentMode.includes('Split') ? (Number(cashAmount) || 0) : (paymentMode === 'Cash' ? netAmount : 0),
+      upiAmount: paymentMode.includes('Split') ? (Number(upiAmount) || 0) : (paymentMode.includes('UPI') || paymentMode.includes('Online') ? netAmount : 0),
       fromSalesOrderId,
       isSelectiveCustomer: globalSettings?.isSelectiveCustomer || false,
       shippingAddress,
@@ -1145,6 +1149,8 @@ const POSCheckout = () => {
       address,
       gstNo,
       paymentMode,
+      cashAmount: paymentMode.includes('Split') ? (Number(cashAmount) || 0) : (paymentMode === 'Cash' ? netAmount : 0),
+      upiAmount: paymentMode.includes('Split') ? (Number(upiAmount) || 0) : (paymentMode.includes('UPI') || paymentMode.includes('Online') ? netAmount : 0),
       salesman,
       items: validItems,
       totalQty,
@@ -1628,9 +1634,8 @@ const POSCheckout = () => {
                 <span>{scannedFeedback.name}</span>
                 <span className="text-yellow-300 font-bold">₹{scannedFeedback.price}</span>
               </div>
-              <div className="text-[11px] text-emerald-300 flex justify-between gap-2 mt-0.5">
+              <div className="text-[11px] text-emerald-300 flex justify-between gap-4 mt-0.5">
                 <span>Barcode: <strong className="text-white">{scannedFeedback.barcode}</strong></span>
-                <span>Weight: <strong className="text-yellow-200">{scannedFeedback.weight || scannedFeedback.uom || scannedFeedback.size || '-'}</strong></span>
                 <span>Stock: <strong className="text-emerald-300">{scannedFeedback.stock} (-1)</strong></span>
               </div>
             </div>
@@ -1807,6 +1812,7 @@ const POSCheckout = () => {
           >
             <option value="Cash">💵 Cash Pay</option>
             <option value="UPI / Online Pay">📱 Online Pay (UPI / QR)</option>
+            <option value="Split (Cash + UPI)">⚡ Split / Dual Pay (Cash + UPI)</option>
             <option value="Credit Card">💳 Credit Card</option>
             <option value="Debit Card">💳 Debit Card</option>
             <option value="Bank Transfer">🏦 Bank Transfer</option>
@@ -1830,9 +1836,68 @@ const POSCheckout = () => {
             >
               📱 Online
             </button>
+            <button
+              type="button"
+              onClick={() => {
+                setPaymentMode('Split (Cash + UPI)');
+                if (!cashAmount && !upiAmount) {
+                  const half = (netAmount / 2).toFixed(2);
+                  setCashAmount(half);
+                  setUpiAmount(half);
+                }
+              }}
+              className={`py-0.5 px-1.5 rounded text-[10px] font-extrabold transition-all border ${paymentMode.includes('Split') ? 'bg-purple-600 text-white border-purple-700 shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-purple-50 border-gray-300'}`}
+            >
+              ⚡ Dual / Split
+            </button>
           </div>
         </div>
       </div>
+
+      {/* Split Payment (Cash + UPI) Breakdown Panel */}
+      {paymentMode.includes('Split') && (
+        <div className="bg-purple-50 border border-purple-300 mx-1 mt-1 p-2 rounded flex items-center justify-between text-xs font-bold text-purple-900 shadow-sm">
+          <span className="flex items-center gap-1">⚡ Enter Split Breakdown (Net Total: ₹{netAmount.toFixed(2)}):</span>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1">
+              <span>💵 Cash (₹):</span>
+              <input
+                type="number"
+                step="0.01"
+                placeholder="Cash ₹"
+                value={cashAmount}
+                onChange={e => {
+                  const cVal = e.target.value;
+                  setCashAmount(cVal);
+                  if (cVal !== '') {
+                    const remaining = Math.max(0, netAmount - Number(cVal));
+                    setUpiAmount(remaining.toFixed(2));
+                  }
+                }}
+                className="w-24 px-2 py-0.5 border border-slate-300 rounded font-mono font-bold text-emerald-800 bg-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+              />
+            </div>
+            <div className="flex items-center gap-1">
+              <span>📱 UPI / Online (₹):</span>
+              <input
+                type="number"
+                step="0.01"
+                placeholder="UPI ₹"
+                value={upiAmount}
+                onChange={e => {
+                  const uVal = e.target.value;
+                  setUpiAmount(uVal);
+                  if (uVal !== '') {
+                    const remaining = Math.max(0, netAmount - Number(uVal));
+                    setCashAmount(remaining.toFixed(2));
+                  }
+                }}
+                className="w-24 px-2 py-0.5 border border-slate-300 rounded font-mono font-bold text-blue-900 bg-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Selected Customer Status Banner */}
       {selectedCustomerObj && (
