@@ -1700,35 +1700,35 @@ const BarcodeGeneration = () => {
               >
                 {showShopHeader && (
                   <div className="w-full text-center">
-                    <h1 className="text-[11pt] font-extrabold uppercase leading-tight m-0 p-0 whitespace-nowrap tracking-tight text-black">
-                      {shopName}
+                    <h1 className="text-[10pt] font-extrabold uppercase leading-tight m-0 p-0 whitespace-nowrap tracking-tight text-black">
+                      {effectiveShopName}
                     </h1>
                   </div>
                 )}
                 <div className="w-full text-center">
-                  <h2 className="text-[14pt] font-black uppercase leading-tight truncate m-0 p-0 w-full text-black">
+                  <h2 className="text-[12pt] font-black uppercase leading-tight truncate m-0 p-0 w-full text-black">
                     {productName || 'GENERAL SAMPLE PRODUCT'}
                   </h2>
                 </div>
                 {showMetaLine && (
                   <div className="w-full text-center">
-                    <span className="text-[9.5pt] font-bold leading-tight m-0 p-0 text-slate-900 block truncate">
+                    <span className="text-[8.5pt] font-bold leading-tight m-0 p-0 text-slate-900 block truncate">
                       {variety && !['standard', 'std', 'default', ''].includes(variety.trim().toLowerCase()) ? `${variety} | ` : ''}Wt : <strong className="text-black font-extrabold">{weight || '1kg'}</strong>
                     </span>
                   </div>
                 )}
-                {(showDatesLine || showPriceLine) && (
-                  <div className={`w-full flex ${showDatesLine ? 'justify-between' : 'justify-center'} items-baseline px-1`}>
-                    {showDatesLine && (
-                      <span className="text-[9.5pt] font-extrabold leading-tight m-0 p-0 text-black">
-                        pkd : {mfgDate ? `${mfgDate.substring(8, 10)}/${mfgDate.substring(5, 7)}/${mfgDate.substring(0, 4)}` : '10/05/2025'}
-                      </span>
-                    )}
-                    {showPriceLine && (
-                      <span className="text-[11pt] font-black leading-tight m-0 p-0 text-black">
-                        MRP ₹{salesPrice !== '' ? Number(salesPrice).toFixed(2) : '450.00'}
-                      </span>
-                    )}
+                {showDatesLine && (
+                  <div className="w-full text-center">
+                    <span className="text-[8.5pt] font-extrabold leading-tight m-0 p-0 text-black block truncate">
+                      pkd: {mfgDate ? `${mfgDate.substring(8, 10)}/${mfgDate.substring(5, 7)}/${mfgDate.substring(2, 4)}` : '10/05/25'} &nbsp; exp: {expDate ? `${expDate.substring(8, 10)}/${expDate.substring(5, 7)}/${expDate.substring(2, 4)}` : '10/05/26'}
+                    </span>
+                  </div>
+                )}
+                {showPriceLine && (
+                  <div className="w-full text-center">
+                    <span className="text-[9.5pt] font-black leading-tight m-0 p-0 text-black block truncate">
+                      MRP ₹{mrp !== '' ? Number(mrp).toFixed(2) : (salesPrice !== '' ? Number(salesPrice).toFixed(2) : '450.00')} &nbsp; SALE ₹{salesPrice !== '' ? Number(salesPrice).toFixed(2) : '450.00'}
+                    </span>
                   </div>
                 )}
                 <div className="w-[75%] flex justify-center items-center bg-white my-0.5" style={{ height: `${(barcodeHeightMm || 6) * 1.8}mm` }}>
