@@ -620,42 +620,43 @@ const BarcodeGeneration = () => {
 
           } else {
             // 0° Normal orientation - Balanced vertical spacing with customizable barcode offset
-            const topMarginDots = Math.round((marginTopMm !== undefined ? marginTopMm : 1) * 8);
+            const topMarginDots = Math.round((marginTopMm !== undefined ? marginTopMm : 0.8) * 8);
             const offsetDots = Math.round((barcodeOffsetMm || 0) * 8);
             const scaleY = labelHeightDots / 200; // 25mm = 200 dots standard
-            const shopY = topMarginDots + Math.round(6 * scaleY);
-            const prodY = topMarginDots + Math.round(26 * scaleY);
-            const metaY = topMarginDots + Math.round(48 * scaleY);
-            const priceY = topMarginDots + Math.round(68 * scaleY);
-            const barY = topMarginDots + Math.round((96 + offsetDots) * scaleY);
-            const barTextY = barY + barH + Math.round(4 * scaleY);
+
+            const shopY = topMarginDots + Math.round(4 * scaleY);
+            const prodY = topMarginDots + Math.round(18 * scaleY);
+            const metaY = topMarginDots + Math.round(32 * scaleY);
+            const datesY = topMarginDots + Math.round(46 * scaleY);
+            const priceY = topMarginDots + Math.round(62 * scaleY);
+            const barY = topMarginDots + Math.round((82 + offsetDots) * scaleY);
+            const barTextY = barY + barH + Math.round(3 * scaleY);
 
             if (showShopHeader) {
-              const shopX = getXCenter(shopText, 12);
-              tspl += `TEXT ${shopX},${shopY},"2",0,1,1,"${shopText}"\r\n`;
+              const shopX = getXCenter(shopText, 8);
+              tspl += `TEXT ${shopX},${shopY},"1",0,1,1,"${shopText}"\r\n`;
             }
 
-            const prodX = getXCenter(prodText, 12);
-            tspl += `TEXT ${prodX},${prodY},"2",0,1,1,"${prodText}"\r\n`;
+            const prodX = getXCenter(prodText, 8);
+            tspl += `TEXT ${prodX},${prodY},"1",0,1,1,"${prodText}"\r\n`;
 
             if (showMetaLine) {
               const metaX = getXCenter(metaText, 8);
               tspl += `TEXT ${metaX},${metaY},"1",0,1,1,"${metaText}"\r\n`;
             }
 
-            if (showDatesLine || showPriceLine) {
-              if (showDatesLine && showPriceLine) {
-                const leftX = xDot + 4;
-                const rightX = xDot + labelWidthDots - (mrpText.length * 8) - 4;
-                tspl += `TEXT ${leftX},${priceY},"1",0,1,1,"${pkdText}"\r\n`;
-                tspl += `TEXT ${Math.max(leftX + (pkdText.length * 8) + 2, rightX)},${priceY},"1",0,1,1,"${mrpText}"\r\n`;
-              } else if (showPriceLine) {
-                const mrpX = getXCenter(mrpText, 12);
-                tspl += `TEXT ${mrpX},${priceY},"2",0,1,1,"${mrpText}"\r\n`;
-              } else if (showDatesLine) {
-                const pkdX = getXCenter(pkdText, 8);
-                tspl += `TEXT ${pkdX},${priceY},"1",0,1,1,"${pkdText}"\r\n`;
-              }
+            if (showDatesLine) {
+              const pkdX = getXCenter(pkdText, 8);
+              tspl += `TEXT ${pkdX},${datesY},"1",0,1,1,"${pkdText}"\r\n`;
+            }
+
+            if (showPriceLine) {
+              const mrpStr = `MRP Rs.${mrpVal}`;
+              const saleStr = `SALE Rs.${saleVal}`;
+              const combinedText = `${mrpStr}  ${saleStr}`;
+              const priceX = getXCenter(combinedText, 9);
+              tspl += `TEXT ${priceX},${priceY},"1",0,1,1,"${mrpStr}"\r\n`;
+              tspl += `TEXT ${priceX + (mrpStr.length * 8) + 12},${priceY - 2},"2",0,1,1,"${saleStr}"\r\n`;
             }
 
             const bcWidthDots = bType === '39' ? (item.barcodeValue.length + 2) * 13 : 160;
@@ -737,17 +738,18 @@ const BarcodeGeneration = () => {
     const renderLabelContent = (l: (typeof rawLabels)[0]) => `
       <div class="print-label-outer" style="width: ${labelWidthMm}mm; height: ${labelHeightMm}mm; position: relative; overflow: hidden; display: flex; justify-content: center; align-items: center; box-sizing: border-box; padding: 0;">
         <div class="print-label-inner" style="width: ${innerWidth}mm; height: ${innerHeight}mm; ${labelRotation !== 0 ? `transform: rotate(${labelRotation}deg); transform-origin: center;` : ''} display: flex; flex-direction: column; justify-content: flex-start; align-items: center; box-sizing: border-box; padding: ${marginTopMm !== undefined ? marginTopMm : 0.8}mm 1mm 0.5mm 1mm; background-color: #ffffff;">
-          ${showShopHeader ? `<div class="header" style="font-size: 5.5pt; font-weight: 800; text-align: center; text-transform: uppercase; color: #000000 !important; line-height: 1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0.1px;">${effectiveShopName}</div>` : ''}
-          <div class="product" style="font-size: 7pt; font-weight: 900; margin-top: 0.4mm; text-align: center; text-transform: uppercase; color: #000000 !important; line-height: 1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${l.item.productName}</div>
-          ${showMetaLine ? `<div class="meta" style="font-size: 4.8pt; font-weight: 800; margin-top: 0.3mm; text-align: center; color: #000000 !important; line-height: 1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${l.item.variety && !['standard', 'std', 'default', ''].includes(l.item.variety.trim().toLowerCase()) ? l.item.variety + ' | ' : ''}Wt : ${l.item.weight || '1kg'}</div>` : ''}
+          ${showShopHeader ? `<div class="header" style="font-size: 4.5pt; font-weight: 700; text-align: center; text-transform: uppercase; color: #000000 !important; line-height: 1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0.1px;">${effectiveShopName}</div>` : ''}
+          <div class="product" style="font-size: 5.5pt; font-weight: 800; margin-top: 0.3mm; text-align: center; text-transform: uppercase; color: #000000 !important; line-height: 1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${l.item.productName}</div>
+          ${showMetaLine ? `<div class="meta" style="font-size: 4.2pt; font-weight: 700; margin-top: 0.2mm; text-align: center; color: #000000 !important; line-height: 1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${l.item.variety && !['standard', 'std', 'default', ''].includes(l.item.variety.trim().toLowerCase()) ? l.item.variety + ' | ' : ''}Wt : ${l.item.weight || '1kg'}</div>` : ''}
           ${showDatesLine ? `
-            <div class="dates" style="font-size: 4.8pt; font-weight: 800; margin-top: 0.3mm; text-align: center; color: #000000 !important; line-height: 1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+            <div class="dates" style="font-size: 4.2pt; font-weight: 700; margin-top: 0.2mm; text-align: center; color: #000000 !important; line-height: 1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
               pkd: ${l.mfgFormatted}${l.expFormatted ? ` &nbsp; exp: ${l.expFormatted}` : ''}
             </div>
           ` : ''}
           ${showPriceLine ? `
-            <div class="price" style="font-size: 5.2pt; font-weight: 900; margin-top: 0.3mm; text-align: center; color: #000000 !important; line-height: 1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-              MRP ₹${l.mrpFormatted} &nbsp; SALE ₹${l.saleFormatted}
+            <div class="price" style="margin-top: 0.2mm; text-align: center; color: #000000 !important; line-height: 1; width: 100%; white-space: nowrap; display: flex; justify-content: center; align-items: baseline; gap: 4px;">
+              <span style="font-size: 3.8pt; font-weight: 600; opacity: 0.85;">MRP ₹${l.mrpFormatted}</span>
+              <span style="font-size: 6.2pt; font-weight: 900; color: #000000 !important;">SALE ₹${l.saleFormatted}</span>
             </div>
           ` : ''}
           <div class="barcode-wrapper" style="height: ${barcodeHeightMm || 5}mm; width: 75%; margin: 0.3mm auto 0 auto; display: flex; justify-content: center; align-items: center; background-color: #ffffff !important;">
@@ -1638,35 +1640,38 @@ const BarcodeGeneration = () => {
                   >
                     {showShopHeader && (
                       <div className="w-full text-center">
-                        <h1 className="text-[6.5pt] font-extrabold uppercase leading-none m-0 p-0 whitespace-nowrap tracking-tight text-black">
+                        <h1 className="text-[4.5pt] font-bold uppercase leading-none m-0 p-0 whitespace-nowrap tracking-tight text-black">
                           {effectiveShopName}
                         </h1>
                       </div>
                     )}
                     <div className="w-full text-center">
-                      <h2 className="text-[9pt] font-black uppercase leading-tight truncate m-0 p-0 w-full text-black">
+                      <h2 className="text-[5.5pt] font-extrabold uppercase leading-tight truncate m-0 p-0 w-full text-black">
                         {productName || 'GENERAL SAMPLE PRODUCT'}
                       </h2>
                     </div>
                     {showMetaLine && (
                       <div className="w-full text-center">
-                        <span className="text-[5.5pt] font-bold leading-none m-0 p-0 text-slate-900 block truncate">
+                        <span className="text-[4.2pt] font-bold leading-none m-0 p-0 text-slate-900 block truncate">
                           {variety && !['standard', 'std', 'default', ''].includes(variety.trim().toLowerCase()) ? `${variety} | ` : ''}Wt : <strong className="text-black font-extrabold">{weight || '1kg'}</strong>
                         </span>
                       </div>
                     )}
                     {showDatesLine && (
                       <div className="w-full text-center">
-                        <span className="text-[4.8pt] font-extrabold leading-none m-0 p-0 text-black block truncate">
+                        <span className="text-[4.2pt] font-extrabold leading-none m-0 p-0 text-black block truncate">
                           pkd: {mfgDate ? `${mfgDate.substring(8, 10)}/${mfgDate.substring(5, 7)}/${mfgDate.substring(2, 4)}` : '10/05/25'}
                           {expDate ? `  exp: ${expDate.substring(8, 10)}/${expDate.substring(5, 7)}/${expDate.substring(2, 4)}` : ''}
                         </span>
                       </div>
                     )}
                     {showPriceLine && (
-                      <div className="w-full text-center">
-                        <span className="text-[5.2pt] font-black leading-none m-0 p-0 text-black block truncate">
-                          MRP ₹{mrp !== '' ? Number(mrp).toFixed(2) : (salesPrice !== '' ? Number(salesPrice).toFixed(2) : '450.00')} &nbsp; SALE ₹{salesPrice !== '' ? Number(salesPrice).toFixed(2) : '450.00'}
+                      <div className="w-full text-center flex justify-center items-baseline gap-1 overflow-hidden">
+                        <span className="text-[3.8pt] font-semibold text-slate-800 leading-none m-0 p-0">
+                          MRP ₹{mrp !== '' ? Number(mrp).toFixed(2) : (salesPrice !== '' ? Number(salesPrice).toFixed(2) : '450.00')}
+                        </span>
+                        <span className="text-[6.2pt] font-black text-black leading-none m-0 p-0">
+                          SALE ₹{salesPrice !== '' ? Number(salesPrice).toFixed(2) : '450.00'}
                         </span>
                       </div>
                     )}
@@ -1700,34 +1705,37 @@ const BarcodeGeneration = () => {
               >
                 {showShopHeader && (
                   <div className="w-full text-center">
-                    <h1 className="text-[10pt] font-extrabold uppercase leading-tight m-0 p-0 whitespace-nowrap tracking-tight text-black">
+                    <h1 className="text-[8.5pt] font-bold uppercase leading-tight m-0 p-0 whitespace-nowrap tracking-tight text-black">
                       {effectiveShopName}
                     </h1>
                   </div>
                 )}
                 <div className="w-full text-center">
-                  <h2 className="text-[12pt] font-black uppercase leading-tight truncate m-0 p-0 w-full text-black">
+                  <h2 className="text-[9.5pt] font-extrabold uppercase leading-tight truncate m-0 p-0 w-full text-black">
                     {productName || 'GENERAL SAMPLE PRODUCT'}
                   </h2>
                 </div>
                 {showMetaLine && (
                   <div className="w-full text-center">
-                    <span className="text-[8.5pt] font-bold leading-tight m-0 p-0 text-slate-900 block truncate">
+                    <span className="text-[8pt] font-bold leading-tight m-0 p-0 text-slate-900 block truncate">
                       {variety && !['standard', 'std', 'default', ''].includes(variety.trim().toLowerCase()) ? `${variety} | ` : ''}Wt : <strong className="text-black font-extrabold">{weight || '1kg'}</strong>
                     </span>
                   </div>
                 )}
                 {showDatesLine && (
                   <div className="w-full text-center">
-                    <span className="text-[8.5pt] font-extrabold leading-tight m-0 p-0 text-black block truncate">
+                    <span className="text-[7.8pt] font-extrabold leading-tight m-0 p-0 text-black block truncate">
                       pkd: {mfgDate ? `${mfgDate.substring(8, 10)}/${mfgDate.substring(5, 7)}/${mfgDate.substring(2, 4)}` : '10/05/25'} &nbsp; exp: {expDate ? `${expDate.substring(8, 10)}/${expDate.substring(5, 7)}/${expDate.substring(2, 4)}` : '10/05/26'}
                     </span>
                   </div>
                 )}
                 {showPriceLine && (
-                  <div className="w-full text-center">
-                    <span className="text-[9.5pt] font-black leading-tight m-0 p-0 text-black block truncate">
-                      MRP ₹{mrp !== '' ? Number(mrp).toFixed(2) : (salesPrice !== '' ? Number(salesPrice).toFixed(2) : '450.00')} &nbsp; SALE ₹{salesPrice !== '' ? Number(salesPrice).toFixed(2) : '450.00'}
+                  <div className="w-full text-center flex justify-center items-baseline gap-2 overflow-hidden">
+                    <span className="text-[7pt] font-semibold text-slate-800 leading-tight m-0 p-0">
+                      MRP ₹{mrp !== '' ? Number(mrp).toFixed(2) : (salesPrice !== '' ? Number(salesPrice).toFixed(2) : '450.00')}
+                    </span>
+                    <span className="text-[11.5pt] font-black text-black leading-tight m-0 p-0">
+                      SALE ₹{salesPrice !== '' ? Number(salesPrice).toFixed(2) : '450.00'}
                     </span>
                   </div>
                 )}
