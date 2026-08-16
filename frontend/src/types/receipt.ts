@@ -7,6 +7,10 @@ export interface ReceiptItem {
   itemCode?: string;
   itemName: string;
   qty: number;
+  uom?: string;
+  baseUnit?: string;
+  packagings?: any[];
+  conversionFactor?: number;
   rate: number;
   amount: number;
 }
@@ -19,6 +23,8 @@ export interface ReceiptPayload {
   customerName?: string;
   customerMobile?: string;
   paymentMode?: string;
+  cashAmount?: number;
+  upiAmount?: number;
   items: ReceiptItem[];
   totalQty?: number;
   subTotal?: number;

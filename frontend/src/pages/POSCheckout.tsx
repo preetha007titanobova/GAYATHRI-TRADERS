@@ -16,6 +16,9 @@ interface GridRow {
   size?: string;
   qty: number;
   uom: string;
+  baseUnit?: string;
+  packagings?: any[];
+  conversionFactor?: number;
   rate: number;
   discPercent: number;
   discAmt: number;
@@ -699,6 +702,9 @@ const POSCheckout = () => {
             itemDesc: product.barcode || cleanCode,
             size: prodSize,
             uom: prodUom,
+            baseUnit: product.baseUnit || prodUom,
+            packagings: product.packagings || [],
+            conversionFactor: product.conversionFactor || 1,
             rate: prodPrice,
             qty: finalQty,
             discPercent: 0,
@@ -1076,10 +1082,17 @@ const POSCheckout = () => {
         itemCode: item.itemDesc || item.itemName,
         itemDesc: item.itemName,
         qty: item.qty,
+        uom: item.uom,
+        baseUnit: item.baseUnit,
+        packagings: item.packagings,
+        conversionFactor: item.conversionFactor,
         rate: item.rate,
         amount: item.amount || (item.qty * item.rate),
         totalAmt: item.amount || (item.qty * item.rate)
       }));
+
+    const calcCashAmt = paymentMode.includes('Split') ? (Number(cashAmount) || 0) : (paymentMode === 'Cash' ? netAmount : 0);
+    const calcUpiAmt = paymentMode.includes('Split') ? (Number(upiAmount) || 0) : (paymentMode.includes('UPI') || paymentMode.includes('Online') ? netAmount : 0);
 
     printReceipt({
       gridData: formattedItems,
@@ -1088,6 +1101,8 @@ const POSCheckout = () => {
       customerName: buyerName,
       customerMobile: mobileNo,
       paymentMode: paymentMode,
+      cashAmount: calcCashAmt,
+      upiAmount: calcUpiAmt,
       totalQty: totalQty,
       subTotal: totalAmount,
       cgst: cgst,
@@ -1385,6 +1400,9 @@ const POSCheckout = () => {
             itemDesc: product.itemCode || product.barcode || '',
             size: product.size || '',
             uom: product.uom || 'PCS',
+            baseUnit: product.baseUnit || product.uom || 'PCS',
+            packagings: product.packagings || [],
+            conversionFactor: product.conversionFactor || 1,
             rate: product.price || 0,
             qty: row.qty === 0 ? 1 : row.qty
           };

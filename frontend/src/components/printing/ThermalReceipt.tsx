@@ -1,5 +1,6 @@
 import React from 'react';
 import type { ReceiptPayload, PaperWidth } from '../../types/receipt';
+import { formatPackagingQty, getPaymentBreakdown } from '../../utils/packagingHelper';
 import './ThermalReceipt.css';
 
 interface ThermalReceiptProps {
@@ -18,6 +19,8 @@ export const ThermalReceipt: React.FC<ThermalReceiptProps> = ({
   const date = payload.date || new Date().toISOString().split('T')[0];
   const customerName = payload.customerName || '';
   const paymentMode = payload.paymentMode || 'Cash';
+
+  const payInfo = getPaymentBreakdown(payload);
 
   const items = payload.items || [];
   const totalItemsCount = items.length;
@@ -74,16 +77,28 @@ export const ThermalReceipt: React.FC<ThermalReceiptProps> = ({
             const idx = item.index || index + 1;
             const rate = Number(item.rate) || 0;
             const amt = Number(item.amount) || 0;
+            const pkgStr = ((item.packagings && item.packagings.length > 0) || (item.conversionFactor && item.conversionFactor > 1))
+              ? formatPackagingQty(item.qty, item.uom, item.baseUnit, item.packagings, item.conversionFactor)
+              : null;
 
             return (
-              <tr key={index}>
-                <td style={{ textAlign: 'left', width: paperWidth === '58mm' ? '45%' : '52%' }}>
-                  {idx} {item.itemName}
-                </td>
-                <td style={{ textAlign: 'right', width: '15%' }}>{item.qty}</td>
-                <td style={{ textAlign: 'right', width: '18%' }}>{rate.toFixed(2)}</td>
-                <td style={{ textAlign: 'right', width: '20%' }}>{amt.toFixed(2)}</td>
-              </tr>
+              <React.Fragment key={index}>
+                <tr>
+                  <td style={{ textAlign: 'left', width: paperWidth === '58mm' ? '45%' : '52%' }}>
+                    {idx} {item.itemName}
+                  </td>
+                  <td style={{ textAlign: 'right', width: '15%' }}>{item.qty}</td>
+                  <td style={{ textAlign: 'right', width: '18%' }}>{rate.toFixed(2)}</td>
+                  <td style={{ textAlign: 'right', width: '20%' }}>{amt.toFixed(2)}</td>
+                </tr>
+                {pkgStr && (
+                  <tr>
+                    <td colSpan={4} style={{ textAlign: 'left', fontSize: '9px', fontStyle: 'italic', paddingLeft: '12px', color: '#444' }}>
+                      ({pkgStr})
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
             );
           })}
         </tbody>
@@ -124,6 +139,14 @@ export const ThermalReceipt: React.FC<ThermalReceiptProps> = ({
       <div className="thermal-grand-total">
         Grand Total: ₹{grandTotalCalc.toFixed(2)}
       </div>
+
+      {/* Payment Breakdown (Cash Paid & UPI Paid) */}
+      {(payInfo.cashAmount > 0 || payInfo.upiAmount > 0) && (
+        <div className="thermal-summary-row" style={{ justifyContent: 'space-around', fontSize: '10px', fontWeight: 'bold', marginTop: '4px' }}>
+          {payInfo.cashAmount > 0 && <span>Cash Paid: ₹{payInfo.cashAmount.toFixed(2)}</span>}
+          {payInfo.upiAmount > 0 && <span>UPI Paid: ₹{payInfo.upiAmount.toFixed(2)}</span>}
+        </div>
+      )}
 
       {/* Divider after Grand Total */}
       <div className="dashed-divider" />

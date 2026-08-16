@@ -7,6 +7,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Modal from '../components/Modal';
 import { sendWhatsAppTextMessage, getRegisteredShopName } from '../utils/whatsappHelper';
+import { formatPackagingQty } from '../utils/packagingHelper';
 
 interface StockMove {
   id: string;
@@ -28,6 +29,9 @@ interface Product {
   variety?: string;
   size?: string;
   uom?: string;
+  baseUnit?: string;
+  packagings?: any[];
+  conversionFactor?: number;
   purchaseRate?: number;
   price?: number;
   stock?: number;
@@ -1063,16 +1067,31 @@ const StockRegister = () => {
                           <td className="border-r border-gray-200 p-2 text-xs text-center text-gray-600 font-medium">{p.size || '-'}</td>
                           
                           <td className="border-r border-gray-200 p-2 text-right font-mono text-green-600 bg-green-50/20 font-bold">
-                            {p.inward > 0 ? p.inward : ''}
+                            <div>{p.inward > 0 ? p.inward : ''}</div>
+                            {p.inward > 0 && ((p.packagings && p.packagings.length > 0) || (p.conversionFactor && p.conversionFactor > 1)) && (
+                              <div className="text-[10px] text-emerald-700 font-extrabold whitespace-nowrap leading-none mt-0.5">
+                                ({formatPackagingQty(p.inward, p.uom, p.baseUnit, p.packagings, p.conversionFactor)})
+                              </div>
+                            )}
                           </td>
                           <td className="border-r border-gray-200 p-2 text-right font-mono text-red-600 bg-red-50/20 font-bold">
-                            {p.outward > 0 ? p.outward : ''}
+                            <div>{p.outward > 0 ? p.outward : ''}</div>
+                            {p.outward > 0 && ((p.packagings && p.packagings.length > 0) || (p.conversionFactor && p.conversionFactor > 1)) && (
+                              <div className="text-[10px] text-red-700 font-extrabold whitespace-nowrap leading-none mt-0.5">
+                                ({formatPackagingQty(p.outward, p.uom, p.baseUnit, p.packagings, p.conversionFactor)})
+                              </div>
+                            )}
                           </td>
                           <td className="border-r border-gray-200 p-2 text-right font-mono text-orange-600 bg-orange-50/15">
                             {p.damages > 0 ? p.damages : ''}
                           </td>
                           <td className="border-r border-gray-200 p-2 text-right font-mono font-black text-yellow-700 bg-yellow-50/30">
-                            <div>{p.closingStock ?? p.dbStock ?? p.stock ?? 0}</div>
+                            <div>{p.closingStock ?? p.dbStock ?? p.stock ?? 0} {p.uom || 'PCS'}</div>
+                            {((p.packagings && p.packagings.length > 0) || (p.conversionFactor && p.conversionFactor > 1)) && (
+                              <div className="text-[10px] text-emerald-800 font-extrabold whitespace-nowrap leading-none mt-0.5">
+                                ({formatPackagingQty(p.closingStock ?? p.dbStock ?? p.stock ?? 0, p.uom, p.baseUnit, p.packagings, p.conversionFactor)})
+                              </div>
+                            )}
                             {Number(p.pendingOrderQty) > 0 && (
                               <div className="text-[10px] text-amber-600 font-bold whitespace-nowrap leading-none mt-1">
                                 ({p.pendingOrderQty} {p.uom || 'PCS'} in sales order)
@@ -1158,7 +1177,7 @@ const StockRegister = () => {
                  </div>
                </div>
                <div className="bg-white border border-gray-300 px-4 py-1 rounded shadow-inner text-sm font-bold">
-                 Opening Stock: <span className="font-mono text-lg ml-2">{activeLedger.openingStock}</span>
+                 Opening Stock: <span className="font-mono text-lg ml-2">{activeLedger.openingStock} {activeItem?.uom || ''} {activeItem && ((activeItem.packagings && activeItem.packagings.length > 0) || (activeItem.conversionFactor && activeItem.conversionFactor > 1)) ? `(${formatPackagingQty(activeLedger.openingStock, activeItem.uom, activeItem.baseUnit, activeItem.packagings, activeItem.conversionFactor)})` : ''}</span>
                </div>
             </div>
 
@@ -1217,7 +1236,14 @@ const StockRegister = () => {
                               <span className="text-gray-400 italic">If any damages, enter the reason here...</span>
                             )}
                           </td>
-                          <td className="p-2 text-right font-mono font-black text-gray-900 bg-yellow-50/20">{row.balance}</td>
+                          <td className="p-2 text-right font-mono font-black text-gray-900 bg-yellow-50/20">
+                            <div>{row.balance}</div>
+                            {activeItem && ((activeItem.packagings && activeItem.packagings.length > 0) || (activeItem.conversionFactor && activeItem.conversionFactor > 1)) && (
+                              <div className="text-[10px] text-emerald-800 font-extrabold whitespace-nowrap leading-none mt-0.5">
+                                ({formatPackagingQty(row.balance, activeItem.uom, activeItem.baseUnit, activeItem.packagings, activeItem.conversionFactor)})
+                              </div>
+                            )}
+                          </td>
                         </tr>
                       )
                     })

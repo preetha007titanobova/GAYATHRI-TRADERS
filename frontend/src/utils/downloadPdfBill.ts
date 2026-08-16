@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { applyRupeeFont } from './pdfFontLoader';
+import { formatPackagingQty, getPaymentBreakdown } from './packagingHelper';
 
 export interface BillItem {
   id?: number | string;
@@ -9,6 +10,9 @@ export interface BillItem {
   size?: string;
   qty: number;
   uom?: string;
+  baseUnit?: string;
+  packagings?: any[];
+  conversionFactor?: number;
   rate: number;
   discPercent?: number;
   discAmt?: number;
@@ -23,6 +27,8 @@ export interface BillData {
   address?: string;
   gstNo?: string;
   paymentMode: string;
+  cashAmount?: number;
+  upiAmount?: number;
   salesman?: string;
   items: BillItem[];
   totalQty: number;
@@ -52,6 +58,8 @@ export const downloadPdfBill = async (data: BillData) => {
   const storePhone = data.storePhone || (localStorage.getItem('registered_shop_mobile') ? `Mobile: ${localStorage.getItem('registered_shop_mobile')}` : '');
   const storeAddress = data.storeAddress || localStorage.getItem('registered_shop_address') || '';
 
+  const payInfo = getPaymentBreakdown(data);
+
   // --- Header ---
   doc.setFillColor(30, 58, 138); // Blue header banner
   doc.rect(0, 0, 210, 28, 'F');
@@ -75,7 +83,7 @@ export const downloadPdfBill = async (data: BillData) => {
 
   doc.setDrawColor(200, 200, 200);
   doc.setFillColor(248, 250, 252);
-  doc.roundedRect(14, startY, 182, 28, 2, 2, 'FD');
+  doc.roundedRect(14, startY, 182, 30, 2, 2, 'FD');
 
   doc.setTextColor(30, 41, 59);
   doc.setFontSize(9);
@@ -95,22 +103,35 @@ export const downloadPdfBill = async (data: BillData) => {
   doc.text(`Invoice No: ${data.invoiceNo}`, 110, startY + 12);
   doc.text(`Date: ${data.invDate}`, 110, startY + 17);
   doc.text(`Payment Mode: ${data.paymentMode || 'Cash'}`, 110, startY + 22);
+  if (payInfo.isSplit || payInfo.cashAmount > 0 || payInfo.upiAmount > 0) {
+    const paySubStr = payInfo.isSplit
+      ? `(Cash: ₹${payInfo.cashAmount.toFixed(2)} | UPI: ₹${payInfo.upiAmount.toFixed(2)})`
+      : payInfo.cashAmount > 0 ? `(Cash: ₹${payInfo.cashAmount.toFixed(2)})` : `(UPI: ₹${payInfo.upiAmount.toFixed(2)})`;
+    doc.setFontSize(8);
+    doc.setTextColor(100, 116, 139);
+    doc.text(paySubStr, 110, startY + 26);
+    doc.setTextColor(30, 41, 59);
+    doc.setFontSize(9);
+  }
 
-  startY += 32;
+  startY += 34;
 
   // --- Items Table ---
   const validItems = data.items.filter(item => item.itemName && item.itemName.trim() !== '');
 
-  const tableBody = validItems.map((item, index) => [
-    (index + 1).toString(),
-    item.itemDesc || '-',
-    item.itemName,
-    item.size || '-',
-    `${item.qty} ${item.uom || 'PCS'}`,
-    item.rate.toFixed(2),
-    item.discPercent ? `${item.discPercent}%` : '0%',
-    item.amount.toFixed(2)
-  ]);
+  const tableBody = validItems.map((item, index) => {
+    const qtyFormatted = formatPackagingQty(item.qty, item.uom, item.baseUnit, item.packagings, item.conversionFactor);
+    return [
+      (index + 1).toString(),
+      item.itemDesc || '-',
+      item.itemName,
+      item.size || '-',
+      qtyFormatted,
+      item.rate.toFixed(2),
+      item.discPercent ? `${item.discPercent}%` : '0%',
+      item.amount.toFixed(2)
+    ];
+  });
 
   autoTable(doc, {
     startY: startY,
@@ -126,13 +147,13 @@ export const downloadPdfBill = async (data: BillData) => {
     },
     columnStyles: {
       0: { halign: 'center', cellWidth: 10 },
-      1: { halign: 'left', cellWidth: 30 },
-      2: { halign: 'left', cellWidth: 62 },
-      3: { halign: 'center', cellWidth: 16 },
-      4: { halign: 'center', cellWidth: 18 },
-      5: { halign: 'right', cellWidth: 22 },
-      6: { halign: 'right', cellWidth: 14 },
-      7: { halign: 'right', cellWidth: 26 }
+      1: { halign: 'left', cellWidth: 28 },
+      2: { halign: 'left', cellWidth: 54 },
+      3: { halign: 'center', cellWidth: 14 },
+      4: { halign: 'center', cellWidth: 32 },
+      5: { halign: 'right', cellWidth: 20 },
+      6: { halign: 'right', cellWidth: 12 },
+      7: { halign: 'right', cellWidth: 22 }
     },
     styles: {
       fontSize: 8.5,
@@ -148,9 +169,10 @@ export const downloadPdfBill = async (data: BillData) => {
   // --- Totals Summary Box ---
   const summaryX = 114;
   const summaryWidth = 82;
+  const boxHeight = (payInfo.cashAmount > 0 && payInfo.upiAmount > 0) ? 52 : 44;
 
   doc.setFillColor(241, 245, 249);
-  doc.roundedRect(summaryX, finalY, summaryWidth, 42, 2, 2, 'FD');
+  doc.roundedRect(summaryX, finalY, summaryWidth, boxHeight, 2, 2, 'FD');
 
   doc.setFontSize(8.5);
   doc.setFont(fontName, 'normal');
@@ -186,6 +208,18 @@ export const downloadPdfBill = async (data: BillData) => {
     currentY += 5;
     doc.text('Round Off:', summaryX + 4, currentY);
     doc.text(`${data.roundOff >= 0 ? '+' : ''}₹${data.roundOff.toFixed(2)}`, summaryX + summaryWidth - 4, currentY, { align: 'right' });
+  }
+
+  if (payInfo.cashAmount > 0) {
+    currentY += 5;
+    doc.text('Cash Paid:', summaryX + 4, currentY);
+    doc.text(`₹${payInfo.cashAmount.toFixed(2)}`, summaryX + summaryWidth - 4, currentY, { align: 'right' });
+  }
+
+  if (payInfo.upiAmount > 0) {
+    currentY += 5;
+    doc.text('UPI Paid:', summaryX + 4, currentY);
+    doc.text(`₹${payInfo.upiAmount.toFixed(2)}`, summaryX + summaryWidth - 4, currentY, { align: 'right' });
   }
 
   // Grand Total Line

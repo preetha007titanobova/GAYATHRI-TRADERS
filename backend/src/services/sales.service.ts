@@ -345,11 +345,17 @@ export const getSalesBillByInvoiceNo = async (invoiceNo: string): Promise<any> =
     if (!prod && item.itemName) {
       prod = await db.collection('Product').findOne({ name: item.itemName });
     }
+    let packagings = item.packagings || [];
+    let baseUnit = item.baseUnit || '';
+    let conversionFactor = item.conversionFactor || 1;
     if (prod) {
       barcode = prod.barcode || prod.itemCode || '';
       if (!size) size = prod.size || '';
+      if (!packagings || packagings.length === 0) packagings = prod.packagings || [];
+      if (!baseUnit) baseUnit = prod.baseUnit || prod.uom || '';
+      if (!conversionFactor || conversionFactor === 1) conversionFactor = prod.conversionFactor || 1;
     }
-    itemsWithDetails.push({ ...item, barcode, size: size || '-' });
+    itemsWithDetails.push({ ...item, barcode, size: size || '-', packagings, baseUnit, conversionFactor });
   }
   return { ...bill, items: itemsWithDetails };
 };

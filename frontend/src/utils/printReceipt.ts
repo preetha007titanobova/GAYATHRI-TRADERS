@@ -13,6 +13,8 @@ export interface PrintReceiptData {
   date?: string;
   customerName?: string;
   paymentMode?: string;
+  cashAmount?: number;
+  upiAmount?: number;
   totalQty?: number;
   subTotal?: number;
   cgst?: number;
@@ -41,6 +43,10 @@ export const convertToReceiptPayload = (data: PrintReceiptData): ReceiptPayload 
     index: idx + 1,
     itemName: item.itemName || item.itemDesc || 'Item',
     qty: Number(item.qty) || 1,
+    uom: item.uom,
+    baseUnit: item.baseUnit,
+    packagings: item.packagings,
+    conversionFactor: item.conversionFactor,
     rate: Number(item.rate) || 0,
     amount: Number(item.amount) || Number(item.totalAmt) || 0
   }));
@@ -58,6 +64,8 @@ export const convertToReceiptPayload = (data: PrintReceiptData): ReceiptPayload 
     customerName: data.buyerName || data.customerName || 'CASH CUSTOMER',
     customerMobile: data.mobileNo || data.customerMobile || '',
     paymentMode: data.paymentMode || 'Cash',
+    cashAmount: data.cashAmount,
+    upiAmount: data.upiAmount,
     items: mappedItems,
     totalQty: data.totalQty || mappedItems.reduce((acc, i) => acc + i.qty, 0),
     subTotal: subTotalCalc,

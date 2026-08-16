@@ -1,4 +1,5 @@
 import type { BillData } from './downloadPdfBill';
+import { formatPackagingQty, getPaymentBreakdown } from './packagingHelper';
 
 export const checkWhatsAppLicenseAllowed = (): { allowed: boolean; message: string } => {
   const isValid = localStorage.getItem('license_valid');
@@ -58,16 +59,28 @@ export const sendWhatsAppBill = (data: BillData, overridePhone?: string, useNati
     phone = `91${phone}`;
   }
 
+  const payInfo = getPaymentBreakdown(data);
   const validItems = data.items.filter(item => item.itemName && item.itemName.trim() !== '');
 
   const itemsFormatted = validItems.map((item, idx) => {
     const sizeStr = item.size ? ` (Size: ${item.size})` : '';
-    return `${idx + 1}. *${item.itemName}*${sizeStr}\n   ${item.qty} ${item.uom || 'PCS'} x ₹${item.rate.toFixed(2)} = *₹${item.amount.toFixed(2)}*`;
+    const pkgFormatted = formatPackagingQty(item.qty, item.uom, item.baseUnit, item.packagings, item.conversionFactor);
+    const qtyDisplay = pkgFormatted !== `${item.qty} ${item.uom || 'PCS'}` ? `${pkgFormatted}` : `${item.qty} ${item.uom || 'PCS'}`;
+    return `${idx + 1}. *${item.itemName}*${sizeStr}\n   ${qtyDisplay} x ₹${item.rate.toFixed(2)} = *₹${item.amount.toFixed(2)}*`;
   }).join('\n');
 
   const storeName = data.storeName || getRegisteredShopName();
 
   const headerLine = storeName ? `🧾 *${storeName} - TAX INVOICE*` : `🧾 *TAX INVOICE*`;
+
+  let payModeLine = `💳 *Payment Mode:* ${data.paymentMode || 'Cash'}`;
+  if (payInfo.isSplit) {
+    payModeLine += `\n   💵 Cash: ₹${payInfo.cashAmount.toFixed(2)} | 📱 UPI: ₹${payInfo.upiAmount.toFixed(2)}`;
+  } else if (payInfo.cashAmount > 0 && data.paymentMode !== 'Cash') {
+    payModeLine += ` (💵 Cash: ₹${payInfo.cashAmount.toFixed(2)})`;
+  } else if (payInfo.upiAmount > 0 && !data.paymentMode.toLowerCase().includes('upi')) {
+    payModeLine += ` (📱 UPI: ₹${payInfo.upiAmount.toFixed(2)})`;
+  }
 
   const text =
     `${headerLine}
@@ -76,7 +89,7 @@ export const sendWhatsAppBill = (data: BillData, overridePhone?: string, useNati
 📅 *Date:* ${data.invDate}
 👤 *Customer:* ${data.buyerName || 'Valued Customer'}
 📱 *Mobile:* ${data.mobileNo || rawPhone}
-💳 *Payment Mode:* ${data.paymentMode || 'Cash'}
+${payModeLine}
 ----------------------------------------
 *ITEMS:*
 ${itemsFormatted}
@@ -85,8 +98,10 @@ ${itemsFormatted}
 💵 *SubTotal:* ₹${data.totalAmount.toFixed(2)}` +
     (data.favourDiscount ? `\n🏷️ *Discount:* -₹${data.favourDiscount.toFixed(2)}` : '') +
     (data.cgst || data.sgst ? `\n🏛️ *GST Total:* ₹${((data.cgst || 0) + (data.sgst || 0)).toFixed(2)}` : '') +
-    `\n💰 *GRAND TOTAL:* *₹${data.netAmount.toFixed(2)}*
-----------------------------------------
+    `\n💰 *GRAND TOTAL:* *₹${data.netAmount.toFixed(2)}*` +
+    (payInfo.cashAmount > 0 ? `\n💵 *Cash Paid:* ₹${payInfo.cashAmount.toFixed(2)}` : '') +
+    (payInfo.upiAmount > 0 ? `\n📱 *UPI Paid:* ₹${payInfo.upiAmount.toFixed(2)}` : '') +
+    `\n----------------------------------------
 Thank you for shopping with us! 🙏 Have a great day!`;
 
   const encodedText = encodeURIComponent(text);

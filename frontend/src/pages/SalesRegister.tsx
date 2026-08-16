@@ -8,6 +8,7 @@ import autoTable from 'jspdf-autotable';
 import { printReceipt } from '../utils/printReceipt';
 import { sendWhatsAppBill, sendWhatsAppTextMessage, getRegisteredShopName } from '../utils/whatsappHelper';
 import { applyRupeeFont } from '../utils/pdfFontLoader';
+import { formatPackagingQty, getPaymentBreakdown } from '../utils/packagingHelper';
 
 const printOrder = (order: any, mode: 'print' | 'whatsapp' = 'print') => {
   const cartItems = (order.items || []).map((it: any) => ({
@@ -1430,7 +1431,27 @@ const SalesRegister = () => {
                             <span className="font-semibold text-slate-800">{detailModalData.salesman || 'N/A'}</span>
 
                             <span className="font-medium text-slate-500">Payment Mode:</span>
-                            <span className="font-semibold text-slate-800">{detailModalData.paymentMode || 'Cash'}</span>
+                            <span className="font-semibold text-slate-800">
+                              {(() => {
+                                const payInfo = getPaymentBreakdown(detailModalData);
+                                return (
+                                  <div>
+                                    <span>{payInfo.paymentMode || 'Cash'}</span>
+                                    {payInfo.isSplit ? (
+                                      <div className="text-[11px] font-bold text-purple-800 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200 mt-0.5">
+                                        💵 Cash: ₹{payInfo.cashAmount.toFixed(2)} | 📱 UPI: ₹{payInfo.upiAmount.toFixed(2)}
+                                      </div>
+                                    ) : (
+                                      payInfo.cashAmount > 0 && payInfo.paymentMode !== 'Cash' ? (
+                                        <div className="text-[11px] text-emerald-700 font-semibold">💵 Cash: ₹{payInfo.cashAmount.toFixed(2)}</div>
+                                      ) : payInfo.upiAmount > 0 && !payInfo.paymentMode.toLowerCase().includes('upi') ? (
+                                        <div className="text-[11px] text-blue-700 font-semibold">📱 UPI: ₹{payInfo.upiAmount.toFixed(2)}</div>
+                                      ) : null
+                                    )}
+                                  </div>
+                                );
+                              })()}
+                            </span>
 
                             <span className="font-medium text-slate-500">E-Type:</span>
                             <span className="font-semibold text-slate-800">{detailModalData.eType || 'Local'}</span>
@@ -1543,7 +1564,14 @@ const SalesRegister = () => {
                                 ) : (
                                   <>
                                     <td className="p-2 text-center font-bold text-blue-900 bg-blue-50/50">{item.size || '-'}</td>
-                                    <td className="p-2 text-right font-mono">{item.qty || 0}</td>
+                                    <td className="p-2 text-right font-mono">
+                                      <div>{item.qty || 0}</div>
+                                      {((item.packagings && item.packagings.length > 0) || (item.conversionFactor && item.conversionFactor > 1)) && (
+                                        <div className="text-[10px] text-emerald-700 font-extrabold whitespace-nowrap">
+                                          ({formatPackagingQty(item.qty || 0, item.uom, item.baseUnit, item.packagings, item.conversionFactor)})
+                                        </div>
+                                      )}
+                                    </td>
                                     <td className="p-2 text-slate-500">{item.uom || 'PCS'}</td>
                                     <td className="p-2 text-right font-mono">₹{(item.rate || 0).toFixed(2)}</td>
                                     <td className="p-2 text-right font-mono">{item.discPercent || 0}%</td>
@@ -1649,14 +1677,31 @@ const SalesRegister = () => {
 
                       {detailModalType === 'bill' && (
                         <div className="border-t border-slate-200 pt-2 mt-2 space-y-1">
-                          <div className="flex justify-between text-green-700 font-semibold">
-                            <span>Paid Amount:</span>
-                            <span className="font-mono">₹{(detailModalData.paidAmount || 0).toFixed(2)}</span>
-                          </div>
-                          <div className="flex justify-between text-red-600 font-semibold">
-                            <span>Pending Amount:</span>
-                            <span className="font-mono">₹{(detailModalData.pendingAmount || 0).toFixed(2)}</span>
-                          </div>
+                          {(() => {
+                            const payInfo = getPaymentBreakdown(detailModalData);
+                            return (
+                              <>
+                                {payInfo.cashAmount > 0 && (
+                                  <div className="flex justify-between text-emerald-700 font-bold">
+                                    <span>💵 Cash Paid:</span>
+                                    <span className="font-mono">₹{payInfo.cashAmount.toFixed(2)}</span>
+                                  </div>
+                                )}
+                                {payInfo.upiAmount > 0 && (
+                                  <div className="flex justify-between text-blue-700 font-bold">
+                                    <span>📱 UPI Paid:</span>
+                                    <span className="font-mono">₹{payInfo.upiAmount.toFixed(2)}</span>
+                                  </div>
+                                )}
+                              </>
+                            );
+                          })()}
+                          {detailModalData.pendingAmount > 0 && (
+                            <div className="flex justify-between text-red-600 font-semibold">
+                              <span>Pending Amount:</span>
+                              <span className="font-mono">₹{(detailModalData.pendingAmount || 0).toFixed(2)}</span>
+                            </div>
+                          )}
                         </div>
                       )}
 
