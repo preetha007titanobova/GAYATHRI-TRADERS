@@ -189,7 +189,7 @@ const BarcodeGeneration = () => {
   const [forcePortrait, setForcePortrait] = useState<boolean>(false);
   const [showShopHeader, setShowShopHeader] = useState<boolean>(true);
   const [showMetaLine, setShowMetaLine] = useState<boolean>(true);
-  const [showDatesLine, setShowDatesLine] = useState<boolean>(false);
+  const [showDatesLine, setShowDatesLine] = useState<boolean>(true);
   const [showPriceLine, setShowPriceLine] = useState<boolean>(true);
 
   const handleLayoutPresetChange = (preset: '3-UP' | '3-UP-TALL' | '3-UP-WIDE' | '1-UP' | 'A4') => {
@@ -717,7 +717,7 @@ const BarcodeGeneration = () => {
     itemsToPrint.forEach(item => {
       const numLabels = Number(item.printCount) || 1;
       const mfgFormatted = item.mfgDate ? `${item.mfgDate.substring(8, 10)}/${item.mfgDate.substring(5, 7)}/${item.mfgDate.substring(0, 4)}` : '10/05/2025';
-      const expFormatted = item.expDate ? `${item.expDate.substring(8, 10)}/${item.expDate.substring(5, 7)}/${item.expDate.substring(0, 4)}` : '--/--';
+      const expFormatted = item.expDate ? `${item.expDate.substring(8, 10)}/${item.expDate.substring(5, 7)}/${item.expDate.substring(0, 4)}` : '10/05/2026';
       const mrpFormatted = Number(item.mrp || 0).toFixed(2);
       const saleFormatted = Number(item.salesPrice || item.mrp || 0).toFixed(2);
       const barcodeSvg = getBarcodeSVGString(item.barcodeValue || '8901234567890', item.barcodeType || 'Code 128');
