@@ -24,6 +24,15 @@ export const checkWhatsAppLicenseAllowed = (): { allowed: boolean; message: stri
   return { allowed: true, message: '' };
 };
 
+export const getRegisteredShopName = (): string => {
+  return (
+    localStorage.getItem('registered_shop_name') ||
+    localStorage.getItem('shop_name') ||
+    localStorage.getItem('company_name') ||
+    'OUR STORE'
+  ).trim();
+};
+
 export const sendWhatsAppBill = (data: BillData, overridePhone?: string, useNativeApp: boolean = true) => {
   const licenseStatus = checkWhatsAppLicenseAllowed();
   if (!licenseStatus.allowed) {
@@ -56,7 +65,7 @@ export const sendWhatsAppBill = (data: BillData, overridePhone?: string, useNati
     return `${idx + 1}. *${item.itemName}*${sizeStr}\n   ${item.qty} ${item.uom || 'PCS'} x ₹${item.rate.toFixed(2)} = *₹${item.amount.toFixed(2)}*`;
   }).join('\n');
 
-  const storeName = data.storeName || localStorage.getItem('registered_shop_name') || localStorage.getItem('shop_name') || '';
+  const storeName = data.storeName || getRegisteredShopName();
 
   const headerLine = storeName ? `🧾 *${storeName} - TAX INVOICE*` : `🧾 *TAX INVOICE*`;
 

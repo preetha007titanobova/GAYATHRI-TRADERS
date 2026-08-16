@@ -5,7 +5,7 @@ import { Calendar, PackageSearch, Search, FileText } from 'lucide-react';
 import Api from '../Api';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { sendWhatsAppTextMessage } from '../utils/whatsappHelper';
+import { sendWhatsAppTextMessage, getRegisteredShopName } from '../utils/whatsappHelper';
 
 interface DailyStockItem {
   id: string;
@@ -360,7 +360,8 @@ const DailyStockStatus = () => {
         pdfUrl = resJson.pdfUrl || '';
       }
 
-      const reportText = `*Ithu Namma Kada - Daily Sales Report*\n` +
+      const activeShopName = getRegisteredShopName();
+      const reportText = `*${activeShopName} - Daily Sales Report*\n` +
                          `*Date:* ${formattedDate}\n` +
                          `*Total Items:* ${filteredStock.length}\n` +
                          (hasInward ? `*Total Qty In (Pur):* ${totals.inward}\n` : '') +
@@ -368,7 +369,7 @@ const DailyStockStatus = () => {
                          `*Total Qty Returned:* ${totals.returns}\n` +
                          `*Total Sales Amount:* Rs. ${paymentSummary.total.toFixed(2)}\n\n` +
                          (pdfUrl ? `*Download PDF Report:* ${pdfUrl}\n\n` : '') +
-                         `Generated automatically via Billing System.`;
+                         `Generated automatically via ${activeShopName} Billing System.`;
 
       sendWhatsAppTextMessage('', reportText);
       setGlobalNotification({ msg: 'WhatsApp sharing triggered successfully!', type: 'success' });

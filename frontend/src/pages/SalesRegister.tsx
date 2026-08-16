@@ -6,7 +6,7 @@ import Api from '../Api';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { printReceipt } from '../utils/printReceipt';
-import { sendWhatsAppBill, sendWhatsAppTextMessage } from '../utils/whatsappHelper';
+import { sendWhatsAppBill, sendWhatsAppTextMessage, getRegisteredShopName } from '../utils/whatsappHelper';
 import { applyRupeeFont } from '../utils/pdfFontLoader';
 
 const printOrder = (order: any, mode: 'print' | 'whatsapp' = 'print') => {
@@ -505,7 +505,7 @@ const SalesRegister = () => {
       const doc = new jsPDF();
       const fontName = await applyRupeeFont(doc);
       const title = activeTab === 'bills' ? 'Sales Bills Register' : activeTab === 'orders' ? 'Sales Orders Register' : 'Sales Returns Register';
-      const storeName = localStorage.getItem('registered_shop_name') || localStorage.getItem('shop_name') || 'Ithu Namma Kada';
+      const storeName = getRegisteredShopName();
 
       // Header styling
       doc.setFontSize(16);
@@ -607,7 +607,7 @@ const SalesRegister = () => {
         whatsappText += `📄 *Download Full PDF Report:* ${pdfUrl}\n\n`;
       }
 
-      whatsappText += `Generated via Ithu Namma Kada Billing System. 🙏`;
+      whatsappText += `Generated via ${storeName} Billing System. 🙏`;
 
       sendWhatsAppTextMessage(targetPhone, whatsappText);
       setGlobalNotification({ msg: `WhatsApp share triggered for ${targetPhone}!`, type: 'success' });

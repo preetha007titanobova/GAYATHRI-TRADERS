@@ -6,7 +6,7 @@ import Api from '../Api';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Modal from '../components/Modal';
-import { sendWhatsAppTextMessage } from '../utils/whatsappHelper';
+import { sendWhatsAppTextMessage, getRegisteredShopName } from '../utils/whatsappHelper';
 
 interface StockMove {
   id: string;
@@ -590,7 +590,8 @@ const StockRegister = () => {
       const resData = await res.json();
       if (!resData.success || !resData.pdfUrl) throw new Error('PDF upload returned unsuccessful');
 
-      const whatsappText = `*Ithu Namma Kada - Stock Register Summary*\n` +
+      const activeShopName = getRegisteredShopName();
+      const whatsappText = `*${activeShopName} - Stock Register Summary*\n` +
                            `*Period:* ${fromDate} to ${toDate}\n` +
                            `*Total Items:* ${filteredProducts.length}\n` +
                            `*Total Opening:* ${summaryTotals.opening}\n` +
@@ -599,7 +600,7 @@ const StockRegister = () => {
                            `*Total Damages:* ${summaryTotals.damages}\n` +
                            `*Total Stock:* ${summaryTotals.totalStock}\n\n` +
                            `*Download PDF:* ${resData.pdfUrl}\n\n` +
-                           `Generated automatically via Ithu Namma Kada Billing System.`;
+                           `Generated automatically via ${activeShopName} Billing System.`;
 
       sendWhatsAppTextMessage(ownerWhatsApp, whatsappText);
       setGlobalNotification({ msg: 'WhatsApp share triggered successfully!', type: 'success' });
@@ -664,12 +665,13 @@ const StockRegister = () => {
       const resData = await res.json();
       if (!resData.success || !resData.pdfUrl) throw new Error('PDF upload returned unsuccessful');
 
-      const whatsappText = `*Ithu Namma Kada - Stock Register Report*\n` +
+      const activeShopName = getRegisteredShopName();
+      const whatsappText = `*${activeShopName} - Stock Register Report*\n` +
                            `*Item:* [${activeItem.itemCode}] ${activeItem.name}\n` +
                            `*Period:* ${fromDate} to ${toDate}\n` +
                            `*Closing Stock:* ${activeLedger.closingStock}\n\n` +
                            `*Download PDF:* ${resData.pdfUrl}\n\n` +
-                           `Generated automatically via Ithu Namma Kada Billing System.`;
+                           `Generated automatically via ${activeShopName} Billing System.`;
 
       sendWhatsAppTextMessage(ownerWhatsApp, whatsappText);
       setGlobalNotification({ msg: 'WhatsApp share triggered successfully!', type: 'success' });

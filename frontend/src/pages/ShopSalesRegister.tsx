@@ -6,7 +6,7 @@ import Modal from '../components/Modal';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Api from '../Api';
-import { sendWhatsAppBill, sendWhatsAppTextMessage } from '../utils/whatsappHelper';
+import { sendWhatsAppBill, sendWhatsAppTextMessage, getRegisteredShopName } from '../utils/whatsappHelper';
 import { applyRupeeFont } from '../utils/pdfFontLoader';
 
 // --- DATA STRUCTURES ---
@@ -256,12 +256,13 @@ const ShopSalesRegister = () => {
       const resData = await res.json();
       if (!resData.success || !resData.pdfUrl) throw new Error('PDF upload returned unsuccessful');
 
-      const whatsappText = `*Ithu Namma Kada - Wholesale Sales Register Report*\n` +
+      const activeShopName = getRegisteredShopName();
+      const whatsappText = `*${activeShopName} - Wholesale Sales Register Report*\n` +
                            `*Period:* ${filters.fromDate} to ${filters.toDate}\n` +
                            `*Shop:* ${filters.shop}\n` +
                            `*Total Net Payable:* ₹${totals.net.toFixed(2)}\n\n` +
                            `*Download PDF:* ${resData.pdfUrl}\n\n` +
-                           `Generated automatically via Ithu Namma Kada Billing System.`;
+                           `Generated automatically via ${activeShopName} Billing System.`;
 
       sendWhatsAppTextMessage(ownerWhatsApp, whatsappText);
       setGlobalNotification({ msg: 'WhatsApp share triggered successfully!', type: 'success' });

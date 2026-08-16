@@ -7,7 +7,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Api from '../Api';
 import { applyRupeeFont } from '../utils/pdfFontLoader';
-import { sendWhatsAppTextMessage } from '../utils/whatsappHelper';
+import { sendWhatsAppTextMessage, getRegisteredShopName } from '../utils/whatsappHelper';
 
 // --- INDIAN TIME FORMATTING HELPERS ---
 const formatIndianDateTime = (dateInput?: string | Date) => {
@@ -665,12 +665,13 @@ const PurRegister = () => {
       const resData = await res.json();
       if (!resData.success || !resData.pdfUrl) throw new Error('PDF upload returned unsuccessful');
 
-      const whatsappText = `*Ithu Namma Kada - Purchase Register Report*\n` +
+      const activeShopName = getRegisteredShopName();
+      const whatsappText = `*${activeShopName} - Purchase Register Report*\n` +
                            `*Period:* ${filters.fromDate} to ${filters.toDate}\n` +
                            `*Supplier:* ${filters.supplier}\n` +
                            `*Total Net Payable:* ₹${totals.net.toFixed(2)}\n\n` +
                            `*Download PDF:* ${resData.pdfUrl}\n\n` +
-                           `Generated automatically via Ithu Namma Kada Billing System.`;
+                           `Generated automatically via ${activeShopName} Billing System.`;
 
       sendWhatsAppTextMessage(ownerWhatsApp, whatsappText);
       setGlobalNotification({ msg: 'WhatsApp share triggered successfully!', type: 'success' });
