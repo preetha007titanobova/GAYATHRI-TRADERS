@@ -735,20 +735,24 @@ const BarcodeGeneration = () => {
 
     const renderLabelContent = (l: (typeof rawLabels)[0]) => `
       <div class="print-label-outer" style="width: ${labelWidthMm}mm; height: ${labelHeightMm}mm; position: relative; overflow: hidden; display: flex; justify-content: center; align-items: center; box-sizing: border-box; padding: 0;">
-        <div class="print-label-inner" style="width: ${innerWidth}mm; height: ${innerHeight}mm; ${labelRotation !== 0 ? `transform: rotate(${labelRotation}deg); transform-origin: center;` : ''} display: flex; flex-direction: column; justify-content: flex-start; align-items: center; box-sizing: border-box; padding: ${marginTopMm !== undefined ? marginTopMm : 1}mm 1.2mm 0.5mm 1.2mm; background-color: #ffffff;">
-          ${showShopHeader ? `<div class="header" style="font-size: 6pt; font-weight: 800; text-align: center; text-transform: uppercase; color: #000000 !important; line-height: 1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0.1px;">${effectiveShopName}</div>` : ''}
-          <div class="product" style="font-size: 7.5pt; font-weight: 900; margin-top: 0.8mm; text-align: center; text-transform: uppercase; color: #000000 !important; line-height: 1.05; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${l.item.productName}</div>
-          ${showMetaLine ? `<div class="meta" style="font-size: 5.5pt; font-weight: 800; margin-top: 0.4mm; text-align: center; color: #000000 !important; line-height: 1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${l.item.variety && !['standard', 'std', 'default', ''].includes(l.item.variety.trim().toLowerCase()) ? l.item.variety + ' | ' : ''}Wt : ${l.item.weight || '1kg'}</div>` : ''}
-          ${(showDatesLine || showPriceLine) ? `
-            <div class="dates-price" style="display: flex; justify-content: ${showDatesLine ? 'space-between' : 'center'}; align-items: baseline; font-size: 5pt; font-weight: 900; width: 100%; padding: 0; margin-top: 0.4mm; color: #000000 !important;">
-              ${showDatesLine ? `<span>pkd : ${l.mfgFormatted}</span>` : ''}
-              ${showPriceLine ? `<span class="mrp" style="font-size: 5.5pt; font-weight: 900;">MRP ₹${l.mrpFormatted}  SALE ₹${l.saleFormatted}</span>` : ''}
+        <div class="print-label-inner" style="width: ${innerWidth}mm; height: ${innerHeight}mm; ${labelRotation !== 0 ? `transform: rotate(${labelRotation}deg); transform-origin: center;` : ''} display: flex; flex-direction: column; justify-content: flex-start; align-items: center; box-sizing: border-box; padding: ${marginTopMm !== undefined ? marginTopMm : 0.8}mm 1mm 0.5mm 1mm; background-color: #ffffff;">
+          ${showShopHeader ? `<div class="header" style="font-size: 5.5pt; font-weight: 800; text-align: center; text-transform: uppercase; color: #000000 !important; line-height: 1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0.1px;">${effectiveShopName}</div>` : ''}
+          <div class="product" style="font-size: 7pt; font-weight: 900; margin-top: 0.4mm; text-align: center; text-transform: uppercase; color: #000000 !important; line-height: 1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${l.item.productName}</div>
+          ${showMetaLine ? `<div class="meta" style="font-size: 4.8pt; font-weight: 800; margin-top: 0.3mm; text-align: center; color: #000000 !important; line-height: 1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${l.item.variety && !['standard', 'std', 'default', ''].includes(l.item.variety.trim().toLowerCase()) ? l.item.variety + ' | ' : ''}Wt : ${l.item.weight || '1kg'}</div>` : ''}
+          ${showDatesLine ? `
+            <div class="dates" style="font-size: 4.8pt; font-weight: 800; margin-top: 0.3mm; text-align: center; color: #000000 !important; line-height: 1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+              pkd: ${l.mfgFormatted}${l.expFormatted ? ` &nbsp; exp: ${l.expFormatted}` : ''}
             </div>
           ` : ''}
-          <div class="barcode-wrapper" style="height: ${barcodeHeightMm || 6}mm; width: 70%; margin: 0.1mm auto 0 auto; display: flex; justify-content: center; align-items: center; background-color: #ffffff !important;">
+          ${showPriceLine ? `
+            <div class="price" style="font-size: 5.2pt; font-weight: 900; margin-top: 0.3mm; text-align: center; color: #000000 !important; line-height: 1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+              MRP ₹${l.mrpFormatted} &nbsp; SALE ₹${l.saleFormatted}
+            </div>
+          ` : ''}
+          <div class="barcode-wrapper" style="height: ${barcodeHeightMm || 5}mm; width: 75%; margin: 0.3mm auto 0 auto; display: flex; justify-content: center; align-items: center; background-color: #ffffff !important;">
              ${l.barcodeSvg}
           </div>
-          <div class="barcode-text" style="font-size: 5pt; font-family: monospace; font-weight: 900; text-align: center; line-height: 1; color: #000000 !important; letter-spacing: 0.3px;">${l.item.barcodeType === 'Code 39' ? '* ' + l.item.barcodeValue + ' *' : l.item.barcodeValue}</div>
+          <div class="barcode-text" style="font-size: 4.5pt; font-family: monospace; font-weight: 900; text-align: center; line-height: 1; color: #000000 !important; letter-spacing: 0.3px; margin-top: 0.2mm;">${l.item.barcodeType === 'Code 39' ? '* ' + l.item.barcodeValue + ' *' : l.item.barcodeValue}</div>
         </div>
       </div>
     `;
@@ -1650,18 +1654,19 @@ const BarcodeGeneration = () => {
                         </span>
                       </div>
                     )}
-                    {(showDatesLine || showPriceLine) && (
-                      <div className={`w-full flex ${showDatesLine ? 'justify-between' : 'justify-center'} items-baseline px-0.5`}>
-                        {showDatesLine && (
-                          <span className="text-[5.5pt] font-extrabold leading-none m-0 p-0 text-black">
-                            pkd : {mfgDate ? `${mfgDate.substring(8, 10)}/${mfgDate.substring(5, 7)}/${mfgDate.substring(0, 4)}` : '10/05/2025'}
-                          </span>
-                        )}
-                        {showPriceLine && (
-                          <span className="text-[5.5pt] font-black leading-none m-0 p-0 text-black">
-                            MRP ₹{mrp !== '' ? Number(mrp).toFixed(2) : (salesPrice !== '' ? Number(salesPrice).toFixed(2) : '450.00')} &nbsp; SALE ₹{salesPrice !== '' ? Number(salesPrice).toFixed(2) : '450.00'}
-                          </span>
-                        )}
+                    {showDatesLine && (
+                      <div className="w-full text-center">
+                        <span className="text-[4.8pt] font-extrabold leading-none m-0 p-0 text-black block truncate">
+                          pkd: {mfgDate ? `${mfgDate.substring(8, 10)}/${mfgDate.substring(5, 7)}/${mfgDate.substring(2, 4)}` : '10/05/25'}
+                          {expDate ? `  exp: ${expDate.substring(8, 10)}/${expDate.substring(5, 7)}/${expDate.substring(2, 4)}` : ''}
+                        </span>
+                      </div>
+                    )}
+                    {showPriceLine && (
+                      <div className="w-full text-center">
+                        <span className="text-[5.2pt] font-black leading-none m-0 p-0 text-black block truncate">
+                          MRP ₹{mrp !== '' ? Number(mrp).toFixed(2) : (salesPrice !== '' ? Number(salesPrice).toFixed(2) : '450.00')} &nbsp; SALE ₹{salesPrice !== '' ? Number(salesPrice).toFixed(2) : '450.00'}
+                        </span>
                       </div>
                     )}
                     <div className="w-[75%] flex justify-center items-center bg-white" style={{ height: `${barcodeHeightMm}mm` }}>
