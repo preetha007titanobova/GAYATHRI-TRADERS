@@ -185,7 +185,7 @@ const BarcodeGeneration = () => {
   const [barcodeHeightMm, setBarcodeHeightMm] = useState<number>(6);
   const [labelRotation, setLabelRotation] = useState<0 | 90 | 180 | 270>(0);
   const [startColumn, setStartColumn] = useState<number>(1);
-  const [marginLeftMm, setMarginLeftMm] = useState<number>(3);
+  const [marginLeftMm, setMarginLeftMm] = useState<number>(0);
   const [forcePortrait, setForcePortrait] = useState<boolean>(false);
   const [showShopHeader, setShowShopHeader] = useState<boolean>(true);
   const [showMetaLine, setShowMetaLine] = useState<boolean>(true);
@@ -203,7 +203,7 @@ const BarcodeGeneration = () => {
       setLabelHeightMm(25);
       setBarcodeHeightMm(6);
       setColsAcross(3);
-      setMarginLeftMm(3);
+      setMarginLeftMm(0);
       setLabelRotation(0);
       setForcePortrait(false);
       if (!printCount || printCount === 1) setPrintCount(3);
@@ -216,7 +216,7 @@ const BarcodeGeneration = () => {
       setLabelHeightMm(50);
       setBarcodeHeightMm(10);
       setColsAcross(3);
-      setMarginLeftMm(3);
+      setMarginLeftMm(0);
       setLabelRotation(0);
       setForcePortrait(false);
       if (!printCount || printCount === 1) setPrintCount(3);
@@ -229,7 +229,7 @@ const BarcodeGeneration = () => {
       setLabelHeightMm(25);
       setBarcodeHeightMm(6);
       setColsAcross(3);
-      setMarginLeftMm(3);
+      setMarginLeftMm(0);
       setLabelRotation(0);
       setForcePortrait(false);
       if (!printCount || printCount === 1) setPrintCount(3);
@@ -546,8 +546,10 @@ const BarcodeGeneration = () => {
       for (let col = 0; col < colsAcross; col++) {
         if (col >= currentCol && labelIdx < rawList.length) {
           const item = rawList[labelIdx];
-          const mfg = item.mfgDate ? `${item.mfgDate.substring(8, 10)}/${item.mfgDate.substring(5, 7)}/${item.mfgDate.substring(0, 4)}` : '10/05/2025';
+          const mfg = item.mfgDate ? `${item.mfgDate.substring(8, 10)}/${item.mfgDate.substring(5, 7)}/${item.mfgDate.substring(2, 4)}` : '10/05/25';
+          const exp = item.expDate ? `${item.expDate.substring(8, 10)}/${item.expDate.substring(5, 7)}/${item.expDate.substring(2, 4)}` : '10/05/26';
           const saleVal = Number(item.salesPrice || item.mrp || 0).toFixed(2);
+          const mrpVal = Number(item.mrp || item.salesPrice || 0).toFixed(2);
           const xDot = Math.round((marginLeftMm + col * (labelWidthMm + columnGapMm)) * 8); // 203 DPI = 8 dots/mm
           const labelWidthDots = Math.round(labelWidthMm * 8);
           const labelHeightDots = Math.round(labelHeightMm * 8);
@@ -558,13 +560,11 @@ const BarcodeGeneration = () => {
           const metaText = isCustomVar
             ? `${item.variety.substring(0, 8)} | Wt:${(item.weight || '1kg').substring(0, 4)}`
             : `Wt:${(item.weight || '1kg').substring(0, 6)}`;
-          const exp = item.expDate ? `${item.expDate.substring(8, 10)}/${item.expDate.substring(5, 7)}/${item.expDate.substring(0, 4)}` : '10/05/2026';
-          const pkdText = `pkd:${mfg} exp:${exp}`;
-          const mrpVal = Number(item.mrp || item.salesPrice || 0).toFixed(2);
+          const pkdText = `${mfg} exp:${exp}`;
           const mrpText = `MRP Rs.${mrpVal} SALE Rs.${saleVal}`;
           const bcVal = item.barcodeType === 'Code 39' ? `* ${item.barcodeValue} *` : item.barcodeValue;
           const bType = item.barcodeType === 'Code 39' ? '39' : '128';
-          const barH = Math.round((barcodeHeightMm || 5) * 8);
+          const barH = Math.round((barcodeHeightMm || 4.5) * 8);
 
           const getXCenter = (textStr: string, charWidthDots: number) => {
             const textWidth = (textStr || '').length * charWidthDots;
@@ -574,62 +574,77 @@ const BarcodeGeneration = () => {
           if (rot === 90) {
             const xBase = xDot;
             if (showShopHeader) {
-              tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.85)},10,"2",90,1,1,"${shopText}"\r\n`;
+              tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.86)},10,"1",90,1,1,"${shopText}"\r\n`;
             }
-            tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.68)},10,"2",90,1,1,"${prodText}"\r\n`;
+            tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.70)},10,"1",90,1,1,"${prodText}"\r\n`;
             if (showMetaLine) {
-              tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.52)},10,"1",90,1,1,"${metaText}"\r\n`;
+              tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.56)},10,"1",90,1,1,"${metaText}"\r\n`;
             }
-            if (showDatesLine || showPriceLine) {
-              tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.40)},10,"1",90,1,1,"${pkdText}  ${mrpText}"\r\n`;
+            if (showDatesLine) {
+              tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.42)},10,"1",90,1,1,"${pkdText}"\r\n`;
             }
-            tspl += `BARCODE ${xBase + Math.round(labelWidthDots * 0.22)},10,"${bType}",${barH},0,90,1,2,"${item.barcodeValue}"\r\n`;
-            tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.08)},10,"1",90,1,1,"${bcVal}"\r\n`;
+            if (showPriceLine) {
+              tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.28)},10,"1",90,1,1,"MRP Rs.${mrpVal} SALE Rs.${saleVal}"\r\n`;
+            }
+            tspl += `BARCODE ${xBase + Math.round(labelWidthDots * 0.14)},10,"${bType}",${barH},0,90,1,2,"${item.barcodeValue}"\r\n`;
+            tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.03)},10,"1",90,1,1,"${bcVal}"\r\n`;
 
           } else if (rot === 270) {
             const xBase = xDot;
             const yEnd = labelHeightDots - 10;
             if (showShopHeader) {
-              tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.15)},${yEnd},"2",270,1,1,"${shopText}"\r\n`;
+              tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.14)},${yEnd},"1",270,1,1,"${shopText}"\r\n`;
             }
-            tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.32)},${yEnd},"2",270,1,1,"${prodText}"\r\n`;
+            tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.30)},${yEnd},"1",270,1,1,"${prodText}"\r\n`;
             if (showMetaLine) {
-              tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.48)},${yEnd},"1",270,1,1,"${metaText}"\r\n`;
+              tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.44)},${yEnd},"1",270,1,1,"${metaText}"\r\n`;
             }
-            if (showDatesLine || showPriceLine) {
-              tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.60)},${yEnd},"1",270,1,1,"${pkdText}  ${mrpText}"\r\n`;
+            if (showDatesLine) {
+              tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.58)},${yEnd},"1",270,1,1,"${pkdText}"\r\n`;
             }
-            tspl += `BARCODE ${xBase + Math.round(labelWidthDots * 0.78)},${yEnd},"${bType}",${barH},0,270,1,2,"${item.barcodeValue}"\r\n`;
-            tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.92)},${yEnd},"1",270,1,1,"${bcVal}"\r\n`;
+            if (showPriceLine) {
+              tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.72)},${yEnd},"1",270,1,1,"MRP Rs.${mrpVal} SALE Rs.${saleVal}"\r\n`;
+            }
+            tspl += `BARCODE ${xBase + Math.round(labelWidthDots * 0.86)},${yEnd},"${bType}",${barH},0,270,1,2,"${item.barcodeValue}"\r\n`;
+            tspl += `TEXT ${xBase + Math.round(labelWidthDots * 0.97)},${yEnd},"1",270,1,1,"${bcVal}"\r\n`;
 
           } else if (rot === 180) {
             const xEnd = xDot + labelWidthDots - 10;
             const yEnd = labelHeightDots - 10;
             if (showShopHeader) {
-              tspl += `TEXT ${xEnd},${yEnd - 10},"2",180,1,1,"${shopText}"\r\n`;
+              tspl += `TEXT ${xEnd},${yEnd - 10},"1",180,1,1,"${shopText}"\r\n`;
             }
-            tspl += `TEXT ${xEnd},${yEnd - 28},"2",180,1,1,"${prodText}"\r\n`;
+            tspl += `TEXT ${xEnd},${yEnd - 26},"1",180,1,1,"${prodText}"\r\n`;
             if (showMetaLine) {
-              tspl += `TEXT ${xEnd},${yEnd - 46},"1",180,1,1,"${metaText}"\r\n`;
+              tspl += `TEXT ${xEnd},${yEnd - 42},"1",180,1,1,"${metaText}"\r\n`;
             }
-            if (showDatesLine || showPriceLine) {
-              tspl += `TEXT ${xEnd},${yEnd - 64},"1",180,1,1,"${pkdText}  ${mrpText}"\r\n`;
+            if (showDatesLine) {
+              tspl += `TEXT ${xEnd},${yEnd - 58},"1",180,1,1,"${pkdText}"\r\n`;
             }
-            tspl += `BARCODE ${xEnd},${yEnd - 82},"${bType}",${barH},0,180,1,2,"${item.barcodeValue}"\r\n`;
-            tspl += `TEXT ${xEnd},${yEnd - 120},"1",180,1,1,"${bcVal}"\r\n`;
+            if (showPriceLine) {
+              tspl += `TEXT ${xEnd},${yEnd - 74},"1",180,1,1,"MRP Rs.${mrpVal} SALE Rs.${saleVal}"\r\n`;
+            }
+            tspl += `BARCODE ${xEnd},${yEnd - 90},"${bType}",${barH},0,180,1,2,"${item.barcodeValue}"\r\n`;
+            tspl += `TEXT ${xEnd},${yEnd - 124},"1",180,1,1,"${bcVal}"\r\n`;
 
           } else {
-            // 0° Normal orientation - Balanced vertical spacing with customizable barcode offset
+            // 0° Normal orientation with exp date on separate line
             const topMarginDots = Math.round((marginTopMm !== undefined ? marginTopMm : 0.8) * 8);
             const offsetDots = Math.round((barcodeOffsetMm || 0) * 8);
-            const scaleY = labelHeightDots / 200; // 25mm = 200 dots standard
+            const scaleY = labelHeightDots / 200;
 
             const shopY = topMarginDots + Math.round(4 * scaleY);
             const prodY = topMarginDots + Math.round(18 * scaleY);
-            const metaY = topMarginDots + Math.round(32 * scaleY);
-            const datesY = topMarginDots + Math.round(46 * scaleY);
-            const priceY = topMarginDots + Math.round(62 * scaleY);
-            const barY = topMarginDots + Math.round((82 + offsetDots) * scaleY);
+            const metaY = topMarginDots + Math.round(34 * scaleY);
+            const mfgDateY = topMarginDots + Math.round(48 * scaleY);
+            const expDateY = topMarginDots + Math.round(62 * scaleY);
+
+            const mrpLblY = topMarginDots + Math.round(76 * scaleY);
+            const mrpValY = topMarginDots + Math.round(90 * scaleY);
+            const saleLblY = topMarginDots + Math.round(76 * scaleY);
+            const saleValY = topMarginDots + Math.round(90 * scaleY);
+
+            const barY = topMarginDots + Math.round((108 + offsetDots) * scaleY);
             const barTextY = barY + barH + Math.round(3 * scaleY);
 
             if (showShopHeader) {
@@ -646,14 +661,19 @@ const BarcodeGeneration = () => {
             }
 
             if (showDatesLine) {
-              const pkdX = getXCenter(pkdText, 8);
-              tspl += `TEXT ${pkdX},${datesY},"1",0,1,1,"${pkdText}"\r\n`;
+              const mfgStr = `pkd: ${mfg}`;
+              const expStr = `exp: ${exp}`;
+              const mfgX = getXCenter(mfgStr, 8);
+              const expX = getXCenter(expStr, 8);
+              tspl += `TEXT ${mfgX},${mfgDateY},"1",0,1,1,"${mfgStr}"\r\n`;
+              tspl += `TEXT ${expX},${expDateY},"1",0,1,1,"${expStr}"\r\n`;
             }
 
             if (showPriceLine) {
-              const priceText = `MRP Rs.${mrpVal} SALE Rs.${saleVal}`;
-              const priceX = getXCenter(priceText, 8);
-              tspl += `TEXT ${priceX},${priceY},"1",0,1,1,"${priceText}"\r\n`;
+              tspl += `TEXT ${xDot + 4},${mrpLblY},"1",0,1,1,"MRP"\r\n`;
+              tspl += `TEXT ${xDot + 4},${mrpValY},"1",0,1,1,"Rs.${mrpVal}"\r\n`;
+              tspl += `TEXT ${xDot + 125},${saleLblY},"1",0,1,1,"SALE"\r\n`;
+              tspl += `TEXT ${xDot + 125},${saleValY},"1",0,1,1,"Rs.${saleVal}"\r\n`;
             }
 
             const bcWidthDots = bType === '39' ? (item.barcodeValue.length + 2) * 13 : 160;
@@ -736,23 +756,29 @@ const BarcodeGeneration = () => {
       <div class="print-label-outer" style="width: ${labelWidthMm}mm; height: ${labelHeightMm}mm; position: relative; overflow: hidden; display: flex; justify-content: center; align-items: center; box-sizing: border-box; padding: 0;">
         <div class="print-label-inner" style="width: ${innerWidth}mm; height: ${innerHeight}mm; ${labelRotation !== 0 ? `transform: rotate(${labelRotation}deg); transform-origin: center;` : ''} display: flex; flex-direction: column; justify-content: flex-start; align-items: center; box-sizing: border-box; padding: ${marginTopMm !== undefined ? marginTopMm : 0.8}mm 1mm 0.5mm 1mm; background-color: #ffffff;">
           ${showShopHeader ? `<div class="header" style="font-size: 4.5pt; font-weight: 700; text-align: center; text-transform: uppercase; color: #000000 !important; line-height: 1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0.1px;">${effectiveShopName}</div>` : ''}
-          <div class="product" style="font-size: 5.5pt; font-weight: 800; margin-top: 0.3mm; text-align: center; text-transform: uppercase; color: #000000 !important; line-height: 1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${l.item.productName}</div>
-          ${showMetaLine ? `<div class="meta" style="font-size: 4.2pt; font-weight: 700; margin-top: 0.2mm; text-align: center; color: #000000 !important; line-height: 1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${l.item.variety && !['standard', 'std', 'default', ''].includes(l.item.variety.trim().toLowerCase()) ? l.item.variety + ' | ' : ''}Wt : ${l.item.weight || '1kg'}</div>` : ''}
+          <div class="product" style="font-size: 5.8pt; font-weight: 900; margin-top: 0.2mm; text-align: center; text-transform: uppercase; color: #000000 !important; line-height: 1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${l.item.productName}</div>
+          ${showMetaLine ? `<div class="meta" style="font-size: 4.5pt; font-weight: 700; margin-top: 0.2mm; text-align: center; color: #000000 !important; line-height: 1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${l.item.variety && !['standard', 'std', 'default', ''].includes(l.item.variety.trim().toLowerCase()) ? l.item.variety + ' | ' : ''}Wt : ${l.item.weight || '1kg'}</div>` : ''}
           ${showDatesLine ? `
-            <div class="dates" style="font-size: 4.2pt; font-weight: 700; margin-top: 0.2mm; text-align: center; color: #000000 !important; line-height: 1; width: 100%; white-space: nowrap; overflow: hidden;">
-              pkd: ${l.mfgFormatted} &nbsp; exp: ${l.expFormatted}
+            <div class="dates" style="font-size: 4.5pt; font-weight: 700; margin-top: 0.2mm; text-align: center; color: #000000 !important; line-height: 1; width: 100%; white-space: nowrap; overflow: hidden;">
+              pkd: ${l.mfgFormatted} &nbsp;&nbsp;&nbsp; exp: ${l.expFormatted}
             </div>
           ` : ''}
           ${showPriceLine ? `
-            <div class="price" style="margin-top: 0.2mm; text-align: center; color: #000000 !important; line-height: 1; width: 100%; white-space: nowrap; display: flex; justify-content: center; align-items: baseline; gap: 4px;">
-              <span style="font-size: 3.8pt; font-weight: 600; opacity: 0.85;">MRP ₹${l.mrpFormatted}</span>
-              <span style="font-size: 6.2pt; font-weight: 900; color: #000000 !important;">SALE ₹${l.saleFormatted}</span>
+            <div class="price-section" style="width: 100%; margin-top: 0.3mm; display: flex; justify-content: space-between; align-items: flex-end; padding: 0 1.5mm; color: #000000 !important;">
+              <div style="text-align: left; line-height: 1;">
+                <div style="font-size: 3.8pt; font-weight: 700; color: #000000 !important;">MRP</div>
+                <div style="font-size: 4.8pt; font-weight: 800; color: #000000 !important;">₹${l.mrpFormatted}</div>
+              </div>
+              <div style="text-align: right; line-height: 1;">
+                <div style="font-size: 5.5pt; font-weight: 900; color: #000000 !important;">SALE</div>
+                <div style="font-size: 7.5pt; font-weight: 900; color: #000000 !important;">₹${l.saleFormatted}</div>
+              </div>
             </div>
           ` : ''}
-          <div class="barcode-wrapper" style="height: ${barcodeHeightMm || 5}mm; width: 75%; margin: 0.3mm auto 0 auto; display: flex; justify-content: center; align-items: center; background-color: #ffffff !important;">
+          <div class="barcode-wrapper" style="height: ${barcodeHeightMm || 4.5}mm; width: 80%; margin: 0.3mm auto 0 auto; display: flex; justify-content: center; align-items: center; background-color: #ffffff !important;">
              ${l.barcodeSvg}
           </div>
-          <div class="barcode-text" style="font-size: 4.5pt; font-family: monospace; font-weight: 900; text-align: center; line-height: 1; color: #000000 !important; letter-spacing: 0.3px; margin-top: 0.2mm;">${l.item.barcodeType === 'Code 39' ? '* ' + l.item.barcodeValue + ' *' : l.item.barcodeValue}</div>
+          <div class="barcode-text" style="font-size: 4.8pt; font-family: monospace; font-weight: 900; text-align: center; line-height: 1; color: #000000 !important; letter-spacing: 0.3px; margin-top: 0.2mm;">${l.item.barcodeType === 'Code 39' ? '* ' + l.item.barcodeValue + ' *' : l.item.barcodeValue}</div>
         </div>
       </div>
     `;
@@ -838,20 +864,12 @@ const BarcodeGeneration = () => {
       const printWindow = window.open('', '_blank');
       if (!printWindow) {
         if (setGlobalNotification) {
-          setGlobalNotification({ msg: "Please allow popups to print labels.", type: 'error' });
+          setGlobalNotification({ msg: "Pop-up blocked. Please allow pop-ups to print barcode labels.", type: 'error' });
           setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 4000);
         }
         return;
       }
       printWindow.document.write(fullHtml);
-      printWindow.document.write(`
-        <script>
-          setTimeout(() => {
-            window.print();
-            window.close();
-          }, 500);
-        </script>
-      `);
       printWindow.document.close();
       printWindow.focus();
     }
@@ -927,19 +945,23 @@ const BarcodeGeneration = () => {
     ctx.font = 'bold 14px Arial';
     ctx.fillText(metaStr, 200, 94);
 
-    // Dates
+    // Line 1: Dates Line
     const mfg = item.mfgDate ? `${item.mfgDate.substring(8, 10)}/${item.mfgDate.substring(5, 7)}/${item.mfgDate.substring(2, 4)}` : '--/--';
     const exp = item.expDate ? `${item.expDate.substring(8, 10)}/${item.expDate.substring(5, 7)}/${item.expDate.substring(2, 4)}` : '--/--';
     ctx.font = '13px Arial';
-    ctx.fillStyle = '#64748b';
-    ctx.fillText(`pkd ${mfg}  Exp ${exp}  |  Batch: ${item.batchNo}`, 200, 118);
+    ctx.fillStyle = '#475569';
+    ctx.fillText(`pkd: ${mfg}    exp: ${exp}    Batch: ${item.batchNo || '-'}`, 200, 114);
 
-    // Prices
+    // Line 2: Prices Line (Enlarged Selling Price)
     const mrpVal = Number(item.mrp || 0).toFixed(2);
-    const saleVal = Number(item.salesPrice || 0).toFixed(2);
+    const saleVal = Number(item.salesPrice || item.mrp || 0).toFixed(2);
+    ctx.font = '14px Arial';
+    ctx.fillStyle = '#64748b';
+    ctx.fillText(`MRP: ₹${mrpVal}`, 120, 142);
+
+    ctx.font = 'bold 20px Arial';
     ctx.fillStyle = '#0f172a';
-    ctx.font = 'bold 17px Arial';
-    ctx.fillText(`MRP: ₹${mrpVal}   SALE: ₹${saleVal}`, 200, 146);
+    ctx.fillText(`OUR PRICE: ₹${saleVal}`, 270, 142);
 
     // Barcode Visual Lines
     const bars = generateBarcodeBars(item.barcodeValue || '100002', item.barcodeType || 'Code 128');
