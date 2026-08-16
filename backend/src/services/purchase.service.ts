@@ -413,6 +413,8 @@ export const updatePurchaseBill = async (id: string, data: any): Promise<boolean
               barcode: cleanBarcode,
               category: item.category || item.department || product.category || '',
               vendorItemCode: item.vendorItemCode || product.vendorItemCode || '',
+              mfgDate: item.mfgDate || product.mfgDate || '',
+              expDate: item.expDate || product.expDate || '',
               updatedAt: new Date()
             }
           }
@@ -431,6 +433,8 @@ export const updatePurchaseBill = async (id: string, data: any): Promise<boolean
           stock: Math.round(totalQty),
           category: item.category || item.department || '',
           vendorItemCode: item.vendorItemCode || '',
+          mfgDate: item.mfgDate || '',
+          expDate: item.expDate || '',
           createdAt: new Date(),
           updatedAt: new Date()
         });

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useOutletContext, useLocation, useNavigate } from 'react-router-dom';
 import { Plus, Trash2, Calendar, FileText, ArrowLeft, RefreshCw, ClipboardList, Search, MessageCircle, Save } from 'lucide-react';
 import Api from '../Api';
+import { sendWhatsAppTextMessage } from '../utils/whatsappHelper';
 
 interface SalesOrderItemLine {
   lineId: string;
@@ -772,9 +773,8 @@ Advance Paid: ₹${Number(advancePaid).toFixed(2)}
 
 Thank you!`;
 
-    const encodedText = encodeURIComponent(text);
-    const whatsappUrl = `https://wa.me/91${cleanMobile}?text=${encodedText}`;
-    window.open(whatsappUrl, '_blank');
+    sendWhatsAppTextMessage(cleanMobile, text);
+    if (setGlobalNotification) setGlobalNotification({ msg: `WhatsApp share triggered for ${customer}!`, type: 'success' });
   };
 
   // --- Hotkeys ---

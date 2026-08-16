@@ -797,6 +797,8 @@ const PurchaseBill = () => {
           updated.freeQty = 0;
           updated.category = prod.department || '';
           updated.vendorItemCode = prod.vendorItemCode || '';
+          if (prod.mfgDate) updated.mfgDate = String(prod.mfgDate).split('T')[0];
+          if (prod.expDate) updated.expDate = String(prod.expDate).split('T')[0];
         }
       }
 
@@ -1047,6 +1049,8 @@ const PurchaseBill = () => {
         cgstAmt: Number(i.cgstAmt) || 0,
         sgstAmt: Number(i.sgstAmt) || 0,
         igstAmt: Number(i.igstAmt) || 0,
+        mfgDate: i.mfgDate || '',
+        expDate: i.expDate || '',
         barcode: i.hsn || i.itemCode.trim(),
         hsn: i.hsn || i.itemCode.trim(),
         total: Number(i.total) || 0
