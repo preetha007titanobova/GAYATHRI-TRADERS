@@ -558,7 +558,8 @@ const BarcodeGeneration = () => {
           const metaText = isCustomVar
             ? `${item.variety.substring(0, 8)} | Wt:${(item.weight || '1kg').substring(0, 4)}`
             : `Wt:${(item.weight || '1kg').substring(0, 6)}`;
-          const pkdText = `pkd:${mfg}`;
+          const exp = item.expDate ? `${item.expDate.substring(8, 10)}/${item.expDate.substring(5, 7)}/${item.expDate.substring(0, 4)}` : '10/05/2026';
+          const pkdText = `pkd:${mfg} exp:${exp}`;
           const mrpVal = Number(item.mrp || item.salesPrice || 0).toFixed(2);
           const mrpText = `MRP Rs.${mrpVal} SALE Rs.${saleVal}`;
           const bcVal = item.barcodeType === 'Code 39' ? `* ${item.barcodeValue} *` : item.barcodeValue;
