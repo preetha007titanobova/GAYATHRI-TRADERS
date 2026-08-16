@@ -947,6 +947,8 @@ const PurchaseBill = () => {
           category: i.category || i.department || prod?.department || '',
           itemDesc: i.itemName || i.itemDesc || i.itemCode || '',
           hsn: i.hsn || i.barcode || prod?.barcode || '',
+          mfgDate: i.mfgDate ? String(i.mfgDate).split('T')[0] : (prod?.mfgDate ? String(prod.mfgDate).split('T')[0] : ''),
+          expDate: i.expDate ? String(i.expDate).split('T')[0] : (prod?.expDate ? String(prod.expDate).split('T')[0] : ''),
           qty: qty,
           freeQty: freeQty,
           unitPrice: rate,

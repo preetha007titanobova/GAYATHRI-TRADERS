@@ -284,7 +284,10 @@ const PurReturn = () => {
           });
 
           const origQty = Number(item.purchasedQty || item.qty || 0);
-          const netQty = Math.max(0, origQty - alreadyReturned);
+          const registerNetStock = item.netStock !== undefined && item.netStock !== null
+            ? Number(item.netStock)
+            : (item.netQty !== undefined && item.netQty !== null ? Number(item.netQty) : origQty);
+          const netQty = Math.max(0, registerNetStock - alreadyReturned);
 
           let initialReturnQty = 0;
           if (editingReturnId) {
