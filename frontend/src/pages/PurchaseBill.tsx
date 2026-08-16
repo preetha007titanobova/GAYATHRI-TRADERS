@@ -72,6 +72,7 @@ const PurchaseBill = () => {
     itemCode: '',
     name: '',
     weight: '1kg',
+    unit: 'g',
     department: '',
     purchaseRate: 0,
     price: 0,
@@ -324,7 +325,7 @@ const PurchaseBill = () => {
           mrp: quickAddForm.mrp,
           taxPercent: quickAddForm.taxPercent,
           stock: 0, // Stock is incremented by the purchase bill save itself!
-          uom: 'PCS'
+          uom: quickAddForm.unit || 'g'
         })
       });
 
@@ -339,7 +340,8 @@ const PurchaseBill = () => {
         itemCode: quickAddForm.itemCode,
         vendorItemCode: '',
         itemName: quickAddForm.name.trim(),
-        weight: '',
+        weight: quickAddForm.weight || '',
+        unit: quickAddForm.unit || 'g',
         category: quickAddForm.department || '',
         itemDesc: quickAddForm.name.trim(),
         hsn: quickAddForm.barcode.trim(),
@@ -591,6 +593,7 @@ const PurchaseBill = () => {
               itemCode: nextItemCode,
               name: '',
               weight: '1kg',
+              unit: 'g',
               department: '',
               purchaseRate: 0,
               price: 0,
@@ -2221,14 +2224,50 @@ const PurchaseBill = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <div>
                   <label className="block text-gray-700 font-bold mb-1">Weight (Net Wt)</label>
-                  <input type="text" value={quickAddForm.weight || ''} onChange={e => setQuickAddForm(prev => ({ ...prev, weight: e.target.value }))} className="w-full border border-gray-300 p-2 rounded outline-none font-semibold" placeholder="e.g. 1kg, 500g..." />
+                  <input type="text" value={quickAddForm.weight || ''} onChange={e => setQuickAddForm(prev => ({ ...prev, weight: e.target.value }))} className="w-full border border-gray-300 p-2 rounded outline-none font-semibold text-xs" placeholder="e.g. 1kg, 500g..." />
+                </div>
+                <div>
+                  <label className="block text-gray-700 font-bold mb-1">Unit (UOM)</label>
+                  <select
+                    value={quickAddForm.unit || 'g'}
+                    onChange={e => setQuickAddForm(prev => ({ ...prev, unit: e.target.value }))}
+                    className="w-full border border-gray-300 p-2 rounded outline-none bg-white font-bold text-gray-800 text-xs focus:border-indigo-500"
+                  >
+                    <optgroup label="Weight">
+                      <option value="g">Grams (g)</option>
+                      <option value="kg">Kilograms (kg)</option>
+                      <option value="mg">Milligrams (mg)</option>
+                      <option value="quintal">Quintal</option>
+                      <option value="ton">Ton</option>
+                    </optgroup>
+                    <optgroup label="Volume">
+                      <option value="ml">Millilitres (ml)</option>
+                      <option value="litre">Litres (litre)</option>
+                      <option value="kl">Kilolitres (kl)</option>
+                    </optgroup>
+                    <optgroup label="Length">
+                      <option value="mm">Millimetres (mm)</option>
+                      <option value="cm">Centimetres (cm)</option>
+                      <option value="m">Metres (m)</option>
+                    </optgroup>
+                    <optgroup label="Count / Pack">
+                      <option value="piece">Piece (Pcs)</option>
+                      <option value="box">Box</option>
+                      <option value="packet">Packet</option>
+                      <option value="bottle">Bottle</option>
+                      <option value="can">Can</option>
+                      <option value="dozen">Dozen</option>
+                      <option value="pair">Pair</option>
+                      <option value="set">Set</option>
+                    </optgroup>
+                  </select>
                 </div>
                 <div>
                   <label className="block text-gray-700 font-bold mb-1">Category</label>
-                  <input type="text" value={quickAddForm.department || ''} onChange={e => setQuickAddForm(prev => ({ ...prev, department: e.target.value }))} className="w-full border border-gray-300 p-2 rounded outline-none bg-white font-bold" />
+                  <input type="text" value={quickAddForm.department || ''} onChange={e => setQuickAddForm(prev => ({ ...prev, department: e.target.value }))} className="w-full border border-gray-300 p-2 rounded outline-none bg-white font-bold text-xs" />
                 </div>
               </div>
 

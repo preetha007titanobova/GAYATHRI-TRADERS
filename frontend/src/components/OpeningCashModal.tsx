@@ -71,8 +71,11 @@ export const OpeningCashModal: React.FC<OpeningCashModalProps> = ({ onSuccess })
     return calculatedRows.reduce((acc, row) => acc + row.amount, 0);
   }, [calculatedRows]);
 
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
   const handleSave = async () => {
     setSaving(true);
+    setErrorMsg(null);
     try {
       const payload = {
         date: todayStr,
@@ -94,9 +97,12 @@ export const OpeningCashModal: React.FC<OpeningCashModalProps> = ({ onSuccess })
         localStorage.setItem(`opening_cash_${todayStr}`, String(totalOpeningAmount));
         setIsOpen(false);
         if (onSuccess) onSuccess(totalOpeningAmount);
+      } else {
+        setErrorMsg(data.error || 'Failed to save opening cash');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      setErrorMsg('Server error saving opening cash status');
     } finally {
       setSaving(false);
     }
@@ -126,6 +132,13 @@ export const OpeningCashModal: React.FC<OpeningCashModalProps> = ({ onSuccess })
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {errorMsg && (
+          <div className="bg-red-50 border-l-4 border-red-500 p-3 text-red-700 text-xs rounded-xl flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
+            <span>{errorMsg}</span>
+          </div>
+        )}
 
         {/* Prompt Alert */}
         <div className="flex items-center gap-2.5 p-3 bg-emerald-50 text-emerald-800 text-xs rounded-xl border border-emerald-200">
