@@ -140,6 +140,8 @@ function startLocalBackend() {
     backendProcess.on('error', (err) => console.error('Backend logic server crashed:', err));
 }
 
+let isClosingApp = false;
+
 function createWindow() {
     const licenseStatus = verifyLicenseOffline();
 
@@ -150,6 +152,13 @@ function createWindow() {
             nodeIntegration: false,
             contextIsolation: true,
             preload: path.join(__dirname, 'preload.js')
+        }
+    });
+
+    mainWindow.on('close', (e) => {
+        if (!isClosingApp) {
+            e.preventDefault();
+            mainWindow.webContents.send('app-close-requested');
         }
     });
 
@@ -177,19 +186,10 @@ app.whenReady().then(() => {
     createWindow();
 });
 
-    let isClosingApp = false;
-
-    mainWindow.on('close', (e) => {
-        if (!isClosingApp) {
-            e.preventDefault();
-            mainWindow.webContents.send('app-close-requested');
-        }
-    });
-
-    ipcMain.on('app-close-confirmed', () => {
-        isClosingApp = true;
-        if (mainWindow) mainWindow.close();
-    });
+ipcMain.on('app-close-confirmed', () => {
+    isClosingApp = true;
+    if (mainWindow) mainWindow.close();
+});
 
 // IPC communication endpoints for React
 ipcMain.on('get-machine-id', (event) => {
