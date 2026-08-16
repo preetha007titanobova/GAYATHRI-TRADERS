@@ -390,6 +390,8 @@ const BarcodeGeneration = () => {
     setWeight(prod.weight || '1kg');
     setMrp(prod.mrp || prod.price || 0);
     setSalesPrice(prod.price || prod.mrp || 0);
+    if ((prod as any).mfgDate) setMfgDate((prod as any).mfgDate);
+    if ((prod as any).expDate) setExpDate((prod as any).expDate);
     setBatchNo(`BATCH-${Math.floor(1000 + Math.random() * 9000)}`);
     setShowItemDropdown(false);
     setItemSearch('');
@@ -556,8 +558,8 @@ const BarcodeGeneration = () => {
           const metaText = isCustomVar
             ? `${item.variety.substring(0, 8)} | Wt:${(item.weight || '1kg').substring(0, 4)}`
             : `Wt:${(item.weight || '1kg').substring(0, 6)}`;
-          const pkdText = `pkd:${mfg}`;
-          const mrpText = `MRP Rs.${saleVal}`;
+          const mrpVal = Number(item.mrp || item.salesPrice || 0).toFixed(2);
+          const mrpText = `MRP Rs.${mrpVal} SALE Rs.${saleVal}`;
           const bcVal = item.barcodeType === 'Code 39' ? `* ${item.barcodeValue} *` : item.barcodeValue;
           const bType = item.barcodeType === 'Code 39' ? '39' : '128';
           const barH = Math.round((barcodeHeightMm || 5) * 8);
@@ -739,7 +741,7 @@ const BarcodeGeneration = () => {
           ${(showDatesLine || showPriceLine) ? `
             <div class="dates-price" style="display: flex; justify-content: ${showDatesLine ? 'space-between' : 'center'}; align-items: baseline; font-size: 5pt; font-weight: 900; width: 100%; padding: 0; margin-top: 0.4mm; color: #000000 !important;">
               ${showDatesLine ? `<span>pkd : ${l.mfgFormatted}</span>` : ''}
-              ${showPriceLine ? `<span class="mrp" style="font-size: 6.5pt; font-weight: 900;">MRP ₹${l.saleFormatted}</span>` : ''}
+              ${showPriceLine ? `<span class="mrp" style="font-size: 5.5pt; font-weight: 900;">MRP ₹${l.mrpFormatted}  SALE ₹${l.saleFormatted}</span>` : ''}
             </div>
           ` : ''}
           <div class="barcode-wrapper" style="height: ${barcodeHeightMm || 6}mm; width: 70%; margin: 0.1mm auto 0 auto; display: flex; justify-content: center; align-items: center; background-color: #ffffff !important;">
@@ -1655,8 +1657,8 @@ const BarcodeGeneration = () => {
                           </span>
                         )}
                         {showPriceLine && (
-                          <span className="text-[6.5pt] font-black leading-none m-0 p-0 text-black">
-                            MRP ₹{salesPrice !== '' ? Number(salesPrice).toFixed(2) : '450.00'}
+                          <span className="text-[5.5pt] font-black leading-none m-0 p-0 text-black">
+                            MRP ₹{mrp !== '' ? Number(mrp).toFixed(2) : (salesPrice !== '' ? Number(salesPrice).toFixed(2) : '450.00')} &nbsp; SALE ₹{salesPrice !== '' ? Number(salesPrice).toFixed(2) : '450.00'}
                           </span>
                         )}
                       </div>

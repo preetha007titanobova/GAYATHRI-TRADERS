@@ -15,6 +15,8 @@ interface PurchaseItem {
   category: string;
   itemDesc: string;
   hsn: string;
+  mfgDate?: string;
+  expDate?: string;
   qty: number;
   freeQty?: number;
   unitPrice: number;
@@ -229,6 +231,8 @@ const PurchaseBill = () => {
         barcode: item.itemCode.trim(),
         weight: item.weight || '',
         department: item.category || '',
+        mfgDate: item.mfgDate || '',
+        expDate: item.expDate || '',
         purchaseRate: Number(item.unitPrice) || 0,
         price: Number(item.salesRate) || Number(item.unitPrice) || 0,
         mrp: Number(item.mrp) || Number(item.unitPrice) || 0,
@@ -1405,6 +1409,8 @@ const PurchaseBill = () => {
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-20">Weight / Val</th>
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-24">Unit</th>
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-24">Category</th>
+                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-24">Mfg Date</th>
+                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-24">Exp Date</th>
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-16 text-right">Purchase Qty</th>
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-16 text-right">Free Qty</th>
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-20 text-right">Purchase Rate</th>
@@ -1570,6 +1576,30 @@ const PurchaseBill = () => {
                               if (latest) saveProductToDb(latest);
                             }}
                             className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none"
+                          />
+                        </td>
+                        <td className="border-r border-gray-300 p-0">
+                          <input 
+                            type="date" 
+                            value={item.mfgDate || ''} 
+                            onChange={e => updateItem(item.id, 'mfgDate', e.target.value)} 
+                            onBlur={() => {
+                              const latest = items.find(i => i.id === item.id);
+                              if (latest) saveProductToDb(latest);
+                            }}
+                            className="w-full p-1 bg-transparent focus:bg-white focus:outline-none text-[11px]" 
+                          />
+                        </td>
+                        <td className="border-r border-gray-300 p-0">
+                          <input 
+                            type="date" 
+                            value={item.expDate || ''} 
+                            onChange={e => updateItem(item.id, 'expDate', e.target.value)} 
+                            onBlur={() => {
+                              const latest = items.find(i => i.id === item.id);
+                              if (latest) saveProductToDb(latest);
+                            }}
+                            className="w-full p-1 bg-transparent focus:bg-white focus:outline-none text-[11px]" 
                           />
                         </td>
                         <td className="border-r border-gray-300 p-0">
@@ -2268,6 +2298,27 @@ const PurchaseBill = () => {
                 <div>
                   <label className="block text-gray-700 font-bold mb-1">Category</label>
                   <input type="text" value={quickAddForm.department || ''} onChange={e => setQuickAddForm(prev => ({ ...prev, department: e.target.value }))} className="w-full border border-gray-300 p-2 rounded outline-none bg-white font-bold text-xs" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-gray-700 font-bold mb-1">Mfg Date (Manufacturing)</label>
+                  <input
+                    type="date"
+                    value={quickAddForm.mfgDate || ''}
+                    onChange={e => setQuickAddForm(prev => ({ ...prev, mfgDate: e.target.value }))}
+                    className="w-full border border-gray-300 p-2 rounded outline-none bg-white font-bold text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-700 font-bold mb-1">Exp Date (Expiry)</label>
+                  <input
+                    type="date"
+                    value={quickAddForm.expDate || ''}
+                    onChange={e => setQuickAddForm(prev => ({ ...prev, expDate: e.target.value }))}
+                    className="w-full border border-gray-300 p-2 rounded outline-none bg-white font-bold text-xs"
+                  />
                 </div>
               </div>
 

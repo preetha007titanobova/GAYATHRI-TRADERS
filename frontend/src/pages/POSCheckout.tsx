@@ -746,7 +746,7 @@ const POSCheckout = () => {
 
       if (setGlobalNotification) {
         setGlobalNotification({
-          msg: `✓ Barcode ${cleanCode}: Added ${prodName} | Price: ₹${prodPrice} | Stock Reduced to ${updatedStock}`,
+          msg: `✓ Barcode ${cleanCode}: Added ${prodName} | Price: ₹${prodPrice}`,
           type: 'success'
         });
         setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 2500);

@@ -201,6 +201,8 @@ export const createPurchaseBill = async (data: any): Promise<any> => {
               barcode: cleanBarcode,
               category: item.category || item.department || product.category || '',
               vendorItemCode: item.vendorItemCode || product.vendorItemCode || '',
+              mfgDate: item.mfgDate || product.mfgDate || '',
+              expDate: item.expDate || product.expDate || '',
               updatedAt: new Date()
             }
           }
@@ -219,6 +221,8 @@ export const createPurchaseBill = async (data: any): Promise<any> => {
           stock: Math.round(totalQty),
           category: item.category || item.department || '',
           vendorItemCode: item.vendorItemCode || '',
+          mfgDate: item.mfgDate || '',
+          expDate: item.expDate || '',
           createdAt: new Date(),
           updatedAt: new Date()
         });
@@ -238,6 +242,8 @@ export const createPurchaseBill = async (data: any): Promise<any> => {
         vendorItemCode: item.vendorItemCode || '',
         weight: item.weight || '',
         unit: item.unit || '',
+        mfgDate: item.mfgDate || '',
+        expDate: item.expDate || '',
         barcode: barcodeStr,
         hsn: barcodeStr,
         qty: qty,
