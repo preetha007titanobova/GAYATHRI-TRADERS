@@ -667,6 +667,7 @@ const POSCheckout = () => {
       });
 
       // Update grid table
+      let activeRowIdx = 0;
       setGridData(prev => {
         let newGrid = [...prev];
         const existingIdx = newGrid.findIndex(r =>
@@ -682,6 +683,7 @@ const POSCheckout = () => {
           row.discAmt = Number(((baseAmount * row.discPercent) / 100).toFixed(2));
           row.amount = Number((baseAmount - row.discAmt).toFixed(2));
           newGrid[existingIdx] = row;
+          activeRowIdx = existingIdx;
         } else {
           // Find empty row or replace row
           let targetIdx = targetRowId ? newGrid.findIndex(r => r.id === targetRowId) : -1;
@@ -704,8 +706,10 @@ const POSCheckout = () => {
 
           if (targetIdx !== -1) {
             newGrid[targetIdx] = newRow;
+            activeRowIdx = targetIdx;
           } else {
             newGrid.push(newRow);
+            activeRowIdx = newGrid.length - 1;
           }
         }
 
@@ -728,6 +732,15 @@ const POSCheckout = () => {
 
         return newGrid;
       });
+
+      // Shift DOM focus directly to Quantity input field (grid-input-${activeRowIdx}-3)
+      setTimeout(() => {
+        const qtyElem = document.getElementById(`grid-input-${activeRowIdx}-3`) as HTMLInputElement | null;
+        if (qtyElem) {
+          qtyElem.focus();
+          qtyElem.select();
+        }
+      }, 60);
 
       if (setGlobalNotification) {
         setGlobalNotification({
@@ -1368,13 +1381,24 @@ const POSCheckout = () => {
     }
   };
 
+  const handleBarcodeBlur = (rowId: number, barcode: string) => {
+    const clean = barcode.trim();
+    if (!clean) return;
+    const row = gridData.find(r => r.id === rowId);
+    if (row && (!row.itemName || row.itemName.trim() === '')) {
+      processBarcodeScan(clean, rowId);
+    }
+  };
+
   const handleKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>, rowIndex: number, colIndex: number, rowId: number, itemName: string) => {
     if (e.key === 'ArrowRight') {
       e.preventDefault();
-      document.getElementById(`grid-input-${rowIndex}-${colIndex + 1}`)?.focus();
+      const nextCol = colIndex === 1 ? 3 : (colIndex < 7 ? colIndex + 1 : 7);
+      document.getElementById(`grid-input-${rowIndex}-${nextCol}`)?.focus();
     } else if (e.key === 'ArrowLeft') {
       e.preventDefault();
-      document.getElementById(`grid-input-${rowIndex}-${colIndex - 1}`)?.focus();
+      const prevCol = colIndex === 3 ? 1 : (colIndex > 0 ? colIndex - 1 : 0);
+      document.getElementById(`grid-input-${rowIndex}-${prevCol}`)?.focus();
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
       document.getElementById(`grid-input-${rowIndex + 1}-${colIndex}`)?.focus();
@@ -1384,48 +1408,72 @@ const POSCheckout = () => {
     } else if (e.key === 'Escape') {
       e.preventDefault();
       document.getElementById('tendered-input')?.focus();
-    } else if (e.key === 'Enter') {
+    } else if (e.key === 'Enter' || e.key === 'Tab') {
       e.preventDefault();
       const row = gridData[rowIndex];
       if (colIndex === 0) {
+        // Barcode Number input cell
         const barcode = row.itemDesc?.trim();
         if (!barcode) {
           document.getElementById(`grid-input-${rowIndex}-1`)?.focus();
           return;
         }
         processBarcodeScan(barcode, row.id);
-        setTimeout(() => {
-          document.getElementById(`grid-input-${rowIndex}-1`)?.focus();
-        }, 100);
       } else if (colIndex === 1) {
+        // Item Name cell
         if (!itemName.trim()) {
           openSearchModal(rowId, e.currentTarget);
         } else {
           handleItemBlur(rowId, itemName);
           setTimeout(() => {
-            document.getElementById(`grid-input-${rowIndex}-2`)?.focus();
-          }, 100);
+            const qtyInput = document.getElementById(`grid-input-${rowIndex}-3`) as HTMLInputElement | null;
+            if (qtyInput) {
+              qtyInput.focus();
+              qtyInput.select();
+            }
+          }, 80);
         }
+      } else if (colIndex === 3) {
+        // Quantity cell -> On Enter/Tab, advance to NEXT ROW's Barcode Number field (grid-input-${rowIndex + 1}-0)
+        let nextRowIndex = rowIndex + 1;
+        if (nextRowIndex >= gridData.length) {
+          const newRowId = Date.now() + Math.random();
+          setGridData(prev => [
+            ...prev,
+            { id: newRowId, itemName: '', itemDesc: '', size: '', qty: 0, uom: 'PCS', rate: 0, discPercent: 0, discAmt: 0, amount: 0 }
+          ]);
+        }
+
+        setTimeout(() => {
+          const nextBarcode = document.getElementById(`grid-input-${nextRowIndex}-0`) as HTMLInputElement | null;
+          if (nextBarcode) {
+            nextBarcode.focus();
+            nextBarcode.select();
+          }
+        }, 60);
       } else if (colIndex < 7) {
-        const nextInput = document.getElementById(`grid-input-${rowIndex}-${colIndex + 1}`);
+        const nextCol = colIndex === 1 ? 3 : colIndex + 1;
+        const nextInput = document.getElementById(`grid-input-${rowIndex}-${nextCol}`);
         if (nextInput) {
           nextInput.focus();
         }
       } else if (colIndex === 7) {
-        // Last cell of row (DiscAmt)
-        if (rowIndex < gridData.length - 1) {
-          document.getElementById(`grid-input-${rowIndex + 1}-0`)?.focus();
-        } else {
-          // If this is the last row, automatically append a new row and focus its barcode input
-          const newRowId = Date.now();
+        // DiscAmt cell (last cell) -> Advance to NEXT ROW's Barcode Number field (grid-input-${rowIndex + 1}-0)
+        let nextRowIndex = rowIndex + 1;
+        if (nextRowIndex >= gridData.length) {
+          const newRowId = Date.now() + Math.random();
           setGridData(prev => [
             ...prev,
-            { id: newRowId, itemName: '', itemDesc: '', qty: 0, uom: 'PCS', rate: 0, discPercent: 0, discAmt: 0, amount: 0 }
+            { id: newRowId, itemName: '', itemDesc: '', size: '', qty: 0, uom: 'PCS', rate: 0, discPercent: 0, discAmt: 0, amount: 0 }
           ]);
-          setTimeout(() => {
-            document.getElementById(`grid-input-${rowIndex + 1}-0`)?.focus();
-          }, 60);
         }
+        setTimeout(() => {
+          const nextBarcode = document.getElementById(`grid-input-${nextRowIndex}-0`) as HTMLInputElement | null;
+          if (nextBarcode) {
+            nextBarcode.focus();
+            nextBarcode.select();
+          }
+        }, 60);
       }
     } else if (e.key === 'F2' && colIndex === 1) {
       e.preventDefault();
@@ -1878,6 +1926,7 @@ const POSCheckout = () => {
                     className="w-full h-full p-1 pl-2 border-none outline-none focus:bg-yellow-100 font-mono text-blue-900 font-bold"
                     value={row.itemDesc}
                     onChange={e => handleGridChange(row.id, 'itemDesc', e.target.value)}
+                    onBlur={e => handleBarcodeBlur(row.id, e.target.value)}
                     onKeyDown={e => handleKeyDown(e, idx, 0, row.id, row.itemName)}
                   />
                 </td>

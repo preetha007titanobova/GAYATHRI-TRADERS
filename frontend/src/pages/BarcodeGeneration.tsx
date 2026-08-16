@@ -296,8 +296,13 @@ const BarcodeGeneration = () => {
   const [tableSearch, setTableSearch] = useState('');
 
   // System Printers Detection & Driver Calibration
-  const [connectedPrinters, setConnectedPrinters] = useState<{ name: string; isDefault: boolean }[]>([]);
-  const [selectedPrinterName, setSelectedPrinterName] = useState<string>('');
+  const [selectedPrinterName, setSelectedPrinterName] = useState<string>(() => {
+    return localStorage.getItem('active_printer') || localStorage.getItem('selected_printer') || 'TSC TE244 Barcode Printer';
+  });
+  const [connectedPrinters, setConnectedPrinters] = useState<{ name: string; isDefault: boolean }[]>(() => {
+    const saved = localStorage.getItem('active_printer') || localStorage.getItem('selected_printer') || 'TSC TE244 Barcode Printer';
+    return [{ name: saved, isDefault: true }];
+  });
   const [driverRotationFix, setDriverRotationFix] = useState<number>(0);
 
   // Global Context
@@ -313,33 +318,38 @@ const BarcodeGeneration = () => {
       .catch(err => console.error("Error fetching item master:", err));
 
     getPrinterStatus((status) => {
-      if (status && status.allPrinters) {
-        setConnectedPrinters(status.allPrinters);
-        const tscPrinter = status.allPrinters.find(p => 
-          p.name.toUpperCase().includes('TSC') || 
-          p.name.toUpperCase().includes('TE244') || 
-          p.name.toUpperCase().includes('BARCODE') ||
-          p.name.toUpperCase().includes('LABEL')
-        );
-        if (tscPrinter) {
-          setSelectedPrinterName(tscPrinter.name);
-          setActivePrinter(tscPrinter.name, () => {});
-        } else if (status.activePrinter) {
-          setSelectedPrinterName(status.activePrinter);
+      if (status) {
+        const saved = localStorage.getItem('active_printer') || localStorage.getItem('selected_printer') || '';
+        const list = (status.allPrinters && status.allPrinters.length > 0) 
+          ? status.allPrinters 
+          : [{ name: saved || 'TSC TE244 Barcode Printer', isDefault: true }];
+        
+        setConnectedPrinters(list);
+
+        const savedMatch = list.find(p => p.name === saved);
+        const tscPrinter = list.find(p => {
+          const n = p.name.toUpperCase();
+          return n.includes('TSC') || n.includes('TE244') || n.includes('BARCODE') || n.includes('LABEL') || n.includes('POS') || n.includes('THERMAL') || n.includes('TVS');
+        });
+
+        const activeName = savedMatch ? savedMatch.name : (tscPrinter ? tscPrinter.name : (status.activePrinter || list[0].name));
+        if (activeName) {
+          setSelectedPrinterName(activeName);
+          setActivePrinter(activeName, () => {});
         }
       }
     });
 
     if ((window as any).api) {
       (window as any).api.receive('print-response', (event: any, res: any) => {
-        if (res.success) {
+        if (res && res.success) {
           if (setGlobalNotification) {
             setGlobalNotification({ msg: `✓ Barcode label print job sent successfully!`, type: 'success' });
             setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 3500);
           }
         } else {
           if (setGlobalNotification) {
-            setGlobalNotification({ msg: `❌ Printing error: ${res.error || 'Check printer connection'}`, type: 'error' });
+            setGlobalNotification({ msg: `❌ Printing error: ${(res && res.error) || 'Check printer connection'}`, type: 'error' });
             setTimeout(() => setGlobalNotification({ msg: '', type: '' }), 5000);
           }
         }
@@ -1261,7 +1271,7 @@ const BarcodeGeneration = () => {
                 <label className="font-semibold text-slate-700 block mb-1 flex justify-between">
                   <span>Target Barcode Printer</span>
                   <span className="text-[10px] text-emerald-700 font-bold">
-                    {connectedPrinters.length > 0 ? `🟢 ${connectedPrinters.length} Connected` : '⚠️ Select Driver'}
+                    🟢 {connectedPrinters.length} Printer{connectedPrinters.length > 1 ? 's' : ''} Ready
                   </span>
                 </label>
                 <select
@@ -1272,12 +1282,14 @@ const BarcodeGeneration = () => {
                     setActivePrinter(e.target.value, () => {});
                   }}
                 >
-                  <option value="">-- Select Barcode Printer (e.g. TSC TE244) --</option>
                   {connectedPrinters.map(p => (
                     <option key={p.name} value={p.name}>
                       {p.name} {p.isDefault ? '(Default)' : ''}
                     </option>
                   ))}
+                  {!connectedPrinters.some(p => p.name === selectedPrinterName) && selectedPrinterName && (
+                    <option value={selectedPrinterName}>{selectedPrinterName}</option>
+                  )}
                 </select>
               </div>
 
