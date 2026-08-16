@@ -479,12 +479,41 @@ export const getStockRegisterReport = async (): Promise<any[]> => {
     console.error("Error in getStockRegisterReport purchaseItems:", e);
   }
 
+  let purchaseReturnItems: any[] = [];
+  try {
+    const db = await getDb();
+    purchaseReturnItems = await db.collection('PurchaseReturnItem').find({}).toArray();
+    const purchaseReturns = await db.collection('PurchaseReturn').find({}).toArray();
+    const purchaseReturnMap = new Map(purchaseReturns.map(r => [r._id.toString(), r]));
+    for (const item of purchaseReturnItems) {
+      item.purchaseReturn = purchaseReturnMap.get(item.purchaseReturnId?.toString()) || null;
+    }
+  } catch (e) {
+    console.error("Error in getStockRegisterReport purchaseReturnItems:", e);
+  }
+
   return products.map(product => {
     const prodId = product.id || product._id;
 
     const prodSales = salesItems.filter(item => item.productId === prodId);
     const prodReturns = salesReturnItems.filter(item => item.productId === prodId);
-    const prodPurchases = purchaseItems.filter(item => item.productId?.toString() === prodId || (item.itemCode === product.itemCode));
+
+    const prodPurchases = purchaseItems.filter(item => {
+      const isIdMatch = item.productId && item.productId.toString() === prodId;
+      const isCodeMatch = (item.itemCode && product.itemCode && item.itemCode.trim().toLowerCase() === product.itemCode.trim().toLowerCase()) ||
+                          (item.vendorItemCode && product.vendorItemCode && item.vendorItemCode.trim().toLowerCase() === product.vendorItemCode.trim().toLowerCase());
+      const isNameMatch = (item.itemName && product.name && item.itemName.trim().toLowerCase() === product.name.trim().toLowerCase()) ||
+                          (item.itemDesc && product.name && item.itemDesc.trim().toLowerCase() === product.name.trim().toLowerCase());
+      return isIdMatch || isCodeMatch || isNameMatch;
+    });
+
+    const prodPurchaseReturns = purchaseReturnItems.filter(item => {
+      const isIdMatch = item.productId && item.productId.toString() === prodId;
+      const isCodeMatch = (item.itemCode && product.itemCode && item.itemCode.trim().toLowerCase() === product.itemCode.trim().toLowerCase());
+      const isNameMatch = (item.itemName && product.name && item.itemName.trim().toLowerCase() === product.name.trim().toLowerCase()) ||
+                          (item.itemDesc && product.name && item.itemDesc.trim().toLowerCase() === product.name.trim().toLowerCase());
+      return isIdMatch || isCodeMatch || isNameMatch;
+    });
 
     const dbMovements: any[] = [];
 
@@ -518,14 +547,32 @@ export const getStockRegisterReport = async (): Promise<any[]> => {
 
     for (const item of prodPurchases) {
       if (item.purchaseBill) {
+        const conv = Number(item.unitsPerPack || item.conversionFactor) > 0 ? Number(item.unitsPerPack || item.conversionFactor) : 1;
+        const purQty = Number(item.totalBaseQty) || (((Number(item.qty) || 0) + (Number(item.freeQty) || 0)) * conv);
         dbMovements.push({
           id: item._id?.toString() || item.id,
           date: item.purchaseBill.date,
           vchType: 'Purchase',
           vchNo: item.purchaseBill.voucherNo,
           particulars: item.purchaseBill.supplierName,
-          inward: item.qty,
+          inward: purQty,
           outward: 0
+        });
+      }
+    }
+
+    for (const item of prodPurchaseReturns) {
+      if (item.purchaseReturn) {
+        const conv = Number(item.unitsPerPack || item.conversionFactor) > 0 ? Number(item.unitsPerPack || item.conversionFactor) : 1;
+        const purRetQty = Number(item.totalBaseQty) || (Number(item.returnQty) || 0) * conv;
+        dbMovements.push({
+          id: item._id?.toString() || item.id,
+          date: item.purchaseReturn.returnDate || item.purchaseReturn.createdAt,
+          vchType: 'Purchase Return',
+          vchNo: item.purchaseReturn.returnNo,
+          particulars: item.purchaseReturn.customerName || item.purchaseReturn.supplierName || 'Supplier',
+          inward: 0,
+          outward: purRetQty
         });
       }
     }

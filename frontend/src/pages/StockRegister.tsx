@@ -211,16 +211,19 @@ const StockRegister = () => {
       localPurchaseBills.forEach((bill: any) => {
         if (bill.items && Array.isArray(bill.items)) {
           bill.items.forEach((pItem: any) => {
-            const isMatch = (itemCode && pItem.itemCode === itemCode) ||
-                            (name && pItem.itemDesc?.toLowerCase() === name.toLowerCase());
+            const isMatch = (itemCode && pItem.itemCode && pItem.itemCode.trim().toLowerCase() === itemCode.trim().toLowerCase()) ||
+                            (name && pItem.itemName && pItem.itemName.trim().toLowerCase() === name.trim().toLowerCase()) ||
+                            (name && pItem.itemDesc && pItem.itemDesc.trim().toLowerCase() === name.trim().toLowerCase());
             if (isMatch) {
+              const conv = Number(pItem.unitsPerPack || pItem.conversionFactor) > 0 ? Number(pItem.unitsPerPack || pItem.conversionFactor) : 1;
+              const purQty = Number(pItem.totalBaseQty) || (((Number(pItem.qty) || 0) + (Number(pItem.freeQty) || 0)) * conv);
               localPurchaseMovements.push({
-                id: `local-pb-${bill.voucherNo}-${pItem.itemCode || pItem.itemDesc}`,
+                id: `local-pb-${bill.voucherNo}-${pItem.itemCode || pItem.itemDesc || pItem.itemName}`,
                 date: bill.date,
                 vchType: 'Purchase',
                 vchNo: bill.voucherNo,
                 particulars: bill.supplierName || 'Supplier',
-                inward: (Number(pItem.qty) || 0) + (Number(pItem.freeQty) || 0),
+                inward: purQty,
                 outward: 0
               });
             }
