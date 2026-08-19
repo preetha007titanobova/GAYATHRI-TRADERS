@@ -216,7 +216,11 @@ const StockRegister = () => {
                             (name && pItem.itemDesc && pItem.itemDesc.trim().toLowerCase() === name.trim().toLowerCase());
             if (isMatch) {
               const conv = Number(pItem.unitsPerPack || pItem.conversionFactor) > 0 ? Number(pItem.unitsPerPack || pItem.conversionFactor) : 1;
-              const purQty = Number(pItem.totalBaseQty) || (((Number(pItem.qty) || 0) + (Number(pItem.freeQty) || 0)) * conv);
+              const freeQty = Number(pItem.freeQty) || 0;
+              const freeQtyUnit = (pItem.freeQtyUnit || pItem.unit || 'box').toLowerCase();
+              const purUnit = (pItem.unit || 'box').toLowerCase();
+              const freeBase = (freeQtyUnit === purUnit || freeQtyUnit === 'box' || freeQtyUnit === 'carton' || freeQtyUnit === 'crate') ? freeQty * conv : freeQty;
+              const purQty = Number(pItem.totalBaseQty) || (((Number(pItem.qty) || 0) * conv) + freeBase);
               localPurchaseMovements.push({
                 id: `local-pb-${bill.voucherNo}-${pItem.itemCode || pItem.itemDesc || pItem.itemName}`,
                 date: bill.date,

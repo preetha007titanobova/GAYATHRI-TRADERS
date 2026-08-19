@@ -13,7 +13,7 @@ interface PurchaseItem {
   weight?: string;
   unit?: string;
   baseUnit?: string;
-  unitsPerPack?: number;
+  unitsPerPack?: number | string;
   totalBaseQty?: number;
   category: string;
   itemDesc: string;
@@ -22,6 +22,7 @@ interface PurchaseItem {
   expDate?: string;
   qty: number;
   freeQty?: number;
+  freeQtyUnit?: string;
   unitPrice: number;
   salesRate: number;
   mrp: number;
@@ -509,13 +510,14 @@ const PurchaseBill = () => {
     weight: '',
     unit: 'box',
     baseUnit: 'packet',
-    unitsPerPack: 1,
+    unitsPerPack: '',
     totalBaseQty: 1,
     category: '',
     itemDesc: '',
     hsn: '',
     qty: 1,
     freeQty: 0,
+    freeQtyUnit: 'box',
     unitPrice: 0,
     salesRate: 0,
     mrp: 0,
@@ -564,8 +566,21 @@ const PurchaseBill = () => {
     const baseVal = qty * price;
     const afterDisc = baseVal - (baseVal * (discPercent / 100));
     
-    const conv = Number(item.unitsPerPack) > 0 ? Number(item.unitsPerPack) : 1;
-    const totalBaseQty = (qty + freeQty) * conv;
+    const rawConv = item.unitsPerPack;
+    const conv = (rawConv !== '' && rawConv !== undefined && !isNaN(Number(rawConv)) && Number(rawConv) > 0) ? Number(rawConv) : 1;
+
+    const purUnit = (item.unit || 'box').toLowerCase();
+    const freeUnit = (item.freeQtyUnit || purUnit).toLowerCase();
+
+    let freeBaseQty = freeQty;
+    if (freeUnit === purUnit || freeUnit === 'box' || freeUnit === 'carton' || freeUnit === 'crate') {
+      freeBaseQty = freeQty * conv;
+    } else {
+      // Free qty is in baseUnit / packet / piece / pcs inside box
+      freeBaseQty = freeQty * 1;
+    }
+
+    const totalBaseQty = (qty * conv) + freeBaseQty;
 
     const isInterstate = currentSupplyPlace.toLowerCase() !== 'tamil nadu';
     
@@ -587,7 +602,8 @@ const PurchaseBill = () => {
       ...item,
       qty,
       freeQty,
-      unitsPerPack: conv,
+      freeQtyUnit: item.freeQtyUnit || item.unit || 'box',
+      unitsPerPack: rawConv,
       totalBaseQty,
       cgstAmt,
       sgstAmt,
@@ -813,13 +829,18 @@ const PurchaseBill = () => {
           updated.weight = prod.weight || '';
           updated.unit = prod.uom || prod.unit || 'box';
           updated.baseUnit = prod.baseUnit || 'packet';
-          updated.unitsPerPack = prod.conversionFactor || 1;
+          updated.unitsPerPack = prod.conversionFactor ? prod.conversionFactor : '';
           updated.freeQty = 0;
+          updated.freeQtyUnit = prod.uom || prod.unit || 'box';
           updated.category = prod.department || '';
           updated.vendorItemCode = prod.vendorItemCode || '';
           if (prod.mfgDate) updated.mfgDate = String(prod.mfgDate).split('T')[0];
           if (prod.expDate) updated.expDate = String(prod.expDate).split('T')[0];
         }
+      }
+
+      if (field === 'unit') {
+        updated.freeQtyUnit = value;
       }
 
       updated = calculateItemValues(updated, supplyPlace);
@@ -956,11 +977,23 @@ const PurchaseBill = () => {
         const mrp = Number(i.mrp || prod?.mrp || salesRate || rate);
         const qty = Number(i.qty || i.purchasedQty || 1);
         const freeQty = Number(i.freeQty || 0);
+        const freeQtyUnit = i.freeQtyUnit || i.unit || prod?.uom || prod?.unit || 'box';
         const discPercent = Number(i.discPercent || i.discountPercent || 0);
         const taxPercent = Number(i.taxPercent ?? i.taxRate ?? 0);
+        const rawConv = i.unitsPerPack || i.conversionFactor || prod?.conversionFactor;
+        const conv = Number(rawConv) > 0 ? Number(rawConv) : 1;
 
-        const conv = Number(i.unitsPerPack || i.conversionFactor || prod?.conversionFactor) > 0 ? Number(i.unitsPerPack || i.conversionFactor || prod?.conversionFactor) : 1;
-        const totBase = Number(i.totalBaseQty) || ((qty + freeQty) * conv);
+        const purUnit = (i.unit || prod?.uom || prod?.unit || 'box').toLowerCase();
+        const freeUnit = freeQtyUnit.toLowerCase();
+        
+        let freeBaseQty = freeQty;
+        if (freeUnit === purUnit || freeUnit === 'box' || freeUnit === 'carton' || freeUnit === 'crate') {
+          freeBaseQty = freeQty * conv;
+        } else {
+          freeBaseQty = freeQty * 1;
+        }
+
+        const totBase = Number(i.totalBaseQty) || ((qty * conv) + freeBaseQty);
 
         const rawItem: PurchaseItem = {
           id: i.id || i._id || Math.random().toString(),
@@ -970,7 +1003,7 @@ const PurchaseBill = () => {
           weight: i.weight || prod?.weight || '',
           unit: i.unit || prod?.uom || prod?.unit || 'box',
           baseUnit: i.baseUnit || prod?.baseUnit || 'packet',
-          unitsPerPack: conv,
+          unitsPerPack: rawConv !== undefined && rawConv !== null && rawConv !== 0 ? rawConv : '',
           totalBaseQty: totBase,
           category: i.category || i.department || prod?.department || '',
           itemDesc: i.itemName || i.itemDesc || i.itemCode || '',
@@ -979,6 +1012,7 @@ const PurchaseBill = () => {
           expDate: i.expDate ? String(i.expDate).split('T')[0] : (prod?.expDate ? String(prod.expDate).split('T')[0] : ''),
           qty: qty,
           freeQty: freeQty,
+          freeQtyUnit: freeQtyUnit,
           unitPrice: rate,
           salesRate: salesRate,
           mrp: mrp,
@@ -1055,8 +1089,21 @@ const PurchaseBill = () => {
       type: supplyPlace.toLowerCase() === 'tamil nadu' ? 'Local' : 'Central',
       paymentMode: 'Cash',
       items: items.map(i => {
-        const conv = Number(i.unitsPerPack) > 0 ? Number(i.unitsPerPack) : 1;
-        const totBase = ((Number(i.qty) || 0) + (Number(i.freeQty) || 0)) * conv;
+        const rawConv = i.unitsPerPack;
+        const conv = (rawConv !== '' && rawConv !== undefined && !isNaN(Number(rawConv)) && Number(rawConv) > 0) ? Number(rawConv) : 1;
+        const freeQty = Number(i.freeQty) || 0;
+        const freeQtyUnit = i.freeQtyUnit || i.unit || 'box';
+        const purUnit = (i.unit || 'box').toLowerCase();
+        const freeUnit = freeQtyUnit.toLowerCase();
+
+        let freeBaseQty = freeQty;
+        if (freeUnit === purUnit || freeUnit === 'box' || freeUnit === 'carton' || freeUnit === 'crate') {
+          freeBaseQty = freeQty * conv;
+        } else {
+          freeBaseQty = freeQty * 1;
+        }
+
+        const totBase = Number(i.totalBaseQty) || (((Number(i.qty) || 0) * conv) + freeBaseQty);
         return {
           itemCode: i.itemCode.trim().toUpperCase(),
           vendorItemCode: i.vendorItemCode ? i.vendorItemCode.trim() : '',
@@ -1070,7 +1117,8 @@ const PurchaseBill = () => {
           totalBaseQty: totBase,
           category: i.category || '',
           qty: Number(i.qty) || 0,
-          freeQty: Number(i.freeQty) || 0,
+          freeQty: freeQty,
+          freeQtyUnit: freeQtyUnit,
           rate: Number(i.unitPrice) || 0,
           unitPrice: Number(i.unitPrice) || 0,
           sellingPrice: Number(i.salesRate) || Number(i.unitPrice) || 0,
@@ -1455,11 +1503,11 @@ const PurchaseBill = () => {
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-24">Base Unit</th>
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-20 text-center" title="Units Per Pack (Conversion Factor)">Pcs / Pack</th>
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-28 text-center bg-indigo-950 text-indigo-200">Base Stock Added</th>
+                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-36 text-center">Free Qty & Unit</th>
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-20">Weight / Val</th>
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-24">Category</th>
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-24">Mfg Date</th>
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-24">Exp Date</th>
-                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-16 text-right">Free Qty</th>
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-20 text-right">Purchase Rate</th>
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-12 text-right">Discount %</th>
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-12 text-right">GST %</th>
@@ -1637,8 +1685,8 @@ const PurchaseBill = () => {
                         <td className="border-r border-gray-300 p-0">
                           <input
                             type="number"
-                            value={item.unitsPerPack || 1}
-                            onChange={e => updateItem(item.id, 'unitsPerPack', Math.max(1, Number(e.target.value)))}
+                            value={item.unitsPerPack === undefined || item.unitsPerPack === 0 || (item.unitsPerPack as any) === '' ? '' : item.unitsPerPack}
+                            onChange={e => updateItem(item.id, 'unitsPerPack', e.target.value === '' ? '' : Number(e.target.value))}
                             onKeyDown={e => handleKeyDown(e, idx, 'unitsPerPack')}
                             onBlur={() => {
                               const latest = items.find(i => i.id === item.id);
@@ -1646,6 +1694,7 @@ const PurchaseBill = () => {
                             }}
                             className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-center font-bold text-slate-800"
                             min="1"
+                            placeholder="1"
                             title="1 Purchase Unit = how many Base Units (e.g. 1 Box = 24 Packets)"
                           />
                         </td>
@@ -1653,6 +1702,36 @@ const PurchaseBill = () => {
                           <span className="inline-block px-2 py-0.5 rounded text-[11px] font-black text-indigo-800 bg-indigo-100/80 border border-indigo-200 shadow-2xs font-mono">
                             {item.totalBaseQty || (((Number(item.qty) || 0) + (Number(item.freeQty) || 0)) * (Number(item.unitsPerPack) || 1))} {item.baseUnit || 'packet'}
                           </span>
+                        </td>
+                        <td className="border-r border-gray-300 p-0">
+                          <div className="flex items-center w-full min-w-[140px]">
+                            <input 
+                              type="number" 
+                              value={item.freeQty === 0 ? '' : item.freeQty} 
+                              onChange={e => updateItem(item.id, 'freeQty', e.target.value === '' ? 0 : Number(e.target.value))} 
+                              onKeyDown={e => handleKeyDown(e, idx, 'freeQty')}
+                              className="w-1/2 p-1.5 bg-slate-50/50 focus:bg-white focus:outline-none text-right font-bold text-blue-900 border-r border-slate-200" 
+                              min="0" 
+                              placeholder="0"
+                            />
+                            <select
+                              value={item.freeQtyUnit || item.unit || 'box'}
+                              onChange={e => updateItem(item.id, 'freeQtyUnit', e.target.value)}
+                              className="w-1/2 p-1 bg-transparent focus:bg-white focus:outline-none text-[11px] font-semibold text-blue-800 cursor-pointer"
+                              title="Free Qty Unit (Box, Packet, or Pieces inside the box)"
+                            >
+                              <option value={item.unit || 'box'}>{item.unit || 'box'} (Pur Unit)</option>
+                              {item.baseUnit && item.baseUnit !== item.unit && (
+                                <option value={item.baseUnit}>{item.baseUnit} (Base Unit)</option>
+                              )}
+                              {item.baseUnit !== 'piece' && item.unit !== 'piece' && (
+                                <option value="piece">piece (Pcs inside box)</option>
+                              )}
+                              {item.baseUnit !== 'packet' && item.unit !== 'packet' && (
+                                <option value="packet">packet</option>
+                              )}
+                            </select>
+                          </div>
                         </td>
                         <td className="border-r border-gray-300 p-0">
                           <input 
@@ -1703,16 +1782,6 @@ const PurchaseBill = () => {
                               if (latest) saveProductToDb(latest);
                             }}
                             className="w-full p-1 bg-transparent focus:bg-white focus:outline-none text-[11px]" 
-                          />
-                        </td>
-                        <td className="border-r border-gray-300 p-0">
-                          <input 
-                            type="number" 
-                            value={item.freeQty === 0 ? '' : item.freeQty} 
-                            onChange={e => updateItem(item.id, 'freeQty', Number(e.target.value))} 
-                            onKeyDown={e => handleKeyDown(e, idx, 'freeQty')}
-                            className="w-full p-1.5 bg-slate-50/50 focus:bg-white focus:outline-none text-right font-bold text-blue-900 border border-transparent focus:border-indigo-400" 
-                            min="0" 
                           />
                         </td>
                         <td className="border-r border-gray-300 p-0">

@@ -213,6 +213,7 @@ interface LineItem {
   itemDesc: string;
   qty: number;
   freeQty?: number;
+  freeQtyUnit?: string;
   unit?: string;
   baseUnit?: string;
   unitsPerPack?: number;
@@ -914,7 +915,11 @@ const PurRegister = () => {
                   const purchasedBaseTotal = row.items && row.items.length > 0
                     ? row.items.reduce((acc, curr) => {
                         const conv = Number(curr.unitsPerPack || curr.conversionFactor) > 0 ? Number(curr.unitsPerPack || curr.conversionFactor) : 1;
-                        return acc + (curr.totalBaseQty || (((Number(curr.qty) || 0) + (Number(curr.freeQty) || 0)) * conv));
+                        const freeQty = Number(curr.freeQty) || 0;
+                        const freeQtyUnit = (curr.freeQtyUnit || curr.unit || 'box').toLowerCase();
+                        const purUnit = (curr.unit || 'box').toLowerCase();
+                        const freeBase = (freeQtyUnit === purUnit || freeQtyUnit === 'box' || freeQtyUnit === 'carton' || freeQtyUnit === 'crate') ? freeQty * conv : freeQty;
+                        return acc + (curr.totalBaseQty || (((Number(curr.qty) || 0) * conv) + freeBase));
                       }, 0)
                     : purchasedQty;
 
@@ -1123,7 +1128,11 @@ const PurRegister = () => {
                     const unitStr = it.unit || 'box';
                     const baseUnitStr = it.baseUnit || 'packet';
                     const convFactor = Number(it.unitsPerPack || it.conversionFactor) > 0 ? Number(it.unitsPerPack || it.conversionFactor) : 1;
-                    const purchasedBase = it.totalBaseQty || (((Number(it.qty) || 0) + (Number(it.freeQty) || 0)) * convFactor);
+                    const freeQty = Number(it.freeQty) || 0;
+                    const freeQtyUnit = (it.freeQtyUnit || it.unit || 'box').toLowerCase();
+                    const purUnit = (it.unit || 'box').toLowerCase();
+                    const freeBase = (freeQtyUnit === purUnit || freeQtyUnit === 'box' || freeQtyUnit === 'carton' || freeQtyUnit === 'crate') ? freeQty * convFactor : freeQty;
+                    const purchasedBase = it.totalBaseQty || (((Number(it.qty) || 0) * convFactor) + freeBase);
                     const retBase = retQty * convFactor;
                     const netBaseRemaining = Math.max(0, purchasedBase - retBase);
                     const isConverted = convFactor > 1;

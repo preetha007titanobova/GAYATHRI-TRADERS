@@ -164,9 +164,19 @@ export const createPurchaseBill = async (data: any): Promise<any> => {
     for (const item of items) {
       const qty = Number(item.qty || item.purchasedQty) || 0;
       const freeQty = Number(item.freeQty) || 0;
-      const totalQty = qty + freeQty;
+      const freeQtyUnit = item.freeQtyUnit || item.unit || 'box';
       const unitsPerPack = Number(item.unitsPerPack || item.conversionFactor) > 0 ? Number(item.unitsPerPack || item.conversionFactor) : 1;
-      const totalBaseQty = totalQty * unitsPerPack;
+      
+      let freeBaseQty = freeQty;
+      const purUnit = (item.unit || 'box').toLowerCase();
+      const freeUnit = freeQtyUnit.toLowerCase();
+      if (freeUnit === purUnit || freeUnit === 'box' || freeUnit === 'carton' || freeUnit === 'crate') {
+        freeBaseQty = freeQty * unitsPerPack;
+      } else {
+        freeBaseQty = freeQty * 1;
+      }
+
+      const totalBaseQty = Number(item.totalBaseQty) || ((qty * unitsPerPack) + freeBaseQty);
       const rate = Number(item.rate || item.unitPrice) || 0;
       const sellingPrice = Number(item.sellingPrice ?? item.salesRate ?? rate) || rate;
       const mrp = Number(item.mrp ?? sellingPrice) || sellingPrice;
@@ -259,6 +269,7 @@ export const createPurchaseBill = async (data: any): Promise<any> => {
         hsn: barcodeStr,
         qty: qty,
         freeQty: freeQty,
+        freeQtyUnit: freeQtyUnit,
         rate: rate,
         unitPrice: rate,
         sellingPrice: sellingPrice,
@@ -328,9 +339,19 @@ export const updatePurchaseBill = async (id: string, data: any): Promise<boolean
   for (const item of oldItems) {
     const qty = Number(item.qty) || 0;
     const freeQty = Number(item.freeQty) || 0;
-    const totalQty = qty + freeQty;
+    const freeQtyUnit = item.freeQtyUnit || item.unit || 'box';
     const oldConv = Number(item.unitsPerPack || item.conversionFactor) > 0 ? Number(item.unitsPerPack || item.conversionFactor) : 1;
-    const oldTotalBase = Number(item.totalBaseQty) || (totalQty * oldConv);
+    
+    let freeBaseQty = freeQty;
+    const purUnit = (item.unit || 'box').toLowerCase();
+    const freeUnit = freeQtyUnit.toLowerCase();
+    if (freeUnit === purUnit || freeUnit === 'box' || freeUnit === 'carton' || freeUnit === 'crate') {
+      freeBaseQty = freeQty * oldConv;
+    } else {
+      freeBaseQty = freeQty * 1;
+    }
+
+    const oldTotalBase = Number(item.totalBaseQty) || ((qty * oldConv) + freeBaseQty);
 
     if (oldTotalBase > 0) {
       if (item.productId) {
@@ -391,9 +412,19 @@ export const updatePurchaseBill = async (id: string, data: any): Promise<boolean
     for (const item of items) {
       const qty = Number(item.qty || item.purchasedQty) || 0;
       const freeQty = Number(item.freeQty) || 0;
-      const totalQty = qty + freeQty;
+      const freeQtyUnit = item.freeQtyUnit || item.unit || 'box';
       const unitsPerPack = Number(item.unitsPerPack || item.conversionFactor) > 0 ? Number(item.unitsPerPack || item.conversionFactor) : 1;
-      const totalBaseQty = totalQty * unitsPerPack;
+      
+      let freeBaseQty = freeQty;
+      const purUnit = (item.unit || 'box').toLowerCase();
+      const freeUnit = freeQtyUnit.toLowerCase();
+      if (freeUnit === purUnit || freeUnit === 'box' || freeUnit === 'carton' || freeUnit === 'crate') {
+        freeBaseQty = freeQty * unitsPerPack;
+      } else {
+        freeBaseQty = freeQty * 1;
+      }
+
+      const totalBaseQty = Number(item.totalBaseQty) || ((qty * unitsPerPack) + freeBaseQty);
       const rate = Number(item.rate || item.unitPrice) || 0;
       const sellingPrice = Number(item.sellingPrice ?? item.salesRate ?? rate) || rate;
       const mrp = Number(item.mrp ?? sellingPrice) || sellingPrice;
@@ -485,6 +516,7 @@ export const updatePurchaseBill = async (id: string, data: any): Promise<boolean
         hsn: barcodeStr,
         qty: qty,
         freeQty: freeQty,
+        freeQtyUnit: freeQtyUnit,
         rate: rate,
         unitPrice: rate,
         sellingPrice: sellingPrice,
@@ -526,9 +558,19 @@ export const deletePurchaseBill = async (id: string): Promise<boolean> => {
   for (const item of oldItems) {
     const qty = Number(item.qty) || 0;
     const freeQty = Number(item.freeQty) || 0;
-    const totalQty = qty + freeQty;
+    const freeQtyUnit = item.freeQtyUnit || item.unit || 'box';
     const conv = Number(item.unitsPerPack || item.conversionFactor) > 0 ? Number(item.unitsPerPack || item.conversionFactor) : 1;
-    const totalBase = Number(item.totalBaseQty) || (totalQty * conv);
+    
+    let freeBaseQty = freeQty;
+    const purUnit = (item.unit || 'box').toLowerCase();
+    const freeUnit = freeQtyUnit.toLowerCase();
+    if (freeUnit === purUnit || freeUnit === 'box' || freeUnit === 'carton' || freeUnit === 'crate') {
+      freeBaseQty = freeQty * conv;
+    } else {
+      freeBaseQty = freeQty * 1;
+    }
+
+    const totalBase = Number(item.totalBaseQty) || ((qty * conv) + freeBaseQty);
     if (totalBase > 0) {
       if (item.productId) {
         await db.collection('Product').updateOne(

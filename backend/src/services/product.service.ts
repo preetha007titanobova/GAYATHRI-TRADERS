@@ -324,7 +324,11 @@ export const getDailyStockStatus = async (dateStr: string): Promise<any[]> => {
       if (item.purchaseBill) {
         const purchaseDate = new Date(item.purchaseBill.date);
         const conv = Number(item.unitsPerPack || item.conversionFactor) > 0 ? Number(item.unitsPerPack || item.conversionFactor) : 1;
-        const baseQty = item.totalBaseQty || (((Number(item.qty) || 0) + (Number(item.freeQty) || 0)) * conv);
+        const freeQty = Number(item.freeQty) || 0;
+        const freeQtyUnit = (item.freeQtyUnit || item.unit || 'box').toLowerCase();
+        const purUnit = (item.unit || 'box').toLowerCase();
+        const freeBase = (freeQtyUnit === purUnit || freeQtyUnit === 'box' || freeQtyUnit === 'carton' || freeQtyUnit === 'crate') ? freeQty * conv : freeQty;
+        const baseQty = Number(item.totalBaseQty) || (((Number(item.qty) || 0) * conv) + freeBase);
         if (purchaseDate >= startOfDay && purchaseDate <= endOfDay) {
           inwardToday += baseQty;
           purchasesToday += baseQty;
@@ -548,7 +552,11 @@ export const getStockRegisterReport = async (): Promise<any[]> => {
     for (const item of prodPurchases) {
       if (item.purchaseBill) {
         const conv = Number(item.unitsPerPack || item.conversionFactor) > 0 ? Number(item.unitsPerPack || item.conversionFactor) : 1;
-        const purQty = Number(item.totalBaseQty) || (((Number(item.qty) || 0) + (Number(item.freeQty) || 0)) * conv);
+        const freeQty = Number(item.freeQty) || 0;
+        const freeQtyUnit = (item.freeQtyUnit || item.unit || 'box').toLowerCase();
+        const purUnit = (item.unit || 'box').toLowerCase();
+        const freeBase = (freeQtyUnit === purUnit || freeQtyUnit === 'box' || freeQtyUnit === 'carton' || freeQtyUnit === 'crate') ? freeQty * conv : freeQty;
+        const purQty = Number(item.totalBaseQty) || (((Number(item.qty) || 0) * conv) + freeBase);
         dbMovements.push({
           id: item._id?.toString() || item.id,
           date: item.purchaseBill.date,
