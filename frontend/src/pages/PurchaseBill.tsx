@@ -11,6 +11,7 @@ interface PurchaseItem {
   vendorItemCode?: string;
   itemName: string;
   weight?: string;
+  weightUnit?: string;
   unit?: string;
   baseUnit?: string;
   unitsPerPack?: number | string;
@@ -34,6 +35,16 @@ interface PurchaseItem {
   total: number;
   isManualItem?: boolean;
 }
+
+const parseWeightStr = (wStr?: string) => {
+  if (!wStr) return { val: '', unit: 'g' };
+  const str = String(wStr).trim();
+  const match = str.match(/^([0-9.]+)\s*([a-zA-Z]+)?$/);
+  if (match) {
+    return { val: match[1], unit: match[2] || 'g' };
+  }
+  return { val: str, unit: 'g' };
+};
 
 const PurchaseBill = () => {
   const { setToolbarActions, setGlobalNotification } = useOutletContext<{
@@ -1502,9 +1513,9 @@ const PurchaseBill = () => {
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-24">Purchase Unit</th>
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-24">Base Unit</th>
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-20 text-center" title="Units Per Pack (Conversion Factor)">Pcs / Pack</th>
-                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-28 text-center bg-indigo-950 text-indigo-200">Base Stock Added</th>
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-36 text-center">Free Qty & Unit</th>
-                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-20">Weight / Val</th>
+                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-28 text-center bg-indigo-950 text-indigo-200">Base Stock Added</th>
+                      <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-36 text-center">Weight & Unit</th>
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-24">Category</th>
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-24">Mfg Date</th>
                       <th className="border-r border-slate-800 p-2 font-bold text-[10px] uppercase tracking-wider w-24">Exp Date</th>
@@ -1698,11 +1709,6 @@ const PurchaseBill = () => {
                             title="1 Purchase Unit = how many Base Units (e.g. 1 Box = 24 Packets)"
                           />
                         </td>
-                        <td className="border-r border-gray-300 p-1 text-center bg-indigo-50/40">
-                          <span className="inline-block px-2 py-0.5 rounded text-[11px] font-black text-indigo-800 bg-indigo-100/80 border border-indigo-200 shadow-2xs font-mono">
-                            {item.totalBaseQty || (((Number(item.qty) || 0) + (Number(item.freeQty) || 0)) * (Number(item.unitsPerPack) || 1))} {item.baseUnit || 'packet'}
-                          </span>
-                        </td>
                         <td className="border-r border-gray-300 p-0">
                           <div className="flex items-center w-full min-w-[140px]">
                             <input 
@@ -1733,19 +1739,58 @@ const PurchaseBill = () => {
                             </select>
                           </div>
                         </td>
+                        <td className="border-r border-gray-300 p-1 text-center bg-indigo-50/40">
+                          <span className="inline-block px-2 py-0.5 rounded text-[11px] font-black text-indigo-800 bg-indigo-100/80 border border-indigo-200 shadow-2xs font-mono">
+                            {item.totalBaseQty || (((Number(item.qty) || 0) + (Number(item.freeQty) || 0)) * (Number(item.unitsPerPack) || 1))} {item.baseUnit || 'packet'}
+                          </span>
+                        </td>
                         <td className="border-r border-gray-300 p-0">
-                          <input 
-                            type="text" 
-                            value={item.weight || ''} 
-                            onChange={e => updateItem(item.id, 'weight', e.target.value)} 
-                            onKeyDown={e => handleKeyDown(e, idx, 'weight')}
-                            onBlur={() => {
-                              const latest = items.find(i => i.id === item.id);
-                              if (latest) saveProductToDb(latest);
-                            }}
-                            className="w-full p-1.5 bg-transparent focus:bg-white focus:outline-none text-center font-semibold" 
-                            placeholder="e.g. 100, 5"
-                          />
+                          <div className="flex items-center w-full min-w-[130px]">
+                            {(() => {
+                              const parsed = parseWeightStr(item.weight);
+                              const currentUnit = item.weightUnit || parsed.unit || 'g';
+                              const currentVal = parsed.val;
+                              return (
+                                <>
+                                  <input 
+                                    type="text" 
+                                    value={currentVal} 
+                                    onChange={e => {
+                                      const val = e.target.value;
+                                      const combined = val ? `${val}${currentUnit}` : '';
+                                      setItems(prev => prev.map(it => it.id === item.id ? { ...it, weight: combined, weightUnit: currentUnit } : it));
+                                    }} 
+                                    onKeyDown={e => handleKeyDown(e, idx, 'weight')}
+                                    onBlur={() => {
+                                      const latest = items.find(i => i.id === item.id);
+                                      if (latest) saveProductToDb(latest);
+                                    }}
+                                    className="w-1/2 p-1.5 bg-transparent focus:bg-white focus:outline-none text-right font-bold text-slate-800 border-r border-slate-200" 
+                                    placeholder="e.g. 500"
+                                  />
+                                  <select
+                                    value={currentUnit}
+                                    onChange={e => {
+                                      const newUnit = e.target.value;
+                                      const combined = currentVal ? `${currentVal}${newUnit}` : '';
+                                      setItems(prev => prev.map(it => it.id === item.id ? { ...it, weight: combined, weightUnit: newUnit } : it));
+                                    }}
+                                    className="w-1/2 p-1 bg-transparent focus:bg-white focus:outline-none text-[11px] font-semibold text-slate-700 cursor-pointer"
+                                    title="Weight Unit (g, kg, mg, ml, L, etc.)"
+                                  >
+                                    <option value="g">g</option>
+                                    <option value="kg">kg</option>
+                                    <option value="mg">mg</option>
+                                    <option value="ml">ml</option>
+                                    <option value="litre">litre</option>
+                                    <option value="pcs">pcs</option>
+                                    <option value="quintal">quintal</option>
+                                    <option value="ton">ton</option>
+                                  </select>
+                                </>
+                              );
+                            })()}
+                          </div>
                         </td>
                         <td className="border-r border-gray-300 p-0">
                           <input

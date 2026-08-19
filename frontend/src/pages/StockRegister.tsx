@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import type { ToolbarActions } from '../components/Layout';
-import { Calendar, Package, FileText, Search, ArrowLeft, Eye, Trash2, CheckSquare, Square, AlertTriangle } from 'lucide-react';
+import { Calendar, Package, FileText, Search, ArrowLeft, Eye, Trash2, CheckSquare, Square, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
 import Api from '../Api';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -28,6 +28,7 @@ interface Product {
   department?: string;
   variety?: string;
   size?: string;
+  weight?: string;
   uom?: string;
   baseUnit?: string;
   packagings?: any[];
@@ -201,10 +202,148 @@ const StockRegister = () => {
     }
   };
 
+  const parseMeasurement = (weightStr?: string, defaultUnitStr?: string) => {
+    if (!weightStr) return { val: 0, category: 'none', unit: '' };
+    const str = String(weightStr).trim().toLowerCase();
+    let numVal = parseFloat(str.replace(/[^\d.]/g, ''));
+    if (isNaN(numVal) || numVal <= 0) return { val: 0, category: 'none', unit: '' };
+
+    let unit = '';
+    if (str.includes('quintal')) unit = 'quintal';
+    else if (str.includes('kilolitre') || str.includes('kl')) unit = 'kilolitre';
+    else if (str.includes('litre') || str.includes('liter')) unit = 'litre';
+    else if (str.includes('ml')) unit = 'ml';
+    else if (str.includes('metre') || str.includes('meter')) unit = 'metre';
+    else if (str.includes('cm')) unit = 'cm';
+    else if (str.includes('mm')) unit = 'mm';
+    else if (str.includes('ton')) unit = 'ton';
+    else if (str.includes('kg')) unit = 'kg';
+    else if (str.includes('mg')) unit = 'mg';
+    else if (str.includes('g') && !str.includes('kg')) unit = 'g';
+    else if (str.includes('piece') || str.includes('pcs')) unit = 'piece';
+
+    if (!unit && defaultUnitStr) {
+      const fallback = defaultUnitStr.trim().toLowerCase();
+      if (['mg', 'g', 'kg', 'quintal', 'ton', 'ml', 'litre', 'kilolitre', 'mm', 'cm', 'metre', 'piece', 'pcs'].includes(fallback)) {
+        unit = fallback;
+      }
+    }
+
+    if (!unit) unit = 'g';
+
+    if (['mg', 'g', 'kg', 'quintal', 'ton'].includes(unit)) {
+      let grams = numVal;
+      if (unit === 'mg') grams = numVal / 1000;
+      else if (unit === 'g') grams = numVal;
+      else if (unit === 'kg') grams = numVal * 1000;
+      else if (unit === 'quintal') grams = numVal * 100000;
+      else if (unit === 'ton') grams = numVal * 1000000;
+      return { val: grams, category: 'weight', unit };
+    }
+
+    if (['ml', 'litre', 'kilolitre'].includes(unit)) {
+      let ml = numVal;
+      if (unit === 'ml') ml = numVal;
+      else if (unit === 'litre') ml = numVal * 1000;
+      else if (unit === 'kilolitre') ml = numVal * 1000000;
+      return { val: ml, category: 'volume', unit };
+    }
+
+    return { val: numVal, category: 'count', unit: defaultUnitStr || 'Pcs' };
+  };
+
+  const formatWeightQty = (qty: number, weightStr?: string, baseUnit?: string) => {
+    if (qty <= 0) return '-';
+    const parsed = parseMeasurement(weightStr, baseUnit);
+    if (parsed.category === 'weight' && parsed.val > 0) {
+      const totalGrams = parsed.val * qty;
+      let wStr = '';
+      if (totalGrams >= 1000000) {
+        const ton = totalGrams / 1000000;
+        wStr = `${Number.isInteger(ton) ? ton : ton.toFixed(2)} ton`;
+      } else if (totalGrams >= 100000) {
+        const q = totalGrams / 100000;
+        wStr = `${Number.isInteger(q) ? q : q.toFixed(2)} quintal`;
+      } else if (totalGrams >= 1000) {
+        const kg = totalGrams / 1000;
+        wStr = `${Number.isInteger(kg) ? kg : kg.toFixed(2)} Kg`;
+      } else {
+        wStr = `${Math.round(totalGrams)} g`;
+      }
+      return (
+        <span className="inline-flex flex-col items-end">
+          <span className="font-extrabold text-slate-900">{wStr}</span>
+          <span className="text-[10px] font-bold text-emerald-800 whitespace-nowrap leading-none mt-0.5">({qty} {baseUnit || 'pcs'})</span>
+        </span>
+      );
+    }
+    if (parsed.category === 'volume' && parsed.val > 0) {
+      const totalMl = parsed.val * qty;
+      let vStr = '';
+      if (totalMl >= 1000) {
+        const l = totalMl / 1000;
+        vStr = `${Number.isInteger(l) ? l : l.toFixed(2)} L`;
+      } else {
+        vStr = `${Math.round(totalMl)} ml`;
+      }
+      return (
+        <span className="inline-flex flex-col items-end">
+          <span className="font-extrabold text-slate-900">{vStr}</span>
+          <span className="text-[10px] font-bold text-emerald-800 whitespace-nowrap leading-none mt-0.5">({qty} {baseUnit || 'pcs'})</span>
+        </span>
+      );
+    }
+    return `${qty} ${baseUnit || 'Pcs'}`;
+  };
+
+  const calculateTotalWeightStr = (stockQty: number, weightStr?: string, defaultUnitStr?: string) => {
+    if (stockQty <= 0 || !weightStr) return '-';
+    const parsed = parseMeasurement(weightStr, defaultUnitStr);
+    if (parsed.category === 'weight' && parsed.val > 0) {
+      const totalGrams = parsed.val * stockQty;
+      if (totalGrams >= 1000000) {
+        const ton = totalGrams / 1000000;
+        return `${Number.isInteger(ton) ? ton : ton.toFixed(2)} ton`;
+      } else if (totalGrams >= 100000) {
+        const q = totalGrams / 100000;
+        return `${Number.isInteger(q) ? q : q.toFixed(2)} quintal`;
+      } else if (totalGrams >= 1000) {
+        const kg = totalGrams / 1000;
+        return `${Number.isInteger(kg) ? kg : kg.toFixed(2)} Kg`;
+      } else {
+        return `${Math.round(totalGrams)} g`;
+      }
+    }
+    if (parsed.category === 'volume' && parsed.val > 0) {
+      const totalMl = parsed.val * stockQty;
+      if (totalMl >= 1000) {
+        const l = totalMl / 1000;
+        return `${Number.isInteger(l) ? l : l.toFixed(2)} L`;
+      } else {
+        return `${Math.round(totalMl)} ml`;
+      }
+    }
+    return '-';
+  };
+
+  const formatGramSummary = (grams: number, count: number) => {
+    if (grams > 0) {
+      let weightStr = '';
+      if (grams >= 1000000) weightStr = `${(grams / 1000000).toFixed(2)} ton`;
+      else if (grams >= 100000) weightStr = `${(grams / 100000).toFixed(2)} quintal`;
+      else if (grams >= 1000) weightStr = `${(grams / 1000).toFixed(2)} Kg`;
+      else weightStr = `${Math.round(grams)} g`;
+      return `${weightStr} (${count} Pcs/Packs)`;
+    }
+    return `${count} Pcs/Packs`;
+  };
+
   // Compute calculated metrics (opening, inward, outward, damages, closing, rows) for a product
   const getProductLedgerData = (product: Product) => {
     const itemCode = product.itemCode;
     const name = product.name;
+
+    let extractedWeight = product.weight || '';
 
     const localPurchaseMovements: StockMove[] = [];
     if (localPurchaseBills.length > 0) {
@@ -215,6 +354,9 @@ const StockRegister = () => {
                             (name && pItem.itemName && pItem.itemName.trim().toLowerCase() === name.trim().toLowerCase()) ||
                             (name && pItem.itemDesc && pItem.itemDesc.trim().toLowerCase() === name.trim().toLowerCase());
             if (isMatch) {
+              if (pItem.weight && !extractedWeight) {
+                extractedWeight = pItem.weight;
+              }
               const conv = Number(pItem.unitsPerPack || pItem.conversionFactor) > 0 ? Number(pItem.unitsPerPack || pItem.conversionFactor) : 1;
               const freeQty = Number(pItem.freeQty) || 0;
               const freeQtyUnit = (pItem.freeQtyUnit || pItem.unit || 'box').toLowerCase();
@@ -316,6 +458,7 @@ const StockRegister = () => {
       outward,
       damages: damagesQty,
       closingStock: currentBal,
+      extractedWeight,
       rows: rowsWithBal
     };
   };
@@ -325,6 +468,7 @@ const StockRegister = () => {
       const ledger = getProductLedgerData(product);
       return {
         ...product,
+        weight: product.weight || ledger.extractedWeight || '',
         ...ledger
       };
     });
@@ -368,8 +512,27 @@ const StockRegister = () => {
       acc.damages += p.damages || 0;
       acc.closing += p.closingStock || 0;
       acc.totalStock += p.closingStock ?? p.dbStock ?? p.stock ?? 0;
+
+      const parsed = parseMeasurement(p.weight, p.baseUnit || p.uom);
+      if (parsed.category === 'weight' && parsed.val > 0) {
+        acc.totalInwardGrams += (p.inward || 0) * parsed.val;
+        acc.totalOutwardGrams += (p.outward || 0) * parsed.val;
+        acc.totalDamagesGrams += (p.damages || 0) * parsed.val;
+        acc.totalStockGrams += (p.closingStock ?? p.dbStock ?? p.stock ?? 0) * parsed.val;
+      }
       return acc;
-    }, { opening: 0, inward: 0, outward: 0, damages: 0, closing: 0, totalStock: 0 });
+    }, {
+      opening: 0,
+      inward: 0,
+      outward: 0,
+      damages: 0,
+      closing: 0,
+      totalStock: 0,
+      totalInwardGrams: 0,
+      totalOutwardGrams: 0,
+      totalDamagesGrams: 0,
+      totalStockGrams: 0
+    });
   }, [filteredProducts]);
 
   const activeLedger = useMemo(() => {
@@ -453,13 +616,13 @@ const StockRegister = () => {
     doc.setTextColor(100);
     doc.text(`Period: ${fromDate} to ${toDate}`, 14, 22);
 
-    const headers = ["Item Code", "Item Name", "Category", "Variety", "Size", "Opening", "Inward", "Outward", "Damages", "Closing"];
+    const headers = ["Item Code", "Item Name", "Category", "Variety", "Weight & Unit", "Opening", "Inward", "Outward", "Damages", "Closing"];
     const rows = filteredProducts.map(p => [
       p.itemCode || '',
       p.name || '',
       p.department || '',
       p.variety || '',
-      p.size || '',
+      p.weight || p.size || '',
       p.openingStock.toString(),
       p.inward.toString(),
       p.outward.toString(),
@@ -550,13 +713,13 @@ const StockRegister = () => {
       doc.setTextColor(100);
       doc.text(`Period: ${fromDate} to ${toDate}`, 14, 22);
 
-      const headers = ["Item Code", "Item Name", "Category", "Variety", "Size", "Inward", "Outward", "Damages", "Total Stock"];
+      const headers = ["Item Code", "Item Name", "Category", "Variety", "Weight & Unit", "Inward", "Outward", "Damages", "Total Stock"];
       const rows = filteredProducts.map(p => [
         p.itemCode || '',
         p.name || '',
         p.department || '',
         p.variety || '',
-        p.size || '',
+        p.weight || p.size || '',
         p.inward.toString(),
         p.outward.toString(),
         p.damages.toString(),
@@ -775,6 +938,8 @@ const StockRegister = () => {
     }
   };
 
+  const [isFilterExpanded, setIsFilterExpanded] = useState(false);
+
   return (
     <div className="flex flex-col h-full bg-[#f0f9f4] p-2 overflow-hidden">
       
@@ -809,94 +974,6 @@ const StockRegister = () => {
               Detailed Ledger
             </button>
           </div>
-
-          {/* Common Filter Search Input */}
-          <div className="flex items-center space-x-2 bg-gray-50 border border-gray-300 px-3 py-1.5 rounded-md shadow-sm">
-            <Search size={16} className="text-gray-400 flex-shrink-0" />
-            <input
-              id="summary-search-input"
-              type="text"
-              placeholder="Search code, name, variety..."
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              className="bg-transparent text-sm focus:outline-none w-52 placeholder-gray-400 font-medium text-gray-700"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="text-gray-400 hover:text-gray-600 transition-colors ml-1 flex-shrink-0"
-                title="Clear search"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              </button>
-            )}
-          </div>
-
-          {/* Department filter */}
-          <select
-            value={filterDept}
-            onChange={e => setFilterDept(e.target.value)}
-            className="bg-gray-50 border border-gray-300 text-sm font-medium text-gray-700 rounded-md px-2 py-1.5 focus:outline-none focus:border-blue-400 cursor-pointer shadow-sm"
-          >
-            <option value="">All Categories</option>
-            {allDepartments.map(d => (
-              <option key={d} value={d}>{d}</option>
-            ))}
-          </select>
-
-          {/* Stock status filter */}
-          <select
-            value={filterStatus}
-            onChange={e => setFilterStatus(e.target.value)}
-            className="bg-gray-50 border border-gray-300 text-sm font-medium text-gray-700 rounded-md px-2 py-1.5 focus:outline-none focus:border-blue-400 cursor-pointer shadow-sm"
-          >
-            <option value="">All Stock Status</option>
-            <option value="in-stock">✅ In Stock</option>
-            <option value="low-stock">⚠️ Low Stock (&lt;10)</option>
-            <option value="out-of-stock">❌ Out of Stock</option>
-          </select>
-
-          {/* Clear all filters */}
-          {(searchQuery || filterDept || filterStatus) && (
-            <button
-              onClick={() => { setSearchQuery(''); setFilterDept(''); setFilterStatus(''); }}
-              className="flex items-center gap-1 bg-red-50 border border-red-300 text-red-600 text-xs font-bold px-3 py-1.5 rounded-md hover:bg-red-100 transition-colors shadow-sm"
-              title="Clear all filters"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              Clear Filters
-            </button>
-          )}
-
-          {/* Multi-Select & Bulk Delete Controls */}
-          {viewMode === 'summary' && (
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={() => {
-                  setIsMultiSelectMode(!isMultiSelectMode);
-                  if (isMultiSelectMode) setSelectedIds([]);
-                }}
-                className={`px-3 py-1.5 text-xs font-bold rounded-md border transition-all flex items-center gap-1.5 ${
-                  isMultiSelectMode
-                    ? 'bg-amber-100 text-amber-900 border-amber-400 shadow-sm'
-                    : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border-gray-300'
-                }`}
-              >
-                {isMultiSelectMode ? <CheckSquare size={14} /> : <Square size={14} />}
-                <span>{isMultiSelectMode ? 'Cancel Selection' : 'Select Multiple'}</span>
-              </button>
-
-              {selectedIds.length > 0 && (
-                <button
-                  onClick={() => setBulkDeleteModalOpen(true)}
-                  className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 text-xs font-bold rounded-md shadow border border-red-700 transition-colors flex items-center gap-1.5 animate-pulse"
-                >
-                  <Trash2 size={14} />
-                  <span>Bulk Delete ({selectedIds.length})</span>
-                </button>
-              )}
-            </div>
-          )}
 
           {/* Product Dropdown for Ledger view */}
           {viewMode === 'ledger' && (
@@ -937,46 +1014,151 @@ const StockRegister = () => {
           )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center bg-[#f0f4f8] border border-[#d1d9e0] p-1.5 rounded-md">
-             <span className="font-bold text-[#2b579a] flex items-center text-sm mr-2 pl-2"><Calendar size={16} className="mr-1.5"/> Period:</span>
-             <select 
-               value={preset} 
-               onChange={e => handlePresetChange(e.target.value)}
-               className="bg-white border border-gray-300 rounded px-2 py-1 text-xs font-semibold text-gray-700 focus:outline-none cursor-pointer mr-2"
-             >
-               <option value="custom">Custom (Wish)</option>
-               <option value="today">Today (Daily)</option>
-               <option value="yesterday">Yesterday</option>
-               <option value="this-week">This Week</option>
-               <option value="this-month">This Month</option>
-               <option value="fin-year">Financial Year</option>
-             </select>
-             <div className="flex items-center space-x-2 bg-white px-2 py-1 rounded border border-gray-300 shadow-sm">
-               <input type="date" value={fromDate} onChange={e => { setFromDate(e.target.value); setPreset('custom'); }} className="border-none bg-transparent text-sm text-gray-800 font-medium focus:outline-none focus:ring-0" />
-               <span className="text-gray-400 text-sm font-medium">to</span>
-               <input type="date" value={toDate} onChange={e => { setToDate(e.target.value); setPreset('custom'); }} className="border-none bg-transparent text-sm text-gray-800 font-medium focus:outline-none focus:ring-0" />
-             </div>
-          </div>
+        <div className="flex items-center space-x-2">
           <button
             onClick={viewMode === 'summary' ? downloadSummaryPDF : downloadLedgerPDF}
-            className="bg-emerald-600 text-white px-3 py-1.5 text-xs font-medium rounded-md hover:bg-emerald-700 shadow border border-emerald-700 transition-colors mr-2"
+            className="bg-emerald-600 text-white px-3 py-1.5 text-xs font-bold rounded-md hover:bg-emerald-700 shadow border border-emerald-700 transition-colors"
           >
             Download PDF
           </button>
           <button
             onClick={viewMode === 'summary' ? handleShareSummaryWhatsApp : handleShareLedgerWhatsApp}
             disabled={sharing}
-            className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-3 py-1.5 text-xs font-medium rounded-md shadow border border-green-700 transition-colors flex items-center"
+            className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-3 py-1.5 text-xs font-bold rounded-md shadow border border-green-700 transition-colors flex items-center"
           >
             <svg className="w-4 h-4 mr-1.5 fill-current" viewBox="0 0 24 24">
               <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.455L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.625 1.451 5.403.002 9.803-4.394 9.806-9.799.002-2.618-1.016-5.079-2.865-6.93C16.368 2.025 13.91 1.006 11.298 1.006c-5.408 0-9.81 4.398-9.813 9.802-.002 1.83.479 3.618 1.393 5.17l-.997 3.642 3.734-.978zM17.15 13.563c-.3-.15-1.771-.875-2.04-.972-.269-.099-.465-.148-.659.15-.195.297-.753.971-.922 1.168-.169.197-.337.221-.637.072-.3-.15-1.264-.467-2.408-1.486-.89-.794-1.49-1.775-1.665-2.072-.175-.297-.019-.458.131-.606.134-.133.3-.347.449-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.659-1.591-.903-2.176-.237-.573-.478-.495-.659-.504-.17-.008-.365-.01-.56-.01s-.51.074-.777.363c-.266.289-1.016.992-1.016 2.42 0 1.427 1.039 2.805 1.182 2.996.143.19 2.043 3.12 4.949 4.377.691.299 1.23.478 1.651.611.693.22 1.325.189 1.822.115.556-.083 1.771-.724 2.019-1.422.25-.698.25-1.299.176-1.422-.075-.123-.269-.197-.569-.347z"/>
             </svg>
             {sharing ? 'Sharing...' : 'Share'}
           </button>
+          <button
+            onClick={() => setIsFilterExpanded(!isFilterExpanded)}
+            className="text-xs bg-[#2b579a] hover:bg-[#1a3a6c] text-white font-bold px-2.5 py-1.5 rounded shadow border border-blue-900 transition-colors flex items-center gap-1 cursor-pointer"
+            title={isFilterExpanded ? "Collapse Filters" : "Expand Filters"}
+          >
+            {isFilterExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+            <span>{isFilterExpanded ? "Hide Filters" : "Show Filters"}</span>
+          </button>
         </div>
-
       </div>
+
+      {/* FILTER CONTROLS BAR */}
+      {isFilterExpanded && (
+        <div className="bg-white p-3 border border-gray-400 shadow-sm rounded mb-2 flex-shrink-0 flex flex-wrap justify-between items-center gap-3 print:hidden">
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Common Filter Search Input */}
+            <div className="flex items-center space-x-2 bg-gray-50 border border-gray-300 px-3 py-1.5 rounded-md shadow-sm">
+              <Search size={16} className="text-gray-400 flex-shrink-0" />
+              <input
+                id="summary-search-input"
+                type="text"
+                placeholder="Search code, name, variety..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="bg-transparent text-sm focus:outline-none w-52 placeholder-gray-400 font-medium text-gray-700"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="text-gray-400 hover:text-gray-600 transition-colors ml-1 flex-shrink-0"
+                  title="Clear search"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              )}
+            </div>
+
+            {/* Department filter */}
+            <select
+              value={filterDept}
+              onChange={e => setFilterDept(e.target.value)}
+              className="bg-gray-50 border border-gray-300 text-sm font-medium text-gray-700 rounded-md px-2 py-1.5 focus:outline-none focus:border-blue-400 cursor-pointer shadow-sm"
+            >
+              <option value="">All Categories</option>
+              {allDepartments.map(d => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
+
+            {/* Stock status filter */}
+            <select
+              value={filterStatus}
+              onChange={e => setFilterStatus(e.target.value)}
+              className="bg-gray-50 border border-gray-300 text-sm font-medium text-gray-700 rounded-md px-2 py-1.5 focus:outline-none focus:border-blue-400 cursor-pointer shadow-sm"
+            >
+              <option value="">All Stock Status</option>
+              <option value="in-stock">✅ In Stock</option>
+              <option value="low-stock">⚠️ Low Stock (&lt;10)</option>
+              <option value="out-of-stock">❌ Out of Stock</option>
+            </select>
+
+            {/* Clear all filters */}
+            {(searchQuery || filterDept || filterStatus) && (
+              <button
+                onClick={() => { setSearchQuery(''); setFilterDept(''); setFilterStatus(''); }}
+                className="flex items-center gap-1 bg-red-50 border border-red-300 text-red-600 text-xs font-bold px-3 py-1.5 rounded-md hover:bg-red-100 transition-colors shadow-sm"
+                title="Clear all filters"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                Clear Filters
+              </button>
+            )}
+
+            {/* Multi-Select & Bulk Delete Controls */}
+            {viewMode === 'summary' && (
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => {
+                    setIsMultiSelectMode(!isMultiSelectMode);
+                    if (isMultiSelectMode) setSelectedIds([]);
+                  }}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-md border transition-all flex items-center gap-1.5 ${
+                    isMultiSelectMode
+                      ? 'bg-amber-100 text-amber-900 border-amber-400 shadow-sm'
+                      : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border-gray-300'
+                  }`}
+                >
+                  {isMultiSelectMode ? <CheckSquare size={14} /> : <Square size={14} />}
+                  <span>{isMultiSelectMode ? 'Cancel Selection' : 'Select Multiple'}</span>
+                </button>
+
+                {selectedIds.length > 0 && (
+                  <button
+                    onClick={() => setBulkDeleteModalOpen(true)}
+                    className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 text-xs font-bold rounded-md shadow border border-red-700 transition-colors flex items-center gap-1.5 animate-pulse"
+                  >
+                    <Trash2 size={14} />
+                    <span>Bulk Delete ({selectedIds.length})</span>
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center bg-[#f0f4f8] border border-[#d1d9e0] p-1.5 rounded-md">
+               <span className="font-bold text-[#2b579a] flex items-center text-sm mr-2 pl-2"><Calendar size={16} className="mr-1.5"/> Period:</span>
+               <select 
+                 value={preset} 
+                 onChange={e => handlePresetChange(e.target.value)}
+                 className="bg-white border border-gray-300 rounded px-2 py-1 text-xs font-semibold text-gray-700 focus:outline-none cursor-pointer mr-2"
+               >
+                 <option value="custom">Custom (Wish)</option>
+                 <option value="today">Today (Daily)</option>
+                 <option value="yesterday">Yesterday</option>
+                 <option value="this-week">This Week</option>
+                 <option value="this-month">This Month</option>
+                 <option value="fin-year">Financial Year</option>
+               </select>
+               <div className="flex items-center space-x-2 bg-white px-2 py-1 rounded border border-gray-300 shadow-sm">
+                 <input type="date" value={fromDate} onChange={e => { setFromDate(e.target.value); setPreset('custom'); }} className="border-none bg-transparent text-sm text-gray-800 font-medium focus:outline-none focus:ring-0" />
+                 <span className="text-gray-400 text-sm font-medium">to</span>
+                 <input type="date" value={toDate} onChange={e => { setToDate(e.target.value); setPreset('custom'); }} className="border-none bg-transparent text-sm text-gray-800 font-medium focus:outline-none focus:ring-0" />
+               </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* DATA GRID */}
       <div className="flex-1 bg-white border border-gray-400 shadow-sm rounded flex flex-col overflow-hidden">
@@ -1015,8 +1197,8 @@ const StockRegister = () => {
                     <th className="border-r border-[#142d54] p-2 text-xs font-semibold">Item Name</th>
                     <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-32">Category</th>
                     <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-32">Variety</th>
-                    <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-24 text-center">Size</th>
-                    <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-28 text-right text-green-300">Qty In (Inward)</th>
+                    <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-28 text-center bg-indigo-950 text-indigo-200">Total Weight</th>
+                    <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-32 text-right text-green-300">Qty In (Inward)</th>
                     <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-28 text-right text-red-300">Qty Out (Outward)</th>
                     <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-28 text-right text-orange-300">Damages</th>
                     <th className="border-r border-[#142d54] p-2 text-xs font-semibold w-28 text-right bg-yellow-400/20 text-yellow-200">Total Stock</th>
@@ -1071,37 +1253,22 @@ const StockRegister = () => {
                           <td className="border-r border-gray-200 p-2 text-gray-800 font-semibold">{p.name}</td>
                           <td className="border-r border-gray-200 p-2 text-xs text-gray-600 font-medium">{p.department || '-'}</td>
                           <td className="border-r border-gray-200 p-2 text-xs text-gray-600 font-medium">{p.variety || '-'}</td>
-                          <td className="border-r border-gray-200 p-2 text-xs text-center text-gray-600 font-medium">{p.size || '-'}</td>
+                          <td className="border-r border-gray-200 p-2 text-xs text-center font-mono font-extrabold text-blue-900 bg-blue-50/40">{calculateTotalWeightStr(p.closingStock ?? p.dbStock ?? p.stock ?? 0, p.weight, p.baseUnit || p.uom)}</td>
                           
                           <td className="border-r border-gray-200 p-2 text-right font-mono text-green-600 bg-green-50/20 font-bold">
-                            <div>{p.inward > 0 ? p.inward : ''}</div>
-                            {p.inward > 0 && ((p.packagings && p.packagings.length > 0) || (p.conversionFactor && p.conversionFactor > 1)) && (
-                              <div className="text-[10px] text-emerald-700 font-extrabold whitespace-nowrap leading-none mt-0.5">
-                                ({formatPackagingQty(p.inward, p.uom, p.baseUnit, p.packagings, p.conversionFactor)})
-                              </div>
-                            )}
+                            <div>{p.inward > 0 ? `${p.inward} ${p.baseUnit || p.uom || 'Pcs'}` : '-'}</div>
                           </td>
                           <td className="border-r border-gray-200 p-2 text-right font-mono text-red-600 bg-red-50/20 font-bold">
-                            <div>{p.outward > 0 ? p.outward : ''}</div>
-                            {p.outward > 0 && ((p.packagings && p.packagings.length > 0) || (p.conversionFactor && p.conversionFactor > 1)) && (
-                              <div className="text-[10px] text-red-700 font-extrabold whitespace-nowrap leading-none mt-0.5">
-                                ({formatPackagingQty(p.outward, p.uom, p.baseUnit, p.packagings, p.conversionFactor)})
-                              </div>
-                            )}
+                            <div>{p.outward > 0 ? `${p.outward} ${p.baseUnit || p.uom || 'Pcs'}` : '-'}</div>
                           </td>
-                          <td className="border-r border-gray-200 p-2 text-right font-mono text-orange-600 bg-orange-50/15">
-                            {p.damages > 0 ? p.damages : ''}
+                          <td className="border-r border-gray-200 p-2 text-right font-mono text-orange-600 bg-orange-50/15 font-semibold">
+                            {p.damages > 0 ? `${p.damages} ${p.baseUnit || p.uom || 'Pcs'}` : '-'}
                           </td>
                           <td className="border-r border-gray-200 p-2 text-right font-mono font-black text-yellow-700 bg-yellow-50/30">
-                            <div>{p.closingStock ?? p.dbStock ?? p.stock ?? 0} {p.uom || 'PCS'}</div>
-                            {((p.packagings && p.packagings.length > 0) || (p.conversionFactor && p.conversionFactor > 1)) && (
-                              <div className="text-[10px] text-emerald-800 font-extrabold whitespace-nowrap leading-none mt-0.5">
-                                ({formatPackagingQty(p.closingStock ?? p.dbStock ?? p.stock ?? 0, p.uom, p.baseUnit, p.packagings, p.conversionFactor)})
-                              </div>
-                            )}
+                            <div>{(p.closingStock ?? p.dbStock ?? p.stock ?? 0)} {p.baseUnit || p.uom || 'Pcs'}</div>
                             {Number(p.pendingOrderQty) > 0 && (
                               <div className="text-[10px] text-amber-600 font-bold whitespace-nowrap leading-none mt-1">
-                                ({p.pendingOrderQty} {p.uom || 'PCS'} in sales order)
+                                ({p.pendingOrderQty} {p.baseUnit || p.uom || 'Pcs'} in sales order)
                               </div>
                             )}
                           </td>
@@ -1150,19 +1317,21 @@ const StockRegister = () => {
               <div className="flex space-x-3 items-center flex-wrap gap-y-2">
                 <div className="flex items-center bg-[#142d54] px-4 py-1.5 rounded border border-[#0d1e38] shadow-inner text-xs font-bold text-blue-200">
                   <span className="uppercase mr-2">Total In:</span>
-                  <span className="font-mono text-sm font-black text-green-300">{summaryTotals.inward}</span>
+                  <span className="font-mono text-sm font-black text-green-300">
+                    {formatGramSummary(summaryTotals.totalInwardGrams, summaryTotals.inward)}
+                  </span>
                 </div>
                 <div className="flex items-center bg-[#142d54] px-4 py-1.5 rounded border border-[#0d1e38] shadow-inner text-xs font-bold text-blue-200">
                   <span className="uppercase mr-2">Total Out:</span>
-                  <span className="font-mono text-sm font-black text-red-300">{summaryTotals.outward}</span>
+                  <span className="font-mono text-sm font-black text-red-300">
+                    {formatGramSummary(summaryTotals.totalOutwardGrams, summaryTotals.outward)}
+                  </span>
                 </div>
                 <div className="flex items-center bg-[#142d54] px-4 py-1.5 rounded border border-[#0d1e38] shadow-inner text-xs font-bold text-blue-200">
                   <span className="uppercase mr-2">Total Dmg:</span>
-                  <span className="font-mono text-sm font-black text-orange-300">{summaryTotals.damages}</span>
-                </div>
-                <div className="flex items-center bg-yellow-500 px-5 py-1.5 rounded border border-yellow-600 shadow-inner text-xs font-bold text-yellow-900">
-                  <span className="uppercase mr-2">📦 Total Stock:</span>
-                  <span className="font-mono text-lg font-black text-yellow-900">{summaryTotals.totalStock}</span>
+                  <span className="font-mono text-sm font-black text-orange-300">
+                    {formatGramSummary(summaryTotals.totalDamagesGrams, summaryTotals.damages)}
+                  </span>
                 </div>
               </div>
             </div>
@@ -1245,11 +1414,6 @@ const StockRegister = () => {
                           </td>
                           <td className="p-2 text-right font-mono font-black text-gray-900 bg-yellow-50/20">
                             <div>{row.balance}</div>
-                            {activeItem && ((activeItem.packagings && activeItem.packagings.length > 0) || (activeItem.conversionFactor && activeItem.conversionFactor > 1)) && (
-                              <div className="text-[10px] text-emerald-800 font-extrabold whitespace-nowrap leading-none mt-0.5">
-                                ({formatPackagingQty(row.balance, activeItem.uom, activeItem.baseUnit, activeItem.packagings, activeItem.conversionFactor)})
-                              </div>
-                            )}
                           </td>
                         </tr>
                       )

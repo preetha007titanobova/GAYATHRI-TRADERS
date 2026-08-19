@@ -1431,42 +1431,43 @@ const ShopSalesBill = () => {
             <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-slate-200 border-b border-slate-300 text-xs font-bold text-slate-700 uppercase tracking-wider">
               <div className="col-span-2">Item Code</div>
               <div className="col-span-4">Product Name</div>
-              <div className="col-span-2">Category</div>
-              <div className="col-span-1 text-center">Unit</div>
-              <div className="col-span-1 text-center">Stock</div>
-              <div className="col-span-2 text-right">Price (₹)</div>
+              <div className="col-span-2">Variety / Weight</div>
+              <div className="col-span-2 text-center">Total Stock</div>
+              <div className="col-span-2 text-right">Stock Value (₹)</div>
             </div>
 
             {/* List Body */}
             <div className="overflow-y-auto flex-1 bg-white">
-              {modalFilteredProducts.map((p, idx) => (
-                <div
-                  key={p.id || idx}
-                  className={`grid grid-cols-12 gap-2 px-4 py-2.5 border-b border-slate-100 cursor-pointer items-center text-sm transition-colors ${idx === highlightedProductIndex ? 'bg-blue-100 text-blue-900 font-bold border-l-4 border-blue-600' : 'hover:bg-slate-50 text-slate-800'}`}
-                  onClick={() => selectProductFromModal(p)}
-                >
-                  <div className="col-span-2 font-mono font-bold text-blue-700">
-                    {p.itemCode || '-'}
+              {modalFilteredProducts.map((p, idx) => {
+                const stockQty = Number(p.stock) || 0;
+                const stockVal = stockQty * (p.price || p.purchaseRate || 0);
+
+                return (
+                  <div
+                    key={p.id || idx}
+                    className={`grid grid-cols-12 gap-2 px-4 py-2.5 border-b border-slate-100 cursor-pointer items-center text-sm transition-colors ${idx === highlightedProductIndex ? 'bg-blue-100 text-blue-900 font-bold border-l-4 border-blue-600' : 'hover:bg-slate-50 text-slate-800'}`}
+                    onClick={() => selectProductFromModal(p)}
+                  >
+                    <div className="col-span-2 font-mono font-bold text-blue-700">
+                      {p.itemCode || '-'}
+                    </div>
+                    <div className="col-span-4 font-semibold">
+                      {p.name}
+                    </div>
+                    <div className="col-span-2 text-xs font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100 w-fit">
+                      {p.weight || p.variety || '-'}
+                    </div>
+                    <div className="col-span-2 text-center">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${stockQty > 10 ? 'bg-green-100 text-green-800' : stockQty > 0 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}`}>
+                        {stockQty} {p.uom || 'PCS'}
+                      </span>
+                    </div>
+                    <div className="col-span-2 text-right font-mono font-extrabold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
+                      ₹{stockVal.toFixed(2)}
+                    </div>
                   </div>
-                  <div className="col-span-4 font-semibold">
-                    {p.name}
-                  </div>
-                  <div className="col-span-2 text-xs font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100 w-fit">
-                    {p.variety || '-'}
-                  </div>
-                  <div className="col-span-1 text-center font-bold text-amber-700 bg-amber-50 px-1 py-0.5 rounded border border-amber-100 text-xs">
-                    {p.size || '-'}
-                  </div>
-                  <div className="col-span-1 text-center">
-                    <span className={`px-1.5 py-0.5 rounded-full text-xs font-bold ${p.stock > 10 ? 'bg-green-100 text-green-800' : p.stock > 0 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}`}>
-                      {p.stock}
-                    </span>
-                  </div>
-                  <div className="col-span-2 text-right font-mono font-extrabold text-slate-800">
-                    {Number(p.price || 0).toFixed(2)}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
               {modalFilteredProducts.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-16 text-gray-400 italic">
                   No matching dresses found in master catalog.

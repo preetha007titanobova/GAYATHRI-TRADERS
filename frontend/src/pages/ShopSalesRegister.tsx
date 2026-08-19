@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import type { ToolbarActions } from '../components/Layout';
-import { Search, Calendar, Filter, FileText, Eye, Edit, Trash2, MessageCircle } from 'lucide-react';
+import { Search, Calendar, Filter, FileText, Eye, Edit, Trash2, MessageCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import Modal from '../components/Modal';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -355,11 +355,12 @@ const ShopSalesRegister = () => {
     }), { taxable: 0, cgst: 0, sgst: 0, igst: 0, net: 0 });
   }, [displayedData]);
 
+  const [isFilterExpanded, setIsFilterExpanded] = useState(false);
+
   return (
     <div className="flex flex-col h-full bg-[#f0f9f4] overflow-hidden p-2">
       
-      {/* FILTER BAR */}
-      {/* Page Heading */}
+      {/* PAGE HEADING */}
       <div className="flex items-center mb-2 px-1">
         <span className="bg-[#2b579a] w-2 h-6 mr-2 block"></span>
         <h2 className="text-xl font-bold text-gray-700 m-0">Wholesale Sales Register (Outward)</h2>
@@ -367,14 +368,14 @@ const ShopSalesRegister = () => {
 
       {/* FILTER BAR */}
       <div className="bg-white p-3 border border-gray-400 shadow-sm rounded mb-2 flex-shrink-0 print:hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-3 border-b border-gray-200 pb-3">
+        <div className={`flex flex-wrap items-center justify-between gap-3 ${isFilterExpanded ? 'mb-3 border-b border-gray-200 pb-3' : ''}`}>
           <div className="flex items-center space-x-2">
             <span className="text-xs font-bold text-gray-600">Quick Filters:</span>
             <button onClick={() => setQuickDate('Today')} className="text-xs bg-gray-100 hover:bg-gray-200 border border-gray-300 px-2 py-1 rounded">Today</button>
             <button onClick={() => setQuickDate('ThisMonth')} className="text-xs bg-gray-100 hover:bg-gray-200 border border-gray-300 px-2 py-1 rounded">This Month</button>
             <button onClick={() => setQuickDate('ThisFY')} className="text-xs bg-gray-100 hover:bg-gray-200 border border-gray-300 px-2 py-1 rounded">This FY</button>
           </div>
-          <div className="flex space-x-2">
+          <div className="flex space-x-2 items-center">
             <button onClick={downloadPDF} className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded shadow border border-emerald-800 transition-colors">Download PDF</button>
             <button 
               onClick={handleShareWhatsApp} 
@@ -386,47 +387,57 @@ const ShopSalesRegister = () => {
               </svg>
               <span>Share</span>
             </button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-12 gap-3 items-end">
-          <div className="col-span-2">
-            <label className="block text-xs font-bold text-gray-700 mb-1 flex items-center"><Calendar size={12} className="mr-1"/> From Date</label>
-            <input type="date" value={filters.fromDate} onChange={e => setFilters({...filters, fromDate: e.target.value})} className="w-full border border-gray-400 p-1.5 rounded text-sm focus:border-blue-500" />
-          </div>
-          <div className="col-span-2">
-            <label className="block text-xs font-bold text-gray-700 mb-1 flex items-center"><Calendar size={12} className="mr-1"/> To Date</label>
-            <input type="date" value={filters.toDate} onChange={e => setFilters({...filters, toDate: e.target.value})} className="w-full border border-gray-400 p-1.5 rounded text-sm focus:border-blue-500" />
-          </div>
-          <div className="col-span-3">
-            <label className="block text-xs font-bold text-gray-700 mb-1">Shop Ledger Search</label>
-            <select value={filters.shop} onChange={e => setFilters({...filters, shop: e.target.value})} className="w-full border border-gray-400 p-1.5 rounded text-sm focus:border-blue-500 bg-white">
-              {shopsList.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-          <div className="col-span-2">
-            <label className="block text-xs font-bold text-gray-700 mb-1 flex items-center"><Filter size={12} className="mr-1"/> Sale Type</label>
-            <select value={filters.saleType} onChange={e => setFilters({...filters, saleType: e.target.value})} className="w-full border border-gray-400 p-1.5 rounded text-sm focus:border-blue-500 bg-white">
-              <option value="All">All Transactions</option>
-              <option value="Cash">Cash Sales</option>
-              <option value="Credit">Credit Sales</option>
-              <option value="Local">Local (CGST/SGST)</option>
-              <option value="Central">Central (IGST)</option>
-            </select>
-          </div>
-          <div className="col-span-2">
-            <label className="block text-xs font-bold text-gray-700 mb-1">Search Vch No / Shop</label>
-            <div className="relative">
-              <input type="text" value={filters.query} onChange={e => setFilters({...filters, query: e.target.value})} onKeyDown={(e) => e.key === 'Enter' && handleFetchReport()} placeholder="Search..." className="w-full border border-gray-400 p-1.5 pl-7 rounded text-sm focus:border-blue-500" />
-              <Search size={14} className="absolute left-2 top-2 text-gray-400" />
-            </div>
-          </div>
-          <div className="col-span-1">
-            <button onClick={handleFetchReport} className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-1.5 rounded text-sm shadow flex items-center justify-center transition-colors">
-              Fetch
+            <button 
+              onClick={() => setIsFilterExpanded(!isFilterExpanded)} 
+              className="text-xs bg-[#2b579a] hover:bg-[#1a3a6c] text-white font-bold px-2.5 py-1.5 rounded shadow border border-blue-900 transition-colors flex items-center gap-1 cursor-pointer"
+              title={isFilterExpanded ? "Collapse Filters" : "Expand Filters"}
+            >
+              {isFilterExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+              <span>{isFilterExpanded ? "Hide Filters" : "Show Filters"}</span>
             </button>
           </div>
         </div>
+
+        {isFilterExpanded && (
+          <div className="grid grid-cols-12 gap-3 items-end">
+            <div className="col-span-2">
+              <label className="block text-xs font-bold text-gray-700 mb-1 flex items-center"><Calendar size={12} className="mr-1"/> From Date</label>
+              <input type="date" value={filters.fromDate} onChange={e => setFilters({...filters, fromDate: e.target.value})} className="w-full border border-gray-400 p-1.5 rounded text-sm focus:border-blue-500" />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-xs font-bold text-gray-700 mb-1 flex items-center"><Calendar size={12} className="mr-1"/> To Date</label>
+              <input type="date" value={filters.toDate} onChange={e => setFilters({...filters, toDate: e.target.value})} className="w-full border border-gray-400 p-1.5 rounded text-sm focus:border-blue-500" />
+            </div>
+            <div className="col-span-3">
+              <label className="block text-xs font-bold text-gray-700 mb-1">Shop Ledger Search</label>
+              <select value={filters.shop} onChange={e => setFilters({...filters, shop: e.target.value})} className="w-full border border-gray-400 p-1.5 rounded text-sm focus:border-blue-500 bg-white">
+                {shopsList.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div className="col-span-2">
+              <label className="block text-xs font-bold text-gray-700 mb-1 flex items-center"><Filter size={12} className="mr-1"/> Sale Type</label>
+              <select value={filters.saleType} onChange={e => setFilters({...filters, saleType: e.target.value})} className="w-full border border-gray-400 p-1.5 rounded text-sm focus:border-blue-500 bg-white">
+                <option value="All">All Transactions</option>
+                <option value="Cash">Cash Sales</option>
+                <option value="Credit">Credit Sales</option>
+                <option value="Local">Local (CGST/SGST)</option>
+                <option value="Central">Central (IGST)</option>
+              </select>
+            </div>
+            <div className="col-span-2">
+              <label className="block text-xs font-bold text-gray-700 mb-1">Search Vch No / Shop</label>
+              <div className="relative">
+                <input type="text" value={filters.query} onChange={e => setFilters({...filters, query: e.target.value})} onKeyDown={(e) => e.key === 'Enter' && handleFetchReport()} placeholder="Search..." className="w-full border border-gray-400 p-1.5 pl-7 rounded text-sm focus:border-blue-500" />
+                <Search size={14} className="absolute left-2 top-2 text-gray-400" />
+              </div>
+            </div>
+            <div className="col-span-1">
+              <button onClick={handleFetchReport} className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-1.5 rounded text-sm shadow flex items-center justify-center transition-colors">
+                Fetch
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* DATA GRID */}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useOutletContext, useNavigate, useLocation } from 'react-router-dom';
 import type { ToolbarActions } from '../components/Layout';
-import { Search, Calendar, X, Eye, Edit, Printer, FileText, Trash2, MessageCircle, CheckSquare } from 'lucide-react';
+import { Search, Calendar, X, Eye, Edit, Printer, FileText, Trash2, MessageCircle, CheckSquare, ChevronDown, ChevronUp } from 'lucide-react';
 import Api from '../Api';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -621,16 +621,72 @@ const SalesRegister = () => {
     }
   };
 
+  const [isFilterExpanded, setIsFilterExpanded] = useState(false);
+
   return (
-    <div className="flex flex-col h-full bg-[#f0f9f4] p-2 relative">
-      {/* Page Heading */}
-      <div className="flex items-center mb-2 px-1">
-        <span className="bg-[#2b579a] w-2 h-6 mr-2 block"></span>
-        <h2 className="text-xl font-bold text-gray-700 m-0">Sales Register</h2>
+    <div className="flex flex-col h-full bg-[#f0f9f4] p-2 overflow-hidden">
+      {/* Top Action Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-2 bg-white p-2 border border-gray-300 shadow-sm rounded">
+        <div className="flex items-center space-x-2">
+          <h2 className="text-xl font-bold text-[#2b579a] flex items-center">
+            <span className="bg-[#2b579a] w-2 h-6 mr-2 block"></span>
+            Sales Register
+          </h2>
+        </div>
+
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={() => {
+              setIsMultiSelectMode(!isMultiSelectMode);
+              setSelectedIds([]);
+            }}
+            className={`px-3 py-1.5 rounded text-xs font-bold shadow-sm transition-all flex items-center space-x-1.5 border cursor-pointer ${
+              isMultiSelectMode 
+                ? 'bg-amber-500 hover:bg-amber-600 text-white border-amber-600' 
+                : 'bg-[#2b579a] hover:bg-[#1f3f6f] text-white border-blue-900'
+            }`}
+          >
+            <CheckSquare size={14} />
+            <span>{isMultiSelectMode ? 'Cancel Selection' : 'Select Multiple'}</span>
+          </button>
+
+          {selectedIds.length > 0 && (
+            <button
+              onClick={() => {
+                setBulkConfirmText('');
+                setBulkDeleteModalOpen(true);
+              }}
+              className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 text-xs font-bold rounded shadow border border-red-800 transition-colors flex items-center gap-1 cursor-pointer"
+            >
+              <Trash2 size={14} />
+              <span>Bulk Delete ({selectedIds.length})</span>
+            </button>
+          )}
+          <button onClick={downloadPDF} className="bg-emerald-600 text-white px-3 py-1.5 text-xs font-bold rounded hover:bg-emerald-700 shadow border border-emerald-800 transition-colors">Download PDF</button>
+          <button
+            onClick={handleShareWhatsApp}
+            disabled={sharing}
+            className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-3 py-1.5 text-xs font-bold rounded shadow border border-green-800 transition-colors flex items-center"
+          >
+            <svg className="w-4 h-4 mr-1.5 fill-current" viewBox="0 0 24 24">
+              <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.455L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.625 1.451 5.403.002 9.803-4.394 9.806-9.799.002-2.618-1.016-5.079-2.865-6.93C16.368 2.025 13.91 1.006 11.298 1.006c-5.408 0-9.81 4.398-9.813 9.802-.002 1.83.479 3.618 1.393 5.17l-.997 3.642 3.734-.978zM17.15 13.563c-.3-.15-1.771-.875-2.04-.972-.269-.099-.465-.148-.659.15-.195.297-.753.971-.922 1.168-.169.197-.337.221-.637.072-.3-.15-1.264-.467-2.408-1.486-.89-.794-1.49-1.775-1.665-2.072-.175-.297-.019-.458.131-.606.134-.133.3-.347.449-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.659-1.591-.903-2.176-.237-.573-.478-.495-.659-.504-.17-.008-.365-.01-.56-.01s-.51.074-.777.363c-.266.289-1.016.992-1.016 2.42 0 1.427 1.039 2.805 1.182 2.996.143.19 2.043 3.12 4.949 4.377.691.299 1.23.478 1.651.611.693.22 1.325.189 1.822.115.556-.083 1.771-.724 2.019-1.422.25-.698.25-1.299.176-1.422-.075-.123-.269-.197-.569-.347z" />
+            </svg>
+            {sharing ? 'Sharing...' : 'Share'}
+          </button>
+          <button 
+            onClick={() => setIsFilterExpanded(!isFilterExpanded)} 
+            className="text-xs bg-[#2b579a] hover:bg-[#1a3a6c] text-white font-bold px-2.5 py-1.5 rounded shadow border border-blue-900 transition-colors flex items-center gap-1 cursor-pointer"
+            title={isFilterExpanded ? "Collapse Filters" : "Expand Filters"}
+          >
+            {isFilterExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+            <span>{isFilterExpanded ? "Hide Filters" : "Show Filters"}</span>
+          </button>
+        </div>
       </div>
 
       {/* Filters Area */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-2 bg-white p-2 border border-gray-300 shadow-sm rounded">
+      {isFilterExpanded && (
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-2 bg-white p-2 border border-gray-300 shadow-sm rounded">
         <div className="flex flex-wrap items-center gap-2">
           {/* Date Range Selection */}
           <div className="flex items-center space-x-1.5 text-xs bg-slate-50 border border-gray-300 p-1 rounded-md shadow-sm">
@@ -692,48 +748,8 @@ const SalesRegister = () => {
             <Search size={16} className="absolute left-2 top-2 text-gray-500" />
           </div>
         </div>
-
-        <div className="flex items-center space-x-2">
-          <button
-            onClick={() => {
-              setIsMultiSelectMode(!isMultiSelectMode);
-              setSelectedIds([]);
-            }}
-            className={`px-3 py-1.5 rounded text-xs font-bold shadow-sm transition-all flex items-center space-x-1.5 border cursor-pointer ${
-              isMultiSelectMode 
-                ? 'bg-amber-500 hover:bg-amber-600 text-white border-amber-600' 
-                : 'bg-[#2b579a] hover:bg-[#1f3f6f] text-white border-blue-900'
-            }`}
-          >
-            <CheckSquare size={14} />
-            <span>{isMultiSelectMode ? 'Cancel Selection' : 'Select Multiple'}</span>
-          </button>
-
-          {selectedIds.length > 0 && (
-            <button
-              onClick={() => {
-                setBulkConfirmText('');
-                setBulkDeleteModalOpen(true);
-              }}
-              className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 text-xs font-bold rounded shadow border border-red-800 transition-colors flex items-center gap-1 cursor-pointer"
-            >
-              <Trash2 size={14} />
-              <span>Bulk Delete ({selectedIds.length})</span>
-            </button>
-          )}
-          <button onClick={downloadPDF} className="bg-emerald-600 text-white px-3 py-1.5 text-sm font-semibold rounded hover:bg-emerald-700 shadow border border-emerald-800 transition-colors">Download PDF</button>
-          <button
-            onClick={handleShareWhatsApp}
-            disabled={sharing}
-            className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-3 py-1.5 text-sm font-semibold rounded shadow border border-green-800 transition-colors flex items-center"
-          >
-            <svg className="w-4 h-4 mr-1.5 fill-current" viewBox="0 0 24 24">
-              <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.455L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.625 1.451 5.403.002 9.803-4.394 9.806-9.799.002-2.618-1.016-5.079-2.865-6.93C16.368 2.025 13.91 1.006 11.298 1.006c-5.408 0-9.81 4.398-9.813 9.802-.002 1.83.479 3.618 1.393 5.17l-.997 3.642 3.734-.978zM17.15 13.563c-.3-.15-1.771-.875-2.04-.972-.269-.099-.465-.148-.659.15-.195.297-.753.971-.922 1.168-.169.197-.337.221-.637.072-.3-.15-1.264-.467-2.408-1.486-.89-.794-1.49-1.775-1.665-2.072-.175-.297-.019-.458.131-.606.134-.133.3-.347.449-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.659-1.591-.903-2.176-.237-.573-.478-.495-.659-.504-.17-.008-.365-.01-.56-.01s-.51.074-.777.363c-.266.289-1.016.992-1.016 2.42 0 1.427 1.039 2.805 1.182 2.996.143.19 2.043 3.12 4.949 4.377.691.299 1.23.478 1.651.611.693.22 1.325.189 1.822.115.556-.083 1.771-.724 2.019-1.422.25-.698.25-1.299.176-1.422-.075-.123-.269-.197-.569-.347z" />
-            </svg>
-            {sharing ? 'Sharing...' : 'Share'}
-          </button>
-        </div>
       </div>
+    )}
 
       {/* Tabs Row */}
       <div className="flex space-x-1 mb-1 border-b border-gray-300">

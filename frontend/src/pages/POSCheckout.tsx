@@ -2232,8 +2232,9 @@ const POSCheckout = () => {
             {/* List Header */}
             <div className="grid grid-cols-12 gap-2 px-3 py-1.5 bg-[#e8ecef] border-b border-gray-400 text-[11px] font-bold text-gray-700 uppercase tracking-wider">
               <div className="col-span-2">Code</div>
-              <div className="col-span-6">Product Details</div>
-              <div className="col-span-2 text-center">Stock</div>
+              <div className="col-span-4">Product Details</div>
+              <div className="col-span-2 text-center">Total Stock</div>
+              <div className="col-span-2 text-right">Stock Value (₹)</div>
               <div className="col-span-2 text-right">Price (₹)</div>
             </div>
 
@@ -2246,6 +2247,7 @@ const POSCheckout = () => {
                   return isMatch ? acc + (Number(r.qty) || 0) : acc;
                 }, 0);
                 const effectiveStock = (typeof p.stock === 'number' ? p.stock : 0) - qtyInBill;
+                const stockVal = (effectiveStock > 0 ? effectiveStock : 0) * (p.price || p.purchaseRate || 0);
 
                 return (
                   <div
@@ -2256,11 +2258,12 @@ const POSCheckout = () => {
                     <div className="col-span-2 text-xs font-mono font-bold">
                       {p.itemCode || '-'}
                     </div>
-                    <div className="col-span-6 flex flex-col justify-center">
+                    <div className="col-span-4 flex flex-col justify-center">
                       <span className="leading-tight font-medium">
                         {p.name}
                       </span>
                       <div className="flex flex-wrap gap-1 mt-0.5 text-[10px]">
+                        {p.weight && <span className={`px-1 rounded font-bold ${idx === highlightedIndex ? 'bg-white text-blue-900' : 'bg-blue-100 text-blue-900'}`}>Weight: {p.weight}</span>}
                         {p.department && <span className={`px-1 rounded font-bold ${idx === highlightedIndex ? 'bg-[#f0f9eb] text-[#2b579a]' : 'bg-[#e8f4fd] text-blue-800'}`}>{p.department}</span>}
                         {p.variety && <span className={`px-1 rounded font-bold ${idx === highlightedIndex ? 'bg-[#f3e8ff] text-[#2b579a]' : 'bg-purple-100 text-purple-800'}`}>{p.variety}</span>}
                         {p.size && <span className={`px-1 rounded font-bold ${idx === highlightedIndex ? 'bg-[#fef3c7] text-[#2b579a]' : 'bg-amber-100 text-amber-800'}`}>Size: {p.size}</span>}
@@ -2285,8 +2288,11 @@ const POSCheckout = () => {
                         </span>
                       )}
                     </div>
+                    <div className="col-span-2 text-right font-mono font-bold text-emerald-800 bg-emerald-50/50 px-1.5 py-0.5 rounded">
+                      ₹{stockVal.toFixed(2)}
+                    </div>
                     <div className="col-span-2 text-right font-bold text-sm">
-                      {p.price.toFixed(2)}
+                      ₹{Number(p.price || 0).toFixed(2)}
                     </div>
                   </div>
                 );

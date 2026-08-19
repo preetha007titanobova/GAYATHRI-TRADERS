@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import type { ToolbarActions } from '../components/Layout';
-import { Search, Calendar, Filter, FileText, AlertCircle, Eye, Edit, Trash2, CheckSquare } from 'lucide-react';
+import { Search, Calendar, Filter, FileText, AlertCircle, Eye, Edit, Trash2, CheckSquare, ChevronDown, ChevronUp } from 'lucide-react';
 import Modal from '../components/Modal';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -65,35 +65,34 @@ const formatIndianDate = (dateInput?: string | Date) => {
   }
 };
 
-const parseMeasurement = (weightStr?: string, unitStr?: string) => {
+const parseMeasurement = (weightStr?: string, defaultUnitStr?: string) => {
   if (!weightStr) return { val: 0, category: 'none', unit: '' };
   const str = String(weightStr).trim().toLowerCase();
   let numVal = parseFloat(str.replace(/[^\d.]/g, ''));
   if (isNaN(numVal) || numVal <= 0) return { val: 0, category: 'none', unit: '' };
 
-  let unit = (unitStr || '').trim().toLowerCase();
-  
-  if (!unit) {
-    if (str.includes('quintal')) unit = 'quintal';
-    else if (str.includes('kilolitre') || str.includes('kl')) unit = 'kilolitre';
-    else if (str.includes('litre') || str.includes('liter')) unit = 'litre';
-    else if (str.includes('ml')) unit = 'ml';
-    else if (str.includes('metre') || str.includes('meter')) unit = 'metre';
-    else if (str.includes('cm')) unit = 'cm';
-    else if (str.includes('mm')) unit = 'mm';
-    else if (str.includes('ton')) unit = 'ton';
-    else if (str.includes('kg')) unit = 'kg';
-    else if (str.includes('mg')) unit = 'mg';
-    else if (str.includes('g') && !str.includes('kg')) unit = 'g';
-    else if (str.includes('piece') || str.includes('pcs')) unit = 'piece';
-    else if (str.includes('box')) unit = 'box';
-    else if (str.includes('packet')) unit = 'packet';
-    else if (str.includes('bottle')) unit = 'bottle';
-    else if (str.includes('can')) unit = 'can';
-    else if (str.includes('dozen')) unit = 'dozen';
-    else if (str.includes('pair')) unit = 'pair';
-    else unit = 'g';
+  let unit = '';
+  if (str.includes('quintal')) unit = 'quintal';
+  else if (str.includes('kilolitre') || str.includes('kl')) unit = 'kilolitre';
+  else if (str.includes('litre') || str.includes('liter')) unit = 'litre';
+  else if (str.includes('ml')) unit = 'ml';
+  else if (str.includes('metre') || str.includes('meter')) unit = 'metre';
+  else if (str.includes('cm')) unit = 'cm';
+  else if (str.includes('mm')) unit = 'mm';
+  else if (str.includes('ton')) unit = 'ton';
+  else if (str.includes('kg')) unit = 'kg';
+  else if (str.includes('mg')) unit = 'mg';
+  else if (str.includes('g') && !str.includes('kg')) unit = 'g';
+  else if (str.includes('piece') || str.includes('pcs')) unit = 'piece';
+
+  if (!unit && defaultUnitStr) {
+    const fallback = defaultUnitStr.trim().toLowerCase();
+    if (['mg', 'g', 'kg', 'quintal', 'ton', 'ml', 'litre', 'kilolitre', 'mm', 'cm', 'metre', 'piece', 'pcs'].includes(fallback)) {
+      unit = fallback;
+    }
   }
+
+  if (!unit) unit = 'g';
 
   // Weight Category (base: grams)
   if (['mg', 'g', 'kg', 'quintal', 'ton'].includes(unit)) {
@@ -125,7 +124,7 @@ const parseMeasurement = (weightStr?: string, unitStr?: string) => {
   }
 
   // Count Category
-  if (['piece', 'box', 'packet', 'bottle', 'can', 'dozen', 'pair'].includes(unit)) {
+  if (['piece', 'pcs', 'box', 'packet', 'bottle', 'can', 'dozen', 'pair'].includes(unit)) {
     let count = numVal;
     if (unit === 'dozen') count = numVal * 12;
     else if (unit === 'pair') count = numVal * 2;
@@ -146,10 +145,16 @@ const formatTotalMeasurement = (items?: any[]): string => {
   };
 
   for (const item of items) {
-    const qty = (Number(item.qty) || 0) + (Number(item.freeQty) || 0);
+    const conv = Number(item.unitsPerPack || item.conversionFactor) > 0 ? Number(item.unitsPerPack || item.conversionFactor) : 1;
+    const freeQty = Number(item.freeQty) || 0;
+    const freeQtyUnit = (item.freeQtyUnit || item.unit || 'box').toLowerCase();
+    const purUnit = (item.unit || 'box').toLowerCase();
+    const freeBase = (freeQtyUnit === purUnit || freeQtyUnit === 'box' || freeQtyUnit === 'carton' || freeQtyUnit === 'crate') ? freeQty * conv : freeQty;
+    const baseStockQty = item.totalBaseQty || (((Number(item.qty) || 0) * conv) + freeBase);
+
     const parsed = parseMeasurement(item.weight, item.unit);
     if (parsed.category !== 'none' && parsed.val > 0) {
-      categoryTotals[parsed.category] += parsed.val * (qty || 1);
+      categoryTotals[parsed.category] += parsed.val * (baseStockQty || 1);
     }
   }
 
@@ -704,14 +709,14 @@ const PurRegister = () => {
     doc.text(`Invoice No: ${record.supplierInvoiceNo || 'N/A'} | Invoice Date: ${record.supplierInvoiceDate ? formatIndianDate(record.supplierInvoiceDate) : 'N/A'}`, 14, 31);
     doc.text(`Place of Supply: ${record.type === 'Local' ? 'Tamil Nadu' : 'Interstate'}`, 14, 36);
 
-    const headers = ["S.No", "Barcode", "Product Name", "Weight", "Qty", "Free Qty", "Rate", "GST", "Amount"];
+    const headers = ["S.No", "Barcode", "Product Name", "Weight & Unit", "Qty", "Free Qty & Unit", "Rate", "GST", "Amount"];
     const rows = record.items.map((it, idx) => [
       idx + 1,
       it.itemCode || '-',
       it.itemName || it.itemDesc || '-',
       it.weight || '-',
       it.qty,
-      it.freeQty || 0,
+      it.freeQty ? `${it.freeQty} ${it.freeQtyUnit || it.unit || 'box'}` : '0',
       `₹${it.rate.toFixed(2)}`,
       `${it.taxPercent}%`,
       `₹${it.total.toFixed(2)}`
@@ -764,17 +769,19 @@ const PurRegister = () => {
     }), { taxable: 0, cgst: 0, sgst: 0, igst: 0, net: 0 });
   }, [displayedData]);
 
+  const [isFilterExpanded, setIsFilterExpanded] = useState(false);
+
   return (
     <div className="flex flex-col h-full bg-[#f0f9f4] overflow-hidden p-2">
       
       {/* FILTER BAR */}
       <div className="bg-white p-3 border border-gray-400 shadow-sm rounded mb-2 flex-shrink-0 print:hidden">
-        <div className="flex justify-between items-center mb-3 border-b border-gray-200 pb-2">
+        <div className={`flex justify-between items-center ${isFilterExpanded ? 'mb-3 border-b border-gray-200 pb-2' : ''}`}>
            <h2 className="text-xl font-bold text-[#2b579a] flex items-center">
             <span className="bg-[#2b579a] w-2 h-6 mr-2 block"></span>
             Purchase Register
           </h2>
-          <div className="flex space-x-2">
+          <div className="flex space-x-2 items-center">
             <button onClick={() => setQuickDate('Today')} className="text-xs bg-gray-100 hover:bg-gray-200 border border-gray-300 px-2 py-1 rounded cursor-pointer">Today</button>
             <button onClick={() => setQuickDate('ThisMonth')} className="text-xs bg-gray-100 hover:bg-gray-200 border border-gray-300 px-2 py-1 rounded cursor-pointer">This Month</button>
             <button onClick={() => setQuickDate('ThisFY')} className="text-xs bg-gray-100 hover:bg-gray-200 border border-gray-300 px-2 py-1 rounded cursor-pointer">This FY</button>
@@ -815,49 +822,55 @@ const PurRegister = () => {
               </svg>
               {sharing ? 'Sharing...' : 'Share'}
             </button>
-          </div>
-        </div>
 
-        <div className="grid grid-cols-12 gap-3 items-end">
-          <div className="col-span-2">
-            <label className="block text-xs font-bold text-gray-700 mb-1 flex items-center"><Calendar size={12} className="mr-1"/> From Date</label>
-            <input type="date" value={filters.fromDate} onChange={e => setFilters({...filters, fromDate: e.target.value})} className="w-full border border-gray-400 p-1.5 rounded text-sm focus:border-blue-500" />
-          </div>
-          <div className="col-span-2">
-            <label className="block text-xs font-bold text-gray-700 mb-1 flex items-center"><Calendar size={12} className="mr-1"/> To Date</label>
-            <input type="date" value={filters.toDate} onChange={e => setFilters({...filters, toDate: e.target.value})} className="w-full border border-gray-400 p-1.5 rounded text-sm focus:border-blue-500" />
-          </div>
-          <div className="col-span-3">
-            <label className="block text-xs font-bold text-gray-700 mb-1">Supplier Search</label>
-            <select value={filters.supplier} onChange={e => setFilters({...filters, supplier: e.target.value})} className="w-full border border-gray-400 p-1.5 rounded text-sm focus:border-blue-500 bg-white">
-              {suppliersList.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-          <div className="col-span-2">
-            <label className="block text-xs font-bold text-gray-700 mb-1 flex items-center"><Filter size={12} className="mr-1"/> Purchase Type</label>
-            <select value={filters.purchaseType} onChange={e => setFilters({...filters, purchaseType: e.target.value})} className="w-full border border-gray-400 p-1.5 rounded text-sm focus:border-blue-500 bg-white">
-              <option value="All">All Transactions</option>
-              <option value="WithReturns">Bills With Returns</option>
-              <option value="ReturnsOnly">Debit Notes / Returns Only</option>
-              <option value="Cash">Cash Purchases</option>
-              <option value="Credit">Credit Purchases</option>
-              <option value="Local">Local (CGST/SGST)</option>
-              <option value="Central">Central (IGST)</option>
-            </select>
-          </div>
-          <div className="col-span-2">
-            <label className="block text-xs font-bold text-gray-700 mb-1">Search Vch / Inv No.</label>
-            <div className="relative">
-              <input type="text" value={filters.query} onChange={e => setFilters({...filters, query: e.target.value})} onKeyDown={(e) => e.key === 'Enter' && handleFetchReport()} placeholder="Search..." className="w-full border border-gray-400 p-1.5 pl-7 rounded text-sm focus:border-blue-500" />
-              <Search size={14} className="absolute left-2.5 top-2.5 text-gray-400" />
-            </div>
-          </div>
-          <div className="col-span-1">
-            <button onClick={handleFetchReport} className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded text-sm shadow flex items-center justify-center transition-colors">
-              Fetch
+            <button 
+              onClick={() => setIsFilterExpanded(!isFilterExpanded)} 
+              className="text-xs bg-[#2b579a] hover:bg-[#1a3a6c] text-white font-bold px-2.5 py-1 rounded shadow border border-blue-900 transition-colors flex items-center gap-1 cursor-pointer"
+              title={isFilterExpanded ? "Collapse Filters" : "Expand Filters"}
+            >
+              {isFilterExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+              <span>{isFilterExpanded ? "Hide Filters" : "Show Filters"}</span>
             </button>
           </div>
         </div>
+
+        {isFilterExpanded && (
+          <div className="grid grid-cols-12 gap-3 items-end">
+            <div className="col-span-2">
+              <label className="block text-xs font-bold text-gray-700 mb-1 flex items-center"><Calendar size={12} className="mr-1"/> From Date</label>
+              <input type="date" value={filters.fromDate} onChange={e => setFilters({...filters, fromDate: e.target.value})} className="w-full border border-gray-400 p-1.5 rounded text-sm focus:border-blue-500" />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-xs font-bold text-gray-700 mb-1 flex items-center"><Calendar size={12} className="mr-1"/> To Date</label>
+              <input type="date" value={filters.toDate} onChange={e => setFilters({...filters, toDate: e.target.value})} className="w-full border border-gray-400 p-1.5 rounded text-sm focus:border-blue-500" />
+            </div>
+            <div className="col-span-3">
+              <label className="block text-xs font-bold text-gray-700 mb-1">Supplier Search</label>
+              <select value={filters.supplier} onChange={e => setFilters({...filters, supplier: e.target.value})} className="w-full border border-gray-400 p-1.5 rounded text-sm focus:border-blue-500 bg-white">
+                {suppliersList.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div className="col-span-2">
+              <label className="block text-xs font-bold text-gray-700 mb-1 flex items-center"><Filter size={12} className="mr-1"/> Purchase Type</label>
+              <select value={filters.purchaseType} onChange={e => setFilters({...filters, purchaseType: e.target.value})} className="w-full border border-gray-400 p-1.5 rounded text-sm focus:border-blue-500 bg-white">
+                <option value="All">All Transactions</option>
+                <option value="WithReturns">Bills With Returns</option>
+                <option value="ReturnsOnly">Debit Notes / Returns Only</option>
+                <option value="Cash">Cash Purchases</option>
+                <option value="Credit">Credit Purchases</option>
+                <option value="Local">Local (CGST/SGST)</option>
+                <option value="Central">Central (IGST)</option>
+              </select>
+            </div>
+            <div className="col-span-3">
+              <label className="block text-xs font-bold text-gray-700 mb-1">Search Vch / Inv No.</label>
+              <div className="relative">
+                <input type="text" value={filters.query} onChange={e => setFilters({...filters, query: e.target.value})} placeholder="Search voucher or invoice..." className="w-full border border-gray-400 p-1.5 pl-7 rounded text-sm focus:border-blue-500" />
+                <Search size={14} className="absolute left-2 top-2.5 text-gray-400" />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* DATA GRID */}
@@ -1111,9 +1124,10 @@ const PurRegister = () => {
                     <th className="p-2 w-24 font-bold">Barcode</th>
                     <th className="p-2 font-bold">Product</th>
                     <th className="p-2 w-24 font-bold">Vendor Code</th>
-                    <th className="p-2 w-20 font-bold text-center">Weight / Val</th>
+                    <th className="p-2 w-24 font-bold text-center">Weight & Unit</th>
                     <th className="p-2 w-16 font-bold text-center">Unit</th>
                     <th className="p-2 w-20 text-right font-bold bg-blue-900">Purchased</th>
+                    <th className="p-2 w-24 text-right font-bold bg-indigo-900">Free Qty & Unit</th>
                     <th className="p-2 w-20 text-right font-bold bg-amber-900">Returned</th>
                     <th className="p-2 w-20 text-right font-bold bg-emerald-900">Net Stock</th>
                     <th className="p-2 w-20 text-right font-bold">Rate</th>
@@ -1150,7 +1164,10 @@ const PurRegister = () => {
                           {isConverted ? `${unitStr} (${convFactor} ${baseUnitStr}/${unitStr})` : unitStr}
                         </td>
                         <td className="p-2 text-right font-mono font-bold text-blue-700 bg-blue-50/20">
-                          {isConverted ? `${it.qty} ${unitStr} (${purchasedBase} ${baseUnitStr})` : `${it.qty} ${unitStr}`}
+                          {isConverted ? `${it.qty} ${unitStr}` : `${it.qty} ${unitStr}`}
+                        </td>
+                        <td className="p-2 text-right font-mono font-bold text-indigo-700 bg-indigo-50/30">
+                          {freeQty > 0 ? `${freeQty} ${it.freeQtyUnit || unitStr}` : `0 ${unitStr}`}
                         </td>
                         <td className="p-2 text-right font-mono font-bold text-amber-700 bg-amber-50/30">
                           {retQty > 0 ? (isConverted ? `-${retQty} ${unitStr} (-${retBase} ${baseUnitStr})` : `-${retQty} ${unitStr}`) : `0 ${unitStr}`}
